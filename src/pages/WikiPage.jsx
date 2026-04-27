@@ -729,8 +729,8 @@ export default function WikiPage() {
         {/* Sidebar */}
         <aside className="w-80 flex-shrink-0 border-r border-slate-200/80 bg-white/95 flex flex-col">
           <div className="border-b border-slate-200/70 px-4 py-4">
-            <div className="rounded-3xl bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 px-5 py-3 text-white shadow-lg">
-              <p className="text-[15px] font-semibold tracking-tight">Eventus Production Handbook</p>
+            <div className="rounded-3xl bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 px-5 py-4.5 text-white shadow-lg">
+              <p className="text-[17px] font-semibold tracking-tight leading-6">Eventus Production Handbook</p>
             </div>
           </div>
 

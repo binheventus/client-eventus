@@ -108,6 +108,7 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
   const [lastSavedAt, setLastSavedAt] = useState(null);
 
   const [validationError, setValidationError] = useState('');
+  const [validationTargetId, setValidationTargetId] = useState('');
   const [showShareLink, setShowShareLink] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -116,6 +117,7 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
   const saveTimeoutRef = useRef(null);
   const isInitialLoad = useRef(true);
   const submitPanelRef = useRef(null);
+  const questionRefs = useRef({});
   const autoResize = (el) => {
     if (!el) return;
     el.style.height = 'auto';
@@ -326,7 +328,10 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
         if (q.required) {
           const v = formData[q.id];
           if (!v || (Array.isArray(v) && v.length === 0)) {
-            return `Vui lòng điền: "${q.label}"`;
+            return {
+              questionId: q.id,
+              message: `Vui lòng điền: "${q.label}"`,
+            };
           }
         }
       }
@@ -337,11 +342,13 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
   const handleSubmit = async () => {
     const err = validateForm();
     if (err) {
-      setValidationError(err);
-      submitPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setValidationError(err.message);
+      setValidationTargetId(err.questionId);
+      questionRefs.current[err.questionId]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
     setValidationError('');
+    setValidationTargetId('');
 
     setSaveState('saving');
     try {
@@ -762,7 +769,7 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
           </div>
         )}
 
-        {validationError && (
+        {validationError && !validationTargetId && (
           <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 mb-6 text-sm">
             ⚠️ {validationError}
           </div>
@@ -787,11 +794,22 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
 
               <div className={`${embedded ? 'grid gap-x-8 gap-y-6 lg:grid-cols-2' : 'space-y-6'}`}>
                 {section.questions.map((q) => (
-                  <div key={q.id} className={q.type === 'textarea' ? (embedded ? 'lg:col-span-2' : '') : ''}>
+                  <div
+                    key={q.id}
+                    ref={(el) => {
+                      if (el) questionRefs.current[q.id] = el;
+                    }}
+                    className={`${q.type === 'textarea' ? (embedded ? 'lg:col-span-2' : '') : ''} ${validationTargetId === q.id ? 'rounded-2xl border border-red-200 bg-red-50/60 p-4' : ''}`}
+                  >
                     <label className="block text-sm font-medium text-slate-700 mb-2">
                       {q.label}
                       {q.required && <span className="text-red-500 ml-1">*</span>}
                     </label>
+                    {validationTargetId === q.id && validationError && (
+                      <div className="mb-3 rounded-xl border border-red-200 bg-white px-3 py-2 text-[12px] leading-5 text-red-700">
+                        {validationError}
+                      </div>
+                    )}
 
                     {q.type === 'text' && (
                       <input
@@ -951,11 +969,6 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
               </div>
 
               <div className="flex flex-col items-start gap-3 lg:items-end">
-                {validationError && (
-                  <div className="max-w-sm rounded-2xl border border-red-200/30 bg-red-500/10 px-4 py-3 text-[12px] leading-6 text-red-100">
-                    {validationError}
-                  </div>
-                )}
                 <div className="rounded-full bg-white/12 px-3 py-1 text-[12px] font-medium text-blue-100/85 ring-1 ring-white/10">
                   {saveState === 'saving' ? 'Đang lưu dữ liệu...' : 'Khi đã sẵn sàng, hãy nhấn nút bên dưới để gửi bài nhé.'}
                 </div>
