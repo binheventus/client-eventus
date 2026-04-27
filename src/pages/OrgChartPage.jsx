@@ -21,7 +21,7 @@ function PersonToken({ name, title, tone = 'default' }) {
           {getInitials(name)}
         </div>
         <div className="min-w-0">
-          <div className="text-[14px] font-semibold leading-5 text-slate-900">{name}</div>
+          <div className="break-words text-[14px] font-semibold leading-5 text-slate-900">{name}</div>
           {title && <div className="mt-1 text-[12px] leading-5 text-slate-500">{title}</div>}
         </div>
       </div>
@@ -56,7 +56,7 @@ function DepartmentCard({ department }) {
                 {subteam.members.length} người
               </div>
             </div>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-3">
               {subteam.members.map((member, index) => (
                 <PersonToken
                   key={`${subteam.id}-${member.name}-${index}`}
@@ -98,7 +98,7 @@ export default function OrgChartPage() {
             <div className="h-full w-px bg-slate-200" />
           </div>
 
-          <div className="grid gap-5 xl:grid-cols-2 2xl:grid-cols-4">
+          <div className="grid gap-5 xl:grid-cols-2">
             {orgChart.departments.map((department) => (
               <DepartmentCard key={department.id} department={department} />
             ))}
