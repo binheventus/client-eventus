@@ -426,11 +426,11 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
 
     return (
       <div className={`${embedded ? 'px-6 py-6' : 'min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4'} flex items-center justify-center`}>
-        <div className={`w-full ${embedded ? 'max-w-6xl' : 'max-w-[460px]'} overflow-hidden bg-white ${embeddedCardClass}`}>
+        <div className={`w-full ${embedded ? 'max-w-[1180px]' : 'max-w-[460px]'} overflow-hidden bg-white ${embeddedCardClass}`}>
           {embedded ? (
-            <div className="grid lg:grid-cols-[0.98fr_1.02fr]">
-              <div className="bg-gradient-to-br from-slate-900 via-blue-900 to-teal-700 px-8 py-7 text-white md:px-10">
-                <div className="max-w-lg">
+            <div className="grid lg:grid-cols-[1fr_1fr]">
+              <div className="flex items-center bg-gradient-to-br from-slate-900 via-blue-900 to-teal-700 px-8 py-8 text-white md:px-10">
+                <div className="mx-auto w-full max-w-[440px]">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-blue-100/80">
                     Eventus Onboarding
                   </p>
@@ -440,14 +440,16 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
                   <p className="mt-3 text-[14px] leading-7 text-blue-100/90">
                     Ghi nhận cảm nhận sau 30 ngày đầu tiên để Eventus cải thiện tốt hơn, từ góc nhìn thực tế của chính bạn.
                   </p>
-                  <div className="mt-7 rounded-2xl border border-white/10 bg-white/10 px-5 py-4 text-[13px] leading-6 text-blue-50/95 backdrop-blur">
-                    Hệ thống tự lưu trong quá trình làm. Bạn có thể quay lại tiếp tục bằng đúng số điện thoại đã dùng trước đó.
+                  <div className="mt-6 rounded-2xl border border-white/10 bg-white/10 px-5 py-4 text-[13px] leading-6 text-blue-50/95 backdrop-blur">
+                    Hệ thống tự lưu trong quá trình làm.
+                    <br />
+                    Bạn có thể quay lại tiếp tục bằng đúng số điện thoại đã dùng trước đó.
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center px-8 py-7 md:px-10">
-                <div className="w-full max-w-lg">
+              <div className="flex items-center px-8 py-8 md:px-10">
+                <div className="mx-auto w-full max-w-[440px]">
                   <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-slate-400">
                     Bắt đầu
                   </p>
@@ -532,10 +534,6 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
                   >
                     {loginSubmitting ? 'Đang xử lý...' : 'Bắt đầu / Tiếp tục'}
                   </button>
-
-                  <p className="mt-6 text-[11px] tracking-wide text-slate-400">
-                    Eventus Production · Built by Phạm Thanh Bình · 2026
-                  </p>
                 </div>
               </div>
             </div>
@@ -839,14 +837,14 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
                                   : 'bg-white border-slate-200 text-slate-600 hover:border-blue-200 hover:bg-slate-50';
 
                                 return (
-                                  <label key={opt} className="flex flex-col items-center gap-1.5 flex-1 cursor-pointer">
+                                  <label key={opt} className="relative flex flex-col items-center gap-1.5 flex-1 cursor-pointer">
                                     <input
                                       type="radio"
                                       name={q.id}
                                       value={opt}
                                       checked={isSelected}
                                       onChange={(e) => handleChange(q.id, e.target.value)}
-                                      className="sr-only"
+                                      className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                                     />
                                     <div className={`w-full py-2.5 rounded-lg border-2 text-center text-sm font-semibold transition-all ${colorClass}`}>
                                       {opt}
