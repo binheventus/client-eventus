@@ -1,0 +1,223 @@
+{
+  "sections": [
+    {
+      "id": "so_quan_sat",
+      "title": "Phần A — Sổ Quan Sát",
+      "icon": "eye",
+      "questions": [
+        {
+          "id": "khoang_khac_la",
+          "label": "3 khoảnh khắc bạn thấy lạ, không hiểu, hoặc nghĩ \"sao lại thế?\"",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "Ghi theo format: Ngày X: [mô tả]\nVD: Ngày 4: File footage dự án X nằm trong Drive cá nhân của anh Y, không có trên server chung.\nNgày 11: Deadline nội bộ trễ hơn deadline gửi khách 1 ngày.\nNgày 18: Brief khách qua điện thoại nhưng không ai ghi lại, tuần sau làm xong khách bảo \"anh có nói thế đâu\"."
+        },
+        {
+          "id": "dieu_hoc_duoc",
+          "label": "3 thứ bạn học được, hiểu thêm, hoặc thấy hay ở Eventus",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "Ghi theo format: Ngày X: [mô tả]\nVD: Ngày 6: Hóa ra anh A có template proposal sẵn, chỉ cần điền là xong.\nNgày 13: Văn hóa ở đây sai là nói thẳng, không vòng vo, đỡ stress hơn chỗ cũ.\nNgày 22: Cách team chia nhỏ task theo từng giai đoạn dự án rất rõ, ai cũng biết mình đang ở đâu trong workflow."
+        },
+        {
+          "id": "chua_on_im_lang",
+          "label": "3 lần bạn nghĩ \"hình như chưa ổn\" nhưng chọn im lặng làm theo",
+          "description": "Ghi cả lý do tại sao bạn chọn im lặng.",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "Ghi theo format: Ngày X: [tình huống]. Im vì [lý do].\nVD: Ngày 9: Buổi họp 2 tiếng nhưng phần lớn là chuyện bên lề. Im vì mới vào, sợ bị cho là khó tính.\nNgày 15: Đồng nghiệp hút thuốc trong phòng làm việc hơi nhiều. Im vì ngại góp ý.\nNgày 19: Khách nhắn yêu cầu lúc 11h đêm, đồng nghiệp không reply luôn. Im vì chưa đủ thẩm quyền góp ý."
+        },
+        {
+          "id": "bat_tien_nho",
+          "label": "5 chuyện nhỏ bất tiện bạn gặp hàng ngày",
+          "description": "Nhỏ cỡ nào cũng được, càng nhỏ càng tốt.",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "VD: Máy in tầng 3 hay kẹt giấy.\nGroup chat dự án mix cả công việc và tán gẫu, tìm thông tin phải scroll lâu.\nCách đặt tên file trên Drive không nhất quán.\nAnh X hay quên reply tin nhắn, phải nhắc 2-3 lần."
+        }
+      ]
+    },
+    {
+      "id": "bai_thu_hoach",
+      "title": "Phần B — Bài Thu Hoạch Chính",
+      "icon": "star",
+      "questions": [
+        {
+          "id": "tong_the_30_ngay",
+          "label": "Tổng thể 30 ngày qua, bạn cảm thấy ổn ở mức nào?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "scale_label": {
+            "min": "Chưa quen nhịp",
+            "max": "Hoàn toàn bắt nhịp"
+          }
+        },
+        {
+          "id": "ro_rang_vai_tro",
+          "label": "Bạn rõ ràng về vai trò và việc cần làm ở mức nào?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "scale_label": {
+            "min": "Còn hơi mơ hồ",
+            "max": "Rất rõ ràng"
+          }
+        },
+        {
+          "id": "duoc_ho_tro",
+          "label": "Bạn cảm thấy được hỗ trợ khi cần?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "scale_label": {
+            "min": "Phải tự xoay xở là chính",
+            "max": "Luôn được hỗ trợ kịp thời"
+          }
+        },
+        {
+          "id": "cong_cu_san_co",
+          "label": "Công cụ – tài liệu – quy trình bạn cần đã có sẵn?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "scale_label": {
+            "min": "Còn thiếu thốn",
+            "max": "Đã đầy đủ"
+          }
+        },
+        {
+          "id": "mot_phan_team",
+          "label": "Bạn cảm thấy mình là một phần của team?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "scale_label": {
+            "min": "Còn thấy tách biệt",
+            "max": "Kết nối rất tốt"
+          }
+        },
+        {
+          "id": "lo_trinh_phat_trien",
+          "label": "Bạn có hình dung được lộ trình phát triển của mình ở Eventus 6–12 tháng tới không?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            "Có rõ",
+            "Có nhưng còn mơ hồ",
+            "Chưa hình dung được"
+          ]
+        },
+        {
+          "id": "met_nhat",
+          "label": "Phần nào trong 30 ngày qua khiến bạn mệt nhất?",
+          "type": "checkbox",
+          "required": true,
+          "options": [
+            "Nội dung công việc",
+            "Giao tiếp với đồng nghiệp",
+            "Công cụ – thiết bị – phần mềm",
+            "Quy trình – cách làm việc",
+            "Khách hàng",
+            "Áp lực thời gian / deadline",
+            "Khác"
+          ]
+        },
+        {
+          "id": "met_nhat_khac",
+          "label": "Nếu chọn \"Khác\" ở trên, ghi rõ tại đây:",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "Mô tả điều khiến bạn mệt nhất..."
+        },
+        {
+          "id": "quy_trinh_hay_hon",
+          "label": "Có quy trình hoặc cách làm nào ở Eventus mà bạn thấy hay/hợp lý hơn so với chỗ làm cũ? Tại sao nó tốt hơn? Làm sao để Eventus duy trì hoặc nhân rộng?",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "VD: Ở Eventus, văn hóa nói thẳng giúp em tiết kiệm thời gian đoán ý. Để duy trì: nên đưa văn hóa này vào buổi onboarding ngày đầu, nói rõ với người mới rằng ở Eventus được khuyến khích nói thẳng."
+        },
+        {
+          "id": "cho_cu_tot_hon",
+          "label": "Có quy trình hoặc cách làm nào từ chỗ cũ mà Eventus nên học? Cách đó vận hành thế nào, và nếu áp dụng vào Eventus thì cần điều chỉnh gì?",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "VD: Chỗ cũ có daily standup 10 phút mỗi sáng. Mỗi người nói 30 giây: hôm qua làm gì, hôm nay làm gì, đang stuck gì. Áp dụng vào Eventus: bắt đầu từ 1 team production trước, thử 2 tuần rồi đo."
+        },
+        {
+          "id": "chua_on_dao_sau",
+          "label": "Có lần nào trong 30 ngày bạn nghĩ \"cái này hình như chưa ổn\" nhưng chọn im lặng? Kể 1–2 tình huống cụ thể và lý do bạn chọn im lặng.",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "VD: Tình huống 1: Buổi họp brief 2 tiếng nhưng phần lớn là chuyện bên lề. Em muốn đề xuất set agenda. Im lặng vì sợ bị cho là khó tính khi mới vào.\nTình huống 2: Anh quản lý reply khách lúc 11h đêm. Em muốn đề xuất nên có giờ \"ngừng phản hồi\". Im vì chưa đủ thẩm quyền."
+        },
+        {
+          "id": "chua_co_co_hoi",
+          "label": "Có việc hoặc kỹ năng nào bạn mong được làm/học ở Eventus mà 30 ngày qua chưa có cơ hội chạm tới? Vì sao bạn nghĩ chưa có cơ hội đó?",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "Mô tả kỳ vọng và lý do bạn nghĩ chưa tiếp cận được..."
+        },
+        {
+          "id": "sua_1_quy_trinh",
+          "label": "Nếu được toàn quyền sửa 1 quy trình hoặc thói quen ở Eventus, bạn sửa cái gì và sửa thế nào? Cụ thể: làm gì, ai liên quan, thay đổi ra sao.",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "VD: Em sửa quy trình review video. Hiện tại render xong phải gửi link Drive cho 3 người riêng, mỗi người feedback riêng — 1 vòng mất 1-2 ngày.\nĐề xuất: dùng Frame.io, tất cả comment trên cùng 1 timeline có timestamp. Người liên quan: team production + account. Thử trên 1 dự án nhỏ trong 2 tuần."
+        },
+        {
+          "id": "dung_cho_va_lac",
+          "label": "Sau 30 ngày, có khoảnh khắc nào bạn thấy \"đây đúng là chỗ của mình\" và ngược lại, có lúc nào thấy \"hơi lạc\"? Kể cả hai. Nếu có gì khác với những gì bạn hình dung lúc phỏng vấn, cứ nói thẳng.",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "\"Đúng chỗ của mình\": ...\n\"Hơi lạc\": ...\nKhác với JD / kỳ vọng lúc phỏng vấn (nếu có): ..."
+        }
+      ]
+    },
+    {
+      "id": "loi_nhan_rieng",
+      "title": "Phần C — Lời Nhắn Riêng",
+      "icon": "rocket",
+      "questions": [
+        {
+          "id": "loi_nhan",
+          "label": "Một lời nhắn riêng cho anh Bình về bất cứ điều gì. Khen, chê, đề xuất, thắc mắc, hay chỉ là một câu chuyện bạn muốn anh biết.",
+          "description": "Không bắt buộc, để trống cũng không sao.",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "Viết bất cứ điều gì bạn muốn anh Bình biết..."
+        }
+      ]
+    }
+  ]
+}

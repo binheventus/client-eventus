@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { thirtyDayReviewSupabase as supabase } from '../lib/thirtyDayReviewSupabase'
+import questionsConfig from '../data/thirtyDayReviewQuestions.json'
 import {
   Star,
   Eye,
@@ -14,6 +15,8 @@ import {
   User as UserIcon,
   Calendar,
 } from 'lucide-react';
+
+const LOCAL_QUESTION_VERSION = 'repo-json-v1'
 
 const iconMap = {
   star: Star,
@@ -117,15 +120,10 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
     el.style.height = el.scrollHeight + 'px';
   };
   const loadQuestionsConfig = async () => {
-    const { data, error } = await supabase
-      .from('questions_config')
-      .select('*')
-      .eq('is_active', true)
-      .order('version', { ascending: false })
-      .limit(1)
-      .single();
-    if (error || !data) throw new Error('Không tải được bộ câu hỏi. Vui lòng liên hệ admin.');
-    return data;
+    return {
+      version: LOCAL_QUESTION_VERSION,
+      config: questionsConfig,
+    };
   };
 
   useEffect(() => {
@@ -145,20 +143,9 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
           return;
         }
 
-        const { data: qData } = await supabase
-          .from('questions_config')
-          .select('*')
-          .eq('version', respData.question_version)
-          .single();
-
-        if (qData) {
-          setQuestionsData(qData.config);
-          setQuestionVersion(qData.version);
-        } else {
-          const latest = await loadQuestionsConfig();
-          setQuestionsData(latest.config);
-          setQuestionVersion(latest.version);
-        }
+        const latest = await loadQuestionsConfig();
+        setQuestionsData(latest.config);
+        setQuestionVersion(respData.question_version || latest.version);
 
         setResponseId(respData.id);
         setAccessToken(respData.access_token);
@@ -225,14 +212,9 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
       if (existing && existing.length > 0) {
         const resp = existing[0];
 
-        const { data: qData } = await supabase
-          .from('questions_config')
-          .select('*')
-          .eq('version', resp.question_version)
-          .single();
-
-        setQuestionsData(qData?.config || (await loadQuestionsConfig()).config);
-        setQuestionVersion(resp.question_version);
+        const config = await loadQuestionsConfig();
+        setQuestionsData(config.config);
+        setQuestionVersion(resp.question_version || config.version);
         setResponseId(resp.id);
         setAccessToken(resp.access_token);
         setHoTen(resp.ho_ten);
@@ -257,7 +239,7 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
             sdt: phoneNorm,
             vi_tri: viTri.trim(),
             ngay_gia_nhap: ngayGiaNhap,
-            question_version: config.version,
+            question_version: LOCAL_QUESTION_VERSION,
             data: {},
             status: 'draft',
           })
