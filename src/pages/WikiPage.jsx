@@ -961,7 +961,7 @@ export default function WikiPage() {
           {activeCat === 'org_chart' && <OrgChartPage />}
 
           {/* Card grid cac danh muc khac */}
-          {activeCat !== 'khung_nang_luc' && activeCat !== 'review_30_day' && activeCat !== 'org_chart' && !selectedTitle && (
+          {activeCat !== 'home' && activeCat !== 'khung_nang_luc' && activeCat !== 'review_30_day' && activeCat !== 'org_chart' && !selectedTitle && (
             <div className="flex-1 overflow-y-auto p-6">
               <CategoryBanner cat={currentCat} />
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -1012,7 +1012,7 @@ export default function WikiPage() {
           )}
 
           {/* Content view */}
-          {activeCat !== 'khung_nang_luc' && activeCat !== 'review_30_day' && activeCat !== 'org_chart' && selectedTitle && !editing && (
+          {activeCat !== 'home' && activeCat !== 'khung_nang_luc' && activeCat !== 'review_30_day' && activeCat !== 'org_chart' && selectedTitle && !editing && (
             <div className="flex-1 overflow-y-auto">
               <div className="px-6 pt-0 pb-5">
                 {currentPage ? (
@@ -1051,7 +1051,7 @@ export default function WikiPage() {
           )}
 
           {/* Editor */}
-          {activeCat !== 'khung_nang_luc' && activeCat !== 'review_30_day' && activeCat !== 'org_chart' && selectedTitle && editing && (
+          {activeCat !== 'home' && activeCat !== 'khung_nang_luc' && activeCat !== 'review_30_day' && activeCat !== 'org_chart' && selectedTitle && editing && (
             <div className="flex-1 flex flex-col p-6">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-[15px] font-bold text-slate-700">✏️ {selectedTitle}</h2>
