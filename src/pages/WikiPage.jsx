@@ -43,11 +43,10 @@ const CATEGORIES = [
     id: 'khung_nang_luc',
     label: 'Khung năng lực',
     icon: '🏆',
-    // Không có items — render riêng bằng CompetencyGrid
   },
 ]
 
-/* ─── Competency grid (giữ nguyên từ phần trước) ─── */
+/* ─── Competency grid ─── */
 const POSITION_META = {
   cameraman:    { icon: '🎬' },
   editor:       { icon: '🎞️' },
@@ -82,11 +81,8 @@ function PositionNode({ position }) {
       </div>
       <div className="flex items-center gap-1">
         {position.levels.map((_, i) => (
-          <div
-            key={i}
-            className="h-1.5 flex-1 rounded-full bg-blue-500"
-            style={{ opacity: 0.15 + i * 0.17 }}
-          />
+          <div key={i} className="h-1.5 flex-1 rounded-full bg-blue-500"
+            style={{ opacity: 0.15 + i * 0.17 }} />
         ))}
       </div>
       {!position.placeholder && (
@@ -109,9 +105,7 @@ function CompetencyGrid() {
         <p className="text-sm font-semibold uppercase tracking-widest text-blue-200 mb-1">
           Eventus Production Competency Framework
         </p>
-        <h1 className="text-[24px] font-semibold tracking-tight">
-          Khung năng lực nội bộ
-        </h1>
+        <h1 className="text-[24px] font-semibold tracking-tight">Khung năng lực nội bộ</h1>
       </div>
       <div className="grid grid-cols-3 gap-4">
         {positions.map(position => (
@@ -135,12 +129,42 @@ function renderMarkdown(text) {
   if (!text) return ''
   return text
     .replace(/^### (.+)$/gm, '<h3 class="text-base font-bold text-slate-800 mt-5 mb-2">$1</h3>')
-    .replace(/^## (.+)$/gm, '<h2 class="text-lg font-bold text-slate-800 mt-6 mb-2">$1</h2>')
-    .replace(/^# (.+)$/gm, '<h1 class="text-xl font-bold text-slate-800 mt-6 mb-3">$1</h1>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/^## (.+)$/gm, '<h2 class="text-lg font-bold text-slate-800 mt-6 mb-3">$1</h2>')
+    .replace(/^# (.+)$/gm, '<h1 class="text-2xl font-bold text-slate-800 mt-6 mb-3">$1</h1>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-slate-800">$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/^- (.+)$/gm, '<li class="ml-4 list-disc text-slate-600 mb-1">$1</li>')
-    .replace(/\n\n/g, '</p><p class="mb-3 text-slate-600 leading-relaxed">')
+    .replace(/^- (.+)$/gm, '<li class="ml-5 list-disc text-slate-600 mb-1.5 leading-relaxed">$1</li>')
+    .replace(/^(\d+)\. (.+)$/gm, '<li class="ml-5 list-decimal text-slate-600 mb-1.5 leading-relaxed">$2</li>')
+    .replace(/`(.+?)`/g, '<code class="font-mono text-[12px] bg-slate-100 text-blue-700 px-1.5 py-0.5 rounded">$1</code>')
+    .replace(/\n\n/g, '</p><p class="mb-4 text-slate-600 leading-relaxed">')
+}
+
+/* ─── AI Format ─── */
+async function aiFormat(rawText, title) {
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1000,
+      system: `Bạn là trợ lý format nội dung wiki nội bộ cho công ty Eventus Production (dịch vụ quay phim, chụp ảnh, dựng phim).
+Nhiệm vụ: Nhận text thô từ người dùng, format lại thành Markdown rõ ràng, dễ đọc.
+
+Quy tắc bắt buộc:
+- Dùng # cho tiêu đề chính, ## cho mục, ### cho tiểu mục
+- Dùng - cho danh sách gạch đầu dòng
+- Dùng **text** để in đậm các điểm quan trọng
+- Giữ nguyên 100% nội dung gốc, KHÔNG thêm, KHÔNG bớt, KHÔNG diễn giải lại
+- Xuống dòng hợp lý giữa các đoạn
+- Chỉ trả về nội dung Markdown, không giải thích gì thêm`,
+      messages: [{
+        role: 'user',
+        content: `Tên trang: ${title}\n\nNội dung cần format:\n${rawText}`
+      }]
+    })
+  })
+  const data = await response.json()
+  return data.content?.[0]?.text || rawText
 }
 
 /* ─── Admin gate hook ─── */
@@ -152,10 +176,7 @@ function useAdmin() {
 
   const tryLogin = () => {
     if (input === ADMIN_PASSWORD) {
-      setIsAdmin(true)
-      setShowGate(false)
-      setError('')
-      setInput('')
+      setIsAdmin(true); setShowGate(false); setError(''); setInput('')
     } else {
       setError('Sai mật khẩu')
     }
@@ -172,21 +193,31 @@ export default function WikiPage() {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const [saving, setSaving] = useState(false)
+  const [formatting, setFormatting] = useState(false)
   const [loading, setLoading] = useState(true)
   const admin = useAdmin()
 
   useEffect(() => {
-    supabase
-      .from('wiki_pages')
-      .select('*')
-      .then(({ data: rows, error }) => {
-        if (!error && rows) setPages(rows)
-        setLoading(false)
-      })
+    supabase.from('wiki_pages').select('*').then(({ data: rows, error }) => {
+      if (!error && rows) setPages(rows)
+      setLoading(false)
+    })
   }, [])
 
   const currentCat = CATEGORIES.find(c => c.id === activeCat)
   const currentPage = pages.find(p => p.category === activeCat && p.title === selectedTitle)
+
+  async function handleAiFormat() {
+    if (!draft.trim()) return
+    setFormatting(true)
+    try {
+      const formatted = await aiFormat(draft, selectedTitle)
+      setDraft(formatted)
+    } catch (e) {
+      alert('Lỗi kết nối AI. Thử lại sau.')
+    }
+    setFormatting(false)
+  }
 
   async function savePage() {
     setSaving(true)
@@ -194,37 +225,22 @@ export default function WikiPage() {
       const { data: updated } = await supabase
         .from('wiki_pages')
         .update({ content: draft, updated_at: new Date().toISOString() })
-        .eq('id', currentPage.id)
-        .select()
-        .single()
+        .eq('id', currentPage.id).select().single()
       if (updated) setPages(prev => prev.map(p => p.id === updated.id ? updated : p))
     } else {
       const { data: inserted } = await supabase
         .from('wiki_pages')
         .insert({ category: activeCat, title: selectedTitle, content: draft })
-        .select()
-        .single()
+        .select().single()
       if (inserted) setPages(prev => [...prev, inserted])
     }
     setSaving(false)
     setEditing(false)
   }
 
-  function selectCat(id) {
-    setActiveCat(id)
-    setSelectedTitle(null)
-    setEditing(false)
-  }
-
-  function openPage(title) {
-    setSelectedTitle(title)
-    setEditing(false)
-  }
-
-  function startEdit() {
-    setDraft(currentPage?.content || '')
-    setEditing(true)
-  }
+  function selectCat(id) { setActiveCat(id); setSelectedTitle(null); setEditing(false) }
+  function openPage(title) { setSelectedTitle(title); setEditing(false) }
+  function startEdit() { setDraft(currentPage?.content || ''); setEditing(true) }
 
   return (
     <div className="h-screen overflow-hidden flex flex-col bg-gradient-to-br from-slate-50 to-blue-50">
@@ -232,52 +248,39 @@ export default function WikiPage() {
 
       <div className="flex flex-1 min-h-0">
 
-        {/* ── Sidebar ── */}
+        {/* Sidebar */}
         <aside className="w-52 flex-shrink-0 border-r border-slate-200 bg-white flex flex-col">
           <div className="px-4 py-3 border-b border-slate-100">
             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Menu</p>
           </div>
-
           <nav className="flex-1 overflow-y-auto p-2 space-y-1">
             {CATEGORIES.map(cat => (
-              <button
-                key={cat.id}
-                onClick={() => selectCat(cat.id)}
+              <button key={cat.id} onClick={() => selectCat(cat.id)}
                 className={`w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors
-                  ${activeCat === cat.id
-                    ? 'bg-blue-50 text-blue-700'
-                    : 'text-slate-600 hover:bg-slate-50'}`}
-              >
-                <span>{cat.icon}</span>
-                <span>{cat.label}</span>
+                  ${activeCat === cat.id ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}>
+                <span>{cat.icon}</span><span>{cat.label}</span>
               </button>
             ))}
           </nav>
-
-          {/* Admin toggle */}
           <div className="px-4 py-3 border-t border-slate-100">
             {admin.isAdmin ? (
               <div className="flex items-center gap-2 text-[11px] text-emerald-600 font-semibold">
                 <span>✅</span> Admin mode
               </div>
             ) : (
-              <button
-                onClick={() => admin.setShowGate(true)}
-                className="text-[11px] text-slate-400 hover:text-blue-600 transition-colors"
-              >
+              <button onClick={() => admin.setShowGate(true)}
+                className="text-[11px] text-slate-400 hover:text-blue-600 transition-colors">
                 🔒 Đăng nhập Admin
               </button>
             )}
           </div>
         </aside>
 
-        {/* ── Main content ── */}
+        {/* Main content */}
         <div className="flex-1 min-w-0 flex flex-col">
 
-          {/* Khung năng lực → render competency grid */}
           {activeCat === 'khung_nang_luc' && <CompetencyGrid />}
 
-          {/* Các danh mục khác → card grid hoặc content */}
           {activeCat !== 'khung_nang_luc' && !selectedTitle && (
             <div className="flex-1 overflow-y-auto p-6">
               <h2 className="text-[12px] font-bold text-slate-400 uppercase tracking-widest mb-4">
@@ -287,21 +290,13 @@ export default function WikiPage() {
                 {currentCat?.items?.map(title => {
                   const page = pages.find(p => p.category === activeCat && p.title === title)
                   return (
-                    <button
-                      key={title}
-                      onClick={() => openPage(title)}
-                      className="group text-left bg-white rounded-xl border border-slate-200 px-4 py-4 hover:border-blue-400 hover:shadow-sm transition-all"
-                    >
-                      <div className="text-[13px] font-semibold text-slate-700 group-hover:text-blue-700 mb-2 leading-snug">
-                        {title}
-                      </div>
-                      {page ? (
-                        <div className="text-[11px] text-slate-400">
-                          Cập nhật {new Date(page.updated_at).toLocaleDateString('vi-VN')}
-                        </div>
-                      ) : (
-                        <div className="text-[11px] text-slate-300 italic">Chưa có nội dung</div>
-                      )}
+                    <button key={title} onClick={() => openPage(title)}
+                      className="group text-left bg-white rounded-xl border border-slate-200 px-4 py-4 hover:border-blue-400 hover:shadow-sm transition-all">
+                      <div className="text-[13px] font-semibold text-slate-700 group-hover:text-blue-700 mb-2 leading-snug">{title}</div>
+                      {page
+                        ? <div className="text-[11px] text-slate-400">Cập nhật {new Date(page.updated_at).toLocaleDateString('vi-VN')}</div>
+                        : <div className="text-[11px] text-slate-300 italic">Chưa có nội dung</div>
+                      }
                     </button>
                   )
                 })}
@@ -309,7 +304,6 @@ export default function WikiPage() {
             </div>
           )}
 
-          {/* Content view */}
           {activeCat !== 'khung_nang_luc' && selectedTitle && !editing && (
             <div className="flex-1 overflow-y-auto p-6 max-w-3xl">
               <div className="flex items-center gap-2 text-[12px] text-slate-400 mb-4">
@@ -319,30 +313,23 @@ export default function WikiPage() {
                 <span>/</span>
                 <span className="text-slate-600 font-medium">{selectedTitle}</span>
               </div>
-
               <div className="flex items-start justify-between mb-6">
                 <h1 className="text-xl font-bold text-slate-800">{selectedTitle}</h1>
                 {admin.isAdmin && (
-                  <button
-                    onClick={startEdit}
-                    className="flex items-center gap-1.5 text-[12px] font-semibold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg transition-colors"
-                  >
+                  <button onClick={startEdit}
+                    className="flex items-center gap-1.5 text-[12px] font-semibold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg transition-colors">
                     ✏️ Chỉnh sửa
                   </button>
                 )}
               </div>
-
               {currentPage ? (
-                <div
-                  className="prose prose-sm max-w-none"
-                  dangerouslySetInnerHTML={{ __html: renderMarkdown(currentPage.content) }}
-                />
+                <div className="prose prose-sm max-w-none"
+                  dangerouslySetInnerHTML={{ __html: renderMarkdown(currentPage.content) }} />
               ) : (
                 <div className="text-slate-400 italic text-sm">
                   Chưa có nội dung.{admin.isAdmin ? ' Nhấn "Chỉnh sửa" để thêm.' : ''}
                 </div>
               )}
-
               {currentPage && (
                 <div className="mt-8 pt-4 border-t border-slate-100 text-[11px] text-slate-300">
                   Cập nhật lần cuối: {new Date(currentPage.updated_at).toLocaleString('vi-VN')}
@@ -351,35 +338,48 @@ export default function WikiPage() {
             </div>
           )}
 
-          {/* Editor */}
+          {/* Editor với nút AI Format */}
           {activeCat !== 'khung_nang_luc' && selectedTitle && editing && (
             <div className="flex-1 flex flex-col p-6">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-[15px] font-bold text-slate-700">✏️ {selectedTitle}</h2>
                 <div className="flex gap-2">
+                  {/* Nút AI Format */}
                   <button
-                    onClick={() => setEditing(false)}
-                    className="text-[12px] px-3 py-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50"
+                    onClick={handleAiFormat}
+                    disabled={formatting || !draft.trim()}
+                    className="flex items-center gap-1.5 text-[12px] px-3 py-1.5 rounded-lg border border-violet-200 bg-violet-50 text-violet-700 font-semibold hover:bg-violet-100 transition-colors disabled:opacity-50"
                   >
+                    {formatting ? (
+                      <>
+                        <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                        </svg>
+                        Đang format...
+                      </>
+                    ) : '✨ Format bằng AI'}
+                  </button>
+                  <button onClick={() => setEditing(false)}
+                    className="text-[12px] px-3 py-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50">
                     Huỷ
                   </button>
-                  <button
-                    onClick={savePage}
-                    disabled={saving}
-                    className="text-[12px] px-4 py-1.5 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-60"
-                  >
+                  <button onClick={savePage} disabled={saving}
+                    className="text-[12px] px-4 py-1.5 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-60">
                     {saving ? 'Đang lưu...' : '💾 Lưu'}
                   </button>
                 </div>
               </div>
+
               <p className="text-[11px] text-slate-400 mb-2">
-                Hỗ trợ Markdown: **bold**, *italic*, # Heading, - list
+                Paste text thô vào đây → nhấn <span className="text-violet-600 font-semibold">✨ Format bằng AI</span> → kiểm tra → Lưu
               </p>
+
               <textarea
                 value={draft}
                 onChange={e => setDraft(e.target.value)}
                 className="flex-1 w-full border border-slate-200 rounded-xl p-4 text-[13px] text-slate-700 font-mono leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-blue-300"
-                placeholder="Nhập nội dung Markdown..."
+                placeholder="Paste nội dung vào đây..."
               />
             </div>
           )}
@@ -392,27 +392,19 @@ export default function WikiPage() {
           <div className="bg-white rounded-2xl shadow-xl p-8 w-80">
             <h3 className="text-[15px] font-bold text-slate-800 mb-1">🔒 Admin Login</h3>
             <p className="text-[12px] text-slate-400 mb-4">Nhập mật khẩu để mở chế độ chỉnh sửa</p>
-            <input
-              type="password"
-              value={admin.input}
-              onChange={e => admin.setInput(e.target.value)}
+            <input type="password" value={admin.input} onChange={e => admin.setInput(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && admin.tryLogin()}
               placeholder="Mật khẩu"
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-blue-300"
-              autoFocus
-            />
+              autoFocus />
             {admin.error && <p className="text-[12px] text-red-500 mb-2">{admin.error}</p>}
             <div className="flex gap-2 mt-2">
-              <button
-                onClick={() => admin.setShowGate(false)}
-                className="flex-1 text-[13px] py-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50"
-              >
+              <button onClick={() => admin.setShowGate(false)}
+                className="flex-1 text-[13px] py-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50">
                 Huỷ
               </button>
-              <button
-                onClick={admin.tryLogin}
-                className="flex-1 text-[13px] py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700"
-              >
+              <button onClick={admin.tryLogin}
+                className="flex-1 text-[13px] py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700">
                 Đăng nhập
               </button>
             </div>
