@@ -384,7 +384,7 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
 
   const embeddedShellClass = embedded ? 'bg-transparent' : 'bg-gradient-to-br from-slate-50 to-blue-50'
   const embeddedCardClass = embedded ? 'rounded-[28px] border border-slate-200 shadow-sm' : 'rounded-2xl shadow-xl'
-  const embeddedPagePaddingClass = embedded ? 'px-6 py-6' : 'py-10 px-4'
+  const embeddedPagePaddingClass = embedded ? 'px-6 py-4' : 'py-10 px-4'
 
   // ====== RENDER: LOADING ======
   if (stage === 'loading') {
@@ -425,48 +425,48 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
     const inputError = 'border-red-500 focus:border-red-500';
 
     return (
-      <div className={`${embedded ? 'px-6 py-6' : 'min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4'} flex items-center justify-center`}>
+      <div className={`${embedded ? 'px-6 py-4' : 'min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4'} flex items-center justify-center`}>
         <div className={`w-full ${embedded ? 'max-w-[1180px]' : 'max-w-[460px]'} overflow-hidden bg-white ${embeddedCardClass}`}>
           {embedded ? (
             <>
-              <div className="bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 px-8 py-7 text-white md:px-10">
+              <div className="bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 px-8 py-5 text-white md:px-10">
                 <div className="mx-auto max-w-4xl">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-blue-100/80">
                     Eventus Onboarding
                   </p>
-                  <h1 className="mt-3 text-[30px] font-semibold leading-tight tracking-tight md:text-[36px]">
+                  <h1 className="mt-2.5 text-[28px] font-semibold leading-tight tracking-tight md:text-[34px]">
                     30-Day Review
                   </h1>
-                  <p className="mt-3 max-w-3xl text-[14px] leading-7 text-blue-100/90">
+                  <p className="mt-2.5 max-w-3xl text-[13px] leading-6 text-blue-100/90">
                     Ghi nhận cảm nhận sau 30 ngày đầu tiên để Eventus cải thiện tốt hơn, từ góc nhìn thực tế của chính bạn.
                   </p>
-                  <div className="mt-6 max-w-3xl rounded-2xl border border-white/10 bg-white/10 px-5 py-4 text-[13px] leading-6 text-blue-50/95 backdrop-blur">
+                  <div className="mt-4 max-w-3xl rounded-2xl border border-white/10 bg-white/10 px-5 py-3 text-[12.5px] leading-6 text-blue-50/95 backdrop-blur">
                     Hệ thống tự lưu trong quá trình làm. Bạn có thể quay lại tiếp tục bằng đúng số điện thoại đã dùng trước đó.
                   </div>
                 </div>
               </div>
 
-              <div className="px-8 py-8 md:px-10">
+              <div className="px-8 py-6 md:px-10">
                 <div className="mx-auto max-w-4xl">
-                  <div className="rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+                  <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm md:p-6">
                     <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-slate-400">
                       Bắt đầu
                     </p>
-                    <h2 className="mt-2 text-[24px] font-semibold tracking-tight text-slate-900">
+                    <h2 className="mt-2 text-[22px] font-semibold tracking-tight text-slate-900">
                       Nhập thông tin của bạn
                     </h2>
-                    <p className="mt-2 text-[14px] leading-6 text-slate-600">
+                    <p className="mt-2 text-[13px] leading-6 text-slate-600">
                       Điền đủ 4 thông tin để mở bài review hoặc tiếp tục phần đã lưu trước đó.
                     </p>
 
                     {loginError && (
-                      <div className="bg-red-50 border border-red-200 rounded-lg px-3.5 py-3 mt-6 mb-5 flex items-start gap-2">
+                      <div className="bg-red-50 border border-red-200 rounded-lg px-3.5 py-3 mt-5 mb-4 flex items-start gap-2">
                         <AlertCircle className="w-4 h-4 text-red-700 flex-shrink-0 mt-0.5" />
                         <p className="text-[13px] text-red-800 leading-snug">{loginError}</p>
                       </div>
                     )}
 
-                    <div className="mt-6 grid gap-[18px] md:grid-cols-2">
+                    <div className="mt-5 grid gap-4 md:grid-cols-2">
                       <div className="md:col-span-2">
                         <label className="block text-[13px] font-medium text-slate-900 mb-2">Họ tên</label>
                         <input
@@ -529,7 +529,7 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
                     <button
                       onClick={handleLogin}
                       disabled={loginSubmitting}
-                      className="mt-7 inline-flex w-full items-center justify-center rounded-[12px] bg-blue-700 px-6 py-3 text-[15px] font-medium text-white transition hover:bg-blue-800 disabled:opacity-50"
+                      className="mt-6 inline-flex w-full items-center justify-center rounded-[12px] bg-blue-700 px-6 py-3 text-[15px] font-medium text-white transition hover:bg-blue-800 disabled:opacity-50"
                     >
                       {loginSubmitting ? 'Đang xử lý...' : 'Bắt đầu / Tiếp tục'}
                     </button>
