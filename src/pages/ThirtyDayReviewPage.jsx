@@ -111,6 +111,7 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
   const [showShareLink, setShowShareLink] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [showSubmitModal, setShowSubmitModal] = useState(false);
 
   const saveTimeoutRef = useRef(null);
   const isInitialLoad = useRef(true);
@@ -357,6 +358,7 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
       setSaveState('saved');
       setLastSavedAt(new Date());
       setShowShareLink(true);
+      setShowSubmitModal(true);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
       setSaveState('error');
@@ -931,15 +933,26 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
                     {savedTimeStr ? `Vừa lưu lúc ${savedTimeStr}. ` : ''}
                     Bạn có thể đóng trình duyệt và quay lại làm tiếp bất cứ lúc nào.
                   </p>
-                  <p className="max-w-2xl">
-                    Khi đã sẵn sàng, hãy nhấn nút bên dưới để gửi bài cho anh Bình nhé!
-                  </p>
+                  <div className="max-w-2xl rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-[13px] leading-6 text-blue-50/95 backdrop-blur">
+                    <p>Hãy lưu URL dưới đây để tiếp tục hoàn thiện sau:</p>
+                    <div className="mt-2 flex flex-col gap-2 md:flex-row md:items-center">
+                      <code className="min-w-0 flex-1 overflow-x-auto rounded-xl bg-slate-950/30 px-3 py-2 font-mono text-[12px] text-blue-50">
+                        {shareUrl}
+                      </code>
+                      <button
+                        onClick={handleCopyLink}
+                        className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-white px-4 py-2 text-[12px] font-semibold text-blue-800 transition hover:bg-blue-50"
+                      >
+                        {linkCopied ? <><Check className="w-3.5 h-3.5" /> Đã copy</> : <><Copy className="w-3.5 h-3.5" /> Copy URL</>}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
 
               <div className="flex flex-col items-start gap-3 lg:items-end">
                 <div className="rounded-full bg-white/12 px-3 py-1 text-[12px] font-medium text-blue-100/85 ring-1 ring-white/10">
-                  {saveState === 'saving' ? 'Đang lưu dữ liệu...' : 'Sẵn sàng để gửi'}
+                  {saveState === 'saving' ? 'Đang lưu dữ liệu...' : 'Khi đã sẵn sàng, hãy nhấn nút bên dưới để gửi bài nhé.'}
                 </div>
                 <button
                   onClick={handleSubmit}
@@ -952,6 +965,45 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
             </div>
           )}
         </div>
+
+        {showSubmitModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-xl rounded-[28px] bg-white p-6 shadow-2xl">
+              <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                Đã gửi thành công
+              </p>
+              <h3 className="mt-2 text-[24px] font-semibold tracking-tight text-slate-900">
+                Đây là Link bài thu hoạch của bạn
+              </h3>
+              <p className="mt-2 text-[14px] leading-7 text-slate-600">
+                Bạn hãy gửi link này cho quản lý nhé:
+              </p>
+
+              <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center">
+                  <code className="min-w-0 flex-1 overflow-x-auto rounded-xl bg-white px-3 py-3 font-mono text-[12px] text-slate-700 ring-1 ring-slate-200">
+                    {shareUrl}
+                  </code>
+                  <button
+                    onClick={handleCopyLink}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-slate-900 px-4 py-3 text-[12px] font-semibold text-white transition hover:bg-blue-900"
+                  >
+                    {linkCopied ? <><Check className="w-3.5 h-3.5" /> Đã copy</> : <><Copy className="w-3.5 h-3.5" /> Copy URL</>}
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-6 flex justify-end gap-3">
+                <button
+                  onClick={() => setShowSubmitModal(false)}
+                  className="rounded-xl border border-slate-200 px-4 py-2.5 text-[13px] font-semibold text-slate-600 transition hover:bg-slate-50"
+                >
+                  Đóng
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
