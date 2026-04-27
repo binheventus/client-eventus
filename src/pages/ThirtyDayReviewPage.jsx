@@ -428,9 +428,9 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
       <div className={`${embedded ? 'px-6 py-6' : 'min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4'} flex items-center justify-center`}>
         <div className={`w-full ${embedded ? 'max-w-6xl' : 'max-w-[460px]'} overflow-hidden bg-white ${embeddedCardClass}`}>
           {embedded ? (
-            <div className="grid lg:grid-cols-[1.05fr_0.95fr]">
-              <div className="bg-gradient-to-br from-slate-900 via-blue-900 to-teal-700 px-8 py-8 text-white md:px-10">
-                <div className="max-w-xl">
+            <div className="grid lg:grid-cols-[0.98fr_1.02fr]">
+              <div className="bg-gradient-to-br from-slate-900 via-blue-900 to-teal-700 px-8 py-7 text-white md:px-10">
+                <div className="max-w-lg">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-blue-100/80">
                     Eventus Onboarding
                   </p>
@@ -440,14 +440,14 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
                   <p className="mt-3 text-[14px] leading-7 text-blue-100/90">
                     Ghi nhận cảm nhận sau 30 ngày đầu tiên để Eventus cải thiện tốt hơn, từ góc nhìn thực tế của chính bạn.
                   </p>
-                  <div className="mt-8 rounded-2xl border border-white/10 bg-white/10 px-5 py-4 text-[13px] leading-6 text-blue-50/95 backdrop-blur">
+                  <div className="mt-7 rounded-2xl border border-white/10 bg-white/10 px-5 py-4 text-[13px] leading-6 text-blue-50/95 backdrop-blur">
                     Hệ thống tự lưu trong quá trình làm. Bạn có thể quay lại tiếp tục bằng đúng số điện thoại đã dùng trước đó.
                   </div>
                 </div>
               </div>
 
-              <div className="px-8 py-8 md:px-10">
-                <div className="max-w-xl">
+              <div className="flex items-center px-8 py-7 md:px-10">
+                <div className="w-full max-w-lg">
                   <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-slate-400">
                     Bắt đầu
                   </p>
@@ -909,48 +909,57 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
         })}
 
         {/* ===== KHỐI SUBMIT ===== */}
-        <div className="bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 rounded-[28px] shadow-lg px-8 py-9 text-center text-white">
+        <div className="rounded-[28px] border border-slate-200 bg-white px-8 py-8 shadow-sm">
           {status === 'submitted' ? (
-            <>
-              <h3 className="text-xl md:text-2xl font-bold mb-2">Đã gửi rồi 🙏</h3>
-              <p className="mb-4 opacity-90 text-sm md:text-base">
-                Mọi thay đổi đang được lưu tự động. Sếp sẽ thấy bản mới nhất khi mở link.
-              </p>
+            <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+              <div className="max-w-2xl">
+                <h3 className="text-[24px] font-semibold tracking-tight text-slate-900">Đã gửi bài review</h3>
+                <p className="mt-2 text-[14px] leading-7 text-slate-600">
+                  Mọi thay đổi đang được lưu tự động. Sếp sẽ thấy bản mới nhất khi mở đúng đường link này.
+                </p>
+              </div>
               <button
                 onClick={() => setShowShareLink(true)}
-                className="bg-white text-blue-700 font-semibold py-3 px-8 rounded-xl hover:bg-blue-50 transition shadow-md"
+                className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-6 py-3 text-[14px] font-semibold text-white transition hover:bg-blue-900"
               >
                 XEM LINK GỬI SẾP
               </button>
-            </>
+            </div>
           ) : (
-            <>
-              <h3 className="text-[22px] font-medium mb-4 tracking-tight">Sẵn sàng chia sẻ? 🚀</h3>
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+              <div className="max-w-2xl">
+                <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                  Hoàn tất bài review
+                </p>
+                <h3 className="mt-2 text-[24px] font-semibold tracking-tight text-slate-900">
+                  Kiểm tra lại và gửi bài cho anh Bình
+                </h3>
+                <div className="mt-3 space-y-2 text-[14.5px] leading-7 text-slate-600">
+                  <p>
+                    {savedTimeStr ? `Vừa lưu lúc ${savedTimeStr}. ` : ''}
+                    Bạn có thể đóng trình duyệt và quay lại làm tiếp bất cứ lúc nào.
+                  </p>
+                  <p>
+                    Khi đã sẵn sàng, hãy nhấn nút bên dưới để gửi bài cho anh Bình nhé!
+                  </p>
+                </div>
+              </div>
 
-              <p className="text-[14.5px] leading-relaxed opacity-95 mb-7">
-                {savedTimeStr ? `Vừa lưu lúc ${savedTimeStr}. ` : ''}
-                Bạn có thể đóng trình duyệt và quay lại làm tiếp bất cứ lúc nào.
-              </p>
-
-              <p className="text-[14.5px] leading-relaxed opacity-95 mb-6">
-                Khi đã sẵn sàng, hãy nhấn nút bên dưới để gửi bài cho anh Bình nhé!
-              </p>
-
-              <button
-                onClick={handleSubmit}
-                disabled={saveState === 'saving'}
-                className="bg-white text-blue-700 font-medium text-[15px] py-3.5 px-8 rounded-xl hover:bg-blue-50 transition disabled:opacity-50 shadow-md tracking-wide"
-              >
-                GỬI BÀI THU HOẠCH
-              </button>
-            </>
+              <div className="flex flex-col items-start gap-3 lg:items-end">
+                <div className="rounded-full bg-slate-100 px-3 py-1 text-[12px] font-medium text-slate-500">
+                  {saveState === 'saving' ? 'Đang lưu dữ liệu...' : 'Sẵn sàng để gửi'}
+                </div>
+                <button
+                  onClick={handleSubmit}
+                  disabled={saveState === 'saving'}
+                  className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-7 py-3.5 text-[15px] font-semibold tracking-wide text-white transition hover:bg-blue-900 disabled:opacity-50"
+                >
+                  GỬI BÀI THU HOẠCH
+                </button>
+              </div>
+            </div>
           )}
         </div>
-
-        {/* ===== FOOTER ===== */}
-        <p className="text-center text-xs text-slate-400 mt-5 tracking-wide">
-          © 2026 Eventus Production. Crafted with ❤️ by Pham Thanh Binh.
-        </p>
       </div>
     </div>
   );

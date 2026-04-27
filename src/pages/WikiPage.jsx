@@ -219,8 +219,6 @@ function CompetencyGrid() {
       <p className="text-center text-xs text-slate-400 tracking-wide mt-6">
         Cập nhật nội dung tại{' '}
         <code className="font-mono bg-white px-1.5 py-0.5 rounded border border-slate-200">src/data/competency.json</code>
-        <span className="mx-3 text-slate-200">|</span>
-        Eventus Production · Built by Phạm Thanh Bình · 2026
       </p>
     </div>
   )
@@ -804,6 +802,9 @@ export default function WikiPage() {
                 </p>
               </button>
             )}
+            <p className="mt-3 text-[10px] leading-5 tracking-wide text-slate-400">
+              Eventus Production · Built by Phạm Thanh Bình · 2026
+            </p>
           </div>
         </aside>
 
@@ -892,8 +893,18 @@ export default function WikiPage() {
                     }}
                   />
                 ) : (
-                  <div className="mx-auto max-w-4xl rounded-3xl border border-dashed border-slate-200 bg-white px-8 py-12 text-center text-sm italic text-slate-400">
-                    Chưa có nội dung.{admin.isAdmin ? ' Nhấn "Chỉnh sửa" để thêm.' : ''}
+                  <div className="mx-auto max-w-4xl rounded-3xl border border-dashed border-slate-200 bg-white px-8 py-12 text-center">
+                    <p className="text-sm italic text-slate-400">
+                      Chưa có nội dung.{admin.isAdmin ? ' Tạo nội dung mới cho mục này ngay tại đây.' : ''}
+                    </p>
+                    {admin.isAdmin && (
+                      <button
+                        onClick={startEdit}
+                        className="mt-5 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-blue-900"
+                      >
+                        ✏️ Chỉnh sửa nội dung
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
