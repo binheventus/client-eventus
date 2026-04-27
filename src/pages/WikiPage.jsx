@@ -11,6 +11,7 @@ const CATEGORIES = [
     id: 'quy_trinh',
     label: 'Quy trinh',
     icon: '⚙️',
+    shortDesc: 'Quy trình làm việc',
     banner: 'Quy trình làm việc',
     desc: 'Hướng dẫn quy trình chuẩn cho từng bộ phận — đọc kỹ trước khi đi job.',
     items: [
@@ -25,6 +26,7 @@ const CATEGORIES = [
     id: 'noi_quy',
     label: 'Nội quy',
     icon: '📋',
+    shortDesc: 'Quy định nội bộ',
     banner: 'Nội quy công ty',
     desc: 'Các quy định nội bộ áp dụng cho toàn bộ nhân sự Eventus Production.',
     items: [
@@ -41,6 +43,7 @@ const CATEGORIES = [
     id: 'huong_dan',
     label: 'Hướng dẫn',
     icon: '📖',
+    shortDesc: 'Tài liệu đào tạo',
     banner: 'Hướng dẫn',
     desc: 'Tài liệu onboarding và đào tạo nội bộ dành cho nhân sự Eventus.',
     items: ['Hướng dẫn tân binh', 'Tổng hợp slide Growday'],
@@ -49,6 +52,7 @@ const CATEGORIES = [
     id: 'khung_nang_luc',
     label: 'Khung năng lực',
     icon: '🏆',
+    shortDesc: 'Competency framework',
     banner: 'Khung năng lực nội bộ',
     desc: 'Định nghĩa kỳ vọng theo từng vị trí và cấp bậc — dùng cho đánh giá, thăng cấp và phát triển cá nhân.',
   },
@@ -560,33 +564,83 @@ export default function WikiPage() {
       <div className="flex flex-1 min-h-0">
 
         {/* Sidebar */}
-        <aside className="w-52 flex-shrink-0 border-r border-slate-200 bg-white flex flex-col">
-          <div className="px-4 py-3 border-b border-slate-100">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Menu</p>
+        <aside className="w-80 flex-shrink-0 border-r border-slate-200/80 bg-white/95 flex flex-col">
+          <div className="border-b border-slate-200/70 px-5 py-5">
+            <div className="rounded-3xl bg-gradient-to-br from-slate-900 via-blue-900 to-teal-700 px-4 py-4 text-white shadow-lg">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-blue-100/80">Eventus Handbook</p>
+              <h2 className="mt-2 text-[20px] font-semibold tracking-tight">Điều hướng nội bộ</h2>
+              <p className="mt-2 text-[13px] leading-6 text-blue-100/85">
+                Tra cứu quy trình, nội quy, hướng dẫn và khung năng lực theo từng nhóm nội dung.
+              </p>
+            </div>
           </div>
-          <nav className="flex-1 overflow-y-auto p-2 space-y-1">
+
+          <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-2">
             {CATEGORIES.map(cat => (
-              <button key={cat.id} onClick={() => selectCat(cat.id)}
-                className={`w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors
-                  ${activeCat === cat.id ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}>
-                <span>{cat.icon}</span><span>{cat.label}</span>
+              <button
+                key={cat.id}
+                onClick={() => selectCat(cat.id)}
+                className={`w-full rounded-2xl border px-4 py-3.5 text-left transition-all duration-200 ${
+                  activeCat === cat.id
+                    ? 'border-blue-200 bg-gradient-to-r from-blue-50 via-white to-teal-50 shadow-sm shadow-blue-100/70'
+                    : 'border-transparent bg-white text-slate-600 hover:border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <div
+                    className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl text-lg ${
+                      activeCat === cat.id
+                        ? 'bg-white text-blue-700 ring-1 ring-blue-100'
+                        : 'bg-slate-100 text-slate-600'
+                    }`}
+                  >
+                    {cat.icon}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className={`text-[14px] font-semibold leading-5 ${activeCat === cat.id ? 'text-slate-900' : 'text-slate-700'}`}>
+                      {cat.label}
+                    </div>
+                    <div className={`mt-1 text-[12px] leading-5 ${activeCat === cat.id ? 'text-slate-600' : 'text-slate-400'}`}>
+                      {cat.shortDesc}
+                    </div>
+                  </div>
+                  {activeCat === cat.id && (
+                    <div className="mt-1 h-2.5 w-2.5 flex-shrink-0 rounded-full bg-blue-500" />
+                  )}
+                </div>
               </button>
             ))}
           </nav>
-          <div className="px-4 py-3 border-t border-slate-100">
+
+          <div className="border-t border-slate-200/70 px-4 py-4">
             {admin.isAdmin ? (
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-[11px] text-emerald-600 font-semibold">
-                  <span>✅</span> Admin mode
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-1.5 text-[12px] font-semibold text-emerald-700">
+                      <span>✅</span> Admin mode
+                    </div>
+                    <p className="mt-1 text-[11px] leading-5 text-emerald-700/80">
+                      Bạn đang có thể chỉnh sửa nội dung wiki trực tiếp.
+                    </p>
+                  </div>
+                  <button onClick={admin.logout} className="text-[11px] font-medium text-emerald-700/70 hover:text-red-500 transition-colors">
+                    Đăng xuất
+                  </button>
                 </div>
-                <button onClick={admin.logout} className="text-[10px] text-slate-400 hover:text-red-500 transition-colors">
-                  Đăng xuất
-                </button>
               </div>
             ) : (
-              <button onClick={() => admin.setShowGate(true)}
-                className="text-[11px] text-slate-400 hover:text-blue-600 transition-colors">
-                🔒 Đăng nhập Admin
+              <button
+                onClick={() => admin.setShowGate(true)}
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition-colors hover:border-blue-200 hover:bg-blue-50/60"
+              >
+                <div className="flex items-center gap-2 text-[12px] font-semibold text-slate-700">
+                  <span>🔒</span>
+                  <span>Đăng nhập Admin</span>
+                </div>
+                <p className="mt-1 text-[11px] leading-5 text-slate-400">
+                  Mở chế độ chỉnh sửa để cập nhật nội dung nội bộ.
+                </p>
               </button>
             )}
           </div>
