@@ -280,7 +280,7 @@ function isCallout(line) {
 
 function parseInline(text) {
   const nodes = []
-  const pattern = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g
+  const pattern = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|https?:\/\/[^\s)]+)/g
   let lastIndex = 0
   let match
 
@@ -296,6 +296,18 @@ function parseInline(text) {
         <code key={`${match.index}-c`} className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[12px] text-blue-700">
           {token.slice(1, -1)}
         </code>
+      )
+    } else if (/^https?:\/\//.test(token)) {
+      nodes.push(
+        <a
+          key={`${match.index}-u`}
+          href={token}
+          target="_blank"
+          rel="noreferrer"
+          className="break-all font-medium text-blue-700 underline decoration-blue-200 underline-offset-4 transition-colors hover:text-blue-800"
+        >
+          {token}
+        </a>
       )
     }
     lastIndex = pattern.lastIndex
@@ -400,7 +412,7 @@ function parseArticle(rawText, fallbackTitle) {
       continue
     }
 
-    if (!currentSection && !currentSubsection && line.length > 60) {
+    if (!currentSection && !currentSubsection && !isListItem(line) && line.length > 60) {
       lead.push(line)
       continue
     }
@@ -595,7 +607,7 @@ function ArticleDocument({ title, category, page }) {
           )) : (
             <section className="rounded-[24px] border border-slate-200 bg-white p-8 shadow-sm">
               <p className="text-[15px] leading-7 text-slate-600">
-                {page?.content ? parseInline(page.content) : 'Chưa có nội dung.'}
+                {page?.content ? parseInline(stripBannerDescription(page.content)) : 'Chưa có nội dung.'}
               </p>
             </section>
           )}
