@@ -55,115 +55,136 @@ function CheckCircleIcon({ color }) {
   )
 }
 
-/* ─── SmartRow: đo chiều cao sau render, chỉ clamp ô dài nhất ─── */
-function SmartRow({ dim, levels }) {
+/* ─── ClampCell: wrapper div đảm bảo -webkit-line-clamp hoạt động ─── */
+function ClampCell({ items, dotColor, doClamp, expanded }) {
+  if (items.length === 0) {
+    return <span style={{ fontSize: '11px', color: '#cbd5e1' }}>—</span>
+  }
+
+  return (
+    /*
+      QUAN TRỌNG: -webkit-line-clamp chỉ hoạt động khi:
+      1. Element là display: -webkit-box
+      2. -webkit-box-orient: vertical
+      3. overflow: hidden
+      Phải đặt trực tiếp lên container có text, KHÔNG qua ul/li trung gian
+    */
+    <div style={doClamp && !expanded ? {
+      display: '-webkit-box',
+      WebkitLineClamp: 8,
+      WebkitBoxOrient: 'vertical',
+      overflow: 'hidden',
+    } : {}}>
+      {items.map((item, j) => (
+        <div key={j} style={{
+          display: 'flex',
+          gap: '6px',
+          fontSize: '11px',
+          color: '#475569',
+          lineHeight: 1.65,
+          marginBottom: '5px',
+        }}>
+          <span style={{
+            marginTop: '7px',
+            width: '5px',
+            height: '5px',
+            minWidth: '5px',
+            borderRadius: '50%',
+            backgroundColor: dotColor,
+            display: 'inline-block',
+          }} />
+          <span>{item}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/* ─── GridRow: một hàng dimension dùng CSS Grid ─── */
+function GridRow({ dim, levels, colTemplate }) {
   const c = DIM_COLORS[dim.id]
-  const cellRefs = useRef([])
-  // clampedIdx: index ô cần clamp, null = không clamp ô nào
-  const [clampedIdx, setClampedIdx] = useState(-2) // -2 = chưa đo xong
+  const itemsPerLevel = levels.map(lv => parseItems(lv.competencies[dim.id]))
+
+  // Đo chiều cao thực sau render để quyết định clamp
+  const measureRefs = useRef([])
+  const [clampedIdx, setClampedIdx] = useState(null) // null = chưa đo xong
   const [expanded, setExpanded] = useState(false)
 
   useEffect(() => {
-    // Đo sau khi browser paint xong
-    const raf = requestAnimationFrame(() => {
-      const heights = cellRefs.current.map(el => (el ? el.scrollHeight : 0))
+    // Dùng rAF để đảm bảo đo sau khi browser đã layout
+    const id = requestAnimationFrame(() => {
+      const heights = measureRefs.current.map(el => el ? el.getBoundingClientRect().height : 0)
       const max = Math.max(...heights)
       const sorted = [...heights].sort((a, b) => b - a)
       const second = sorted[1] ?? 0
 
-      if (max > 200 && max > second * 1.15) {
+      if (max > 180 && max > second * 1.15) {
         setClampedIdx(heights.indexOf(max))
       } else {
-        setClampedIdx(-1) // không có ô nào cần clamp
+        setClampedIdx(-1) // không clamp ai
       }
     })
-    return () => cancelAnimationFrame(raf)
+    return () => cancelAnimationFrame(id)
   }, [])
 
   return (
-    <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: colTemplate,
+      borderBottom: '1px solid #e2e8f0',
+    }}>
       {/* Cột label nhóm */}
-      <td style={{
+      <div style={{
         backgroundColor: c.bg,
-        borderRight: `2px solid #e2e8f0`,
-        verticalAlign: 'middle',
-        padding: '12px 6px',
+        borderRight: '2px solid #e2e8f0',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '6px',
+        padding: '14px 6px',
         textAlign: 'center',
       }}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px' }}>
-          {dim.customIcon
-            ? <CheckCircleIcon color={c.text} />
-            : <span style={{ fontSize: '15px', lineHeight: 1 }}>{dim.icon}</span>
-          }
-          <span style={{ fontSize: '10px', fontWeight: 700, color: c.text, lineHeight: 1.3 }}>
-            {dim.label}
-          </span>
-        </div>
-      </td>
+        {dim.customIcon
+          ? <CheckCircleIcon color={c.text} />
+          : <span style={{ fontSize: '16px', lineHeight: 1 }}>{dim.icon}</span>
+        }
+        <span style={{
+          fontSize: '10px',
+          fontWeight: 700,
+          color: c.text,
+          lineHeight: 1.3,
+        }}>
+          {dim.label}
+        </span>
+      </div>
 
-      {/* Ô nội dung */}
+      {/* Ô nội dung từng level */}
       {levels.map((lv, i) => {
-        const items = parseItems(lv.competencies[dim.id])
-        const shouldClamp = clampedIdx === i && !expanded
+        const items = itemsPerLevel[i]
         const isLastCol = i === levels.length - 1
+        const doClamp = clampedIdx === i
 
         return (
-          <td key={i} style={{
-            verticalAlign: 'top',
+          <div key={i} style={{
             padding: '12px 10px',
             borderRight: isLastCol ? 'none' : '1px solid #e2e8f0',
+            // Khi chưa đo xong (null): hiển thị bình thường để đo được chính xác
           }}>
-            {items.length === 0 ? (
-              <span style={{ fontSize: '11px', color: '#cbd5e1' }}>—</span>
-            ) : (
-              <div>
-                {/*
-                  Quan trọng: ref luôn trỏ vào ul để đo scrollHeight đúng.
-                  Khi clamp: dùng WebkitLineClamp + overflow hidden.
-                  Khi expand hoặc không phải ô cần clamp: hiện full.
-                */}
-                <ul
-                  ref={el => { cellRefs.current[i] = el }}
-                  style={{
-                    listStyle: 'none',
-                    margin: 0,
-                    padding: 0,
-                    ...(shouldClamp ? {
-                      display: '-webkit-box',
-                      WebkitLineClamp: 8,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden',
-                    } : {
-                      display: 'block',
-                      overflow: 'visible',
-                    }),
-                  }}
-                >
-                  {items.map((item, j) => (
-                    <li key={j} style={{
-                      display: 'flex',
-                      gap: '6px',
-                      fontSize: '11px',
-                      color: '#475569',
-                      lineHeight: 1.6,
-                      marginBottom: '5px',
-                    }}>
-                      <span style={{
-                        marginTop: '6px',
-                        width: '5px',
-                        height: '5px',
-                        borderRadius: '50%',
-                        backgroundColor: c.dot,
-                        flexShrink: 0,
-                        display: 'inline-block',
-                      }} />
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
+            {/* Div đo ẩn — luôn full height, không bị clamp, để lấy scrollHeight */}
+            <div
+              ref={el => { measureRefs.current[i] = el }}
+              style={{ visibility: clampedIdx === null ? 'visible' : 'hidden', position: clampedIdx === null ? 'static' : 'absolute', pointerEvents: 'none' }}
+              aria-hidden={clampedIdx !== null}
+            >
+              <ClampCell items={items} dotColor={c.dot} doClamp={false} expanded={true} />
+            </div>
 
-                {/* Nút chỉ xuất hiện ở ô cần clamp */}
-                {clampedIdx === i && (
+            {/* Div thực sự hiển thị — chỉ render sau khi đã đo xong */}
+            {clampedIdx !== null && (
+              <div>
+                <ClampCell items={items} dotColor={c.dot} doClamp={doClamp} expanded={expanded} />
+                {doClamp && (
                   <button
                     onClick={() => setExpanded(e => !e)}
                     style={{
@@ -175,6 +196,7 @@ function SmartRow({ dim, levels }) {
                       border: 'none',
                       cursor: 'pointer',
                       padding: 0,
+                      display: 'block',
                     }}
                   >
                     {expanded ? '▲ Thu gọn' : '▼ Xem thêm'}
@@ -182,122 +204,105 @@ function SmartRow({ dim, levels }) {
                 )}
               </div>
             )}
-          </td>
+          </div>
         )
       })}
-    </tr>
+    </div>
   )
 }
 
-/* ─── Sticky Table Header ─── */
-function TableHeader({ levels }) {
-  const [isSticky, setIsSticky] = useState(false)
-  const sentinelRef = useRef(null)
+/* ─── StickyHeader: tách HOÀN TOÀN khỏi table, sticky độc lập ─── */
+function StickyHeader({ levels, colTemplate }) {
+  const [scrolled, setScrolled] = useState(false)
 
   useEffect(() => {
-    // Dùng IntersectionObserver để detect khi thead bắt đầu sticky
-    const observer = new IntersectionObserver(
-      ([entry]) => setIsSticky(!entry.isIntersecting),
-      { threshold: 0, rootMargin: '-57px 0px 0px 0px' }
-    )
-    if (sentinelRef.current) observer.observe(sentinelRef.current)
-    return () => observer.disconnect()
+    const onScroll = () => setScrolled(window.scrollY > 180)
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
   return (
-    <>
-      {/* Sentinel: phần tử vô hình ngay trước thead để detect scroll */}
-      <div ref={sentinelRef} style={{ height: 1, pointerEvents: 'none' }} />
-
-      <thead style={{
-        position: 'sticky',
-        top: '57px',      // = chiều cao Navbar
-        zIndex: 40,
-        backdropFilter: 'blur(14px)',
-        WebkitBackdropFilter: 'blur(14px)',
-        backgroundColor: 'rgba(255,255,255,0.80)',
-        // Khi sticky: shadow đậm hơn + border-bottom sắc nét
-        boxShadow: isSticky ? '0 4px 20px rgba(0,0,0,0.12)' : 'none',
-        borderBottom: `2px solid ${isSticky ? '#cbd5e1' : '#e2e8f0'}`,
-        transition: 'box-shadow 0.2s ease, border-color 0.2s ease',
+    <div style={{
+      position: 'sticky',
+      top: '56px',         // = chiều cao Navbar (Header.jsx h-14 = 56px)
+      zIndex: 40,
+      backdropFilter: 'blur(16px)',
+      WebkitBackdropFilter: 'blur(16px)',
+      backgroundColor: 'rgba(255,255,255,0.85)',
+      boxShadow: scrolled ? '0 4px 24px rgba(0,0,0,0.13)' : '0 1px 0 #e2e8f0',
+      borderBottom: scrolled ? '2px solid #cbd5e1' : '1px solid #e2e8f0',
+      transition: 'box-shadow 0.2s, border-color 0.2s',
+      // KHÔNG overflow hidden ở đây
+    }}>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: colTemplate,
       }}>
-        <tr>
-          {/* Góc trái trống */}
-          <th style={{
-            padding: '14px 8px',
-            borderRight: '2px solid #e2e8f0',
-            backgroundColor: 'transparent',
-          }} />
+        {/* Góc trái trống */}
+        <div style={{ borderRight: '2px solid #e2e8f0', padding: '14px 8px' }} />
 
-          {levels.map((lv, i) => {
-            const meta = LEVEL_META[Math.min(i, LEVEL_META.length - 1)]
-            const isLastCol = i === levels.length - 1
-            return (
-              <th key={i} style={{
-                padding: '14px 12px 12px',
-                textAlign: 'left',
-                verticalAlign: 'bottom',
-                borderTop: `3px solid ${meta.topBorder}`,
-                borderRight: isLastCol ? 'none' : '1px solid #cbd5e1',
-                position: 'relative',
-                overflow: 'hidden',
-                backgroundColor: 'transparent',
+        {levels.map((lv, i) => {
+          const meta = LEVEL_META[Math.min(i, LEVEL_META.length - 1)]
+          const isLastCol = i === levels.length - 1
+          return (
+            <div key={i} style={{
+              padding: '14px 12px 12px',
+              borderTop: `3px solid ${meta.topBorder}`,
+              borderRight: isLastCol ? 'none' : '1px solid #cbd5e1',
+              position: 'relative',
+              overflow: 'hidden',
+            }}>
+              {/* Số thứ tự chìm — layering */}
+              <span style={{
+                position: 'absolute',
+                top: '0px',
+                right: '6px',
+                fontSize: '40px',
+                fontWeight: 800,
+                color: '#e8ecf0',
+                lineHeight: 1,
+                userSelect: 'none',
+                pointerEvents: 'none',
+                letterSpacing: '-2px',
               }}>
-                {/* Số thứ tự chìm — layering */}
-                <span style={{
-                  position: 'absolute',
-                  top: '-2px',
-                  right: '8px',
-                  fontSize: '38px',
-                  fontWeight: 800,
-                  color: '#e2e8f0',
-                  lineHeight: 1,
-                  userSelect: 'none',
-                  pointerEvents: 'none',
-                  zIndex: 0,
-                  letterSpacing: '-1px',
-                }}>
-                  {String(i + 1).padStart(2, '0')}
-                </span>
+                {String(i + 1).padStart(2, '0')}
+              </span>
 
-                <div style={{ position: 'relative', zIndex: 1 }}>
-                  <div style={{
-                    fontSize: '12px',
-                    fontWeight: 700,
-                    color: '#1e293b',
-                    lineHeight: 1.3,
-                    marginBottom: '7px',
-                  }}>
-                    {lv.label}
-                  </div>
-                  <span style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '5px',
-                    fontSize: '10px',
-                    fontWeight: 700,
-                    padding: '3px 9px',
-                    borderRadius: '9999px',
-                    backgroundColor: meta.badgeBg,
-                    color: meta.badgeText,
-                  }}>
-                    <span style={{
-                      width: '5px',
-                      height: '5px',
-                      borderRadius: '50%',
-                      backgroundColor: meta.dot,
-                      display: 'inline-block',
-                      flexShrink: 0,
-                    }} />
-                    {meta.label}
-                  </span>
+              <div style={{ position: 'relative', zIndex: 1 }}>
+                <div style={{
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  color: '#1e293b',
+                  lineHeight: 1.3,
+                  marginBottom: '7px',
+                }}>
+                  {lv.label}
                 </div>
-              </th>
-            )
-          })}
-        </tr>
-      </thead>
-    </>
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  padding: '3px 9px',
+                  borderRadius: '9999px',
+                  backgroundColor: meta.badgeBg,
+                  color: meta.badgeText,
+                }}>
+                  <span style={{
+                    width: '5px', height: '5px',
+                    borderRadius: '50%',
+                    backgroundColor: meta.dot,
+                    display: 'inline-block', flexShrink: 0,
+                  }} />
+                  {meta.label}
+                </span>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 
@@ -319,6 +324,9 @@ export default function PositionPage() {
   const meta = POSITION_META[position.id] || { icon: '📌' }
   const levels = position.levels
 
+  // CSS Grid template: cột label 11%, các cột còn lại chia đều
+  const colTemplate = `11% repeat(${levels.length}, 1fr)`
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       <Header back title={position.name} />
@@ -339,42 +347,36 @@ export default function PositionPage() {
         </div>
 
         {/*
-          CRITICAL FIX:
-          - KHÔNG dùng overflow-hidden trên wrapper (sẽ kill sticky)
-          - Dùng overflow-x: auto chỉ khi thực sự cần scroll ngang (màn nhỏ)
-          - rounded + border vẫn giữ nhưng không clip thead sticky
+          Wrapper KHÔNG có overflow: hidden
+          border + rounded áp dụng riêng trên header và body
         */}
-        <div style={{
-          backgroundColor: 'white',
-          borderRadius: '16px',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-          border: '1px solid #e2e8f0',
-          overflowX: 'auto',   // scroll ngang nếu màn hình nhỏ
-          overflowY: 'visible', // KHÔNG clip theo chiều dọc → sticky hoạt động
-          marginBottom: '24px',
-          position: 'relative',
-        }}>
-          <table style={{
-            width: '100%',
-            tableLayout: 'fixed',
-            borderCollapse: 'collapse',
-            minWidth: '700px', // đảm bảo không bị quá hẹp trên mobile
+        <div style={{ marginBottom: '24px' }}>
+
+          {/* Header sticky — hoàn toàn tách khỏi body */}
+          <div style={{
+            borderRadius: '16px 16px 0 0',
+            border: '1px solid #e2e8f0',
+            overflow: 'hidden', // chỉ clip border-radius trên header, không ảnh hưởng sticky
           }}>
-            <colgroup>
-              <col style={{ width: '11%' }} />
-              {levels.map((_, i) => (
-                <col key={i} style={{ width: `${89 / levels.length}%` }} />
-              ))}
-            </colgroup>
+            <StickyHeader levels={levels} colTemplate={colTemplate} />
+          </div>
 
-            <TableHeader levels={levels} />
-
-            <tbody>
-              {DIMENSIONS.map(dim => (
-                <SmartRow key={dim.id} dim={dim} levels={levels} />
-              ))}
-            </tbody>
-          </table>
+          {/* Body — KHÔNG overflow hidden, để sticky header hoạt động */}
+          <div style={{
+            backgroundColor: 'white',
+            border: '1px solid #e2e8f0',
+            borderTop: 'none',
+            borderRadius: '0 0 16px 16px',
+          }}>
+            {DIMENSIONS.map((dim, idx) => (
+              <GridRow
+                key={dim.id}
+                dim={dim}
+                levels={levels}
+                colTemplate={colTemplate}
+              />
+            ))}
+          </div>
         </div>
 
         {/* Back */}
