@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import Header from '../components/Header'
 import data from '../data/competency.json'
@@ -13,31 +13,28 @@ const POSITION_META = {
 }
 
 const DIMENSIONS = [
-  { id: 'chuyen_mon',          icon: '⚙️',  label: 'Năng lực chuyên môn' },
-  { id: 'nghien_cuu_sang_tao', icon: '💡',  label: 'Nghiên cứu & sáng tạo' },
-  { id: 'trach_nhiem',         icon: '○',   label: 'Trách nhiệm', customIcon: true },
-  { id: 'xu_ly_tinh_huong',    icon: '⚡',  label: 'Xử lý tình huống' },
-  { id: 'lam_viec_khach_hang', icon: '🤝',  label: 'Làm việc với khách hàng' },
+  { id: 'chuyen_mon',          icon: '⚙️', label: 'Năng lực chuyên môn',     customIcon: false },
+  { id: 'nghien_cuu_sang_tao', icon: '💡', label: 'Nghiên cứu & sáng tạo',   customIcon: false },
+  { id: 'trach_nhiem',         icon: null, label: 'Trách nhiệm',              customIcon: true  },
+  { id: 'xu_ly_tinh_huong',    icon: '⚡', label: 'Xử lý tình huống',        customIcon: false },
+  { id: 'lam_viec_khach_hang', icon: '🤝', label: 'Làm việc với khách hàng', customIcon: false },
 ]
 
 const DIM_COLORS = {
-  chuyen_mon:          { bg: 'bg-blue-50',    border: 'border-blue-200',    text: 'text-blue-700',    dot: '#60a5fa' },
-  nghien_cuu_sang_tao: { bg: 'bg-violet-50',  border: 'border-violet-200',  text: 'text-violet-700',  dot: '#a78bfa' },
-  trach_nhiem:         { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', dot: '#34d399' },
-  xu_ly_tinh_huong:    { bg: 'bg-amber-50',   border: 'border-amber-200',   text: 'text-amber-700',   dot: '#fbbf24' },
-  lam_viec_khach_hang: { bg: 'bg-rose-50',    border: 'border-rose-200',    text: 'text-rose-700',    dot: '#fb7185' },
+  chuyen_mon:          { bg: '#eff6ff', border: '#bfdbfe', text: '#1d4ed8', dot: '#60a5fa' },
+  nghien_cuu_sang_tao: { bg: '#f5f3ff', border: '#ddd6fe', text: '#6d28d9', dot: '#a78bfa' },
+  trach_nhiem:         { bg: '#f0fdf4', border: '#bbf7d0', text: '#15803d', dot: '#34d399' },
+  xu_ly_tinh_huong:    { bg: '#fffbeb', border: '#fde68a', text: '#b45309', dot: '#fbbf24' },
+  lam_viec_khach_hang: { bg: '#fff1f2', border: '#fecdd3', text: '#be123c', dot: '#fb7185' },
 }
 
-// Tag cho từng level (tối đa 5)
-const LEVEL_TAGS = [
-  { label: 'Học & quan sát',        bg: '#f1f5f9', text: '#64748b', dot: '#94a3b8' },
-  { label: 'Độc lập cơ bản',        bg: '#eff6ff', text: '#1d4ed8', dot: '#60a5fa' },
-  { label: 'Chủ động sáng tạo',     bg: '#f0fdf4', text: '#15803d', dot: '#4ade80' },
-  { label: 'Gánh team kỹ thuật',    bg: '#fff7ed', text: '#c2410c', dot: '#fb923c' },
-  { label: 'Định hướng chiến lược', bg: '#faf5ff', text: '#7e22ce', dot: '#c084fc' },
+const LEVEL_META = [
+  { label: 'Học & quan sát',        badgeBg: '#f1f5f9', badgeText: '#475569', dot: '#94a3b8', topBorder: '#94a3b8' },
+  { label: 'Độc lập cơ bản',        badgeBg: '#dbeafe', badgeText: '#1d4ed8', dot: '#60a5fa', topBorder: '#3b82f6' },
+  { label: 'Chủ động sáng tạo',     badgeBg: '#dcfce7', badgeText: '#15803d', dot: '#4ade80', topBorder: '#22c55e' },
+  { label: 'Gánh team kỹ thuật',    badgeBg: '#ffedd5', badgeText: '#c2410c', dot: '#fb923c', topBorder: '#f97316' },
+  { label: 'Định hướng chiến lược', badgeBg: '#f3e8ff', badgeText: '#7e22ce', dot: '#c084fc', topBorder: '#a855f7' },
 ]
-
-const CLAMP_HEIGHT = 200 // px — ngưỡng để hiện nút "Xem thêm"
 
 /* ─── helpers ─── */
 function parseItems(text) {
@@ -48,89 +45,255 @@ function parseItems(text) {
     .filter(l => l.length > 2)
 }
 
-/* ─── SmartCell: ô nội dung với logic "Xem thêm" thông minh ─── */
-function SmartCell({ items, dotColor }) {
-  const [expanded, setExpanded] = useState(false)
-  const [needsClamp, setNeedsClamp] = useState(false)
-  const innerRef = useRef(null)
-
-  useEffect(() => {
-    if (innerRef.current) {
-      setNeedsClamp(innerRef.current.scrollHeight > CLAMP_HEIGHT)
-    }
-  }, [items])
-
-  if (items.length === 0) {
-    return <span className="text-xs text-slate-300">—</span>
-  }
-
+/* ─── CheckCircle SVG outline ─── */
+function CheckCircleIcon({ color }) {
   return (
-    <div>
-      <div
-        style={{
-          maxHeight: needsClamp && !expanded ? `${CLAMP_HEIGHT}px` : 'none',
-          overflow: 'hidden',
-          position: 'relative',
-        }}
-      >
-        <ul ref={innerRef} className="space-y-1.5">
-          {items.map((item, j) => (
-            <li key={j} className="flex gap-2 text-xs text-slate-600 leading-relaxed">
-              <span
-                className="mt-1.5 w-1.5 h-1.5 rounded-full shrink-0"
-                style={{ backgroundColor: dotColor }}
-              />
-              <span>{item}</span>
-            </li>
-          ))}
-        </ul>
-        {/* fade gradient khi đang clamp */}
-        {needsClamp && !expanded && (
-          <div
-            style={{
-              position: 'absolute',
-              bottom: 0,
-              left: 0,
-              right: 0,
-              height: '48px',
-              background: 'linear-gradient(to bottom, transparent, white)',
-              pointerEvents: 'none',
-            }}
-          />
-        )}
-      </div>
-
-      {needsClamp && (
-        <button
-          onClick={() => setExpanded(e => !e)}
-          className="mt-2 text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors"
-        >
-          {expanded ? '▲ Thu gọn' : '▼ Xem thêm'}
-        </button>
-      )}
-    </div>
-  )
-}
-
-/* ─── CheckCircle icon (outline) ─── */
-function CheckCircleIcon({ className }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.8}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+      stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="10" />
       <polyline points="9 12 11 14 15 10" />
     </svg>
   )
 }
 
-/* ─── Main page ─── */
+/* ─── SmartRow: logic "Xem thêm" chỉ cho ô dài nhất trong hàng ─── */
+function SmartRow({ dim, levels }) {
+  const c = DIM_COLORS[dim.id]
+  const cellRefs = useRef([])
+  const [clampedIdx, setClampedIdx] = useState(null)
+  const [expandedIdx, setExpandedIdx] = useState(null)
+
+  useEffect(() => {
+    // Đợi render xong rồi mới đo
+    const timer = setTimeout(() => {
+      const heights = cellRefs.current.map(el => el ? el.scrollHeight : 0)
+      const max = Math.max(...heights)
+      const sorted = [...heights].sort((a, b) => b - a)
+      const second = sorted[1] ?? 0
+      // Chỉ clamp ô dài nhất nếu nó cao hơn 200px VÀ dài hơn ô thứ 2 trên 15%
+      if (max > 200 && max > second * 1.15) {
+        setClampedIdx(heights.indexOf(max))
+      }
+    }, 50)
+    return () => clearTimeout(timer)
+  }, [])
+
+  return (
+    <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+      {/* Cột label nhóm năng lực */}
+      <td style={{
+        backgroundColor: c.bg,
+        borderRight: `1px solid ${c.border}`,
+        verticalAlign: 'middle',
+        padding: '12px 6px',
+        textAlign: 'center',
+      }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px' }}>
+          {dim.customIcon
+            ? <CheckCircleIcon color={c.text} />
+            : <span style={{ fontSize: '15px', lineHeight: 1 }}>{dim.icon}</span>
+          }
+          <span style={{
+            fontSize: '10px',
+            fontWeight: 700,
+            color: c.text,
+            lineHeight: 1.3,
+            display: 'block',
+          }}>
+            {dim.label}
+          </span>
+        </div>
+      </td>
+
+      {/* Ô nội dung từng level */}
+      {levels.map((lv, i) => {
+        const items = parseItems(lv.competencies[dim.id])
+        const isClamped = clampedIdx === i && expandedIdx !== i
+        const isExpanded = expandedIdx === i
+
+        return (
+          <td key={i} style={{
+            verticalAlign: 'top',
+            padding: '12px 10px',
+            borderRight: i < levels.length - 1 ? '1px solid #f8fafc' : 'none',
+          }}>
+            {items.length === 0 ? (
+              <span style={{ fontSize: '11px', color: '#cbd5e1' }}>—</span>
+            ) : (
+              <div>
+                {/* Nội dung với line-clamp-8 khi đang clamp */}
+                <ul
+                  ref={el => cellRefs.current[i] = el}
+                  style={{
+                    listStyle: 'none',
+                    margin: 0,
+                    padding: 0,
+                    display: isClamped ? '-webkit-box' : 'block',
+                    WebkitLineClamp: isClamped ? 8 : 'none',
+                    WebkitBoxOrient: isClamped ? 'vertical' : 'unset',
+                    overflow: isClamped ? 'hidden' : 'visible',
+                  }}
+                >
+                  {items.map((item, j) => (
+                    <li key={j} style={{
+                      display: 'flex',
+                      gap: '6px',
+                      fontSize: '11px',
+                      color: '#475569',
+                      lineHeight: 1.6,
+                      marginBottom: '5px',
+                    }}>
+                      <span style={{
+                        marginTop: '6px',
+                        width: '5px',
+                        height: '5px',
+                        borderRadius: '50%',
+                        backgroundColor: c.dot,
+                        flexShrink: 0,
+                        display: 'inline-block',
+                      }} />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                {/* Nút Xem thêm — chỉ xuất hiện ở ô bị clamp */}
+                {clampedIdx === i && (
+                  <button
+                    onClick={() => setExpandedIdx(isExpanded ? null : i)}
+                    style={{
+                      marginTop: '6px',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      color: '#2563eb',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      padding: 0,
+                    }}
+                  >
+                    {isExpanded ? '▲ Thu gọn' : '▼ Xem thêm'}
+                  </button>
+                )}
+              </div>
+            )}
+          </td>
+        )
+      })}
+    </tr>
+  )
+}
+
+/* ─── Sticky Table Header với glassmorphism + layering ─── */
+function TableHeader({ levels }) {
+  const [isSticky, setIsSticky] = useState(false)
+  const sentinelRef = useRef(null)
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsSticky(!entry.isIntersecting),
+      { threshold: 0, rootMargin: '-58px 0px 0px 0px' }
+    )
+    if (sentinelRef.current) observer.observe(sentinelRef.current)
+    return () => observer.disconnect()
+  }, [])
+
+  return (
+    <>
+      <div ref={sentinelRef} style={{ height: 1 }} />
+      <thead style={{
+        position: 'sticky',
+        top: '57px',
+        zIndex: 20,
+        backdropFilter: 'blur(14px)',
+        WebkitBackdropFilter: 'blur(14px)',
+        backgroundColor: 'rgba(255,255,255,0.72)',
+        boxShadow: isSticky ? '0 8px 32px rgba(0,0,0,0.12)' : 'none',
+        borderBottom: `1px solid ${isSticky ? '#e2e8f0' : '#f1f5f9'}`,
+        transition: 'box-shadow 0.25s ease, border-color 0.25s ease',
+      }}>
+        <tr>
+          {/* Góc trái */}
+          <th style={{
+            padding: '12px 8px',
+            borderRight: '1px solid #e2e8f0',
+            backgroundColor: 'transparent',
+          }} />
+
+          {levels.map((lv, i) => {
+            const meta = LEVEL_META[Math.min(i, LEVEL_META.length - 1)]
+            const isLastCol = i === levels.length - 1
+            return (
+              <th key={i} style={{
+                padding: '14px 12px 12px',
+                textAlign: 'left',
+                verticalAlign: 'bottom',
+                borderTop: `3px solid ${meta.topBorder}`,
+                borderRight: isLastCol ? 'none' : '1px solid #e2e8f0',
+                position: 'relative',
+                overflow: 'hidden',
+                backgroundColor: 'transparent',
+              }}>
+                {/* Số thứ tự chìm — layering */}
+                <span style={{
+                  position: 'absolute',
+                  top: '-2px',
+                  right: '8px',
+                  fontSize: '38px',
+                  fontWeight: 800,
+                  color: '#e2e8f0',
+                  lineHeight: 1,
+                  userSelect: 'none',
+                  pointerEvents: 'none',
+                  zIndex: 0,
+                  letterSpacing: '-1px',
+                }}>
+                  {String(i + 1).padStart(2, '0')}
+                </span>
+
+                {/* Nội dung header — trên layer số */}
+                <div style={{ position: 'relative', zIndex: 1 }}>
+                  <div style={{
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    color: '#1e293b',
+                    lineHeight: 1.3,
+                    marginBottom: '7px',
+                  }}>
+                    {lv.label}
+                  </div>
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    padding: '3px 9px',
+                    borderRadius: '9999px',
+                    backgroundColor: meta.badgeBg,
+                    color: meta.badgeText,
+                  }}>
+                    <span style={{
+                      width: '5px',
+                      height: '5px',
+                      borderRadius: '50%',
+                      backgroundColor: meta.dot,
+                      display: 'inline-block',
+                      flexShrink: 0,
+                    }} />
+                    {meta.label}
+                  </span>
+                </div>
+              </th>
+            )
+          })}
+        </tr>
+      </thead>
+    </>
+  )
+}
+
+/* ─── Main ─── */
 export default function PositionPage() {
   const { positionId } = useParams()
   const framework = data.competency_framework
@@ -154,7 +317,7 @@ export default function PositionPage() {
 
       <div className="max-w-6xl mx-auto px-4 py-10">
 
-        {/* ── Banner: chỉ giữ tên vị trí + mission, bỏ timeline ── */}
+        {/* Banner gọn — chỉ tên + mission */}
         <div className="bg-gradient-to-r from-blue-700 to-teal-600 rounded-2xl shadow-lg px-8 py-7 text-white mb-6">
           <div className="flex items-center gap-4">
             <span className="text-4xl">{meta.icon}</span>
@@ -167,144 +330,29 @@ export default function PositionPage() {
           </div>
         </div>
 
-        {/* ── Progression table ── */}
+        {/* Table: fixed layout — không cuộn ngang */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-6">
-          <div className="overflow-x-auto">
-            <div style={{ minWidth: `${140 + levels.length * 210}px` }}>
+          <table style={{
+            width: '100%',
+            tableLayout: 'fixed',
+            borderCollapse: 'collapse',
+          }}>
+            {/* colgroup để set % width rõ ràng */}
+            <colgroup>
+              <col style={{ width: '11%' }} />
+              {levels.map((_, i) => (
+                <col key={i} style={{ width: `${89 / levels.length}%` }} />
+              ))}
+            </colgroup>
 
-              {/*
-                ── STICKY HEADER với 3 tầng ──
-                Tầng 1: số thứ tự trong vòng tròn + đường kẻ ngang kết nối
-                Tầng 2: tên cấp bậc (bold, lớn)
-                Tầng 3: badge mô tả (pill shape, pastel)
-              */}
-              <div
-                className="sticky top-0 z-20 bg-white/80 backdrop-blur-md shadow-md"
-                style={{ borderBottom: '1px solid #e2e8f0' }}
-              >
-                <div className="flex gap-0">
-                  {/* ô rỗng góc trái */}
-                  <div
-                    className="shrink-0 bg-white/80"
-                    style={{ width: '140px', borderRight: '1px solid #e2e8f0' }}
-                  />
+            <TableHeader levels={levels} />
 
-                  {/* các cột level */}
-                  {levels.map((lv, i) => {
-                    const tag = LEVEL_TAGS[Math.min(i, LEVEL_TAGS.length - 1)]
-                    const isLast = i === levels.length - 1
-                    return (
-                      <div
-                        key={i}
-                        className="flex-1 px-4 pt-4 pb-3 flex flex-col gap-2"
-                        style={{
-                          borderRight: isLast ? 'none' : '1px solid #e2e8f0',
-                        }}
-                      >
-                        {/* Tầng 1: số + connector */}
-                        <div className="flex items-center">
-                          <div
-                            className="w-7 h-7 rounded-full border-2 border-slate-300 bg-white flex items-center justify-center shrink-0"
-                            style={{ zIndex: 1 }}
-                          >
-                            <span className="text-[11px] font-bold text-slate-500">
-                              {String(i + 1).padStart(2, '0')}
-                            </span>
-                          </div>
-                          {/* đường kẻ ngang mờ chỉ trong header */}
-                          {!isLast && (
-                            <div className="flex-1 h-px bg-slate-200 ml-1" />
-                          )}
-                        </div>
-
-                        {/* Tầng 2: tên cấp bậc */}
-                        <div className="text-[13px] font-bold text-slate-800 leading-snug">
-                          {lv.label}
-                        </div>
-
-                        {/* Tầng 3: badge pill */}
-                        <div>
-                          <span
-                            className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full"
-                            style={{ background: tag.bg, color: tag.text }}
-                          >
-                            <span
-                              className="w-1.5 h-1.5 rounded-full shrink-0"
-                              style={{ backgroundColor: tag.dot }}
-                            />
-                            {tag.label}
-                          </span>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-
-              {/* ── Body: các hàng dimension ── */}
-              <div className="p-4 pt-2">
-                {DIMENSIONS.map((dim, dimIdx) => {
-                  const c = DIM_COLORS[dim.id]
-                  const isLast = dimIdx === DIMENSIONS.length - 1
-                  return (
-                    <div
-                      key={dim.id}
-                      className="flex gap-0"
-                      style={{
-                        borderBottom: isLast ? 'none' : '1px solid #f1f5f9',
-                        marginBottom: isLast ? 0 : '2px',
-                      }}
-                    >
-                      {/* Cột label nhóm năng lực — thu hẹp, căn giữa, kẻ dọc phân cách */}
-                      <div
-                        className={`shrink-0 flex flex-col items-center justify-center gap-1.5 py-4 px-2 rounded-xl my-1 ${c.bg} ${c.border}`}
-                        style={{
-                          width: '128px',
-                          border: `1px solid`,
-                          borderColor: c.border.replace('border-', '').replace('-200', ''),
-                          marginRight: '8px',
-                        }}
-                      >
-                        {/* Icon */}
-                        {dim.customIcon ? (
-                          <CheckCircleIcon className={`w-5 h-5 ${c.text}`} />
-                        ) : (
-                          <span className="text-lg leading-none">{dim.icon}</span>
-                        )}
-                        {/* Label */}
-                        <span
-                          className={`text-[11px] font-bold text-center leading-snug ${c.text}`}
-                          style={{ maxWidth: '100px' }}
-                        >
-                          {dim.label}
-                        </span>
-                      </div>
-
-                      {/* Các ô nội dung */}
-                      <div className="flex flex-1 gap-0">
-                        {levels.map((lv, i) => {
-                          const items = parseItems(lv.competencies[dim.id])
-                          const isLastCol = i === levels.length - 1
-                          return (
-                            <div
-                              key={i}
-                              className="flex-1 py-4 px-3 my-1"
-                              style={{
-                                borderRight: isLastCol ? 'none' : '1px solid transparent', // không kẻ dọc ở body
-                              }}
-                            >
-                              <SmartCell items={items} dotColor={c.dot} />
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-
-            </div>
-          </div>
+            <tbody>
+              {DIMENSIONS.map(dim => (
+                <SmartRow key={dim.id} dim={dim} levels={levels} />
+              ))}
+            </tbody>
+          </table>
         </div>
 
         {/* Back */}
