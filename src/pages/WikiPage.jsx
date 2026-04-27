@@ -174,6 +174,84 @@ const PLACEHOLDER_POSITION = {
   placeholder: true,
 }
 
+function getCategoryHref(id) {
+  if (id === 'khung_nang_luc') return '/competency'
+  if (id === 'review_30_day') return '/30dayreview'
+  if (id === 'org_chart') return '/orgchart'
+  return '/'
+}
+
+function HomeHub({ onOpenCategory }) {
+  const featured = CATEGORIES.map((category) => ({
+    ...category,
+    href: getCategoryHref(category.id),
+    itemCount: category.items?.length || 0,
+  }))
+
+  return (
+    <div className="flex-1 overflow-y-auto px-6 pb-6 pt-6">
+      <div className="mx-auto max-w-[1440px] space-y-6">
+        <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
+          <div className="bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 px-6 py-8 text-white md:px-8 md:py-9">
+            <div className="max-w-4xl">
+              <p className="text-[12px] font-semibold uppercase tracking-[0.18em] text-blue-100">
+                Eventus Production
+              </p>
+              <h1 className="mt-3 text-[34px] font-semibold tracking-tight md:text-[44px]">
+                Handbook nội bộ cho toàn bộ team
+              </h1>
+              <p className="mt-4 max-w-3xl text-[15px] leading-7 text-blue-100/90">
+                Tra cứu quy trình, nội quy, hướng dẫn, khung năng lực, sơ đồ tổ chức và các module vận hành nội bộ từ một nơi duy nhất.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section className="grid gap-5 xl:grid-cols-2">
+          {featured.map((category) => (
+            <button
+              key={category.id}
+              onClick={() => onOpenCategory(category.id)}
+              className="group overflow-hidden rounded-[28px] border border-slate-200 bg-white text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
+            >
+              <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-6 py-5">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-slate-900 via-blue-900 to-teal-700 text-[20px] text-white shadow-sm">
+                      {category.icon}
+                    </div>
+                    <div>
+                      <div className="text-[22px] font-semibold tracking-tight text-slate-900">{category.label}</div>
+                      <div className="mt-1 text-[13px] text-slate-500">{category.shortDesc}</div>
+                    </div>
+                  </div>
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-400 transition-all group-hover:translate-x-0.5 group-hover:text-slate-700">
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              <div className="px-6 py-5">
+                <p className="text-[14px] leading-7 text-slate-600">{category.desc}</p>
+                <div className="mt-5 flex items-center justify-between gap-4">
+                  <div className="text-[12px] font-medium uppercase tracking-[0.14em] text-slate-400">
+                    {category.itemCount > 0 ? `${category.itemCount} mục nội dung` : category.href.replace('/', '') || 'Trang chính'}
+                  </div>
+                  <div className="rounded-full bg-slate-100 px-3 py-1.5 text-[12px] font-semibold text-slate-600">
+                    Mở module
+                  </div>
+                </div>
+              </div>
+            </button>
+          ))}
+        </section>
+      </div>
+    </div>
+  )
+}
+
 function PositionNode({ position }) {
   const navigate = useNavigate()
   const meta = POSITION_META[position.id] || POSITION_META.leader
@@ -660,7 +738,7 @@ export default function WikiPage() {
   const { positionId } = useParams()
   const navigate = useNavigate()
   const [pages, setPages] = useState([])
-  const [activeCat, setActiveCat] = useState('khung_nang_luc')
+  const [activeCat, setActiveCat] = useState('home')
   const [selectedTitle, setSelectedTitle] = useState(null)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
@@ -708,6 +786,13 @@ export default function WikiPage() {
   useEffect(() => {
     if (positionId) return
 
+    if (location.pathname === '/') {
+      setActiveCat('home')
+      setSelectedTitle(null)
+      setEditing(false)
+      return
+    }
+
     if (location.pathname === '/competency') {
       setActiveCat('khung_nang_luc')
       setSelectedTitle(null)
@@ -729,12 +814,7 @@ export default function WikiPage() {
       return
     }
 
-    if (location.pathname === '/' && (activeCat === 'khung_nang_luc' || activeCat === 'review_30_day' || activeCat === 'org_chart')) {
-      setActiveCat('quy_trinh')
-      setSelectedTitle(null)
-      setEditing(false)
-    }
-  }, [location.pathname, positionId, activeCat])
+  }, [location.pathname, positionId])
 
   function selectCat(id) {
     if (id === 'khung_nang_luc') {
@@ -746,6 +826,17 @@ export default function WikiPage() {
     } else if (location.pathname !== '/') {
       navigate('/')
     }
+    setActiveCat(id)
+    setSelectedTitle(null)
+    setEditing(false)
+  }
+
+  function openHomeCategory(id) {
+    if (id === 'khung_nang_luc' || id === 'review_30_day' || id === 'org_chart') {
+      selectCat(id)
+      return
+    }
+
     setActiveCat(id)
     setSelectedTitle(null)
     setEditing(false)
@@ -764,9 +855,12 @@ export default function WikiPage() {
         {/* Sidebar */}
         <aside className="w-80 flex-shrink-0 border-r border-slate-200/80 bg-white/95 flex flex-col">
           <div className="border-b border-slate-200/70 px-4 py-4">
-            <div className="rounded-3xl bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 px-5 py-6 text-white shadow-lg">
+            <button
+              onClick={() => navigate('/')}
+              className="w-full rounded-3xl bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 px-5 py-6 text-left text-white shadow-lg transition-transform hover:-translate-y-0.5"
+            >
               <p className="text-[18px] font-semibold tracking-tight leading-7">Eventus Production Handbook</p>
-            </div>
+            </button>
           </div>
 
           <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-1.5">
@@ -849,6 +943,9 @@ export default function WikiPage() {
 
         {/* Main content */}
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+
+          {/* Home */}
+          {activeCat === 'home' && <HomeHub onOpenCategory={openHomeCategory} />}
 
           {/* Khung nang luc */}
           {activeCat === 'khung_nang_luc' && (positionId ? <div className="flex-1 overflow-y-auto"><PositionPage embedded /></div> : <CompetencyGrid />)}
