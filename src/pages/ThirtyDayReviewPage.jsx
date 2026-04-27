@@ -444,102 +444,218 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
 
     return (
       <div className={`${embedded ? 'px-6 py-6' : 'min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4'} flex items-center justify-center`}>
-        <div className={`bg-white w-full max-w-[460px] overflow-hidden ${embeddedCardClass}`}>
-          <div className="bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 px-8 py-6">
-            <h1 className="text-[22px] font-medium text-white leading-tight tracking-tight">
-              Eventus Onboarding 30-Day Review
-            </h1>
-            <p className="mt-2 text-[13px] leading-6 text-blue-100/90">
-              Ghi nhận cảm nhận sau 30 ngày đầu tiên để Eventus cải thiện tốt hơn.
-            </p>
-          </div>
-
-          <div className="px-8 py-7">
-            <p className="text-sm text-slate-700 leading-relaxed mb-6">
-              Nhập thông tin để bắt đầu hoặc tiếp tục bài làm.
-              <br />
-              Hệ thống sẽ tự lưu để bạn quay lại bất cứ lúc nào.
-            </p>
-
-            {loginError && (
-              <div className="bg-red-50 border border-red-200 rounded-lg px-3.5 py-3 mb-5 flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-red-700 flex-shrink-0 mt-0.5" />
-                <p className="text-[13px] text-red-800 leading-snug">{loginError}</p>
-              </div>
-            )}
-
-            <div className="space-y-[18px]">
-              <div>
-                <label className="block text-[13px] font-medium text-slate-900 mb-2">Họ tên</label>
-                <input
-                  type="text"
-                  value={hoTen}
-                  onChange={(e) => {
-                    setHoTen(e.target.value);
-                    if (missingFields.hoTen) setMissingFields({ ...missingFields, hoTen: false });
-                  }}
-                  placeholder="Nguyễn Văn A"
-                  className={`${inputBase} ${missingFields.hoTen ? inputError : inputNormal}`}
-                />
+        <div className={`w-full ${embedded ? 'max-w-6xl' : 'max-w-[460px]'} overflow-hidden bg-white ${embeddedCardClass}`}>
+          {embedded ? (
+            <div className="grid lg:grid-cols-[1.05fr_0.95fr]">
+              <div className="bg-gradient-to-br from-slate-900 via-blue-900 to-teal-700 px-8 py-8 text-white md:px-10">
+                <div className="max-w-xl">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-blue-100/80">
+                    Eventus Onboarding
+                  </p>
+                  <h1 className="mt-3 text-[28px] font-semibold leading-tight tracking-tight md:text-[34px]">
+                    30-Day Review
+                  </h1>
+                  <p className="mt-3 text-[14px] leading-7 text-blue-100/90">
+                    Ghi nhận cảm nhận sau 30 ngày đầu tiên để Eventus cải thiện tốt hơn, từ góc nhìn thực tế của chính bạn.
+                  </p>
+                  <div className="mt-8 rounded-2xl border border-white/10 bg-white/10 px-5 py-4 text-[13px] leading-6 text-blue-50/95 backdrop-blur">
+                    Hệ thống tự lưu trong quá trình làm. Bạn có thể quay lại tiếp tục bằng đúng số điện thoại đã dùng trước đó.
+                  </div>
+                </div>
               </div>
 
-              <div>
-                <label className="block text-[13px] font-medium text-slate-900 mb-2">Số điện thoại</label>
-                <input
-                  type="tel"
-                  value={sdt}
-                  onChange={(e) => {
-                    setSdt(e.target.value);
-                    if (missingFields.sdt) setMissingFields({ ...missingFields, sdt: false });
-                  }}
-                  placeholder="0901234567"
-                  className={`${inputBase} ${missingFields.sdt ? inputError : inputNormal}`}
-                />
-              </div>
+              <div className="px-8 py-8 md:px-10">
+                <div className="max-w-xl">
+                  <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                    Bắt đầu
+                  </p>
+                  <h2 className="mt-2 text-[24px] font-semibold tracking-tight text-slate-900">
+                    Nhập thông tin của bạn
+                  </h2>
+                  <p className="mt-2 text-[14px] leading-6 text-slate-600">
+                    Điền đủ 4 thông tin để mở bài review hoặc tiếp tục phần đã lưu trước đó.
+                  </p>
 
-              <div>
-                <label className="block text-[13px] font-medium text-slate-900 mb-2">Vị trí</label>
-                <input
-                  type="text"
-                  value={viTri}
-                  onChange={(e) => {
-                    setViTri(e.target.value);
-                    if (missingFields.viTri) setMissingFields({ ...missingFields, viTri: false });
-                  }}
-                  placeholder="VD: Video-Editor, Photographer, Account ..."
-                  className={`${inputBase} ${missingFields.viTri ? inputError : inputNormal}`}
-                />
-              </div>
+                  {loginError && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg px-3.5 py-3 mt-6 mb-5 flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-red-700 flex-shrink-0 mt-0.5" />
+                      <p className="text-[13px] text-red-800 leading-snug">{loginError}</p>
+                    </div>
+                  )}
 
-              <div>
-                <label className="block text-[13px] font-medium text-slate-900 mb-2">Ngày gia nhập</label>
-                <input
-                  type="date"
-                  value={ngayGiaNhap}
-                  min="2017-01-01"
-                  max={getTodayISO()}
-                  onChange={(e) => {
-                    setNgayGiaNhap(e.target.value);
-                    if (missingFields.ngayGiaNhap) setMissingFields({ ...missingFields, ngayGiaNhap: false });
-                  }}
-                  onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-                  className={`${inputBase} ${missingFields.ngayGiaNhap ? inputError : inputNormal}`}
-                />
+                  <div className="mt-6 grid gap-[18px] md:grid-cols-2">
+                    <div className="md:col-span-2">
+                      <label className="block text-[13px] font-medium text-slate-900 mb-2">Họ tên</label>
+                      <input
+                        type="text"
+                        value={hoTen}
+                        onChange={(e) => {
+                          setHoTen(e.target.value);
+                          if (missingFields.hoTen) setMissingFields({ ...missingFields, hoTen: false });
+                        }}
+                        placeholder="Nguyễn Văn A"
+                        className={`${inputBase} ${missingFields.hoTen ? inputError : inputNormal}`}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[13px] font-medium text-slate-900 mb-2">Số điện thoại</label>
+                      <input
+                        type="tel"
+                        value={sdt}
+                        onChange={(e) => {
+                          setSdt(e.target.value);
+                          if (missingFields.sdt) setMissingFields({ ...missingFields, sdt: false });
+                        }}
+                        placeholder="0901234567"
+                        className={`${inputBase} ${missingFields.sdt ? inputError : inputNormal}`}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[13px] font-medium text-slate-900 mb-2">Ngày gia nhập</label>
+                      <input
+                        type="date"
+                        value={ngayGiaNhap}
+                        min="2017-01-01"
+                        max={getTodayISO()}
+                        onChange={(e) => {
+                          setNgayGiaNhap(e.target.value);
+                          if (missingFields.ngayGiaNhap) setMissingFields({ ...missingFields, ngayGiaNhap: false });
+                        }}
+                        onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+                        className={`${inputBase} ${missingFields.ngayGiaNhap ? inputError : inputNormal}`}
+                      />
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block text-[13px] font-medium text-slate-900 mb-2">Vị trí</label>
+                      <input
+                        type="text"
+                        value={viTri}
+                        onChange={(e) => {
+                          setViTri(e.target.value);
+                          if (missingFields.viTri) setMissingFields({ ...missingFields, viTri: false });
+                        }}
+                        placeholder="VD: Video-Editor, Photographer, Account ..."
+                        className={`${inputBase} ${missingFields.viTri ? inputError : inputNormal}`}
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={handleLogin}
+                    disabled={loginSubmitting}
+                    className="mt-7 inline-flex w-full items-center justify-center rounded-[12px] bg-blue-700 px-6 py-3 text-[15px] font-medium text-white transition hover:bg-blue-800 disabled:opacity-50"
+                  >
+                    {loginSubmitting ? 'Đang xử lý...' : 'Bắt đầu / Tiếp tục'}
+                  </button>
+
+                  <p className="mt-6 text-[11px] tracking-wide text-slate-400">
+                    Eventus Production · Built by Phạm Thanh Bình · 2026
+                  </p>
+                </div>
               </div>
             </div>
+          ) : (
+            <>
+              <div className="bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 px-8 py-6">
+                <h1 className="text-[22px] font-medium text-white leading-tight tracking-tight">
+                  Eventus Onboarding 30-Day Review
+                </h1>
+                <p className="mt-2 text-[13px] leading-6 text-blue-100/90">
+                  Ghi nhận cảm nhận sau 30 ngày đầu tiên để Eventus cải thiện tốt hơn.
+                </p>
+              </div>
 
-            <button
-              onClick={handleLogin}
-              disabled={loginSubmitting}
-              className="w-full mt-6 bg-blue-700 hover:bg-blue-800 text-white font-medium text-[15px] py-3 rounded-[10px] transition disabled:opacity-50"
-            >
-              {loginSubmitting ? 'Đang xử lý...' : 'Bắt đầu / Tiếp tục'}
-            </button>
+              <div className="px-8 py-7">
+                <p className="text-sm text-slate-700 leading-relaxed mb-6">
+                  Nhập thông tin để bắt đầu hoặc tiếp tục bài làm.
+                  <br />
+                  Hệ thống sẽ tự lưu để bạn quay lại bất cứ lúc nào.
+                </p>
 
-            <p className="text-center text-[11px] text-slate-400 mt-6 tracking-wide">
-              Eventus Production · Built by Phạm Thanh Bình · 2026
-            </p>
-          </div>
+                {loginError && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg px-3.5 py-3 mb-5 flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-red-700 flex-shrink-0 mt-0.5" />
+                    <p className="text-[13px] text-red-800 leading-snug">{loginError}</p>
+                  </div>
+                )}
+
+                <div className="space-y-[18px]">
+                  <div>
+                    <label className="block text-[13px] font-medium text-slate-900 mb-2">Họ tên</label>
+                    <input
+                      type="text"
+                      value={hoTen}
+                      onChange={(e) => {
+                        setHoTen(e.target.value);
+                        if (missingFields.hoTen) setMissingFields({ ...missingFields, hoTen: false });
+                      }}
+                      placeholder="Nguyễn Văn A"
+                      className={`${inputBase} ${missingFields.hoTen ? inputError : inputNormal}`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[13px] font-medium text-slate-900 mb-2">Số điện thoại</label>
+                    <input
+                      type="tel"
+                      value={sdt}
+                      onChange={(e) => {
+                        setSdt(e.target.value);
+                        if (missingFields.sdt) setMissingFields({ ...missingFields, sdt: false });
+                      }}
+                      placeholder="0901234567"
+                      className={`${inputBase} ${missingFields.sdt ? inputError : inputNormal}`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[13px] font-medium text-slate-900 mb-2">Vị trí</label>
+                    <input
+                      type="text"
+                      value={viTri}
+                      onChange={(e) => {
+                        setViTri(e.target.value);
+                        if (missingFields.viTri) setMissingFields({ ...missingFields, viTri: false });
+                      }}
+                      placeholder="VD: Video-Editor, Photographer, Account ..."
+                      className={`${inputBase} ${missingFields.viTri ? inputError : inputNormal}`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[13px] font-medium text-slate-900 mb-2">Ngày gia nhập</label>
+                    <input
+                      type="date"
+                      value={ngayGiaNhap}
+                      min="2017-01-01"
+                      max={getTodayISO()}
+                      onChange={(e) => {
+                        setNgayGiaNhap(e.target.value);
+                        if (missingFields.ngayGiaNhap) setMissingFields({ ...missingFields, ngayGiaNhap: false });
+                      }}
+                      onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+                      className={`${inputBase} ${missingFields.ngayGiaNhap ? inputError : inputNormal}`}
+                    />
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleLogin}
+                  disabled={loginSubmitting}
+                  className="w-full mt-6 bg-blue-700 hover:bg-blue-800 text-white font-medium text-[15px] py-3 rounded-[10px] transition disabled:opacity-50"
+                >
+                  {loginSubmitting ? 'Đang xử lý...' : 'Bắt đầu / Tiếp tục'}
+                </button>
+
+                <p className="text-center text-[11px] text-slate-400 mt-6 tracking-wide">
+                  Eventus Production · Built by Phạm Thanh Bình · 2026
+                </p>
+              </div>
+            </>
+          )}
         </div>
       </div>
     );
@@ -572,10 +688,10 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
 
   return (
     <div className={embedded ? embeddedPagePaddingClass : `min-h-screen ${embeddedShellClass} ${embeddedPagePaddingClass}`}>
-      <div className="max-w-3xl mx-auto">
+      <div className={`${embedded ? 'max-w-[1320px] mx-auto' : 'max-w-3xl mx-auto'}`}>
         {/* ===== HEADER ===== */}
-        <div className="bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 rounded-[28px] shadow-lg p-7 md:p-8 mb-6 text-white">
-          <div className="flex items-start justify-between gap-4 mb-3">
+        <div className="bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 rounded-[28px] shadow-lg px-8 py-6 md:px-10 md:py-7 mb-6 text-white">
+          <div className="flex items-start justify-between gap-4 mb-2.5">
             <h1 className="text-[22px] md:text-[26px] font-medium leading-tight tracking-tight">
               HÀNH TRÌNH 30 NGÀY <span className="opacity-60 mx-1">|</span> {hoTen.toUpperCase()}
             </h1>
@@ -584,11 +700,11 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
             </div>
           </div>
 
-          <p className="text-[15px] mb-4 opacity-95 leading-snug">
+          <p className="text-[14px] mb-3 opacity-95 leading-6">
             Nơi những cảm nhận mới mẻ định hình nên một Eventus tốt hơn.
           </p>
 
-          <div className="bg-white/12 backdrop-blur rounded-2xl px-[18px] py-4 text-[13.5px] leading-[1.7] space-y-3 ring-1 ring-white/10">
+          <div className="bg-white/12 backdrop-blur rounded-2xl px-[18px] py-3.5 text-[13px] leading-[1.65] space-y-2.5 ring-1 ring-white/10">
             <p className="m-0">
               Eventus trân trọng góc nhìn từ những "đôi mắt mới" để hoàn thiện mỗi ngày. Đây không phải bài thi hay đánh giá thử việc. Bạn đang ở khoảnh khắc duy nhất có thể nhìn Eventus bằng góc nhìn còn mới. Một tháng nữa, bạn sẽ không còn thấy những gì hôm nay bạn đang thấy. Hãy ghi lại trước khi nó phai.
             </p>
@@ -600,7 +716,7 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
             </p>
           </div>
 
-          <div className="mt-[18px] pt-[14px] border-t border-white/20 flex items-center justify-between flex-wrap gap-2.5">
+          <div className="mt-4 pt-3 border-t border-white/20 flex items-center justify-between flex-wrap gap-2.5">
             <div className="flex items-center gap-3.5 flex-wrap text-[11.5px] opacity-85">
               <span className="inline-flex items-center gap-1.5">
                 <Phone className="w-3 h-3" />
@@ -685,9 +801,9 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
                 </h2>
               </div>
 
-              <div className="space-y-6">
+              <div className={`${embedded ? 'grid gap-x-8 gap-y-6 lg:grid-cols-2' : 'space-y-6'}`}>
                 {section.questions.map((q) => (
-                  <div key={q.id}>
+                  <div key={q.id} className={q.type === 'textarea' ? (embedded ? 'lg:col-span-2' : '') : ''}>
                     <label className="block text-sm font-medium text-slate-700 mb-2">
                       {q.label}
                       {q.required && <span className="text-red-500 ml-1">*</span>}
