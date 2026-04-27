@@ -59,9 +59,51 @@ const CATEGORIES = [
 ]
 
 const CATEGORY_CARD_META = {
-  quy_trinh: { accent: 'from-blue-50 to-cyan-50', iconBg: 'bg-blue-100', iconText: 'text-blue-700' },
-  noi_quy: { accent: 'from-emerald-50 to-teal-50', iconBg: 'bg-emerald-100', iconText: 'text-emerald-700' },
-  huong_dan: { accent: 'from-amber-50 to-orange-50', iconBg: 'bg-amber-100', iconText: 'text-amber-700' },
+  quy_trinh: { accent: 'from-slate-50 to-blue-50/70', iconBg: 'bg-slate-100', iconText: 'text-slate-700', stroke: '#334155' },
+  noi_quy: { accent: 'from-slate-50 to-slate-100/80', iconBg: 'bg-slate-100', iconText: 'text-slate-700', stroke: '#475569' },
+  huong_dan: { accent: 'from-slate-50 to-teal-50/70', iconBg: 'bg-slate-100', iconText: 'text-slate-700', stroke: '#0f766e' },
+}
+
+function CategoryCardIcon({ categoryId, stroke = '#334155' }) {
+  const common = {
+    fill: 'none',
+    stroke,
+    strokeWidth: 1.8,
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+  }
+
+  if (categoryId === 'noi_quy') {
+    return (
+      <svg className="h-4.5 w-4.5" viewBox="0 0 24 24" aria-hidden="true">
+        <path {...common} d="M9 5.5h7.5a2 2 0 0 1 2 2v11a1 1 0 0 1-1.6.8L14 17l-2.9 2.3a1 1 0 0 1-1.6-.8v-11a2 2 0 0 1 2-2Z" />
+        <path {...common} d="M12 9.5h4" />
+        <path {...common} d="M12 12.5h4" />
+      </svg>
+    )
+  }
+
+  if (categoryId === 'huong_dan') {
+    return (
+      <svg className="h-4.5 w-4.5" viewBox="0 0 24 24" aria-hidden="true">
+        <path {...common} d="M6.5 6.5A2.5 2.5 0 0 1 9 4h8.5v14H9a2.5 2.5 0 0 0-2.5 2.5" />
+        <path {...common} d="M6.5 6.5V20" />
+        <path {...common} d="M9.5 8.5h5" />
+        <path {...common} d="M9.5 11.5h5" />
+      </svg>
+    )
+  }
+
+  return (
+    <svg className="h-4.5 w-4.5" viewBox="0 0 24 24" aria-hidden="true">
+      <path {...common} d="M7 6.5h10" />
+      <path {...common} d="M7 12h10" />
+      <path {...common} d="M7 17.5h6" />
+      <circle {...common} cx="5" cy="6.5" r="1" />
+      <circle {...common} cx="5" cy="12" r="1" />
+      <circle {...common} cx="5" cy="17.5" r="1" />
+    </svg>
+  )
 }
 
 /* ─── Competency grid ─── */
@@ -700,16 +742,16 @@ export default function WikiPage() {
                     <button
                       key={title}
                       onClick={() => openPage(title)}
-                      className={`group relative overflow-hidden rounded-[18px] border border-slate-200 bg-gradient-to-br ${cardMeta.accent} px-4 py-3.5 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md hover:shadow-slate-200/70`}
+                      className={`group relative overflow-hidden rounded-[18px] border border-slate-200 bg-gradient-to-br ${cardMeta.accent} px-4 py-3.5 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md hover:shadow-slate-200/70`}
                     >
                       <div className="absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-white/55 to-transparent pointer-events-none" />
                       <div className="relative flex h-full flex-col">
                         <div className="flex items-start gap-3">
-                          <div className={`mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl ${cardMeta.iconBg} ${cardMeta.iconText} shadow-sm ring-1 ring-white/70`}>
-                            <span className="text-base">{currentCat?.icon}</span>
+                          <div className={`mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl ${cardMeta.iconBg} ${cardMeta.iconText} ring-1 ring-white/70`}>
+                            <CategoryCardIcon categoryId={activeCat} stroke={cardMeta.stroke} />
                           </div>
                           <div className="min-w-0 flex-1">
-                            <div className="text-[14px] font-semibold leading-5 text-slate-800 transition-colors group-hover:text-blue-700">
+                            <div className="text-[14px] font-semibold leading-5 text-slate-800 transition-colors group-hover:text-slate-900">
                               {title}
                             </div>
                           </div>
@@ -725,7 +767,7 @@ export default function WikiPage() {
                               Chưa có nội dung
                             </div>
                           )}
-                          <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-white/80 text-slate-400 ring-1 ring-slate-200/70 transition-all group-hover:translate-x-0.5 group-hover:text-blue-700">
+                          <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-white/80 text-slate-400 ring-1 ring-slate-200/70 transition-all group-hover:translate-x-0.5 group-hover:text-slate-700">
                             <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                             </svg>
