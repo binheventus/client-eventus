@@ -14,15 +14,12 @@ export default function Header({ back, title }) {
         ) : (
           <Link to="/" className="flex items-center gap-2.5">
             <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-700 to-teal-600 flex items-center justify-center text-white font-bold text-sm">E</span>
-            <span className="font-bold text-slate-800 text-sm hidden sm:block">Eventus Việt Nam</span>
+            <span className="font-bold text-slate-800 text-sm hidden sm:block">Eventus Production</span>
           </Link>
         )}
         {title && (
           <span className="text-slate-400 text-sm truncate">{title}</span>
         )}
-        <div className="ml-auto">
-          <span className="text-xs bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 rounded-full font-medium">v2.0 · 2025</span>
-        </div>
       </div>
     </header>
   )
