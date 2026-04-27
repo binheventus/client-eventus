@@ -183,14 +183,38 @@ export default function WikiPage() {
     if (!draft.trim()) return
     setFormatting(true)
     try {
-      const res = await fetch('/api/format', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: draft, title: selectedTitle }),
-      })
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{
+              parts: [{
+                text: `Bạn là trợ lý format nội dung wiki nội bộ cho công ty Eventus Production.
+Nhiệm vụ: Nhận text thô, format lại thành Markdown rõ ràng, dễ đọc.
+
+Quy tắc:
+- Dùng # cho tiêu đề chính, ## cho mục, ### cho tiểu mục
+- Dùng - cho danh sách gạch đầu dòng
+- Dùng **text** để in đậm các điểm quan trọng
+- Giữ nguyên 100% nội dung gốc, KHÔNG thêm, KHÔNG bớt
+- Chỉ trả về Markdown thuần, không giải thích, không bọc trong code block
+
+Tên trang: ${selectedTitle}
+
+Nội dung:
+${draft}`
+              }]
+            }]
+          })
+        }
+      )
       const data = await res.json()
-      if (data.result) {
-        setDraft(data.result)
+      const result = data.candidates?.[0]?.content?.parts?.[0]?.text
+      if (result) {
+        setDraft(result)
       } else {
         alert('AI không trả về kết quả. Thử lại sau.')
       }
