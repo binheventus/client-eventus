@@ -34,6 +34,11 @@ function countMembers(department) {
 }
 
 function DepartmentOverviewCard({ department }) {
+  const shouldShowMembersInline = department.id === 'account'
+  const inlineMembers = shouldShowMembersInline
+    ? department.subteams.flatMap((subteam) => subteam.members)
+    : []
+
   return (
     <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
       <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Department</div>
@@ -56,6 +61,21 @@ function DepartmentOverviewCard({ department }) {
           <div className="text-[12px] text-slate-500">thành viên</div>
         </div>
       </div>
+
+      {shouldShowMembersInline && (
+        <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+          <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Team Members</div>
+          <div className="grid gap-3">
+            {inlineMembers.map((member, index) => (
+              <PersonToken
+                key={`${department.id}-inline-${member.name}-${index}`}
+                name={member.name}
+                title={member.title}
+              />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -63,9 +83,12 @@ function DepartmentOverviewCard({ department }) {
 function DepartmentCard({ department }) {
   return (
     <section className="rounded-[26px] border border-slate-200 bg-white p-6 shadow-sm md:p-7">
-      <div className="mb-6">
+      <div className="mb-6 border-b border-slate-100 pb-5">
         <div className="text-[12px] font-semibold uppercase tracking-[0.18em] text-slate-400">Department</div>
         <h2 className="mt-2 text-[24px] font-semibold tracking-tight text-slate-900">{department.name}</h2>
+        <p className="mt-2 text-[13px] leading-6 text-slate-500">
+          {countMembers(department)} thành viên trong {department.subteams.length} nhóm chức năng.
+        </p>
       </div>
 
       <div className="mb-6">
@@ -75,9 +98,12 @@ function DepartmentCard({ department }) {
 
       <div className="space-y-5">
         {department.subteams.map((subteam) => (
-          <div key={subteam.id} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+          <div key={subteam.id} className="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4 md:p-5">
             <div className="mb-4 flex items-center justify-between gap-3">
-              <h3 className="text-[16px] font-semibold text-slate-900">{subteam.name}</h3>
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Subteam</div>
+                <h3 className="mt-1 text-[16px] font-semibold text-slate-900">{subteam.name}</h3>
+              </div>
               <div className="text-[11px] font-medium uppercase tracking-[0.12em] text-slate-400">
                 {subteam.members.length} người
               </div>
