@@ -372,7 +372,7 @@ export default function PositionPage({ embedded = false }) {
         </div>
       )}
 
-      <div className={`${embedded ? 'mx-auto max-w-[1400px]' : 'max-w-6xl mx-auto px-4 py-10'}`}>
+      <div className={`${embedded ? 'w-full' : 'max-w-6xl mx-auto px-4 py-10'}`}>
         <div style={{ marginBottom: '24px' }}>
 
           {/*
