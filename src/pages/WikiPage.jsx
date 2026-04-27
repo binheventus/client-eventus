@@ -389,11 +389,11 @@ function ContentBlock({ block }) {
 function ArticleDocument({ title, category, page }) {
   const article = useMemo(() => parseArticle(page?.content, title), [page?.content, title])
   const hasSections = article.sections.length > 0
+  const updatedLabel = page?.updated_at ? new Date(page.updated_at).toLocaleString('vi-VN') : null
 
   return (
     <div className="px-6 py-6 lg:px-8">
-      <div className="mx-auto grid max-w-7xl gap-6 xl:grid-cols-[minmax(0,1fr)_260px]">
-        <div className="min-w-0 space-y-6">
+      <div className="mx-auto max-w-6xl space-y-6">
           <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
             <div className="bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 px-6 py-8 text-white md:px-8 md:py-10">
               <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-100">
@@ -404,37 +404,25 @@ function ArticleDocument({ title, category, page }) {
               <p className="mt-3 max-w-3xl text-[15px] leading-7 text-blue-100/90">
                 Tài liệu vận hành nội bộ. Nội dung được trình bày lại theo dạng handbook để dễ đọc, dễ tra cứu và giảm sót việc khi đi job.
               </p>
-            </div>
-
-            {(article.lead.length > 0 || page?.updated_at) && (
-              <div className="border-t border-slate-100 bg-slate-50/80 px-6 py-4 md:px-8">
-                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
-                  <div className="space-y-3">
-                    {article.lead.map((paragraph, idx) => (
-                      <p key={idx} className="text-[15px] leading-7 text-slate-600">
-                        {parseInline(paragraph)}
-                      </p>
-                    ))}
-                  </div>
-                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-[12px] text-slate-500">
-                    <div className="font-semibold uppercase tracking-[0.14em] text-slate-400">Thông tin</div>
-                    <div className="mt-3 space-y-2">
-                      <div>
-                        <div className="text-slate-400">Danh mục</div>
-                        <div className="font-medium text-slate-700">{category?.label}</div>
-                      </div>
-                      {page?.updated_at && (
-                        <div>
-                          <div className="text-slate-400">Cập nhật</div>
-                          <div className="font-medium text-slate-700">{new Date(page.updated_at).toLocaleString('vi-VN')}</div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+              {updatedLabel && (
+                <div className="mt-6 text-right text-[12px] text-blue-100/75">
+                  Cập nhật {updatedLabel}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </section>
+
+          {article.lead.length > 0 && (
+            <section className="rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+              <div className="space-y-3">
+                {article.lead.map((paragraph, idx) => (
+                  <p key={idx} className="text-[15px] leading-7 text-slate-600">
+                    {parseInline(paragraph)}
+                  </p>
+                ))}
+              </div>
+            </section>
+          )}
 
           {hasSections ? article.sections.map((section, index) => (
             <section key={section.id || index} id={section.id} className="rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
@@ -443,8 +431,7 @@ function ArticleDocument({ title, category, page }) {
                   {String(index + 1).padStart(2, '0')}
                 </div>
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Section</p>
-                  <h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">{section.title}</h2>
+                  <h2 className="text-2xl font-semibold tracking-tight text-slate-900">{section.title}</h2>
                 </div>
               </div>
 
@@ -458,12 +445,7 @@ function ArticleDocument({ title, category, page }) {
                 <div className="mt-8 space-y-5">
                   {section.subsections.map((subsection, idx) => (
                     <div key={subsection.id || idx} id={subsection.id} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-5">
-                      <div className="mb-4 flex items-center gap-3">
-                        <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-500 shadow-sm">
-                          {subsection.title.split(' ')[0]}
-                        </span>
-                        <h3 className="text-lg font-semibold text-slate-900">{subsection.title}</h3>
-                      </div>
+                      <h3 className="mb-4 text-lg font-semibold text-slate-900">{subsection.title}</h3>
                       <div className="space-y-4">
                         {subsection.blocks.map((block, blockIdx) => (
                           <ContentBlock key={blockIdx} block={block} />
@@ -493,34 +475,6 @@ function ArticleDocument({ title, category, page }) {
               ))}
             </section>
           )}
-        </div>
-
-        <aside className="hidden xl:block">
-          <div className="sticky top-20 rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Mục lục</p>
-            <div className="mt-4 space-y-4">
-              {article.sections.map((section, index) => (
-                <div key={section.id || index}>
-                  <a href={`#${section.id}`} className="group flex items-start gap-3 text-sm text-slate-600 transition-colors hover:text-blue-700">
-                    <span className="mt-0.5 text-[11px] font-semibold text-slate-400 group-hover:text-blue-700">
-                      {String(index + 1).padStart(2, '0')}
-                    </span>
-                    <span className="leading-5">{section.title}</span>
-                  </a>
-                  {section.subsections.length > 0 && (
-                    <div className="mt-2 ml-6 space-y-2 border-l border-slate-100 pl-4">
-                      {section.subsections.map((subsection, subIdx) => (
-                        <a key={subsection.id || subIdx} href={`#${subsection.id}`} className="block text-[13px] leading-5 text-slate-400 hover:text-slate-700">
-                          {subsection.title}
-                        </a>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        </aside>
       </div>
     </div>
   )
