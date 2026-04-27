@@ -30,7 +30,7 @@ function PersonToken({ name, title, tone = 'default' }) {
 }
 
 function countMembers(department) {
-  return department.subteams.reduce((total, subteam) => total + subteam.members.length, 0)
+  return 1 + department.subteams.reduce((total, subteam) => total + subteam.members.length, 0)
 }
 
 function getOverviewSubteams(department) {
@@ -137,11 +137,11 @@ export default function OrgChartPage() {
     <div className="flex-1 overflow-y-auto px-6 pb-6 pt-6">
       <div className="mx-auto max-w-[1440px] space-y-6">
         <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
-          <div className="bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 px-6 py-5 text-white md:px-8 md:py-6">
+          <div className="bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 px-6 py-4 text-white md:px-8 md:py-5">
             <div className="text-[12px] font-semibold uppercase tracking-[0.18em] text-blue-100">Eventus Production</div>
-            <h1 className="mt-2 text-[28px] font-semibold tracking-tight md:text-[34px]">Sơ đồ tổ chức</h1>
-            <p className="mt-2 max-w-3xl text-[14px] leading-6 text-blue-100/90">
-              Tổng quan cơ cấu nhân sự theo team và vai trò tại Eventus. Dữ liệu được tổ chức để dễ cập nhật trực tiếp qua GitHub.
+            <h1 className="mt-2 text-[26px] font-semibold tracking-tight md:text-[32px]">Sơ đồ tổ chức</h1>
+            <p className="mt-2 max-w-4xl text-[13px] leading-6 text-blue-100/90">
+              Eventus là nơi quy tụ những con người đa dạng, mang đến nhiều kỹ năng và nhiều góc nhìn. Chúng tôi trân trọng từng cá nhân, xem mỗi người như một mảnh ghép quan trọng giúp xây dựng lên sức mạnh tập thể. Với niềm tin rằng mọi ý tưởng đều có giá trị, chúng tôi khuyến khích bạn tỏa sáng theo phong cách riêng, đồng thời tạo điều kiện để học hỏi và thử thách bản thân qua các dự án đa dạng.
             </p>
           </div>
         </section>
