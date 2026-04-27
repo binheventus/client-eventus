@@ -428,115 +428,115 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
       <div className={`${embedded ? 'px-6 py-6' : 'min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4'} flex items-center justify-center`}>
         <div className={`w-full ${embedded ? 'max-w-[1180px]' : 'max-w-[460px]'} overflow-hidden bg-white ${embeddedCardClass}`}>
           {embedded ? (
-            <div className="grid lg:grid-cols-[1fr_1fr]">
-              <div className="flex items-center bg-gradient-to-br from-slate-900 via-blue-900 to-teal-700 px-8 py-8 text-white md:px-10">
-                <div className="mx-auto w-full max-w-[440px]">
+            <>
+              <div className="bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 px-8 py-7 text-white md:px-10">
+                <div className="mx-auto max-w-4xl">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-blue-100/80">
                     Eventus Onboarding
                   </p>
-                  <h1 className="mt-3 text-[28px] font-semibold leading-tight tracking-tight md:text-[34px]">
+                  <h1 className="mt-3 text-[30px] font-semibold leading-tight tracking-tight md:text-[36px]">
                     30-Day Review
                   </h1>
-                  <p className="mt-3 text-[14px] leading-7 text-blue-100/90">
+                  <p className="mt-3 max-w-3xl text-[14px] leading-7 text-blue-100/90">
                     Ghi nhận cảm nhận sau 30 ngày đầu tiên để Eventus cải thiện tốt hơn, từ góc nhìn thực tế của chính bạn.
                   </p>
-                  <div className="mt-6 rounded-2xl border border-white/10 bg-white/10 px-5 py-4 text-[13px] leading-6 text-blue-50/95 backdrop-blur">
-                    Hệ thống tự lưu trong quá trình làm.
-                    <br />
-                    Bạn có thể quay lại tiếp tục bằng đúng số điện thoại đã dùng trước đó.
+                  <div className="mt-6 max-w-3xl rounded-2xl border border-white/10 bg-white/10 px-5 py-4 text-[13px] leading-6 text-blue-50/95 backdrop-blur">
+                    Hệ thống tự lưu trong quá trình làm. Bạn có thể quay lại tiếp tục bằng đúng số điện thoại đã dùng trước đó.
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center px-8 py-8 md:px-10">
-                <div className="mx-auto w-full max-w-[440px]">
-                  <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-                    Bắt đầu
-                  </p>
-                  <h2 className="mt-2 text-[24px] font-semibold tracking-tight text-slate-900">
-                    Nhập thông tin của bạn
-                  </h2>
-                  <p className="mt-2 text-[14px] leading-6 text-slate-600">
-                    Điền đủ 4 thông tin để mở bài review hoặc tiếp tục phần đã lưu trước đó.
-                  </p>
+              <div className="px-8 py-8 md:px-10">
+                <div className="mx-auto max-w-4xl">
+                  <div className="rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+                    <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                      Bắt đầu
+                    </p>
+                    <h2 className="mt-2 text-[24px] font-semibold tracking-tight text-slate-900">
+                      Nhập thông tin của bạn
+                    </h2>
+                    <p className="mt-2 text-[14px] leading-6 text-slate-600">
+                      Điền đủ 4 thông tin để mở bài review hoặc tiếp tục phần đã lưu trước đó.
+                    </p>
 
-                  {loginError && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg px-3.5 py-3 mt-6 mb-5 flex items-start gap-2">
-                      <AlertCircle className="w-4 h-4 text-red-700 flex-shrink-0 mt-0.5" />
-                      <p className="text-[13px] text-red-800 leading-snug">{loginError}</p>
-                    </div>
-                  )}
+                    {loginError && (
+                      <div className="bg-red-50 border border-red-200 rounded-lg px-3.5 py-3 mt-6 mb-5 flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 text-red-700 flex-shrink-0 mt-0.5" />
+                        <p className="text-[13px] text-red-800 leading-snug">{loginError}</p>
+                      </div>
+                    )}
 
-                  <div className="mt-6 grid gap-[18px] md:grid-cols-2">
-                    <div className="md:col-span-2">
-                      <label className="block text-[13px] font-medium text-slate-900 mb-2">Họ tên</label>
-                      <input
-                        type="text"
-                        value={hoTen}
-                        onChange={(e) => {
-                          setHoTen(e.target.value);
-                          if (missingFields.hoTen) setMissingFields({ ...missingFields, hoTen: false });
-                        }}
-                        placeholder="Nguyễn Văn A"
-                        className={`${inputBase} ${missingFields.hoTen ? inputError : inputNormal}`}
-                      />
+                    <div className="mt-6 grid gap-[18px] md:grid-cols-2">
+                      <div className="md:col-span-2">
+                        <label className="block text-[13px] font-medium text-slate-900 mb-2">Họ tên</label>
+                        <input
+                          type="text"
+                          value={hoTen}
+                          onChange={(e) => {
+                            setHoTen(e.target.value);
+                            if (missingFields.hoTen) setMissingFields({ ...missingFields, hoTen: false });
+                          }}
+                          placeholder="Nguyễn Văn A"
+                          className={`${inputBase} ${missingFields.hoTen ? inputError : inputNormal}`}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[13px] font-medium text-slate-900 mb-2">Số điện thoại</label>
+                        <input
+                          type="tel"
+                          value={sdt}
+                          onChange={(e) => {
+                            setSdt(e.target.value);
+                            if (missingFields.sdt) setMissingFields({ ...missingFields, sdt: false });
+                          }}
+                          placeholder="0901234567"
+                          className={`${inputBase} ${missingFields.sdt ? inputError : inputNormal}`}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[13px] font-medium text-slate-900 mb-2">Ngày gia nhập</label>
+                        <input
+                          type="date"
+                          value={ngayGiaNhap}
+                          min="2017-01-01"
+                          max={getTodayISO()}
+                          onChange={(e) => {
+                            setNgayGiaNhap(e.target.value);
+                            if (missingFields.ngayGiaNhap) setMissingFields({ ...missingFields, ngayGiaNhap: false });
+                          }}
+                          onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+                          className={`${inputBase} ${missingFields.ngayGiaNhap ? inputError : inputNormal}`}
+                        />
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <label className="block text-[13px] font-medium text-slate-900 mb-2">Vị trí</label>
+                        <input
+                          type="text"
+                          value={viTri}
+                          onChange={(e) => {
+                            setViTri(e.target.value);
+                            if (missingFields.viTri) setMissingFields({ ...missingFields, viTri: false });
+                          }}
+                          placeholder="VD: Video-Editor, Photographer, Account ..."
+                          className={`${inputBase} ${missingFields.viTri ? inputError : inputNormal}`}
+                        />
+                      </div>
                     </div>
 
-                    <div>
-                      <label className="block text-[13px] font-medium text-slate-900 mb-2">Số điện thoại</label>
-                      <input
-                        type="tel"
-                        value={sdt}
-                        onChange={(e) => {
-                          setSdt(e.target.value);
-                          if (missingFields.sdt) setMissingFields({ ...missingFields, sdt: false });
-                        }}
-                        placeholder="0901234567"
-                        className={`${inputBase} ${missingFields.sdt ? inputError : inputNormal}`}
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[13px] font-medium text-slate-900 mb-2">Ngày gia nhập</label>
-                      <input
-                        type="date"
-                        value={ngayGiaNhap}
-                        min="2017-01-01"
-                        max={getTodayISO()}
-                        onChange={(e) => {
-                          setNgayGiaNhap(e.target.value);
-                          if (missingFields.ngayGiaNhap) setMissingFields({ ...missingFields, ngayGiaNhap: false });
-                        }}
-                        onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-                        className={`${inputBase} ${missingFields.ngayGiaNhap ? inputError : inputNormal}`}
-                      />
-                    </div>
-
-                    <div className="md:col-span-2">
-                      <label className="block text-[13px] font-medium text-slate-900 mb-2">Vị trí</label>
-                      <input
-                        type="text"
-                        value={viTri}
-                        onChange={(e) => {
-                          setViTri(e.target.value);
-                          if (missingFields.viTri) setMissingFields({ ...missingFields, viTri: false });
-                        }}
-                        placeholder="VD: Video-Editor, Photographer, Account ..."
-                        className={`${inputBase} ${missingFields.viTri ? inputError : inputNormal}`}
-                      />
-                    </div>
+                    <button
+                      onClick={handleLogin}
+                      disabled={loginSubmitting}
+                      className="mt-7 inline-flex w-full items-center justify-center rounded-[12px] bg-blue-700 px-6 py-3 text-[15px] font-medium text-white transition hover:bg-blue-800 disabled:opacity-50"
+                    >
+                      {loginSubmitting ? 'Đang xử lý...' : 'Bắt đầu / Tiếp tục'}
+                    </button>
                   </div>
-
-                  <button
-                    onClick={handleLogin}
-                    disabled={loginSubmitting}
-                    className="mt-7 inline-flex w-full items-center justify-center rounded-[12px] bg-blue-700 px-6 py-3 text-[15px] font-medium text-white transition hover:bg-blue-800 disabled:opacity-50"
-                  >
-                    {loginSubmitting ? 'Đang xử lý...' : 'Bắt đầu / Tiếp tục'}
-                  </button>
                 </div>
               </div>
-            </div>
+            </>
           ) : (
             <>
               <div className="bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 px-8 py-6">
@@ -907,18 +907,18 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
         })}
 
         {/* ===== KHỐI SUBMIT ===== */}
-        <div className="rounded-[28px] border border-slate-200 bg-white px-8 py-8 shadow-sm">
+        <div className="rounded-[28px] border border-white/10 bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 px-8 py-8 shadow-lg text-white">
           {status === 'submitted' ? (
             <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
               <div className="max-w-2xl">
-                <h3 className="text-[24px] font-semibold tracking-tight text-slate-900">Đã gửi bài review</h3>
-                <p className="mt-2 text-[14px] leading-7 text-slate-600">
+                <h3 className="text-[24px] font-semibold tracking-tight text-white">Đã gửi bài review</h3>
+                <p className="mt-2 text-[14px] leading-7 text-blue-100/90">
                   Mọi thay đổi đang được lưu tự động. Sếp sẽ thấy bản mới nhất khi mở đúng đường link này.
                 </p>
               </div>
               <button
                 onClick={() => setShowShareLink(true)}
-                className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-6 py-3 text-[14px] font-semibold text-white transition hover:bg-blue-900"
+                className="inline-flex items-center justify-center rounded-xl bg-white px-6 py-3 text-[14px] font-semibold text-blue-800 transition hover:bg-blue-50"
               >
                 XEM LINK GỬI SẾP
               </button>
@@ -926,31 +926,25 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
           ) : (
             <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
               <div className="max-w-2xl">
-                <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-                  Hoàn tất bài review
-                </p>
-                <h3 className="mt-2 text-[24px] font-semibold tracking-tight text-slate-900">
-                  Kiểm tra lại và gửi bài cho anh Bình
-                </h3>
-                <div className="mt-3 space-y-2 text-[14.5px] leading-7 text-slate-600">
-                  <p>
+                <div className="space-y-2 text-[14.5px] leading-7 text-blue-100/92">
+                  <p className="max-w-2xl">
                     {savedTimeStr ? `Vừa lưu lúc ${savedTimeStr}. ` : ''}
                     Bạn có thể đóng trình duyệt và quay lại làm tiếp bất cứ lúc nào.
                   </p>
-                  <p>
+                  <p className="max-w-2xl">
                     Khi đã sẵn sàng, hãy nhấn nút bên dưới để gửi bài cho anh Bình nhé!
                   </p>
                 </div>
               </div>
 
               <div className="flex flex-col items-start gap-3 lg:items-end">
-                <div className="rounded-full bg-slate-100 px-3 py-1 text-[12px] font-medium text-slate-500">
+                <div className="rounded-full bg-white/12 px-3 py-1 text-[12px] font-medium text-blue-100/85 ring-1 ring-white/10">
                   {saveState === 'saving' ? 'Đang lưu dữ liệu...' : 'Sẵn sàng để gửi'}
                 </div>
                 <button
                   onClick={handleSubmit}
                   disabled={saveState === 'saving'}
-                  className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-7 py-3.5 text-[15px] font-semibold tracking-wide text-white transition hover:bg-blue-900 disabled:opacity-50"
+                  className="inline-flex items-center justify-center rounded-xl bg-amber-400 px-7 py-3.5 text-[15px] font-semibold tracking-wide text-slate-900 transition hover:bg-amber-300 disabled:opacity-50"
                 >
                   GỬI BÀI THU HOẠCH
                 </button>

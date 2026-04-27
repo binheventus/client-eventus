@@ -729,7 +729,7 @@ export default function WikiPage() {
         {/* Sidebar */}
         <aside className="w-80 flex-shrink-0 border-r border-slate-200/80 bg-white/95 flex flex-col">
           <div className="border-b border-slate-200/70 px-4 py-4">
-            <div className="rounded-3xl bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 px-4 py-2.5 text-white shadow-lg">
+            <div className="rounded-3xl bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 px-5 py-3 text-white shadow-lg">
               <p className="text-[15px] font-semibold tracking-tight">Eventus Production Handbook</p>
             </div>
           </div>
@@ -773,17 +773,21 @@ export default function WikiPage() {
 
           <div className="border-t border-slate-200/70 px-4 py-3">
             {admin.isAdmin ? (
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-                <div className="flex items-center justify-between gap-3">
+              <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-900 via-blue-900 to-teal-700 px-4 py-4 text-white shadow-sm">
+                <div className="flex items-start justify-between gap-3">
                   <div>
-                    <div className="flex items-center gap-1.5 text-[12px] font-semibold text-emerald-700">
-                      <span>✅</span> Admin mode
+                    <div className="inline-flex items-center gap-2 rounded-full bg-white/12 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-blue-100 ring-1 ring-white/10">
+                      <span>✅</span>
+                      <span>Admin mode</span>
                     </div>
-                    <p className="mt-1 text-[11px] leading-5 text-emerald-700/80">
+                    <p className="mt-3 text-[11px] leading-5 text-blue-100/90">
                       Bạn đang có thể chỉnh sửa nội dung wiki trực tiếp.
                     </p>
                   </div>
-                  <button onClick={admin.logout} className="text-[11px] font-medium text-emerald-700/70 hover:text-red-500 transition-colors">
+                  <button
+                    onClick={admin.logout}
+                    className="inline-flex items-center rounded-full bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-800 transition hover:bg-blue-50"
+                  >
                     Đăng xuất
                   </button>
                 </div>
