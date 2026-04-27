@@ -39,8 +39,8 @@ const LEVEL_META = [
 const CLAMP_PX = 180
 const NAVBAR_H = 56
 // Width tối thiểu mỗi cột level để không bị vỡ trên mobile
-const COL_LABEL_W = 80   // px — cột nhóm năng lực
-const COL_LEVEL_W = 160  // px — mỗi cột level
+const COL_LABEL_W = 80   // px — minWidth cột nhóm năng lực
+const COL_LEVEL_W = 160  // px — minWidth mỗi cột level
 
 /* ─── helpers ─── */
 function parseItems(text) {
@@ -83,7 +83,7 @@ function ItemList({ items, dotColor }) {
 }
 
 /* ─── SmartRow ─── */
-function SmartRow({ dim, levels, totalW }) {
+function SmartRow({ dim, levels }) {
   const c = DIM_COLORS[dim.id]
   const itemsPerLevel = levels.map(lv => parseItems(lv.competencies[dim.id]))
   const [phase, setPhase] = useState('measure')
@@ -109,11 +109,12 @@ function SmartRow({ dim, levels, totalW }) {
   return (
     <div style={{
       display: 'flex',
-      width: `${totalW}px`,
+      width: '100%',
       borderBottom: '1px solid #e2e8f0',
     }}>
       {/* Cột nhóm năng lực */}
       <div style={{
+        flex: '0 0 auto',
         width: `${COL_LABEL_W}px`,
         minWidth: `${COL_LABEL_W}px`,
         backgroundColor: c.bg,
@@ -141,7 +142,7 @@ function SmartRow({ dim, levels, totalW }) {
         const shouldClamp = clampedIdx === i && !expanded
         return (
           <div key={i} style={{
-            width: `${COL_LEVEL_W}px`,
+            flex: 1,
             minWidth: `${COL_LEVEL_W}px`,
             padding: '12px 10px',
             borderRight: isLastCol ? 'none' : '1px solid #e2e8f0',
@@ -185,11 +186,12 @@ function SmartRow({ dim, levels, totalW }) {
 }
 
 /* ─── HeaderRow: dùng chung cho static + fixed clone ─── */
-function HeaderRow({ position, meta, levels, totalW, showBanner }) {
+function HeaderRow({ position, meta, levels, totalMinW, showBanner }) {
   return (
     <div style={{
       background: 'linear-gradient(135deg, #1d4ed8 0%, #0d9488 100%)',
-      width: `${totalW}px`,
+      width: '100%',
+      minWidth: `${totalMinW}px`,
     }}>
       {/* Banner — chỉ hiện ở static, không hiện ở fixed clone */}
       {showBanner && (
@@ -224,6 +226,7 @@ function HeaderRow({ position, meta, levels, totalW, showBanner }) {
       <div style={{ display: 'flex' }}>
         {/* Góc trái */}
         <div style={{
+          flex: '0 0 auto',
           width: `${COL_LABEL_W}px`, minWidth: `${COL_LABEL_W}px`,
           borderRight: '1px solid rgba(255,255,255,0.15)',
           padding: '14px 8px',
@@ -240,8 +243,8 @@ function HeaderRow({ position, meta, levels, totalW, showBanner }) {
           const isLastCol = i === levels.length - 1
           return (
             <div key={i} style={{
-              width: `${COL_LEVEL_W}px`, minWidth: `${COL_LEVEL_W}px`,
-              padding: '14px 14px 14px',
+              flex: 1,
+              minWidth: `${COL_LEVEL_W}px`,
               borderTop: `3px solid ${lmeta.topBorder}`,
               borderRight: isLastCol ? 'none' : '1px solid rgba(255,255,255,0.15)',
               position: 'relative', overflow: 'hidden',
@@ -338,7 +341,7 @@ export default function PositionPage() {
   const meta = POSITION_META[position.id] || { icon: '📌' }
   const levels = position.levels
   // Tổng width thực tế của bảng
-  const totalW = COL_LABEL_W + COL_LEVEL_W * levels.length
+  const totalMinW = COL_LABEL_W + COL_LEVEL_W * levels.length
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
@@ -359,11 +362,11 @@ export default function PositionPage() {
           {/* Inner div dịch chuyển theo scrollLeft để đồng bộ với bảng */}
           <div style={{ transform: `translateX(-${scrollLeft}px)` }}>
             <HeaderRow
-              position={position}
-              meta={meta}
-              levels={levels}
-              totalW={totalW}
-              showBanner={false}
+                position={position}
+                meta={meta}
+                levels={levels}
+                totalMinW={totalMinW}
+                showBanner={false}
             />
           </div>
         </div>
@@ -393,7 +396,7 @@ export default function PositionPage() {
                 position={position}
                 meta={meta}
                 levels={levels}
-                totalW={totalW}
+                totalMinW={totalMinW}
                 showBanner={true}
               />
             </div>
@@ -404,7 +407,7 @@ export default function PositionPage() {
               borderTop: 'none',
             }}>
               {DIMENSIONS.map(dim => (
-                <SmartRow key={dim.id} dim={dim} levels={levels} totalW={totalW} />
+                <SmartRow key={dim.id} dim={dim} levels={levels} />
               ))}
               <div ref={tableEndRef} style={{ height: 1 }} />
             </div>
