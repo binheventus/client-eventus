@@ -390,19 +390,24 @@ function ArticleDocument({ title, category, page }) {
   const article = useMemo(() => parseArticle(page?.content, title), [page?.content, title])
   const hasSections = article.sections.length > 0
   const updatedLabel = page?.updated_at ? new Date(page.updated_at).toLocaleString('vi-VN') : null
+  const bannerDescription = article.lead[0] || 'Thêm phần mô tả mở đầu trong nội dung bài viết để hiển thị tại đây.'
+  const editButton = page?.editButton ?? null
 
   return (
-    <div className="px-6 py-6 lg:px-8">
+    <div className="px-6 pb-6 lg:px-8">
       <div className="mx-auto max-w-6xl space-y-6">
           <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
             <div className="bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 px-6 py-8 text-white md:px-8 md:py-10">
-              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-100">
-                <span>{category?.icon}</span>
-                <span>{category?.label}</span>
+              <div className="mb-4 flex items-start justify-between gap-4">
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-100">
+                  <span>{category?.icon}</span>
+                  <span>{category?.label}</span>
+                </div>
+                {editButton}
               </div>
               <h1 className="max-w-4xl text-3xl font-semibold tracking-tight md:text-4xl">{article.title}</h1>
               <p className="mt-3 max-w-3xl text-[15px] leading-7 text-blue-100/90">
-                Tài liệu vận hành nội bộ. Nội dung được trình bày lại theo dạng handbook để dễ đọc, dễ tra cứu và giảm sót việc khi đi job.
+                {parseInline(bannerDescription)}
               </p>
               {updatedLabel && (
                 <div className="mt-6 text-right text-[12px] text-blue-100/75">
@@ -412,10 +417,10 @@ function ArticleDocument({ title, category, page }) {
             </div>
           </section>
 
-          {article.lead.length > 0 && (
+          {article.lead.length > 1 && (
             <section className="rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
               <div className="space-y-3">
-                {article.lead.map((paragraph, idx) => (
+                {article.lead.slice(1).map((paragraph, idx) => (
                   <p key={idx} className="text-[15px] leading-7 text-slate-600">
                     {parseInline(paragraph)}
                   </p>
@@ -617,28 +622,23 @@ export default function WikiPage() {
           {/* Content view */}
           {activeCat !== 'khung_nang_luc' && selectedTitle && !editing && (
             <div className="flex-1 overflow-y-auto">
-              <div className="px-6 py-5">
-                {/* Breadcrumb */}
-                <div className="mx-auto mb-5 flex max-w-7xl items-center gap-2 text-[12px] text-slate-400">
-                  <button onClick={() => setSelectedTitle(null)} className="hover:text-blue-600 transition-colors">
-                    {currentCat?.label}
-                  </button>
-                  <span>/</span>
-                  <span className="text-slate-600 font-medium">{selectedTitle}</span>
-                </div>
-
-                <div className="mx-auto mb-5 flex max-w-7xl items-start justify-between">
-                  <div />
-                  {admin.isAdmin && (
-                    <button onClick={startEdit}
-                      className="ml-4 flex flex-shrink-0 items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-[12px] font-semibold text-white transition-colors hover:bg-blue-700">
-                      ✏️ Chỉnh sửa
-                    </button>
-                  )}
-                </div>
-
+              <div className="px-6 pt-0 pb-5">
                 {currentPage ? (
-                  <ArticleDocument title={selectedTitle} category={currentCat} page={currentPage} />
+                  <ArticleDocument
+                    title={selectedTitle}
+                    category={currentCat}
+                    page={{
+                      ...currentPage,
+                      editButton: admin.isAdmin ? (
+                        <button
+                          onClick={startEdit}
+                          className="flex flex-shrink-0 items-center gap-1.5 rounded-lg bg-white/12 px-3 py-1.5 text-[12px] font-semibold text-white ring-1 ring-white/15 backdrop-blur transition-colors hover:bg-white/18"
+                        >
+                          ✏️ Chỉnh sửa
+                        </button>
+                      ) : null,
+                    }}
+                  />
                 ) : (
                   <div className="mx-auto max-w-4xl rounded-3xl border border-dashed border-slate-200 bg-white px-8 py-12 text-center text-sm italic text-slate-400">
                     Chưa có nội dung.{admin.isAdmin ? ' Nhấn "Chỉnh sửa" để thêm.' : ''}
