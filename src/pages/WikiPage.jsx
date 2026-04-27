@@ -139,34 +139,6 @@ function renderMarkdown(text) {
     .replace(/\n\n/g, '</p><p class="mb-4 text-slate-600 leading-relaxed">')
 }
 
-/* ─── AI Format ─── */
-async function aiFormat(rawText, title) {
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1000,
-      system: `Bạn là trợ lý format nội dung wiki nội bộ cho công ty Eventus Production (dịch vụ quay phim, chụp ảnh, dựng phim).
-Nhiệm vụ: Nhận text thô từ người dùng, format lại thành Markdown rõ ràng, dễ đọc.
-
-Quy tắc bắt buộc:
-- Dùng # cho tiêu đề chính, ## cho mục, ### cho tiểu mục
-- Dùng - cho danh sách gạch đầu dòng
-- Dùng **text** để in đậm các điểm quan trọng
-- Giữ nguyên 100% nội dung gốc, KHÔNG thêm, KHÔNG bớt, KHÔNG diễn giải lại
-- Xuống dòng hợp lý giữa các đoạn
-- Chỉ trả về nội dung Markdown, không giải thích gì thêm`,
-      messages: [{
-        role: 'user',
-        content: `Tên trang: ${title}\n\nNội dung cần format:\n${rawText}`
-      }]
-    })
-  })
-  const data = await response.json()
-  return data.content?.[0]?.text || rawText
-}
-
 /* ─── Admin gate hook ─── */
 function useAdmin() {
   const [isAdmin, setIsAdmin] = useState(false)
@@ -211,10 +183,19 @@ export default function WikiPage() {
     if (!draft.trim()) return
     setFormatting(true)
     try {
-      const formatted = await aiFormat(draft, selectedTitle)
-      setDraft(formatted)
+      const res = await fetch('/api/format', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: draft, title: selectedTitle }),
+      })
+      const data = await res.json()
+      if (data.result) {
+        setDraft(data.result)
+      } else {
+        alert('AI không trả về kết quả. Thử lại sau.')
+      }
     } catch (e) {
-      alert('Lỗi kết nối AI. Thử lại sau.')
+      alert('Lỗi kết nối. Thử lại sau.')
     }
     setFormatting(false)
   }
@@ -344,7 +325,6 @@ export default function WikiPage() {
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-[15px] font-bold text-slate-700">✏️ {selectedTitle}</h2>
                 <div className="flex gap-2">
-                  {/* Nút AI Format */}
                   <button
                     onClick={handleAiFormat}
                     disabled={formatting || !draft.trim()}
@@ -370,11 +350,9 @@ export default function WikiPage() {
                   </button>
                 </div>
               </div>
-
               <p className="text-[11px] text-slate-400 mb-2">
-                Paste text thô vào đây → nhấn <span className="text-violet-600 font-semibold">✨ Format bằng AI</span> → kiểm tra → Lưu
+                Paste text thô → nhấn <span className="text-violet-600 font-semibold">✨ Format bằng AI</span> → kiểm tra → Lưu
               </p>
-
               <textarea
                 value={draft}
                 onChange={e => setDraft(e.target.value)}
