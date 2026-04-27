@@ -29,17 +29,43 @@ function PersonToken({ name, title, tone = 'default' }) {
   )
 }
 
+function countMembers(department) {
+  return department.subteams.reduce((total, subteam) => total + subteam.members.length, 0)
+}
+
+function DepartmentOverviewCard({ department }) {
+  return (
+    <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Department</div>
+      <h3 className="mt-2 text-[20px] font-semibold tracking-tight text-slate-900">{department.name}</h3>
+      <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-blue-500">Lead</div>
+        <div className="mt-1 text-[15px] font-semibold text-slate-900">{department.leader.name}</div>
+        <div className="mt-1 text-[12px] text-slate-500">{department.leader.title}</div>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Nhóm con</div>
+          <div className="mt-2 text-[14px] leading-6 text-slate-700">
+            {department.subteams.map((subteam) => subteam.name).join(' · ')}
+          </div>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Quy mô</div>
+          <div className="mt-2 text-[28px] font-semibold tracking-tight text-slate-900">{countMembers(department)}</div>
+          <div className="text-[12px] text-slate-500">thành viên</div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function DepartmentCard({ department }) {
   return (
     <section className="rounded-[26px] border border-slate-200 bg-white p-6 shadow-sm md:p-7">
-      <div className="mb-6 flex items-start justify-between gap-4">
-        <div>
-          <div className="text-[12px] font-semibold uppercase tracking-[0.18em] text-slate-400">Department</div>
-          <h2 className="mt-2 text-[24px] font-semibold tracking-tight text-slate-900">{department.name}</h2>
-        </div>
-        <div className="hidden rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 md:inline-flex">
-          {department.subteams.length} nhóm
-        </div>
+      <div className="mb-6">
+        <div className="text-[12px] font-semibold uppercase tracking-[0.18em] text-slate-400">Department</div>
+        <h2 className="mt-2 text-[24px] font-semibold tracking-tight text-slate-900">{department.name}</h2>
       </div>
 
       <div className="mb-6">
@@ -77,10 +103,10 @@ export default function OrgChartPage() {
     <div className="flex-1 overflow-y-auto px-6 pb-6 pt-6">
       <div className="mx-auto max-w-[1440px] space-y-6">
         <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
-          <div className="bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 px-6 py-6 text-white md:px-8 md:py-7">
+          <div className="bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 px-6 py-5 text-white md:px-8 md:py-6">
             <div className="text-[12px] font-semibold uppercase tracking-[0.18em] text-blue-100">Eventus Production</div>
-            <h1 className="mt-2 text-[30px] font-semibold tracking-tight md:text-[36px]">Sơ đồ tổ chức</h1>
-            <p className="mt-3 max-w-3xl text-[14px] leading-7 text-blue-100/90">
+            <h1 className="mt-2 text-[28px] font-semibold tracking-tight md:text-[34px]">Sơ đồ tổ chức</h1>
+            <p className="mt-2 max-w-3xl text-[14px] leading-6 text-blue-100/90">
               Tổng quan cơ cấu nhân sự theo team và vai trò tại Eventus. Dữ liệu được tổ chức để dễ cập nhật trực tiếp qua GitHub.
             </p>
           </div>
@@ -96,6 +122,19 @@ export default function OrgChartPage() {
 
           <div className="mt-6 hidden h-12 items-center justify-center md:flex">
             <div className="h-full w-px bg-slate-200" />
+          </div>
+
+          <div className="grid gap-5 xl:grid-cols-2 2xl:grid-cols-4">
+            {orgChart.departments.map((department) => (
+              <DepartmentOverviewCard key={`${department.id}-overview`} department={department} />
+            ))}
+          </div>
+        </section>
+
+        <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+          <div className="mb-6">
+            <div className="text-[12px] font-semibold uppercase tracking-[0.18em] text-slate-400">Chi tiết theo team</div>
+            <h2 className="mt-2 text-[26px] font-semibold tracking-tight text-slate-900">Danh sách nhân sự</h2>
           </div>
 
           <div className="grid gap-5 xl:grid-cols-2">
