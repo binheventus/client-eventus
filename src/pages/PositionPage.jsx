@@ -12,12 +12,13 @@ const POSITION_META = {
   leader:       { icon: '🧭' },
 }
 
+// Label xuống dòng hợp lý cho từng nhóm
 const DIMENSIONS = [
-  { id: 'chuyen_mon',          icon: '⚙️', label: 'Năng lực chuyên môn',     customIcon: false },
-  { id: 'nghien_cuu_sang_tao', icon: '💡', label: 'Nghiên cứu & sáng tạo',   customIcon: false },
-  { id: 'trach_nhiem',         icon: null, label: 'Trách nhiệm',              customIcon: true  },
-  { id: 'xu_ly_tinh_huong',    icon: '⚡', label: 'Xử lý tình huống',        customIcon: false },
-  { id: 'lam_viec_khach_hang', icon: '🤝', label: 'Làm việc với khách hàng', customIcon: false },
+  { id: 'chuyen_mon',          icon: '⚙️', label: 'Năng lực\nchuyên môn',          customIcon: false },
+  { id: 'nghien_cuu_sang_tao', icon: '💡', label: 'Nghiên cứu\n& sáng tạo',        customIcon: false },
+  { id: 'trach_nhiem',         icon: null, label: 'Trách\nnhiệm',                  customIcon: true  },
+  { id: 'xu_ly_tinh_huong',    icon: '⚡', label: 'Xử lý\ntình huống',             customIcon: false },
+  { id: 'lam_viec_khach_hang', icon: '🤝', label: 'Làm việc\nvới KH',              customIcon: false },
 ]
 
 const DIM_COLORS = {
@@ -36,7 +37,8 @@ const LEVEL_META = [
   { label: 'Định hướng chiến lược', badgeBg: '#f3e8ff', badgeText: '#7e22ce', dot: '#c084fc', topBorder: '#a855f7' },
 ]
 
-const CLAMP_PX = 180  // ngưỡng max-height khi thu gọn
+const CLAMP_PX = 180
+const NAVBAR_H = 56 // chiều cao Header nav (h-14 = 56px)
 
 /* ─── helpers ─── */
 function parseItems(text) {
@@ -57,28 +59,20 @@ function CheckCircleIcon({ color }) {
   )
 }
 
-/* ─── ItemList: render danh sách bullet đơn giản ─── */
+/* ─── ItemList ─── */
 function ItemList({ items, dotColor }) {
   if (!items.length) return <span style={{ fontSize: '11px', color: '#cbd5e1' }}>—</span>
   return (
     <>
       {items.map((item, j) => (
         <div key={j} style={{
-          display: 'flex',
-          gap: '6px',
-          fontSize: '11px',
-          color: '#475569',
-          lineHeight: 1.65,
-          marginBottom: '5px',
+          display: 'flex', gap: '6px',
+          fontSize: '11px', color: '#475569',
+          lineHeight: 1.65, marginBottom: '5px',
         }}>
           <span style={{
-            marginTop: '7px',
-            width: '5px',
-            height: '5px',
-            minWidth: '5px',
-            borderRadius: '50%',
-            backgroundColor: dotColor,
-            display: 'inline-block',
+            marginTop: '7px', width: '5px', height: '5px', minWidth: '5px',
+            borderRadius: '50%', backgroundColor: dotColor, display: 'inline-block',
           }} />
           <span>{item}</span>
         </div>
@@ -87,22 +81,10 @@ function ItemList({ items, dotColor }) {
   )
 }
 
-/*
-  ─── SmartRow ───
-  Logic clamp dùng max-height + overflow:hidden (đáng tin hơn webkit-line-clamp)
-  
-  Cách hoạt động:
-  1. Render nội dung với visibility:hidden để đo scrollHeight thực tế
-  2. So sánh các cột trong hàng → tìm cột dài nhất
-  3. Nếu cột đó > CLAMP_PX và dài hơn cột 2 > 15% → clamp nó
-  4. Clamp = max-height: CLAMP_PX + overflow: hidden + fade gradient
-  5. Click "Xem thêm" → max-height: none
-*/
+/* ─── SmartRow ─── */
 function SmartRow({ dim, levels, colTemplate }) {
   const c = DIM_COLORS[dim.id]
   const itemsPerLevel = levels.map(lv => parseItems(lv.competencies[dim.id]))
-
-  // Phase 1: đo (measure), Phase 2: hiển thị (display)
   const [phase, setPhase] = useState('measure')
   const [clampedIdx, setClampedIdx] = useState(-1)
   const [expanded, setExpanded] = useState(false)
@@ -110,17 +92,13 @@ function SmartRow({ dim, levels, colTemplate }) {
 
   useEffect(() => {
     if (phase !== 'measure') return
-    // rAF đảm bảo DOM đã layout xong
     const id = requestAnimationFrame(() => {
       const heights = measureRefs.current.map(el => el ? el.offsetHeight : 0)
       const max = Math.max(...heights)
       const sorted = [...heights].sort((a, b) => b - a)
       const second = sorted[1] ?? 0
-
       let idx = -1
-      if (max > CLAMP_PX && max > second * 1.15) {
-        idx = heights.indexOf(max)
-      }
+      if (max > CLAMP_PX && max > second * 1.15) idx = heights.indexOf(max)
       setClampedIdx(idx)
       setPhase('display')
     })
@@ -128,28 +106,28 @@ function SmartRow({ dim, levels, colTemplate }) {
   }, [phase])
 
   return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: colTemplate,
-      borderBottom: '1px solid #e2e8f0',
-    }}>
-      {/* Cột label nhóm */}
+    <div style={{ display: 'grid', gridTemplateColumns: colTemplate, borderBottom: '1px solid #e2e8f0' }}>
+      {/* Cột nhóm năng lực */}
       <div style={{
         backgroundColor: c.bg,
         borderRight: '2px solid #e2e8f0',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: '6px',
-        padding: '14px 6px',
-        textAlign: 'center',
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        gap: '6px', padding: '14px 6px', textAlign: 'center',
       }}>
         {dim.customIcon
           ? <CheckCircleIcon color={c.text} />
           : <span style={{ fontSize: '16px', lineHeight: 1 }}>{dim.icon}</span>
         }
-        <span style={{ fontSize: '10px', fontWeight: 700, color: c.text, lineHeight: 1.3 }}>
+        {/* Font size ngang bằng header level (12px), whiteSpace pre-line để xuống dòng theo \n */}
+        <span style={{
+          fontSize: '12px',
+          fontWeight: 700,
+          color: c.text,
+          lineHeight: 1.35,
+          whiteSpace: 'pre-line',
+          textAlign: 'center',
+        }}>
           {dim.label}
         </span>
       </div>
@@ -159,22 +137,16 @@ function SmartRow({ dim, levels, colTemplate }) {
         const items = itemsPerLevel[i]
         const isLastCol = i === levels.length - 1
         const shouldClamp = clampedIdx === i && !expanded
-
         return (
           <div key={i} style={{
             padding: '12px 10px',
             borderRight: isLastCol ? 'none' : '1px solid #e2e8f0',
           }}>
             {phase === 'measure' ? (
-              /* Phase đo: render full, visibility hidden để không thấy nhưng vẫn có layout */
-              <div
-                ref={el => { measureRefs.current[i] = el }}
-                style={{ visibility: 'hidden' }}
-              >
+              <div ref={el => { measureRefs.current[i] = el }} style={{ visibility: 'hidden' }}>
                 <ItemList items={items} dotColor={c.dot} />
               </div>
             ) : (
-              /* Phase hiển thị */
               <div>
                 <div style={{
                   maxHeight: shouldClamp ? `${CLAMP_PX}px` : 'none',
@@ -182,37 +154,21 @@ function SmartRow({ dim, levels, colTemplate }) {
                   position: 'relative',
                 }}>
                   <ItemList items={items} dotColor={c.dot} />
-
-                  {/* Fade gradient khi đang clamp */}
                   {shouldClamp && (
                     <div style={{
-                      position: 'absolute',
-                      bottom: 0,
-                      left: 0,
-                      right: 0,
+                      position: 'absolute', bottom: 0, left: 0, right: 0,
                       height: '40px',
                       background: 'linear-gradient(to bottom, transparent, white)',
                       pointerEvents: 'none',
                     }} />
                   )}
                 </div>
-
-                {/* Nút chỉ xuất hiện ở ô bị clamp */}
                 {clampedIdx === i && (
-                  <button
-                    onClick={() => setExpanded(e => !e)}
-                    style={{
-                      marginTop: '6px',
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      color: '#2563eb',
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      padding: 0,
-                      display: 'block',
-                    }}
-                  >
+                  <button onClick={() => setExpanded(e => !e)} style={{
+                    marginTop: '6px', fontSize: '11px', fontWeight: 600,
+                    color: '#2563eb', background: 'none', border: 'none',
+                    cursor: 'pointer', padding: 0, display: 'block',
+                  }}>
                     {expanded ? '▲ Thu gọn' : '▼ Xem thêm'}
                   </button>
                 )}
@@ -225,92 +181,52 @@ function SmartRow({ dim, levels, colTemplate }) {
   )
 }
 
-/* ─── StickyHeader ─── */
-function StickyHeader({ levels, colTemplate }) {
-  const [scrolled, setScrolled] = useState(false)
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 200)
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [])
-
+/* ─── HeaderContent: dùng chung cho cả static lẫn fixed clone ─── */
+function HeaderContent({ levels, colTemplate }) {
   return (
-    <div style={{
-      position: 'sticky',
-      top: '56px',
-      zIndex: 40,
-      backdropFilter: 'blur(16px)',
-      WebkitBackdropFilter: 'blur(16px)',
-      backgroundColor: 'rgba(255,255,255,0.85)',
-      boxShadow: scrolled ? '0 4px 20px rgba(0,0,0,0.12)' : '0 1px 0 #e2e8f0',
-      borderBottom: scrolled ? '2px solid #cbd5e1' : '1px solid #e2e8f0',
-      transition: 'box-shadow 0.2s, border-color 0.2s',
-    }}>
-      <div style={{ display: 'grid', gridTemplateColumns: colTemplate }}>
-        <div style={{ borderRight: '2px solid #e2e8f0', padding: '14px 8px' }} />
-
-        {levels.map((lv, i) => {
-          const meta = LEVEL_META[Math.min(i, LEVEL_META.length - 1)]
-          const isLastCol = i === levels.length - 1
-          return (
-            <div key={i} style={{
-              padding: '14px 12px 12px',
-              borderTop: `3px solid ${meta.topBorder}`,
-              borderRight: isLastCol ? 'none' : '1px solid #cbd5e1',
-              position: 'relative',
-              overflow: 'hidden',
+    <div style={{ display: 'grid', gridTemplateColumns: colTemplate }}>
+      <div style={{ borderRight: '2px solid #e2e8f0', padding: '14px 8px' }} />
+      {levels.map((lv, i) => {
+        const meta = LEVEL_META[Math.min(i, LEVEL_META.length - 1)]
+        const isLastCol = i === levels.length - 1
+        return (
+          <div key={i} style={{
+            padding: '14px 12px 12px',
+            borderTop: `3px solid ${meta.topBorder}`,
+            borderRight: isLastCol ? 'none' : '1px solid #cbd5e1',
+            position: 'relative', overflow: 'hidden',
+          }}>
+            <span style={{
+              position: 'absolute', top: '0px', right: '6px',
+              fontSize: '40px', fontWeight: 800,
+              color: '#e8ecf0', lineHeight: 1,
+              userSelect: 'none', pointerEvents: 'none', letterSpacing: '-2px',
             }}>
-              {/* Số chìm */}
-              <span style={{
-                position: 'absolute',
-                top: '0px',
-                right: '6px',
-                fontSize: '40px',
-                fontWeight: 800,
-                color: '#e8ecf0',
-                lineHeight: 1,
-                userSelect: 'none',
-                pointerEvents: 'none',
-                letterSpacing: '-2px',
+              {String(i + 1).padStart(2, '0')}
+            </span>
+            <div style={{ position: 'relative', zIndex: 1 }}>
+              <div style={{
+                fontSize: '12px', fontWeight: 700,
+                color: '#1e293b', lineHeight: 1.3, marginBottom: '7px',
               }}>
-                {String(i + 1).padStart(2, '0')}
-              </span>
-
-              <div style={{ position: 'relative', zIndex: 1 }}>
-                <div style={{
-                  fontSize: '12px',
-                  fontWeight: 700,
-                  color: '#1e293b',
-                  lineHeight: 1.3,
-                  marginBottom: '7px',
-                }}>
-                  {lv.label}
-                </div>
-                <span style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  fontSize: '10px',
-                  fontWeight: 700,
-                  padding: '3px 9px',
-                  borderRadius: '9999px',
-                  backgroundColor: meta.badgeBg,
-                  color: meta.badgeText,
-                }}>
-                  <span style={{
-                    width: '5px', height: '5px',
-                    borderRadius: '50%',
-                    backgroundColor: meta.dot,
-                    display: 'inline-block', flexShrink: 0,
-                  }} />
-                  {meta.label}
-                </span>
+                {lv.label}
               </div>
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: '5px',
+                fontSize: '10px', fontWeight: 700,
+                padding: '3px 9px', borderRadius: '9999px',
+                backgroundColor: meta.badgeBg, color: meta.badgeText,
+              }}>
+                <span style={{
+                  width: '5px', height: '5px', borderRadius: '50%',
+                  backgroundColor: meta.dot, display: 'inline-block', flexShrink: 0,
+                }} />
+                {meta.label}
+              </span>
             </div>
-          )
-        })}
-      </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -320,6 +236,34 @@ export default function PositionPage() {
   const { positionId } = useParams()
   const framework = data.competency_framework
   const position = framework.positions.find(p => p.id === positionId)
+
+  // Ref cho header tĩnh — để tính vị trí khi nào cần hiện fixed header
+  const staticHeaderRef = useRef(null)
+  const tableEndRef = useRef(null)
+  const [showFixed, setShowFixed] = useState(false)
+  const [fixedLeft, setFixedLeft] = useState(0)
+  const [fixedWidth, setFixedWidth] = useState(0)
+
+  useEffect(() => {
+    const onScroll = () => {
+      if (!staticHeaderRef.current || !tableEndRef.current) return
+      const headerRect = staticHeaderRef.current.getBoundingClientRect()
+      const endRect = tableEndRef.current.getBoundingClientRect()
+      // Hiện fixed header khi static header đã cuộn lên trên navbar
+      // Ẩn khi table đã cuộn qua hết
+      const shouldShow = headerRect.bottom < NAVBAR_H && endRect.top > NAVBAR_H
+      setShowFixed(shouldShow)
+      // Lấy vị trí + width của static header để fixed header căn đúng
+      setFixedLeft(headerRect.left)
+      setFixedWidth(headerRect.width)
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', onScroll, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onScroll)
+    }
+  }, [])
 
   if (!position) {
     return (
@@ -334,9 +278,33 @@ export default function PositionPage() {
   const levels = position.levels
   const colTemplate = `11% repeat(${levels.length}, 1fr)`
 
+  const headerStyle = {
+    backgroundColor: 'white',
+    borderBottom: '1px solid #e2e8f0',
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       <Header back title={position.name} />
+
+      {/* Fixed header clone — chỉ hiện khi scroll qua static header */}
+      {showFixed && (
+        <div style={{
+          position: 'fixed',
+          top: `${NAVBAR_H}px`,
+          left: `${fixedLeft}px`,
+          width: `${fixedWidth}px`,
+          zIndex: 50,
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          backgroundColor: 'rgba(255,255,255,0.90)',
+          boxShadow: '0 4px 24px rgba(0,0,0,0.13)',
+          borderBottom: '2px solid #cbd5e1',
+          borderRadius: '0 0 8px 8px',
+        }}>
+          <HeaderContent levels={levels} colTemplate={colTemplate} />
+        </div>
+      )}
 
       <div className="max-w-6xl mx-auto px-4 py-10">
 
@@ -353,17 +321,19 @@ export default function PositionPage() {
           </div>
         </div>
 
-        {/* Layout: header sticky + body — KHÔNG có overflow:hidden bao ngoài cả 2 */}
+        {/* Table */}
         <div style={{ marginBottom: '24px' }}>
-
-          {/* Sticky header */}
-          <div style={{
-            borderRadius: '16px 16px 0 0',
-            border: '1px solid #e2e8f0',
-            borderBottom: 'none',
-            overflow: 'hidden',
-          }}>
-            <StickyHeader levels={levels} colTemplate={colTemplate} />
+          {/* Static header — ref để theo dõi vị trí */}
+          <div
+            ref={staticHeaderRef}
+            style={{
+              ...headerStyle,
+              borderRadius: '16px 16px 0 0',
+              border: '1px solid #e2e8f0',
+              borderBottom: '2px solid #e2e8f0',
+            }}
+          >
+            <HeaderContent levels={levels} colTemplate={colTemplate} />
           </div>
 
           {/* Body */}
@@ -375,13 +345,10 @@ export default function PositionPage() {
             overflow: 'hidden',
           }}>
             {DIMENSIONS.map(dim => (
-              <SmartRow
-                key={dim.id}
-                dim={dim}
-                levels={levels}
-                colTemplate={colTemplate}
-              />
+              <SmartRow key={dim.id} dim={dim} levels={levels} colTemplate={colTemplate} />
             ))}
+            {/* Sentinel cuối bảng */}
+            <div ref={tableEndRef} style={{ height: 1 }} />
           </div>
         </div>
 
