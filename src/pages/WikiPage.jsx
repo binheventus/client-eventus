@@ -64,6 +64,29 @@ const CATEGORY_CARD_META = {
   huong_dan: { accent: 'from-slate-50 to-teal-50/70', iconBg: 'bg-slate-100', iconText: 'text-slate-700', stroke: '#0f766e' },
 }
 
+const CATEGORY_BANNER_STYLES = {
+  quy_trinh: {
+    bg: 'from-slate-900 via-blue-900 to-teal-700',
+    label: 'text-blue-100',
+    desc: 'text-blue-100/90',
+  },
+  noi_quy: {
+    bg: 'from-slate-900 via-slate-800 to-emerald-700',
+    label: 'text-emerald-100',
+    desc: 'text-emerald-100/90',
+  },
+  huong_dan: {
+    bg: 'from-slate-900 via-teal-900 to-cyan-700',
+    label: 'text-cyan-100',
+    desc: 'text-cyan-100/90',
+  },
+  khung_nang_luc: {
+    bg: 'from-slate-900 via-blue-900 to-teal-700',
+    label: 'text-blue-100',
+    desc: 'text-blue-100/90',
+  },
+}
+
 function CategoryCardIcon({ categoryId, stroke = '#334155' }) {
   const common = {
     fill: 'none',
@@ -156,12 +179,14 @@ function PositionNode({ position }) {
 
 /* ─── Banner chung cho moi danh muc ─── */
 function CategoryBanner({ cat }) {
+  const style = CATEGORY_BANNER_STYLES[cat.id] || CATEGORY_BANNER_STYLES.quy_trinh
+
   return (
-    <div className="bg-gradient-to-r from-blue-700 to-teal-600 rounded-2xl shadow-lg px-8 py-5 text-white mb-5 flex-shrink-0">
-      <p className="text-sm font-semibold text-blue-100 mb-1">
+    <div className={`bg-gradient-to-r ${style.bg} rounded-2xl shadow-lg px-8 py-5 text-white mb-5 flex-shrink-0`}>
+      <p className={`text-sm font-semibold mb-1 ${style.label}`}>
         {cat.icon} {cat.banner}
       </p>
-      {cat.desc && <p className="text-sm text-blue-100 mt-1">{cat.desc}</p>}
+      {cat.desc && <p className={`text-sm mt-1 ${style.desc}`}>{cat.desc}</p>}
     </div>
   )
 }
@@ -254,8 +279,36 @@ function parseInline(text) {
   return nodes.length ? nodes : text
 }
 
+const BANNER_DESC_MARKER = '<!-- banner-desc:'
+
+function extractBannerDescription(rawText = '') {
+  const text = String(rawText || '').trimStart()
+  if (!text.startsWith(BANNER_DESC_MARKER)) return ''
+  const endIndex = text.indexOf('-->')
+  if (endIndex === -1) return ''
+  return text.slice(BANNER_DESC_MARKER.length, endIndex).trim()
+}
+
+function stripBannerDescription(rawText = '') {
+  const text = String(rawText || '')
+  const trimmed = text.trimStart()
+  if (!trimmed.startsWith(BANNER_DESC_MARKER)) return text
+  const endIndex = trimmed.indexOf('-->')
+  if (endIndex === -1) return text
+  return trimmed.slice(endIndex + 3).replace(/^\s+/, '')
+}
+
+function buildStoredContent(content = '', bannerDescription = '') {
+  const normalizedContent = stripBannerDescription(content).trim()
+  const normalizedBanner = String(bannerDescription || '').trim()
+
+  if (!normalizedBanner) return normalizedContent
+  return `${BANNER_DESC_MARKER} ${normalizedBanner} -->\n\n${normalizedContent}`.trim()
+}
+
 function parseArticle(rawText, fallbackTitle) {
-  const lines = String(rawText || '')
+  const bannerDescription = extractBannerDescription(rawText)
+  const lines = stripBannerDescription(rawText)
     .replace(/\r\n/g, '\n')
     .split('\n')
     .map(line => line.trim())
@@ -375,6 +428,7 @@ function parseArticle(rawText, fallbackTitle) {
 
   return {
     title: title || fallbackTitle,
+    bannerDescription,
     lead,
     sections,
     footerNotes,
@@ -441,27 +495,27 @@ function ArticleDocument({ title, category, page }) {
   const article = useMemo(() => parseArticle(page?.content, title), [page?.content, title])
   const hasSections = article.sections.length > 0
   const updatedLabel = page?.updated_at ? new Date(page.updated_at).toLocaleString('vi-VN') : null
-  const bannerDescription = article.lead[0] || 'Thêm phần mô tả mở đầu trong nội dung bài viết để hiển thị tại đây.'
+  const bannerDescription = article.bannerDescription || article.lead[0] || 'Thêm phần mô tả mở đầu trong nội dung bài viết để hiển thị tại đây.'
   const editButton = page?.editButton ?? null
 
   return (
     <div className="px-6 pb-6 lg:px-8">
       <div className="mx-auto max-w-6xl space-y-6">
           <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
-            <div className="bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 px-6 py-8 text-white md:px-8 md:py-10">
-              <div className="mb-4 flex items-start justify-between gap-4">
+            <div className="bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 px-6 py-5 text-white md:px-8 md:py-6">
+              <div className="mb-3 flex items-start justify-between gap-4">
                 <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-100">
                   <span>{category?.icon}</span>
                   <span>{category?.label}</span>
                 </div>
                 {editButton}
               </div>
-              <h1 className="max-w-4xl text-3xl font-semibold tracking-tight md:text-4xl">{article.title}</h1>
-              <p className="mt-3 max-w-3xl text-[15px] leading-7 text-blue-100/90">
+              <h1 className="max-w-4xl text-[28px] font-semibold tracking-tight md:text-[34px]">{article.title}</h1>
+              <p className="mt-2 max-w-3xl text-[14px] leading-6 text-blue-100/90">
                 {parseInline(bannerDescription)}
               </p>
               {updatedLabel && (
-                <div className="mt-6 text-right text-[12px] text-blue-100/75">
+                <div className="mt-4 text-right text-[12px] text-blue-100/75">
                   Cập nhật {updatedLabel}
                 </div>
               )}
@@ -572,6 +626,7 @@ export default function WikiPage() {
   const [selectedTitle, setSelectedTitle] = useState(null)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
+  const [bannerDraft, setBannerDraft] = useState('')
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
   const admin = useAdmin()
@@ -588,14 +643,15 @@ export default function WikiPage() {
 
   async function savePage() {
     setSaving(true)
+    const storedContent = buildStoredContent(draft, bannerDraft)
     if (currentPage) {
       const { data: updated } = await supabase
-        .from('wiki_pages').update({ content: draft, updated_at: new Date().toISOString() })
+        .from('wiki_pages').update({ content: storedContent, updated_at: new Date().toISOString() })
         .eq('id', currentPage.id).select().single()
       if (updated) setPages(prev => prev.map(p => p.id === updated.id ? updated : p))
     } else {
       const { data: inserted } = await supabase
-        .from('wiki_pages').insert({ category: activeCat, title: selectedTitle, content: draft })
+        .from('wiki_pages').insert({ category: activeCat, title: selectedTitle, content: storedContent })
         .select().single()
       if (inserted) setPages(prev => [...prev, inserted])
     }
@@ -639,7 +695,11 @@ export default function WikiPage() {
     setEditing(false)
   }
   function openPage(title) { setSelectedTitle(title); setEditing(false) }
-  function startEdit() { setDraft(currentPage?.content || ''); setEditing(true) }
+  function startEdit() {
+    setBannerDraft(extractBannerDescription(currentPage?.content || ''))
+    setDraft(stripBannerDescription(currentPage?.content || ''))
+    setEditing(true)
+  }
 
   return (
     <div className="h-screen overflow-hidden flex flex-col bg-gradient-to-br from-slate-50 to-blue-50">
@@ -829,6 +889,16 @@ export default function WikiPage() {
               <p className="text-[11px] text-slate-400 mb-2">
                 Hỗ trợ cả nội dung text thường lẫn Markdown cơ bản. Nếu có `#`, `##`, `-`, `1.` thì giao diện sẽ lên đẹp và ổn định hơn.
               </p>
+              <label className="mb-3 block">
+                <span className="mb-1.5 block text-[12px] font-semibold text-slate-600">Mô tả mở đầu trên banner</span>
+                <textarea
+                  value={bannerDraft}
+                  onChange={e => setBannerDraft(e.target.value)}
+                  rows={2}
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-[13px] leading-relaxed text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                  placeholder="Nhập đoạn mô tả ngắn hiển thị ở banner đầu bài..."
+                />
+              </label>
               <textarea value={draft} onChange={e => setDraft(e.target.value)}
                 className="flex-1 w-full border border-slate-200 rounded-xl p-4 text-[13px] text-slate-700 font-mono leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-blue-300"
                 placeholder="Nhập nội dung Markdown..." />
