@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { ADMIN_PASSWORD } from '../config'
@@ -136,19 +136,394 @@ function CompetencyGrid() {
   )
 }
 
-/* ─── Markdown renderer ─── */
-function renderMarkdown(text) {
-  if (!text) return ''
-  return text
-    .replace(/^### (.+)$/gm, '<h3 class="text-base font-bold text-slate-800 mt-5 mb-2">$1</h3>')
-    .replace(/^## (.+)$/gm, '<h2 class="text-lg font-bold text-slate-800 mt-6 mb-3">$1</h2>')
-    .replace(/^# (.+)$/gm, '<h1 class="text-2xl font-bold text-slate-800 mt-6 mb-3">$1</h1>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-slate-800">$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/^- (.+)$/gm, '<li class="ml-5 list-disc text-slate-600 mb-1.5 leading-relaxed">$1</li>')
-    .replace(/^(\d+)\. (.+)$/gm, '<li class="ml-5 list-decimal text-slate-600 mb-1.5 leading-relaxed">$2</li>')
-    .replace(/`(.+?)`/g, '<code class="font-mono text-[12px] bg-slate-100 text-blue-700 px-1.5 py-0.5 rounded">$1</code>')
-    .replace(/\n\n/g, '</p><p class="mb-4 text-slate-600 leading-relaxed">')
+/* ─── Article renderer ─── */
+function slugify(text) {
+  return String(text || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+function stripMarker(line = '') {
+  return line
+    .replace(/^#{1,3}\s+/, '')
+    .replace(/^\d+\.\d+\.?\s+/, '')
+    .replace(/^\d+\.\s+/, '')
+    .replace(/^[-*•+]\s+/, '')
+    .trim()
+}
+
+function isUpperTitle(line) {
+  const letters = line.replace(/[^A-Za-zÀ-ỹ]/g, '')
+  return letters.length > 8 && line === line.toUpperCase()
+}
+
+function isMainHeading(line) {
+  return /^#\s+/.test(line) || /^Bước\s+\d+\s*:/i.test(line)
+}
+
+function isSubHeading(line) {
+  return /^##\s+/.test(line) || /^\d+\.\d+\.?\s+/.test(line)
+}
+
+function isListItem(line) {
+  return /^[-*•+]\s+/.test(line) || /^\d+\.\s+/.test(line)
+}
+
+function isCallout(line) {
+  return /^[⚠️⛔✅ℹ️*]+\s*/.test(line) || /^Lưu ý/i.test(line)
+}
+
+function parseInline(text) {
+  const nodes = []
+  const pattern = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g
+  let lastIndex = 0
+  let match
+
+  while ((match = pattern.exec(text)) !== null) {
+    if (match.index > lastIndex) nodes.push(text.slice(lastIndex, match.index))
+    const token = match[0]
+    if (token.startsWith('**')) {
+      nodes.push(<strong key={`${match.index}-b`} className="font-semibold text-slate-900">{token.slice(2, -2)}</strong>)
+    } else if (token.startsWith('*')) {
+      nodes.push(<em key={`${match.index}-i`} className="italic">{token.slice(1, -1)}</em>)
+    } else if (token.startsWith('`')) {
+      nodes.push(
+        <code key={`${match.index}-c`} className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[12px] text-blue-700">
+          {token.slice(1, -1)}
+        </code>
+      )
+    }
+    lastIndex = pattern.lastIndex
+  }
+
+  if (lastIndex < text.length) nodes.push(text.slice(lastIndex))
+  return nodes.length ? nodes : text
+}
+
+function parseArticle(rawText, fallbackTitle) {
+  const lines = String(rawText || '')
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map(line => line.trim())
+
+  let title = fallbackTitle
+  let lead = []
+  const sections = []
+  const footerNotes = []
+  let currentSection = null
+  let currentSubsection = null
+
+  const getTarget = () => {
+    if (currentSubsection) return currentSubsection
+    if (currentSection) return currentSection
+    return null
+  }
+
+  const ensureSection = (label = 'Nội dung') => {
+    if (currentSection) return currentSection
+    currentSection = { id: slugify(label), title: label, blocks: [], subsections: [] }
+    sections.push(currentSection)
+    currentSubsection = null
+    return currentSection
+  }
+
+  const pushBlock = (block) => {
+    const target = getTarget() || ensureSection()
+    target.blocks.push(block)
+  }
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i]
+    if (!line) continue
+
+    if (!title && (isUpperTitle(line) || /^#\s+/.test(line))) {
+      title = stripMarker(line)
+      continue
+    }
+
+    if (/^Cập nhật ngày/i.test(line)) {
+      footerNotes.push({ type: 'meta', text: line })
+      continue
+    }
+
+    if (/bảo mật/i.test(line) && line.length > 50) {
+      footerNotes.push({ type: 'warning', text: line.replace(/^\*+|\*+$/g, '').trim() })
+      continue
+    }
+
+    if (isMainHeading(line)) {
+      const sectionTitle = stripMarker(line)
+      currentSection = { id: slugify(sectionTitle), title: sectionTitle, blocks: [], subsections: [] }
+      sections.push(currentSection)
+      currentSubsection = null
+      continue
+    }
+
+    if (isSubHeading(line)) {
+      const subsectionTitle = stripMarker(line)
+      ensureSection()
+      currentSubsection = { id: slugify(`${currentSection.id}-${subsectionTitle}`), title: subsectionTitle, blocks: [] }
+      currentSection.subsections.push(currentSubsection)
+      continue
+    }
+
+    if (!currentSection && !currentSubsection && line.length > 60) {
+      lead.push(line)
+      continue
+    }
+
+    if (isCallout(line)) {
+      pushBlock({ type: 'callout', tone: line.startsWith('⛔') ? 'warning' : 'info', text: line })
+      continue
+    }
+
+    if (isListItem(line)) {
+      const items = [stripMarker(line)]
+      while (i + 1 < lines.length && lines[i + 1] && isListItem(lines[i + 1])) {
+        i += 1
+        items.push(stripMarker(lines[i]))
+      }
+      pushBlock({ type: 'list', items })
+      continue
+    }
+
+    if (line.endsWith(':')) {
+      const titleText = line.slice(0, -1).trim()
+      const items = []
+      while (i + 1 < lines.length) {
+        const next = lines[i + 1]
+        if (!next || isMainHeading(next) || isSubHeading(next) || /^Cập nhật ngày/i.test(next)) break
+        if (next.endsWith(':') && items.length > 0) break
+        i += 1
+        items.push(stripMarker(lines[i]))
+      }
+
+      if (items.length >= 2) {
+        pushBlock({ type: 'cardList', title: titleText, items })
+      } else if (items.length === 1) {
+        pushBlock({ type: 'paragraph', text: `${titleText}: ${items[0]}` })
+      } else {
+        pushBlock({ type: 'miniTitle', text: titleText })
+      }
+      continue
+    }
+
+    let paragraph = line
+    while (i + 1 < lines.length) {
+      const next = lines[i + 1]
+      if (!next || isMainHeading(next) || isSubHeading(next) || isListItem(next) || isCallout(next) || /^Cập nhật ngày/i.test(next)) break
+      if (next.endsWith(':')) break
+      i += 1
+      paragraph += ` ${lines[i]}`
+    }
+    pushBlock({ type: 'paragraph', text: paragraph })
+  }
+
+  return {
+    title: title || fallbackTitle,
+    lead,
+    sections,
+    footerNotes,
+  }
+}
+
+function CalloutBlock({ tone = 'info', children }) {
+  const classes = tone === 'warning'
+    ? 'border-amber-200 bg-amber-50 text-amber-900'
+    : 'border-blue-200 bg-blue-50 text-slate-700'
+
+  return (
+    <div className={`rounded-2xl border px-4 py-3 text-[13px] leading-relaxed ${classes}`}>
+      {children}
+    </div>
+  )
+}
+
+function ContentBlock({ block }) {
+  if (block.type === 'paragraph') {
+    return <p className="text-[15px] leading-7 text-slate-600">{parseInline(block.text)}</p>
+  }
+
+  if (block.type === 'miniTitle') {
+    return <h4 className="text-[15px] font-semibold text-slate-900">{block.text}</h4>
+  }
+
+  if (block.type === 'callout') {
+    return <CalloutBlock tone={block.tone}>{parseInline(block.text)}</CalloutBlock>
+  }
+
+  if (block.type === 'list') {
+    return (
+      <ul className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+        {block.items.map((item, idx) => (
+          <li key={idx} className="flex gap-3 text-[14px] leading-6 text-slate-700">
+            <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-blue-500" />
+            <span>{parseInline(item)}</span>
+          </li>
+        ))}
+      </ul>
+    )
+  }
+
+  if (block.type === 'cardList') {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <h4 className="mb-3 text-[14px] font-semibold uppercase tracking-[0.12em] text-slate-500">{block.title}</h4>
+        <div className="grid gap-3 md:grid-cols-2">
+          {block.items.map((item, idx) => (
+            <div key={idx} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 text-[14px] leading-6 text-slate-700">
+              {parseInline(item)}
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  return null
+}
+
+function ArticleDocument({ title, category, page }) {
+  const article = useMemo(() => parseArticle(page?.content, title), [page?.content, title])
+  const hasSections = article.sections.length > 0
+
+  return (
+    <div className="px-6 py-6 lg:px-8">
+      <div className="mx-auto grid max-w-7xl gap-6 xl:grid-cols-[minmax(0,1fr)_260px]">
+        <div className="min-w-0 space-y-6">
+          <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
+            <div className="bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 px-6 py-8 text-white md:px-8 md:py-10">
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-100">
+                <span>{category?.icon}</span>
+                <span>{category?.label}</span>
+              </div>
+              <h1 className="max-w-4xl text-3xl font-semibold tracking-tight md:text-4xl">{article.title}</h1>
+              <p className="mt-3 max-w-3xl text-[15px] leading-7 text-blue-100/90">
+                Tài liệu vận hành nội bộ. Nội dung được trình bày lại theo dạng handbook để dễ đọc, dễ tra cứu và giảm sót việc khi đi job.
+              </p>
+            </div>
+
+            {(article.lead.length > 0 || page?.updated_at) && (
+              <div className="border-t border-slate-100 bg-slate-50/80 px-6 py-4 md:px-8">
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
+                  <div className="space-y-3">
+                    {article.lead.map((paragraph, idx) => (
+                      <p key={idx} className="text-[15px] leading-7 text-slate-600">
+                        {parseInline(paragraph)}
+                      </p>
+                    ))}
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-[12px] text-slate-500">
+                    <div className="font-semibold uppercase tracking-[0.14em] text-slate-400">Thông tin</div>
+                    <div className="mt-3 space-y-2">
+                      <div>
+                        <div className="text-slate-400">Danh mục</div>
+                        <div className="font-medium text-slate-700">{category?.label}</div>
+                      </div>
+                      {page?.updated_at && (
+                        <div>
+                          <div className="text-slate-400">Cập nhật</div>
+                          <div className="font-medium text-slate-700">{new Date(page.updated_at).toLocaleString('vi-VN')}</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </section>
+
+          {hasSections ? article.sections.map((section, index) => (
+            <section key={section.id || index} id={section.id} className="rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+              <div className="mb-6 flex items-start gap-4">
+                <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-sm font-semibold text-blue-700">
+                  {String(index + 1).padStart(2, '0')}
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Section</p>
+                  <h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">{section.title}</h2>
+                </div>
+              </div>
+
+              <div className="space-y-5">
+                {section.blocks.map((block, idx) => (
+                  <ContentBlock key={idx} block={block} />
+                ))}
+              </div>
+
+              {section.subsections.length > 0 && (
+                <div className="mt-8 space-y-5">
+                  {section.subsections.map((subsection, idx) => (
+                    <div key={subsection.id || idx} id={subsection.id} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-5">
+                      <div className="mb-4 flex items-center gap-3">
+                        <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-500 shadow-sm">
+                          {subsection.title.split(' ')[0]}
+                        </span>
+                        <h3 className="text-lg font-semibold text-slate-900">{subsection.title}</h3>
+                      </div>
+                      <div className="space-y-4">
+                        {subsection.blocks.map((block, blockIdx) => (
+                          <ContentBlock key={blockIdx} block={block} />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          )) : (
+            <section className="rounded-[24px] border border-slate-200 bg-white p-8 shadow-sm">
+              <p className="text-[15px] leading-7 text-slate-600">
+                {page?.content ? parseInline(page.content) : 'Chưa có nội dung.'}
+              </p>
+            </section>
+          )}
+
+          {article.footerNotes.length > 0 && (
+            <section className="space-y-4">
+              {article.footerNotes.map((note, idx) => (
+                note.type === 'warning' ? (
+                  <CalloutBlock key={idx} tone="warning">{parseInline(note.text)}</CalloutBlock>
+                ) : (
+                  <div key={idx} className="text-[12px] text-slate-400">{note.text}</div>
+                )
+              ))}
+            </section>
+          )}
+        </div>
+
+        <aside className="hidden xl:block">
+          <div className="sticky top-20 rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Mục lục</p>
+            <div className="mt-4 space-y-4">
+              {article.sections.map((section, index) => (
+                <div key={section.id || index}>
+                  <a href={`#${section.id}`} className="group flex items-start gap-3 text-sm text-slate-600 transition-colors hover:text-blue-700">
+                    <span className="mt-0.5 text-[11px] font-semibold text-slate-400 group-hover:text-blue-700">
+                      {String(index + 1).padStart(2, '0')}
+                    </span>
+                    <span className="leading-5">{section.title}</span>
+                  </a>
+                  {section.subsections.length > 0 && (
+                    <div className="mt-2 ml-6 space-y-2 border-l border-slate-100 pl-4">
+                      {section.subsections.map((subsection, subIdx) => (
+                        <a key={subsection.id || subIdx} href={`#${subsection.id}`} className="block text-[13px] leading-5 text-slate-400 hover:text-slate-700">
+                          {subsection.title}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  )
 }
 
 /* ─── Admin gate — persist qua localStorage ─── */
@@ -288,9 +663,9 @@ export default function WikiPage() {
           {/* Content view */}
           {activeCat !== 'khung_nang_luc' && selectedTitle && !editing && (
             <div className="flex-1 overflow-y-auto">
-              <div className="px-8 py-6 max-w-4xl">
+              <div className="px-6 py-5">
                 {/* Breadcrumb */}
-                <div className="flex items-center gap-2 text-[12px] text-slate-400 mb-5">
+                <div className="mx-auto mb-5 flex max-w-7xl items-center gap-2 text-[12px] text-slate-400">
                   <button onClick={() => setSelectedTitle(null)} className="hover:text-blue-600 transition-colors">
                     {currentCat?.label}
                   </button>
@@ -298,30 +673,21 @@ export default function WikiPage() {
                   <span className="text-slate-600 font-medium">{selectedTitle}</span>
                 </div>
 
-                {/* Title row */}
-                <div className="flex items-start justify-between mb-6 pb-4 border-b border-slate-100">
-                  <h1 className="text-2xl font-bold text-slate-800">{selectedTitle}</h1>
+                <div className="mx-auto mb-5 flex max-w-7xl items-start justify-between">
+                  <div />
                   {admin.isAdmin && (
                     <button onClick={startEdit}
-                      className="flex-shrink-0 ml-4 flex items-center gap-1.5 text-[12px] font-semibold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg transition-colors">
+                      className="ml-4 flex flex-shrink-0 items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-[12px] font-semibold text-white transition-colors hover:bg-blue-700">
                       ✏️ Chỉnh sửa
                     </button>
                   )}
                 </div>
 
-                {/* Content */}
                 {currentPage ? (
-                  <div className="prose prose-sm max-w-none text-slate-600 leading-relaxed"
-                    dangerouslySetInnerHTML={{ __html: renderMarkdown(currentPage.content) }} />
+                  <ArticleDocument title={selectedTitle} category={currentCat} page={currentPage} />
                 ) : (
-                  <div className="text-slate-400 italic text-sm">
+                  <div className="mx-auto max-w-4xl rounded-3xl border border-dashed border-slate-200 bg-white px-8 py-12 text-center text-sm italic text-slate-400">
                     Chưa có nội dung.{admin.isAdmin ? ' Nhấn "Chỉnh sửa" để thêm.' : ''}
-                  </div>
-                )}
-
-                {currentPage && (
-                  <div className="mt-10 pt-4 border-t border-slate-100 text-[11px] text-slate-300">
-                    Cập nhật lần cuối: {new Date(currentPage.updated_at).toLocaleString('vi-VN')}
                   </div>
                 )}
               </div>
@@ -345,7 +711,7 @@ export default function WikiPage() {
                 </div>
               </div>
               <p className="text-[11px] text-slate-400 mb-2">
-                Hỗ trợ Markdown: **bold**, *italic*, # Heading, - danh sách
+                Hỗ trợ cả nội dung text thường lẫn Markdown cơ bản. Nếu có `#`, `##`, `-`, `1.` thì giao diện sẽ lên đẹp và ổn định hơn.
               </p>
               <textarea value={draft} onChange={e => setDraft(e.target.value)}
                 className="flex-1 w-full border border-slate-200 rounded-xl p-4 text-[13px] text-slate-700 font-mono leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-blue-300"
