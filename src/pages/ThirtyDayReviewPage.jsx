@@ -115,6 +115,7 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
 
   const saveTimeoutRef = useRef(null);
   const isInitialLoad = useRef(true);
+  const submitPanelRef = useRef(null);
   const autoResize = (el) => {
     if (!el) return;
     el.style.height = 'auto';
@@ -337,7 +338,7 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
     const err = validateForm();
     if (err) {
       setValidationError(err);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      submitPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
     setValidationError('');
@@ -359,10 +360,11 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
       setLastSavedAt(new Date());
       setShowShareLink(true);
       setShowSubmitModal(true);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      submitPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     } catch (err) {
       setSaveState('error');
       setValidationError('Có lỗi khi gửi. Vui lòng thử lại.');
+      submitPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   };
 
@@ -909,7 +911,7 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
         })}
 
         {/* ===== KHỐI SUBMIT ===== */}
-        <div className="rounded-[28px] border border-white/10 bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 px-8 py-8 shadow-lg text-white">
+        <div ref={submitPanelRef} className="rounded-[28px] border border-white/10 bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 px-8 py-8 shadow-lg text-white">
           {status === 'submitted' ? (
             <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
               <div className="max-w-2xl">
@@ -930,11 +932,9 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
               <div className="max-w-2xl">
                 <div className="space-y-2 text-[14.5px] leading-7 text-blue-100/92">
                   <p className="max-w-2xl">
-                    {savedTimeStr ? `Vừa lưu lúc ${savedTimeStr}. ` : ''}
-                    Bạn có thể đóng trình duyệt và quay lại làm tiếp bất cứ lúc nào.
+                    {savedTimeStr ? `Vừa lưu lúc ${savedTimeStr}. Hãy lưu URL dưới đây để tiếp tục hoàn thiện sau.` : 'Hãy lưu URL dưới đây để tiếp tục hoàn thiện sau.'}
                   </p>
                   <div className="max-w-2xl rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-[13px] leading-6 text-blue-50/95 backdrop-blur">
-                    <p>Hãy lưu URL dưới đây để tiếp tục hoàn thiện sau:</p>
                     <div className="mt-2 flex flex-col gap-2 md:flex-row md:items-center">
                       <code className="min-w-0 flex-1 overflow-x-auto rounded-xl bg-slate-950/30 px-3 py-2 font-mono text-[12px] text-blue-50">
                         {shareUrl}
@@ -951,6 +951,11 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
               </div>
 
               <div className="flex flex-col items-start gap-3 lg:items-end">
+                {validationError && (
+                  <div className="max-w-sm rounded-2xl border border-red-200/30 bg-red-500/10 px-4 py-3 text-[12px] leading-6 text-red-100">
+                    {validationError}
+                  </div>
+                )}
                 <div className="rounded-full bg-white/12 px-3 py-1 text-[12px] font-medium text-blue-100/85 ring-1 ring-white/10">
                   {saveState === 'saving' ? 'Đang lưu dữ liệu...' : 'Khi đã sẵn sàng, hãy nhấn nút bên dưới để gửi bài nhé.'}
                 </div>
