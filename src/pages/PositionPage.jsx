@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import data from '../data/competency.json'
 
 /* ─── constants ─── */
@@ -40,6 +40,7 @@ const NAVBAR_H = 0
 // Width tối thiểu mỗi cột level để không bị vỡ trên mobile
 const COL_LABEL_W = 80   // px — minWidth cột nhóm năng lực
 const COL_LEVEL_W = 160  // px — minWidth mỗi cột level
+const EMBEDDED_COL_LEVEL_W = 190
 
 /* ─── helpers ─── */
 function parseItems(text) {
@@ -67,8 +68,8 @@ function ItemList({ items, dotColor }) {
       {items.map((item, j) => (
         <div key={j} style={{
           display: 'flex', gap: '6px',
-          fontSize: '11px', color: '#475569',
-          lineHeight: 1.65, marginBottom: '5px',
+          fontSize: '10px', color: '#475569',
+          lineHeight: 1.7, marginBottom: '6px',
         }}>
           <span style={{
             marginTop: '7px', width: '5px', height: '5px', minWidth: '5px',
@@ -82,7 +83,7 @@ function ItemList({ items, dotColor }) {
 }
 
 /* ─── SmartRow ─── */
-function SmartRow({ dim, levels }) {
+function SmartRow({ dim, levels, levelColumnWidth = COL_LEVEL_W }) {
   const c = DIM_COLORS[dim.id]
   const itemsPerLevel = levels.map(lv => parseItems(lv.competencies[dim.id]))
   const [phase, setPhase] = useState('measure')
@@ -142,8 +143,8 @@ function SmartRow({ dim, levels }) {
         return (
           <div key={i} style={{
             flex: 1,
-            minWidth: `${COL_LEVEL_W}px`,
-            padding: '12px 10px',
+            minWidth: `${levelColumnWidth}px`,
+            padding: '14px 16px',
             borderRight: isLastCol ? 'none' : '1px solid #e2e8f0',
           }}>
             {phase === 'measure' ? (
@@ -185,7 +186,7 @@ function SmartRow({ dim, levels }) {
 }
 
 /* ─── HeaderRow: dùng chung cho static + fixed clone ─── */
-function HeaderRow({ position, meta, levels, totalMinW, showBanner }) {
+function HeaderRow({ position, meta, levels, totalMinW, showBanner, levelColumnWidth = COL_LEVEL_W }) {
   return (
     <div style={{
       background: 'linear-gradient(135deg, #1d4ed8 0%, #0d9488 100%)',
@@ -243,7 +244,7 @@ function HeaderRow({ position, meta, levels, totalMinW, showBanner }) {
           return (
             <div key={i} style={{
               flex: 1,
-              minWidth: `${COL_LEVEL_W}px`,
+              minWidth: `${levelColumnWidth}px`,
               borderTop: `3px solid ${lmeta.topBorder}`,
               borderRight: isLastCol ? 'none' : '1px solid rgba(255,255,255,0.15)',
               position: 'relative', overflow: 'hidden',
@@ -288,7 +289,6 @@ function HeaderRow({ position, meta, levels, totalMinW, showBanner }) {
 /* ─── Main ─── */
 export default function PositionPage({ embedded = false }) {
   const { positionId } = useParams()
-  const navigate = useNavigate()
   const framework = data.competency_framework
   const position = framework.positions.find(p => p.id === positionId)
 
@@ -340,11 +340,12 @@ export default function PositionPage({ embedded = false }) {
 
   const meta = POSITION_META[position.id] || { icon: '📌' }
   const levels = position.levels
+  const levelColumnWidth = embedded ? EMBEDDED_COL_LEVEL_W : COL_LEVEL_W
   // Tổng width thực tế của bảng
-  const totalMinW = COL_LABEL_W + COL_LEVEL_W * levels.length
+  const totalMinW = COL_LABEL_W + levelColumnWidth * levels.length
 
   return (
-    <div className={`${embedded ? 'px-6 pb-6 pt-6' : 'min-h-screen bg-gradient-to-br from-slate-50 to-blue-50'}`}>
+    <div className={`${embedded ? 'px-6 pb-6 pt-0' : 'min-h-screen bg-gradient-to-br from-slate-50 to-blue-50'}`}>
       {/* Fixed clone khi scroll — overflow hidden để cắt đúng viền wrapper */}
       {showFixed && (
         <div style={{
@@ -365,24 +366,13 @@ export default function PositionPage({ embedded = false }) {
                 levels={levels}
                 totalMinW={totalMinW}
                 showBanner={false}
+                levelColumnWidth={levelColumnWidth}
             />
           </div>
         </div>
       )}
 
-      <div className={`${embedded ? 'mx-auto max-w-6xl' : 'max-w-6xl mx-auto px-4 py-10'}`}>
-        {embedded && (
-          <button
-            onClick={() => navigate('/competency')}
-            className="mb-5 inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition-colors hover:text-blue-700"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            Quay lại danh sách vị trí
-          </button>
-        )}
-
+      <div className={`${embedded ? 'mx-auto max-w-[1400px]' : 'max-w-6xl mx-auto px-4 py-10'}`}>
         <div style={{ marginBottom: '24px' }}>
 
           {/*
@@ -408,6 +398,7 @@ export default function PositionPage({ embedded = false }) {
                 levels={levels}
                 totalMinW={totalMinW}
                 showBanner={true}
+                levelColumnWidth={levelColumnWidth}
               />
             </div>
 
@@ -417,7 +408,7 @@ export default function PositionPage({ embedded = false }) {
               borderTop: 'none',
             }}>
               {DIMENSIONS.map(dim => (
-                <SmartRow key={dim.id} dim={dim} levels={levels} />
+                <SmartRow key={dim.id} dim={dim} levels={levels} levelColumnWidth={levelColumnWidth} />
               ))}
               <div ref={tableEndRef} style={{ height: 1 }} />
             </div>
