@@ -400,10 +400,14 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
     }
   };
 
+  const embeddedShellClass = embedded ? 'bg-transparent' : 'bg-gradient-to-br from-slate-50 to-blue-50'
+  const embeddedCardClass = embedded ? 'rounded-[28px] border border-slate-200 shadow-sm' : 'rounded-2xl shadow-xl'
+  const embeddedPagePaddingClass = embedded ? 'px-6 py-6' : 'py-10 px-4'
+
   // ====== RENDER: LOADING ======
   if (stage === 'loading') {
     return (
-      <div className={`${embedded ? 'min-h-full px-6 py-10' : 'min-h-screen bg-gradient-to-br from-slate-50 to-blue-50'} flex items-center justify-center`}>
+      <div className={`${embedded ? 'min-h-full px-6 py-12' : 'min-h-screen bg-gradient-to-br from-slate-50 to-blue-50'} flex items-center justify-center`}>
         <div className="flex items-center gap-3 text-slate-600">
           <Loader2 className="w-6 h-6 animate-spin" />
           <span>Đang tải...</span>
@@ -415,7 +419,7 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
   // ====== RENDER: ERROR ======
   if (stage === 'error') {
     return (
-      <div className={`${embedded ? 'min-h-full px-6 py-10' : 'min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-6'} flex items-center justify-center`}>
+      <div className={`${embedded ? 'min-h-full px-6 py-12' : 'min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-6'} flex items-center justify-center`}>
         <div className="bg-white rounded-2xl shadow-xl p-10 max-w-md text-center">
           <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-slate-800 mb-3">Có lỗi xảy ra</h1>
@@ -439,12 +443,15 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
     const inputError = 'border-red-500 focus:border-red-500';
 
     return (
-      <div className={`${embedded ? 'px-6 py-8' : 'min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4'} flex items-center justify-center`}>
-        <div className="bg-white rounded-2xl shadow-xl w-full max-w-[460px] overflow-hidden">
-          <div className="bg-gradient-to-r from-blue-700 to-teal-600 px-8 py-7">
+      <div className={`${embedded ? 'px-6 py-6' : 'min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4'} flex items-center justify-center`}>
+        <div className={`bg-white w-full max-w-[460px] overflow-hidden ${embeddedCardClass}`}>
+          <div className="bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 px-8 py-6">
             <h1 className="text-[22px] font-medium text-white leading-tight tracking-tight">
               Eventus Onboarding 30-Day Review
             </h1>
+            <p className="mt-2 text-[13px] leading-6 text-blue-100/90">
+              Ghi nhận cảm nhận sau 30 ngày đầu tiên để Eventus cải thiện tốt hơn.
+            </p>
           </div>
 
           <div className="px-8 py-7">
@@ -564,10 +571,10 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
   };
 
   return (
-    <div className={embedded ? 'px-6 py-6' : 'min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 py-10 px-4'}>
+    <div className={embedded ? embeddedPagePaddingClass : `min-h-screen ${embeddedShellClass} ${embeddedPagePaddingClass}`}>
       <div className="max-w-3xl mx-auto">
         {/* ===== HEADER ===== */}
-        <div className="bg-gradient-to-r from-blue-700 to-teal-600 rounded-2xl shadow-lg p-8 mb-6 text-white">
+        <div className="bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 rounded-[28px] shadow-lg p-7 md:p-8 mb-6 text-white">
           <div className="flex items-start justify-between gap-4 mb-3">
             <h1 className="text-[22px] md:text-[26px] font-medium leading-tight tracking-tight">
               HÀNH TRÌNH 30 NGÀY <span className="opacity-60 mx-1">|</span> {hoTen.toUpperCase()}
@@ -581,7 +588,7 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
             Nơi những cảm nhận mới mẻ định hình nên một Eventus tốt hơn.
           </p>
 
-          <div className="bg-white/15 backdrop-blur rounded-xl px-[18px] py-4 text-[13.5px] leading-[1.7] space-y-3">
+          <div className="bg-white/12 backdrop-blur rounded-2xl px-[18px] py-4 text-[13.5px] leading-[1.7] space-y-3 ring-1 ring-white/10">
             <p className="m-0">
               Eventus trân trọng góc nhìn từ những "đôi mắt mới" để hoàn thiện mỗi ngày. Đây không phải bài thi hay đánh giá thử việc. Bạn đang ở khoảnh khắc duy nhất có thể nhìn Eventus bằng góc nhìn còn mới. Một tháng nữa, bạn sẽ không còn thấy những gì hôm nay bạn đang thấy. Hãy ghi lại trước khi nó phai.
             </p>
@@ -665,7 +672,7 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
         {sectionsToRender.map((section) => {
           const Icon = iconMap[section.icon] || Star;
           return (
-            <div key={section.id} className="bg-white rounded-2xl shadow-sm p-6 md:p-8 mb-6">
+            <div key={section.id} className="bg-white rounded-[24px] border border-slate-200 shadow-sm p-6 md:p-8 mb-6">
               <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
                 <div className="bg-blue-50 p-2 rounded-lg">
                   <Icon className="w-5 h-5 text-blue-700" />
@@ -825,7 +832,7 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
         })}
 
         {/* ===== KHỐI SUBMIT ===== */}
-        <div className="bg-gradient-to-r from-blue-700 to-teal-600 rounded-2xl shadow-lg px-8 py-10 text-center text-white">
+        <div className="bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 rounded-[28px] shadow-lg px-8 py-9 text-center text-white">
           {status === 'submitted' ? (
             <>
               <h3 className="text-xl md:text-2xl font-bold mb-2">Đã gửi rồi 🙏</h3>
