@@ -345,7 +345,7 @@ export default function PositionPage({ embedded = false }) {
   const totalMinW = COL_LABEL_W + levelColumnWidth * levels.length
 
   return (
-    <div className={`${embedded ? 'px-6 pb-6 pt-0' : 'min-h-screen bg-gradient-to-br from-slate-50 to-blue-50'}`}>
+    <div className={`${embedded ? 'pb-6 pt-0' : 'min-h-screen bg-gradient-to-br from-slate-50 to-blue-50'}`}>
       {/* Fixed clone khi scroll — overflow hidden để cắt đúng viền wrapper */}
       {showFixed && (
         <div style={{

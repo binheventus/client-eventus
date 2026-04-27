@@ -59,9 +59,9 @@ const CATEGORIES = [
 ]
 
 const CATEGORY_CARD_META = {
-  quy_trinh: { badge: 'Tài liệu vận hành', accent: 'from-blue-50 to-cyan-50', iconBg: 'bg-blue-100', iconText: 'text-blue-700' },
-  noi_quy: { badge: 'Quy định nội bộ', accent: 'from-emerald-50 to-teal-50', iconBg: 'bg-emerald-100', iconText: 'text-emerald-700' },
-  huong_dan: { badge: 'Đào tạo & onboarding', accent: 'from-amber-50 to-orange-50', iconBg: 'bg-amber-100', iconText: 'text-amber-700' },
+  quy_trinh: { accent: 'from-blue-50 to-cyan-50', iconBg: 'bg-blue-100', iconText: 'text-blue-700' },
+  noi_quy: { accent: 'from-emerald-50 to-teal-50', iconBg: 'bg-emerald-100', iconText: 'text-emerald-700' },
+  huong_dan: { accent: 'from-amber-50 to-orange-50', iconBg: 'bg-amber-100', iconText: 'text-amber-700' },
 }
 
 /* ─── Competency grid ─── */
@@ -692,7 +692,7 @@ export default function WikiPage() {
           {activeCat !== 'khung_nang_luc' && !selectedTitle && (
             <div className="flex-1 overflow-y-auto p-6">
               <CategoryBanner cat={currentCat} />
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {currentCat?.items?.map(title => {
                   const page = pages.find(p => p.category === activeCat && p.title === title)
                   const cardMeta = CATEGORY_CARD_META[activeCat] || CATEGORY_CARD_META.quy_trinh
@@ -700,26 +700,22 @@ export default function WikiPage() {
                     <button
                       key={title}
                       onClick={() => openPage(title)}
-                      className={`group relative overflow-hidden rounded-[22px] border border-slate-200 bg-gradient-to-br ${cardMeta.accent} p-5 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-lg hover:shadow-slate-200/70`}
+                      className={`group relative overflow-hidden rounded-[18px] border border-slate-200 bg-gradient-to-br ${cardMeta.accent} px-4 py-3.5 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md hover:shadow-slate-200/70`}
                     >
-                      <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-white/60 to-transparent pointer-events-none" />
+                      <div className="absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-white/55 to-transparent pointer-events-none" />
                       <div className="relative flex h-full flex-col">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl ${cardMeta.iconBg} ${cardMeta.iconText} shadow-sm ring-1 ring-white/70`}>
-                            <span className="text-lg">{currentCat?.icon}</span>
+                        <div className="flex items-start gap-3">
+                          <div className={`mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl ${cardMeta.iconBg} ${cardMeta.iconText} shadow-sm ring-1 ring-white/70`}>
+                            <span className="text-base">{currentCat?.icon}</span>
                           </div>
-                          <div className="inline-flex items-center rounded-full bg-white/80 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500 ring-1 ring-slate-200/70">
-                            {cardMeta.badge}
-                          </div>
-                        </div>
-
-                        <div className="mt-5 min-h-[72px]">
-                          <div className="text-[16px] font-semibold leading-6 text-slate-800 transition-colors group-hover:text-blue-700">
-                            {title}
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[14px] font-semibold leading-5 text-slate-800 transition-colors group-hover:text-blue-700">
+                              {title}
+                            </div>
                           </div>
                         </div>
 
-                        <div className="mt-5 flex items-center justify-between gap-3 border-t border-white/70 pt-4">
+                        <div className="mt-3 flex items-center justify-between gap-3 border-t border-white/70 pt-3">
                           {page ? (
                             <div className="text-[11px] font-medium text-slate-500">
                               Cập nhật: {new Date(page.updated_at).toLocaleDateString('vi-VN')}
@@ -729,8 +725,8 @@ export default function WikiPage() {
                               Chưa có nội dung
                             </div>
                           )}
-                          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white/85 text-slate-400 ring-1 ring-slate-200/70 transition-all group-hover:translate-x-0.5 group-hover:text-blue-700">
-                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-white/80 text-slate-400 ring-1 ring-slate-200/70 transition-all group-hover:translate-x-0.5 group-hover:text-blue-700">
+                            <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                             </svg>
                           </div>
