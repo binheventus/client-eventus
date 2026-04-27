@@ -257,7 +257,7 @@ function HeaderRow({ position, meta, levels, totalMinW, showBanner }) {
               }}>
                 {String(i + 1).padStart(2, '0')}
               </span>
-              <div style={{ position: 'relative', zIndex: 1 }}>
+              <div style={{ position: 'relative', zIndex: 1, padding: '12px 14px 16px' }}>
                 <div style={{
                   fontSize: '12px', fontWeight: 700, color: 'white',
                   lineHeight: 1.3, marginBottom: '7px',
