@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { ADMIN_PASSWORD } from '../config'
 import data from '../data/competency.json'
 import PositionPage from './PositionPage'
+import ThirtyDayReviewPage from './ThirtyDayReviewPage'
 
 /* ─── Danh muc sidebar ─── */
 const CATEGORIES = [
@@ -56,6 +57,14 @@ const CATEGORIES = [
     banner: 'Khung năng lực nội bộ',
     desc: 'Định nghĩa kỳ vọng theo từng vị trí và cấp bậc — dùng cho đánh giá, thăng cấp và phát triển cá nhân.',
   },
+  {
+    id: 'review_30_day',
+    label: '30-Day Review',
+    icon: '📝',
+    shortDesc: 'Onboarding review',
+    banner: 'Eventus Onboarding 30-Day Review',
+    desc: 'Biểu mẫu ghi nhận cảm nhận sau 30 ngày gia nhập Eventus.',
+  },
 ]
 
 const CATEGORY_CARD_META = {
@@ -81,6 +90,11 @@ const CATEGORY_BANNER_STYLES = {
     desc: 'text-cyan-100/90',
   },
   khung_nang_luc: {
+    bg: 'from-slate-900 via-blue-900 to-teal-700',
+    label: 'text-blue-100',
+    desc: 'text-blue-100/90',
+  },
+  review_30_day: {
     bg: 'from-slate-900 via-blue-900 to-teal-700',
     label: 'text-blue-100',
     desc: 'text-blue-100/90',
@@ -677,7 +691,14 @@ export default function WikiPage() {
       return
     }
 
-    if (location.pathname === '/' && activeCat === 'khung_nang_luc') {
+    if (location.pathname === '/30dayreview') {
+      setActiveCat('review_30_day')
+      setSelectedTitle(null)
+      setEditing(false)
+      return
+    }
+
+    if (location.pathname === '/' && (activeCat === 'khung_nang_luc' || activeCat === 'review_30_day')) {
       setActiveCat('quy_trinh')
       setSelectedTitle(null)
       setEditing(false)
@@ -687,6 +708,8 @@ export default function WikiPage() {
   function selectCat(id) {
     if (id === 'khung_nang_luc') {
       navigate('/competency')
+    } else if (id === 'review_30_day') {
+      navigate('/30dayreview')
     } else if (location.pathname !== '/') {
       navigate('/')
     }
@@ -790,8 +813,15 @@ export default function WikiPage() {
           {/* Khung nang luc */}
           {activeCat === 'khung_nang_luc' && (positionId ? <div className="flex-1 overflow-y-auto"><PositionPage embedded /></div> : <CompetencyGrid />)}
 
+          {/* 30 day review */}
+          {activeCat === 'review_30_day' && (
+            <div className="flex-1 overflow-y-auto">
+              <ThirtyDayReviewPage embedded />
+            </div>
+          )}
+
           {/* Card grid cac danh muc khac */}
-          {activeCat !== 'khung_nang_luc' && !selectedTitle && (
+          {activeCat !== 'khung_nang_luc' && activeCat !== 'review_30_day' && !selectedTitle && (
             <div className="flex-1 overflow-y-auto p-6">
               <CategoryBanner cat={currentCat} />
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -842,7 +872,7 @@ export default function WikiPage() {
           )}
 
           {/* Content view */}
-          {activeCat !== 'khung_nang_luc' && selectedTitle && !editing && (
+          {activeCat !== 'khung_nang_luc' && activeCat !== 'review_30_day' && selectedTitle && !editing && (
             <div className="flex-1 overflow-y-auto">
               <div className="px-6 pt-0 pb-5">
                 {currentPage ? (
@@ -871,7 +901,7 @@ export default function WikiPage() {
           )}
 
           {/* Editor */}
-          {activeCat !== 'khung_nang_luc' && selectedTitle && editing && (
+          {activeCat !== 'khung_nang_luc' && activeCat !== 'review_30_day' && selectedTitle && editing && (
             <div className="flex-1 flex flex-col p-6">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-[15px] font-bold text-slate-700">✏️ {selectedTitle}</h2>
