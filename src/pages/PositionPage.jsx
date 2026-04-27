@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { useParams, Link } from 'react-router-dom'
-import Header from '../components/Header'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import data from '../data/competency.json'
 
 /* ─── constants ─── */
@@ -37,7 +36,7 @@ const LEVEL_META = [
 ]
 
 const CLAMP_PX = 180
-const NAVBAR_H = 56
+const NAVBAR_H = 0
 // Width tối thiểu mỗi cột level để không bị vỡ trên mobile
 const COL_LABEL_W = 80   // px — minWidth cột nhóm năng lực
 const COL_LEVEL_W = 160  // px — minWidth mỗi cột level
@@ -287,8 +286,9 @@ function HeaderRow({ position, meta, levels, totalMinW, showBanner }) {
 }
 
 /* ─── Main ─── */
-export default function PositionPage() {
+export default function PositionPage({ embedded = false }) {
   const { positionId } = useParams()
+  const navigate = useNavigate()
   const framework = data.competency_framework
   const position = framework.positions.find(p => p.id === positionId)
 
@@ -331,7 +331,7 @@ export default function PositionPage() {
 
   if (!position) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex flex-col items-center justify-center gap-4">
+      <div className={`${embedded ? 'px-6 py-8' : 'min-h-screen'} bg-gradient-to-br from-slate-50 to-blue-50 flex flex-col items-center justify-center gap-4`}>
         <p className="text-slate-500">Không tìm thấy vị trí này.</p>
         <Link to="/" className="text-blue-700 font-medium text-sm hover:underline">← Về trang chủ</Link>
       </div>
@@ -344,9 +344,7 @@ export default function PositionPage() {
   const totalMinW = COL_LABEL_W + COL_LEVEL_W * levels.length
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      <Header back title={position.name} />
-
+    <div className={`${embedded ? 'px-6 pb-6 pt-6' : 'min-h-screen bg-gradient-to-br from-slate-50 to-blue-50'}`}>
       {/* Fixed clone khi scroll — overflow hidden để cắt đúng viền wrapper */}
       {showFixed && (
         <div style={{
@@ -372,7 +370,19 @@ export default function PositionPage() {
         </div>
       )}
 
-      <div className="max-w-6xl mx-auto px-4 py-10">
+      <div className={`${embedded ? 'mx-auto max-w-6xl' : 'max-w-6xl mx-auto px-4 py-10'}`}>
+        {embedded && (
+          <button
+            onClick={() => navigate('/competency')}
+            className="mb-5 inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition-colors hover:text-blue-700"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Quay lại danh sách vị trí
+          </button>
+        )}
+
         <div style={{ marginBottom: '24px' }}>
 
           {/*
@@ -415,16 +425,17 @@ export default function PositionPage() {
 
         </div>
 
-        {/* Back */}
-        <Link
-          to="/"
-          className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-blue-700 transition-colors"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          Về trang chủ
-        </Link>
+        {!embedded && (
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-blue-700 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Về trang chủ
+          </Link>
+        )}
       </div>
     </div>
   )

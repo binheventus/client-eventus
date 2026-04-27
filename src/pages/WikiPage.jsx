@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { ADMIN_PASSWORD } from '../config'
 import data from '../data/competency.json'
+import PositionPage from './PositionPage'
 
 /* ─── Danh muc sidebar ─── */
 const CATEGORIES = [
@@ -515,6 +516,9 @@ function useAdmin() {
 
 /* ─── Main WikiPage ─── */
 export default function WikiPage() {
+  const location = useLocation()
+  const { positionId } = useParams()
+  const navigate = useNavigate()
   const [pages, setPages] = useState([])
   const [activeCat, setActiveCat] = useState('khung_nang_luc')
   const [selectedTitle, setSelectedTitle] = useState(null)
@@ -551,7 +555,41 @@ export default function WikiPage() {
     setEditing(false)
   }
 
-  function selectCat(id) { setActiveCat(id); setSelectedTitle(null); setEditing(false) }
+  useEffect(() => {
+    if (positionId) {
+      setActiveCat('khung_nang_luc')
+      setSelectedTitle(null)
+      setEditing(false)
+    }
+  }, [positionId])
+
+  useEffect(() => {
+    if (positionId) return
+
+    if (location.pathname === '/competency') {
+      setActiveCat('khung_nang_luc')
+      setSelectedTitle(null)
+      setEditing(false)
+      return
+    }
+
+    if (location.pathname === '/' && activeCat === 'khung_nang_luc') {
+      setActiveCat('quy_trinh')
+      setSelectedTitle(null)
+      setEditing(false)
+    }
+  }, [location.pathname, positionId, activeCat])
+
+  function selectCat(id) {
+    if (id === 'khung_nang_luc') {
+      navigate('/competency')
+    } else if (location.pathname !== '/') {
+      navigate('/')
+    }
+    setActiveCat(id)
+    setSelectedTitle(null)
+    setEditing(false)
+  }
   function openPage(title) { setSelectedTitle(title); setEditing(false) }
   function startEdit() { setDraft(currentPage?.content || ''); setEditing(true) }
 
@@ -642,7 +680,7 @@ export default function WikiPage() {
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
 
           {/* Khung nang luc */}
-          {activeCat === 'khung_nang_luc' && <CompetencyGrid />}
+          {activeCat === 'khung_nang_luc' && (positionId ? <div className="flex-1 overflow-y-auto"><PositionPage embedded /></div> : <CompetencyGrid />)}
 
           {/* Card grid cac danh muc khac */}
           {activeCat !== 'khung_nang_luc' && !selectedTitle && (
