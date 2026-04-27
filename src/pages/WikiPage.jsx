@@ -2,14 +2,13 @@ import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { ADMIN_PASSWORD } from '../config'
-import Header from '../components/Header'
 import data from '../data/competency.json'
 
 /* ─── Danh muc sidebar ─── */
 const CATEGORIES = [
   {
     id: 'quy_trinh',
-    label: 'Quy trinh',
+    label: 'Quy trình',
     icon: '⚙️',
     shortDesc: 'Quy trình làm việc',
     banner: 'Quy trình làm việc',
@@ -110,10 +109,9 @@ function PositionNode({ position }) {
 function CategoryBanner({ cat }) {
   return (
     <div className="bg-gradient-to-r from-blue-700 to-teal-600 rounded-2xl shadow-lg px-8 py-5 text-white mb-5 flex-shrink-0">
-      <p className="text-sm font-semibold uppercase tracking-widest text-blue-200 mb-1">
-        {cat.icon} Eventus Production
+      <p className="text-sm font-semibold text-blue-100 mb-1">
+        {cat.icon} {cat.banner}
       </p>
-      <h1 className="text-[24px] font-semibold tracking-tight">{cat.banner}</h1>
       {cat.desc && <p className="text-sm text-blue-100 mt-1">{cat.desc}</p>}
     </div>
   )
@@ -559,28 +557,22 @@ export default function WikiPage() {
 
   return (
     <div className="h-screen overflow-hidden flex flex-col bg-gradient-to-br from-slate-50 to-blue-50">
-      <Header />
-
       <div className="flex flex-1 min-h-0">
 
         {/* Sidebar */}
         <aside className="w-80 flex-shrink-0 border-r border-slate-200/80 bg-white/95 flex flex-col">
-          <div className="border-b border-slate-200/70 px-5 py-5">
-            <div className="rounded-3xl bg-gradient-to-br from-slate-900 via-blue-900 to-teal-700 px-4 py-4 text-white shadow-lg">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-blue-100/80">Eventus Handbook</p>
-              <h2 className="mt-2 text-[20px] font-semibold tracking-tight">Điều hướng nội bộ</h2>
-              <p className="mt-2 text-[13px] leading-6 text-blue-100/85">
-                Tra cứu quy trình, nội quy, hướng dẫn và khung năng lực theo từng nhóm nội dung.
-              </p>
+          <div className="border-b border-slate-200/70 px-4 py-4">
+            <div className="rounded-3xl bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 px-4 py-2.5 text-white shadow-lg">
+              <p className="text-[15px] font-semibold tracking-tight">Eventus Production Handbook</p>
             </div>
           </div>
 
-          <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-2">
+          <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-1.5">
             {CATEGORIES.map(cat => (
               <button
                 key={cat.id}
                 onClick={() => selectCat(cat.id)}
-                className={`w-full rounded-2xl border px-4 py-3.5 text-left transition-all duration-200 ${
+                className={`w-full rounded-2xl border px-4 py-3 text-left transition-all duration-200 ${
                   activeCat === cat.id
                     ? 'border-blue-200 bg-gradient-to-r from-blue-50 via-white to-teal-50 shadow-sm shadow-blue-100/70'
                     : 'border-transparent bg-white text-slate-600 hover:border-slate-200 hover:bg-slate-50'
@@ -588,7 +580,7 @@ export default function WikiPage() {
               >
                 <div className="flex items-start gap-3">
                   <div
-                    className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl text-lg ${
+                    className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl text-lg ${
                       activeCat === cat.id
                         ? 'bg-white text-blue-700 ring-1 ring-blue-100'
                         : 'bg-slate-100 text-slate-600'
@@ -612,7 +604,7 @@ export default function WikiPage() {
             ))}
           </nav>
 
-          <div className="border-t border-slate-200/70 px-4 py-4">
+          <div className="border-t border-slate-200/70 px-4 py-3">
             {admin.isAdmin ? (
               <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
                 <div className="flex items-center justify-between gap-3">
