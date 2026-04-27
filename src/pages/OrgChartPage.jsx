@@ -33,39 +33,48 @@ function countMembers(department) {
   return department.subteams.reduce((total, subteam) => total + subteam.members.length, 0)
 }
 
+function getOverviewSubteams(department) {
+  if (department.id === 'video-cam-op') {
+    return [...department.subteams].sort((a, b) => a.members.length - b.members.length)
+  }
+  return department.subteams
+}
+
 function DepartmentOverviewCard({ department }) {
   const shouldShowMembersInline = department.id === 'account'
   const inlineMembers = shouldShowMembersInline
     ? department.subteams.flatMap((subteam) => subteam.members)
     : []
+  const overviewSubteams = getOverviewSubteams(department)
 
   return (
     <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
       <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Department</div>
       <h3 className="mt-2 text-[20px] font-semibold tracking-tight text-slate-900">{department.name}</h3>
+      <div className="mt-2 text-[12px] text-slate-500">{countMembers(department)} thành viên</div>
       <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
         <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-blue-500">Lead</div>
         <div className="mt-1 text-[15px] font-semibold text-slate-900">{department.leader.name}</div>
         <div className="mt-1 text-[12px] text-slate-500">{department.leader.title}</div>
       </div>
-      <div className="mt-4 grid gap-3 md:grid-cols-2">
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+      {!shouldShowMembersInline && (
+        <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
           <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Nhóm con</div>
-          <div className="mt-2 text-[14px] leading-6 text-slate-700">
-            {department.subteams.map((subteam) => subteam.name).join(' · ')}
+          <div className="mt-2 flex flex-wrap gap-2">
+            {overviewSubteams.map((subteam) => (
+              <span
+                key={`${department.id}-${subteam.id}`}
+                className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-medium text-slate-700"
+              >
+                {subteam.name}
+              </span>
+            ))}
           </div>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Quy mô</div>
-          <div className="mt-2 text-[28px] font-semibold tracking-tight text-slate-900">{countMembers(department)}</div>
-          <div className="text-[12px] text-slate-500">thành viên</div>
-        </div>
-      </div>
+      )}
 
       {shouldShowMembersInline && (
-        <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-          <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Team Members</div>
-          <div className="grid gap-3">
+        <div className="mt-4 grid gap-3">
             {inlineMembers.map((member, index) => (
               <PersonToken
                 key={`${department.id}-inline-${member.name}-${index}`}
@@ -73,7 +82,6 @@ function DepartmentOverviewCard({ department }) {
                 title={member.title}
               />
             ))}
-          </div>
         </div>
       )}
     </div>
