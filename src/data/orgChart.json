@@ -1,0 +1,107 @@
+{
+  "executive": {
+    "name": "Phạm Thanh Bình",
+    "title": "CEO"
+  },
+  "departments": [
+    {
+      "id": "video-cam-op",
+      "name": "Video & Cam-Op Team",
+      "leader": {
+        "name": "Phạm Lê Khánh Duy",
+        "title": "Leader"
+      },
+      "subteams": [
+        {
+          "id": "video-editor",
+          "name": "Video Editor",
+          "members": [
+            { "name": "Phạm Văn Huấn" },
+            { "name": "Lê Văn Hà" },
+            { "name": "Lê Anh Duy" },
+            { "name": "Vũ Quang Minh" },
+            { "name": "Đặng Hoàng Kỳ Anh" },
+            { "name": "Nguyễn Như Cường" },
+            { "name": "Đàm Trọng Huy" },
+            { "name": "Phan Minh Hoàng" }
+          ]
+        },
+        {
+          "id": "camera-operator",
+          "name": "Camera Operator",
+          "members": [
+            { "name": "Phạm Bảo Đại" },
+            { "name": "Hoàng Anh Cường" },
+            { "name": "Hoàng Quốc Huy" },
+            { "name": "Nguyễn Đức Quang" },
+            { "name": "Dương Thanh Tuyến" }
+          ]
+        },
+        {
+          "id": "flycam-operator",
+          "name": "Flycam Operator",
+          "members": [
+            { "name": "Phạm Bảo Đại" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "photography",
+      "name": "Photography Team",
+      "leader": {
+        "name": "Lê Quang Anh",
+        "title": "Leader"
+      },
+      "subteams": [
+        {
+          "id": "photography-members",
+          "name": "Team Members",
+          "members": [
+            { "name": "Nguyễn Trung Hiếu" },
+            { "name": "Nguyễn Mạnh Hùng" },
+            { "name": "Lê Thái Dương" },
+            { "name": "Nguyễn Duy Nam" },
+            { "name": "Vũ Minh Quang" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "account",
+      "name": "Account",
+      "leader": {
+        "name": "Bùi Thị Khánh Linh",
+        "title": "Account"
+      },
+      "subteams": [
+        {
+          "id": "account-members",
+          "name": "Team Members",
+          "members": [
+            { "name": "Nguyễn Thu Huyền", "title": "Account" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "accountant",
+      "name": "Accountant",
+      "leader": {
+        "name": "Bùi Thị Khánh Linh",
+        "title": "Accountant"
+      },
+      "subteams": [
+        {
+          "id": "accountant-members",
+          "name": "Team Members",
+          "members": [
+            { "name": "Nguyễn Yến Phương", "title": "Accountant" },
+            { "name": "Phạm Kim Anh", "title": "Intern Accountant" },
+            { "name": "Nhữ Ngọc Linh", "title": "Intern Accountant" }
+          ]
+        }
+      ]
+    }
+  ]
+}

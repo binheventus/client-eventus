@@ -5,6 +5,7 @@ import { ADMIN_PASSWORD } from '../config'
 import data from '../data/competency.json'
 import PositionPage from './PositionPage'
 import ThirtyDayReviewPage from './ThirtyDayReviewPage'
+import OrgChartPage from './OrgChartPage'
 
 /* ─── Danh muc sidebar ─── */
 const CATEGORIES = [
@@ -65,6 +66,14 @@ const CATEGORIES = [
     banner: 'Eventus Onboarding 30-Day Review',
     desc: 'Biểu mẫu ghi nhận cảm nhận sau 30 ngày gia nhập Eventus.',
   },
+  {
+    id: 'org_chart',
+    label: 'Sơ đồ tổ chức',
+    icon: '🏢',
+    shortDesc: 'Organizational chart',
+    banner: 'Sơ đồ tổ chức Eventus',
+    desc: 'Tổng quan cơ cấu nhân sự, team và vai trò trong công ty.',
+  },
 ]
 
 const CATEGORY_CARD_META = {
@@ -95,6 +104,11 @@ const CATEGORY_BANNER_STYLES = {
     desc: 'text-blue-100/90',
   },
   review_30_day: {
+    bg: 'from-slate-900 via-blue-900 to-teal-700',
+    label: 'text-blue-100',
+    desc: 'text-blue-100/90',
+  },
+  org_chart: {
     bg: 'from-slate-900 via-blue-900 to-teal-700',
     label: 'text-blue-100',
     desc: 'text-blue-100/90',
@@ -696,7 +710,14 @@ export default function WikiPage() {
       return
     }
 
-    if (location.pathname === '/' && (activeCat === 'khung_nang_luc' || activeCat === 'review_30_day')) {
+    if (location.pathname === '/orgchart') {
+      setActiveCat('org_chart')
+      setSelectedTitle(null)
+      setEditing(false)
+      return
+    }
+
+    if (location.pathname === '/' && (activeCat === 'khung_nang_luc' || activeCat === 'review_30_day' || activeCat === 'org_chart')) {
       setActiveCat('quy_trinh')
       setSelectedTitle(null)
       setEditing(false)
@@ -706,6 +727,8 @@ export default function WikiPage() {
   function selectCat(id) {
     if (id === 'khung_nang_luc') {
       navigate('/competency')
+    } else if (id === 'org_chart') {
+      navigate('/orgchart')
     } else if (id === 'review_30_day') {
       navigate('/30dayreview')
     } else if (location.pathname !== '/') {
@@ -825,8 +848,11 @@ export default function WikiPage() {
             </div>
           )}
 
+          {/* Org chart */}
+          {activeCat === 'org_chart' && <OrgChartPage />}
+
           {/* Card grid cac danh muc khac */}
-          {activeCat !== 'khung_nang_luc' && activeCat !== 'review_30_day' && !selectedTitle && (
+          {activeCat !== 'khung_nang_luc' && activeCat !== 'review_30_day' && activeCat !== 'org_chart' && !selectedTitle && (
             <div className="flex-1 overflow-y-auto p-6">
               <CategoryBanner cat={currentCat} />
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -877,7 +903,7 @@ export default function WikiPage() {
           )}
 
           {/* Content view */}
-          {activeCat !== 'khung_nang_luc' && activeCat !== 'review_30_day' && selectedTitle && !editing && (
+          {activeCat !== 'khung_nang_luc' && activeCat !== 'review_30_day' && activeCat !== 'org_chart' && selectedTitle && !editing && (
             <div className="flex-1 overflow-y-auto">
               <div className="px-6 pt-0 pb-5">
                 {currentPage ? (
@@ -916,7 +942,7 @@ export default function WikiPage() {
           )}
 
           {/* Editor */}
-          {activeCat !== 'khung_nang_luc' && activeCat !== 'review_30_day' && selectedTitle && editing && (
+          {activeCat !== 'khung_nang_luc' && activeCat !== 'review_30_day' && activeCat !== 'org_chart' && selectedTitle && editing && (
             <div className="flex-1 flex flex-col p-6">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-[15px] font-bold text-slate-700">✏️ {selectedTitle}</h2>
