@@ -45,7 +45,6 @@ function parseItems(text) {
     .filter(l => l.length > 2)
 }
 
-/* ─── CheckCircle SVG outline ─── */
 function CheckCircleIcon({ color }) {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
@@ -56,34 +55,37 @@ function CheckCircleIcon({ color }) {
   )
 }
 
-/* ─── SmartRow: logic "Xem thêm" chỉ cho ô dài nhất trong hàng ─── */
+/* ─── SmartRow: đo chiều cao sau render, chỉ clamp ô dài nhất ─── */
 function SmartRow({ dim, levels }) {
   const c = DIM_COLORS[dim.id]
   const cellRefs = useRef([])
-  const [clampedIdx, setClampedIdx] = useState(null)
-  const [expandedIdx, setExpandedIdx] = useState(null)
+  // clampedIdx: index ô cần clamp, null = không clamp ô nào
+  const [clampedIdx, setClampedIdx] = useState(-2) // -2 = chưa đo xong
+  const [expanded, setExpanded] = useState(false)
 
   useEffect(() => {
-    // Đợi render xong rồi mới đo
-    const timer = setTimeout(() => {
-      const heights = cellRefs.current.map(el => el ? el.scrollHeight : 0)
+    // Đo sau khi browser paint xong
+    const raf = requestAnimationFrame(() => {
+      const heights = cellRefs.current.map(el => (el ? el.scrollHeight : 0))
       const max = Math.max(...heights)
       const sorted = [...heights].sort((a, b) => b - a)
       const second = sorted[1] ?? 0
-      // Chỉ clamp ô dài nhất nếu nó cao hơn 200px VÀ dài hơn ô thứ 2 trên 15%
+
       if (max > 200 && max > second * 1.15) {
         setClampedIdx(heights.indexOf(max))
+      } else {
+        setClampedIdx(-1) // không có ô nào cần clamp
       }
-    }, 50)
-    return () => clearTimeout(timer)
+    })
+    return () => cancelAnimationFrame(raf)
   }, [])
 
   return (
-    <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
-      {/* Cột label nhóm năng lực */}
+    <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+      {/* Cột label nhóm */}
       <td style={{
         backgroundColor: c.bg,
-        borderRight: `1px solid ${c.border}`,
+        borderRight: `2px solid #e2e8f0`,
         verticalAlign: 'middle',
         padding: '12px 6px',
         textAlign: 'center',
@@ -93,45 +95,48 @@ function SmartRow({ dim, levels }) {
             ? <CheckCircleIcon color={c.text} />
             : <span style={{ fontSize: '15px', lineHeight: 1 }}>{dim.icon}</span>
           }
-          <span style={{
-            fontSize: '10px',
-            fontWeight: 700,
-            color: c.text,
-            lineHeight: 1.3,
-            display: 'block',
-          }}>
+          <span style={{ fontSize: '10px', fontWeight: 700, color: c.text, lineHeight: 1.3 }}>
             {dim.label}
           </span>
         </div>
       </td>
 
-      {/* Ô nội dung từng level */}
+      {/* Ô nội dung */}
       {levels.map((lv, i) => {
         const items = parseItems(lv.competencies[dim.id])
-        const isClamped = clampedIdx === i && expandedIdx !== i
-        const isExpanded = expandedIdx === i
+        const shouldClamp = clampedIdx === i && !expanded
+        const isLastCol = i === levels.length - 1
 
         return (
           <td key={i} style={{
             verticalAlign: 'top',
             padding: '12px 10px',
-            borderRight: i < levels.length - 1 ? '1px solid #f8fafc' : 'none',
+            borderRight: isLastCol ? 'none' : '1px solid #e2e8f0',
           }}>
             {items.length === 0 ? (
               <span style={{ fontSize: '11px', color: '#cbd5e1' }}>—</span>
             ) : (
               <div>
-                {/* Nội dung với line-clamp-8 khi đang clamp */}
+                {/*
+                  Quan trọng: ref luôn trỏ vào ul để đo scrollHeight đúng.
+                  Khi clamp: dùng WebkitLineClamp + overflow hidden.
+                  Khi expand hoặc không phải ô cần clamp: hiện full.
+                */}
                 <ul
-                  ref={el => cellRefs.current[i] = el}
+                  ref={el => { cellRefs.current[i] = el }}
                   style={{
                     listStyle: 'none',
                     margin: 0,
                     padding: 0,
-                    display: isClamped ? '-webkit-box' : 'block',
-                    WebkitLineClamp: isClamped ? 8 : 'none',
-                    WebkitBoxOrient: isClamped ? 'vertical' : 'unset',
-                    overflow: isClamped ? 'hidden' : 'visible',
+                    ...(shouldClamp ? {
+                      display: '-webkit-box',
+                      WebkitLineClamp: 8,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                    } : {
+                      display: 'block',
+                      overflow: 'visible',
+                    }),
                   }}
                 >
                   {items.map((item, j) => (
@@ -157,10 +162,10 @@ function SmartRow({ dim, levels }) {
                   ))}
                 </ul>
 
-                {/* Nút Xem thêm — chỉ xuất hiện ở ô bị clamp */}
+                {/* Nút chỉ xuất hiện ở ô cần clamp */}
                 {clampedIdx === i && (
                   <button
-                    onClick={() => setExpandedIdx(isExpanded ? null : i)}
+                    onClick={() => setExpanded(e => !e)}
                     style={{
                       marginTop: '6px',
                       fontSize: '11px',
@@ -172,7 +177,7 @@ function SmartRow({ dim, levels }) {
                       padding: 0,
                     }}
                   >
-                    {isExpanded ? '▲ Thu gọn' : '▼ Xem thêm'}
+                    {expanded ? '▲ Thu gọn' : '▼ Xem thêm'}
                   </button>
                 )}
               </div>
@@ -184,15 +189,16 @@ function SmartRow({ dim, levels }) {
   )
 }
 
-/* ─── Sticky Table Header với glassmorphism + layering ─── */
+/* ─── Sticky Table Header ─── */
 function TableHeader({ levels }) {
   const [isSticky, setIsSticky] = useState(false)
   const sentinelRef = useRef(null)
 
   useEffect(() => {
+    // Dùng IntersectionObserver để detect khi thead bắt đầu sticky
     const observer = new IntersectionObserver(
       ([entry]) => setIsSticky(!entry.isIntersecting),
-      { threshold: 0, rootMargin: '-58px 0px 0px 0px' }
+      { threshold: 0, rootMargin: '-57px 0px 0px 0px' }
     )
     if (sentinelRef.current) observer.observe(sentinelRef.current)
     return () => observer.disconnect()
@@ -200,23 +206,26 @@ function TableHeader({ levels }) {
 
   return (
     <>
-      <div ref={sentinelRef} style={{ height: 1 }} />
+      {/* Sentinel: phần tử vô hình ngay trước thead để detect scroll */}
+      <div ref={sentinelRef} style={{ height: 1, pointerEvents: 'none' }} />
+
       <thead style={{
         position: 'sticky',
-        top: '57px',
-        zIndex: 20,
+        top: '57px',      // = chiều cao Navbar
+        zIndex: 40,
         backdropFilter: 'blur(14px)',
         WebkitBackdropFilter: 'blur(14px)',
-        backgroundColor: 'rgba(255,255,255,0.72)',
-        boxShadow: isSticky ? '0 8px 32px rgba(0,0,0,0.12)' : 'none',
-        borderBottom: `1px solid ${isSticky ? '#e2e8f0' : '#f1f5f9'}`,
-        transition: 'box-shadow 0.25s ease, border-color 0.25s ease',
+        backgroundColor: 'rgba(255,255,255,0.80)',
+        // Khi sticky: shadow đậm hơn + border-bottom sắc nét
+        boxShadow: isSticky ? '0 4px 20px rgba(0,0,0,0.12)' : 'none',
+        borderBottom: `2px solid ${isSticky ? '#cbd5e1' : '#e2e8f0'}`,
+        transition: 'box-shadow 0.2s ease, border-color 0.2s ease',
       }}>
         <tr>
-          {/* Góc trái */}
+          {/* Góc trái trống */}
           <th style={{
-            padding: '12px 8px',
-            borderRight: '1px solid #e2e8f0',
+            padding: '14px 8px',
+            borderRight: '2px solid #e2e8f0',
             backgroundColor: 'transparent',
           }} />
 
@@ -229,7 +238,7 @@ function TableHeader({ levels }) {
                 textAlign: 'left',
                 verticalAlign: 'bottom',
                 borderTop: `3px solid ${meta.topBorder}`,
-                borderRight: isLastCol ? 'none' : '1px solid #e2e8f0',
+                borderRight: isLastCol ? 'none' : '1px solid #cbd5e1',
                 position: 'relative',
                 overflow: 'hidden',
                 backgroundColor: 'transparent',
@@ -251,7 +260,6 @@ function TableHeader({ levels }) {
                   {String(i + 1).padStart(2, '0')}
                 </span>
 
-                {/* Nội dung header — trên layer số */}
                 <div style={{ position: 'relative', zIndex: 1 }}>
                   <div style={{
                     fontSize: '12px',
@@ -317,7 +325,7 @@ export default function PositionPage() {
 
       <div className="max-w-6xl mx-auto px-4 py-10">
 
-        {/* Banner gọn — chỉ tên + mission */}
+        {/* Banner */}
         <div className="bg-gradient-to-r from-blue-700 to-teal-600 rounded-2xl shadow-lg px-8 py-7 text-white mb-6">
           <div className="flex items-center gap-4">
             <span className="text-4xl">{meta.icon}</span>
@@ -330,14 +338,28 @@ export default function PositionPage() {
           </div>
         </div>
 
-        {/* Table: fixed layout — không cuộn ngang */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-6">
+        {/*
+          CRITICAL FIX:
+          - KHÔNG dùng overflow-hidden trên wrapper (sẽ kill sticky)
+          - Dùng overflow-x: auto chỉ khi thực sự cần scroll ngang (màn nhỏ)
+          - rounded + border vẫn giữ nhưng không clip thead sticky
+        */}
+        <div style={{
+          backgroundColor: 'white',
+          borderRadius: '16px',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+          border: '1px solid #e2e8f0',
+          overflowX: 'auto',   // scroll ngang nếu màn hình nhỏ
+          overflowY: 'visible', // KHÔNG clip theo chiều dọc → sticky hoạt động
+          marginBottom: '24px',
+          position: 'relative',
+        }}>
           <table style={{
             width: '100%',
             tableLayout: 'fixed',
             borderCollapse: 'collapse',
+            minWidth: '700px', // đảm bảo không bị quá hẹp trên mobile
           }}>
-            {/* colgroup để set % width rõ ràng */}
             <colgroup>
               <col style={{ width: '11%' }} />
               {levels.map((_, i) => (
