@@ -12,13 +12,12 @@ const POSITION_META = {
   leader:       { icon: '🧭' },
 }
 
-// Label xuống dòng hợp lý cho từng nhóm
 const DIMENSIONS = [
-  { id: 'chuyen_mon',          icon: '⚙️', label: 'Năng lực\nchuyên môn',          customIcon: false },
-  { id: 'nghien_cuu_sang_tao', icon: '💡', label: 'Nghiên cứu\n& sáng tạo',        customIcon: false },
-  { id: 'trach_nhiem',         icon: null, label: 'Trách\nnhiệm',                  customIcon: true  },
-  { id: 'xu_ly_tinh_huong',    icon: '⚡', label: 'Xử lý\ntình huống',             customIcon: false },
-  { id: 'lam_viec_khach_hang', icon: '🤝', label: 'Làm việc\nvới KH',              customIcon: false },
+  { id: 'chuyen_mon',          icon: '⚙️', label: 'Năng lực\nchuyên môn',     customIcon: false },
+  { id: 'nghien_cuu_sang_tao', icon: '💡', label: 'Nghiên cứu\n& sáng tạo',   customIcon: false },
+  { id: 'trach_nhiem',         icon: null, label: 'Trách\nnhiệm',              customIcon: true  },
+  { id: 'xu_ly_tinh_huong',    icon: '⚡', label: 'Xử lý\ntình huống',        customIcon: false },
+  { id: 'lam_viec_khach_hang', icon: '🤝', label: 'Làm việc\nvới KH',          customIcon: false },
 ]
 
 const DIM_COLORS = {
@@ -29,16 +28,17 @@ const DIM_COLORS = {
   lam_viec_khach_hang: { bg: '#fff1f2', border: '#fecdd3', text: '#be123c', dot: '#fb7185' },
 }
 
+// Badge màu pastel nhạt phù hợp trên nền gradient xanh đậm
 const LEVEL_META = [
-  { label: 'Học & quan sát',        badgeBg: '#f1f5f9', badgeText: '#475569', dot: '#94a3b8', topBorder: '#94a3b8' },
-  { label: 'Độc lập cơ bản',        badgeBg: '#dbeafe', badgeText: '#1d4ed8', dot: '#60a5fa', topBorder: '#3b82f6' },
-  { label: 'Chủ động sáng tạo',     badgeBg: '#dcfce7', badgeText: '#15803d', dot: '#4ade80', topBorder: '#22c55e' },
-  { label: 'Gánh team kỹ thuật',    badgeBg: '#ffedd5', badgeText: '#c2410c', dot: '#fb923c', topBorder: '#f97316' },
-  { label: 'Định hướng chiến lược', badgeBg: '#f3e8ff', badgeText: '#7e22ce', dot: '#c084fc', topBorder: '#a855f7' },
+  { label: 'Học & quan sát',        badgeBg: 'rgba(255,255,255,0.15)', badgeText: '#e2e8f0', dot: 'rgba(255,255,255,0.5)', topBorder: 'rgba(255,255,255,0.25)' },
+  { label: 'Độc lập cơ bản',        badgeBg: 'rgba(147,197,253,0.25)', badgeText: '#bfdbfe',  dot: '#93c5fd',              topBorder: '#60a5fa' },
+  { label: 'Chủ động sáng tạo',     badgeBg: 'rgba(134,239,172,0.20)', badgeText: '#bbf7d0',  dot: '#86efac',              topBorder: '#4ade80' },
+  { label: 'Gánh team kỹ thuật',    badgeBg: 'rgba(253,186,116,0.25)', badgeText: '#fed7aa',  dot: '#fdba74',              topBorder: '#fb923c' },
+  { label: 'Định hướng chiến lược', badgeBg: 'rgba(216,180,254,0.25)', badgeText: '#e9d5ff',  dot: '#d8b4fe',              topBorder: '#c084fc' },
 ]
 
 const CLAMP_PX = 180
-const NAVBAR_H = 56 // chiều cao Header nav (h-14 = 56px)
+const NAVBAR_H = 56
 
 /* ─── helpers ─── */
 function parseItems(text) {
@@ -59,7 +59,6 @@ function CheckCircleIcon({ color }) {
   )
 }
 
-/* ─── ItemList ─── */
 function ItemList({ items, dotColor }) {
   if (!items.length) return <span style={{ fontSize: '11px', color: '#cbd5e1' }}>—</span>
   return (
@@ -107,7 +106,6 @@ function SmartRow({ dim, levels, colTemplate }) {
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: colTemplate, borderBottom: '1px solid #e2e8f0' }}>
-      {/* Cột nhóm năng lực */}
       <div style={{
         backgroundColor: c.bg,
         borderRight: '2px solid #e2e8f0',
@@ -119,29 +117,17 @@ function SmartRow({ dim, levels, colTemplate }) {
           ? <CheckCircleIcon color={c.text} />
           : <span style={{ fontSize: '16px', lineHeight: 1 }}>{dim.icon}</span>
         }
-        {/* Font size ngang bằng header level (12px), whiteSpace pre-line để xuống dòng theo \n */}
-        <span style={{
-          fontSize: '12px',
-          fontWeight: 700,
-          color: c.text,
-          lineHeight: 1.35,
-          whiteSpace: 'pre-line',
-          textAlign: 'center',
-        }}>
+        <span style={{ fontSize: '12px', fontWeight: 700, color: c.text, lineHeight: 1.35, whiteSpace: 'pre-line', textAlign: 'center' }}>
           {dim.label}
         </span>
       </div>
 
-      {/* Ô nội dung */}
       {levels.map((lv, i) => {
         const items = itemsPerLevel[i]
         const isLastCol = i === levels.length - 1
         const shouldClamp = clampedIdx === i && !expanded
         return (
-          <div key={i} style={{
-            padding: '12px 10px',
-            borderRight: isLastCol ? 'none' : '1px solid #e2e8f0',
-          }}>
+          <div key={i} style={{ padding: '12px 10px', borderRight: isLastCol ? 'none' : '1px solid #e2e8f0' }}>
             {phase === 'measure' ? (
               <div ref={el => { measureRefs.current[i] = el }} style={{ visibility: 'hidden' }}>
                 <ItemList items={items} dotColor={c.dot} />
@@ -156,8 +142,7 @@ function SmartRow({ dim, levels, colTemplate }) {
                   <ItemList items={items} dotColor={c.dot} />
                   {shouldClamp && (
                     <div style={{
-                      position: 'absolute', bottom: 0, left: 0, right: 0,
-                      height: '40px',
+                      position: 'absolute', bottom: 0, left: 0, right: 0, height: '40px',
                       background: 'linear-gradient(to bottom, transparent, white)',
                       pointerEvents: 'none',
                     }} />
@@ -181,52 +166,96 @@ function SmartRow({ dim, levels, colTemplate }) {
   )
 }
 
-/* ─── HeaderContent: dùng chung cho cả static lẫn fixed clone ─── */
-function HeaderContent({ levels, colTemplate }) {
+/* ─── UnifiedBlock: Banner + Level header gộp thành 1 khối gradient ─── */
+function UnifiedBlock({ position, meta, levels, colTemplate }) {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: colTemplate }}>
-      <div style={{ borderRight: '2px solid #e2e8f0', padding: '14px 8px' }} />
-      {levels.map((lv, i) => {
-        const meta = LEVEL_META[Math.min(i, LEVEL_META.length - 1)]
-        const isLastCol = i === levels.length - 1
-        return (
-          <div key={i} style={{
-            padding: '14px 12px 12px',
-            borderTop: `3px solid ${meta.topBorder}`,
-            borderRight: isLastCol ? 'none' : '1px solid #cbd5e1',
-            position: 'relative', overflow: 'hidden',
-          }}>
-            <span style={{
-              position: 'absolute', top: '0px', right: '6px',
-              fontSize: '40px', fontWeight: 800,
-              color: '#e8ecf0', lineHeight: 1,
-              userSelect: 'none', pointerEvents: 'none', letterSpacing: '-2px',
+    <div style={{ background: 'linear-gradient(135deg, #1d4ed8 0%, #0d9488 100%)' }}>
+
+      {/* Phần Banner — tên vị trí + mission */}
+      <div style={{ padding: '24px 28px 16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <span style={{ fontSize: '36px', lineHeight: 1 }}>{meta.icon}</span>
+          <div>
+            <h1 style={{
+              fontSize: '22px', fontWeight: 600,
+              color: 'white', letterSpacing: '-0.3px',
+              margin: 0, lineHeight: 1.2,
             }}>
-              {String(i + 1).padStart(2, '0')}
-            </span>
-            <div style={{ position: 'relative', zIndex: 1 }}>
-              <div style={{
-                fontSize: '12px', fontWeight: 700,
-                color: '#1e293b', lineHeight: 1.3, marginBottom: '7px',
+              {position.name}
+            </h1>
+            {position.mission && (
+              <p style={{
+                fontSize: '13px', color: 'rgba(191,219,254,0.9)',
+                marginTop: '4px', fontStyle: 'italic',
+                maxWidth: '520px', lineHeight: 1.5,
               }}>
-                {lv.label}
-              </div>
-              <span style={{
-                display: 'inline-flex', alignItems: 'center', gap: '5px',
-                fontSize: '10px', fontWeight: 700,
-                padding: '3px 9px', borderRadius: '9999px',
-                backgroundColor: meta.badgeBg, color: meta.badgeText,
-              }}>
-                <span style={{
-                  width: '5px', height: '5px', borderRadius: '50%',
-                  backgroundColor: meta.dot, display: 'inline-block', flexShrink: 0,
-                }} />
-                {meta.label}
-              </span>
-            </div>
+                "{position.mission}"
+              </p>
+            )}
           </div>
-        )
-      })}
+        </div>
+      </div>
+
+      {/* Đường kẻ phân cách mờ giữa banner và level header */}
+      <div style={{ height: '1px', backgroundColor: 'rgba(255,255,255,0.12)', margin: '0 28px' }} />
+
+      {/* Phần Level header */}
+      <div style={{ display: 'grid', gridTemplateColumns: colTemplate }}>
+
+        {/* Góc trái trống — cùng width cột nhóm năng lực */}
+        <div style={{ borderRight: '1px solid rgba(255,255,255,0.15)', padding: '14px 8px' }} />
+
+        {levels.map((lv, i) => {
+          const meta = LEVEL_META[Math.min(i, LEVEL_META.length - 1)]
+          const isLastCol = i === levels.length - 1
+          return (
+            <div key={i} style={{
+              padding: '14px 14px 14px',
+              borderTop: `3px solid ${meta.topBorder}`,
+              borderRight: isLastCol ? 'none' : '1px solid rgba(255,255,255,0.15)',
+              position: 'relative',
+              overflow: 'hidden',
+            }}>
+              {/* Số thứ tự chìm — trên nền gradient dùng màu trắng opacity thấp */}
+              <span style={{
+                position: 'absolute', top: '2px', right: '8px',
+                fontSize: '40px', fontWeight: 800,
+                color: 'rgba(255,255,255,0.10)',
+                lineHeight: 1, userSelect: 'none',
+                pointerEvents: 'none', letterSpacing: '-2px',
+              }}>
+                {String(i + 1).padStart(2, '0')}
+              </span>
+
+              <div style={{ position: 'relative', zIndex: 1 }}>
+                {/* Tên level — trắng, bold */}
+                <div style={{
+                  fontSize: '12px', fontWeight: 700,
+                  color: 'white', lineHeight: 1.3, marginBottom: '7px',
+                }}>
+                  {lv.label}
+                </div>
+                {/* Badge — nền semi-transparent, chữ trắng nhạt */}
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '5px',
+                  fontSize: '10px', fontWeight: 700,
+                  padding: '3px 9px', borderRadius: '9999px',
+                  backgroundColor: meta.badgeBg,
+                  color: meta.badgeText,
+                  backdropFilter: 'blur(4px)',
+                }}>
+                  <span style={{
+                    width: '5px', height: '5px', borderRadius: '50%',
+                    backgroundColor: meta.dot,
+                    display: 'inline-block', flexShrink: 0,
+                  }} />
+                  {meta.label}
+                </span>
+              </div>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -237,8 +266,7 @@ export default function PositionPage() {
   const framework = data.competency_framework
   const position = framework.positions.find(p => p.id === positionId)
 
-  // Ref cho header tĩnh — để tính vị trí khi nào cần hiện fixed header
-  const staticHeaderRef = useRef(null)
+  const staticBlockRef = useRef(null)
   const tableEndRef = useRef(null)
   const [showFixed, setShowFixed] = useState(false)
   const [fixedLeft, setFixedLeft] = useState(0)
@@ -246,16 +274,13 @@ export default function PositionPage() {
 
   useEffect(() => {
     const onScroll = () => {
-      if (!staticHeaderRef.current || !tableEndRef.current) return
-      const headerRect = staticHeaderRef.current.getBoundingClientRect()
+      if (!staticBlockRef.current || !tableEndRef.current) return
+      const blockRect = staticBlockRef.current.getBoundingClientRect()
       const endRect = tableEndRef.current.getBoundingClientRect()
-      // Hiện fixed header khi static header đã cuộn lên trên navbar
-      // Ẩn khi table đã cuộn qua hết
-      const shouldShow = headerRect.bottom < NAVBAR_H && endRect.top > NAVBAR_H
+      const shouldShow = blockRect.bottom < NAVBAR_H && endRect.top > NAVBAR_H
       setShowFixed(shouldShow)
-      // Lấy vị trí + width của static header để fixed header căn đúng
-      setFixedLeft(headerRect.left)
-      setFixedWidth(headerRect.width)
+      setFixedLeft(blockRect.left)
+      setFixedWidth(blockRect.width)
     }
     window.addEventListener('scroll', onScroll, { passive: true })
     window.addEventListener('resize', onScroll, { passive: true })
@@ -278,16 +303,11 @@ export default function PositionPage() {
   const levels = position.levels
   const colTemplate = `11% repeat(${levels.length}, 1fr)`
 
-  const headerStyle = {
-    backgroundColor: 'white',
-    borderBottom: '1px solid #e2e8f0',
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       <Header back title={position.name} />
 
-      {/* Fixed header clone — chỉ hiện khi scroll qua static header */}
+      {/* Fixed clone — chỉ hiện level header khi scroll (không lặp banner) */}
       {showFixed && (
         <div style={{
           position: 'fixed',
@@ -295,48 +315,73 @@ export default function PositionPage() {
           left: `${fixedLeft}px`,
           width: `${fixedWidth}px`,
           zIndex: 50,
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-          backgroundColor: 'rgba(255,255,255,0.90)',
-          boxShadow: '0 4px 24px rgba(0,0,0,0.13)',
-          borderBottom: '2px solid #cbd5e1',
-          borderRadius: '0 0 8px 8px',
+          background: 'linear-gradient(135deg, #1d4ed8 0%, #0d9488 100%)',
+          boxShadow: '0 4px 24px rgba(0,0,0,0.20)',
+          borderBottom: '1px solid rgba(255,255,255,0.15)',
+          borderRadius: '0 0 12px 12px',
         }}>
-          <HeaderContent levels={levels} colTemplate={colTemplate} />
+          {/* Chỉ hiện level header trong fixed — không lặp banner */}
+          <div style={{ display: 'grid', gridTemplateColumns: colTemplate }}>
+            <div style={{ borderRight: '1px solid rgba(255,255,255,0.15)', padding: '12px 8px' }}>
+              {/* Icon vị trí nhỏ làm điểm nhận diện khi scroll */}
+              <div style={{ textAlign: 'center', fontSize: '20px' }}>{meta.icon}</div>
+            </div>
+            {levels.map((lv, i) => {
+              const lmeta = LEVEL_META[Math.min(i, LEVEL_META.length - 1)]
+              const isLastCol = i === levels.length - 1
+              return (
+                <div key={i} style={{
+                  padding: '12px 14px',
+                  borderTop: `3px solid ${lmeta.topBorder}`,
+                  borderRight: isLastCol ? 'none' : '1px solid rgba(255,255,255,0.15)',
+                  position: 'relative', overflow: 'hidden',
+                }}>
+                  <span style={{
+                    position: 'absolute', top: '2px', right: '8px',
+                    fontSize: '36px', fontWeight: 800,
+                    color: 'rgba(255,255,255,0.10)',
+                    lineHeight: 1, userSelect: 'none', pointerEvents: 'none', letterSpacing: '-2px',
+                  }}>
+                    {String(i + 1).padStart(2, '0')}
+                  </span>
+                  <div style={{ position: 'relative', zIndex: 1 }}>
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: 'white', lineHeight: 1.3, marginBottom: '6px' }}>
+                      {lv.label}
+                    </div>
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '5px',
+                      fontSize: '10px', fontWeight: 700,
+                      padding: '3px 9px', borderRadius: '9999px',
+                      backgroundColor: lmeta.badgeBg, color: lmeta.badgeText,
+                    }}>
+                      <span style={{
+                        width: '5px', height: '5px', borderRadius: '50%',
+                        backgroundColor: lmeta.dot, display: 'inline-block', flexShrink: 0,
+                      }} />
+                      {lmeta.label}
+                    </span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         </div>
       )}
 
       <div className="max-w-6xl mx-auto px-4 py-10">
 
-        {/* Banner */}
-        <div className="bg-gradient-to-r from-blue-700 to-teal-600 rounded-2xl shadow-lg px-8 py-7 text-white mb-6">
-          <div className="flex items-center gap-4">
-            <span className="text-4xl">{meta.icon}</span>
-            <div>
-              <h1 className="text-[22px] md:text-[26px] font-medium tracking-tight">{position.name}</h1>
-              {position.mission && (
-                <p className="text-sm text-blue-100 mt-1 max-w-xl italic">"{position.mission}"</p>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Table */}
-        <div style={{ marginBottom: '24px' }}>
-          {/* Static header — ref để theo dõi vị trí */}
-          <div
-            ref={staticHeaderRef}
-            style={{
-              ...headerStyle,
-              borderRadius: '16px 16px 0 0',
-              border: '1px solid #e2e8f0',
-              borderBottom: '2px solid #e2e8f0',
-            }}
-          >
-            <HeaderContent levels={levels} colTemplate={colTemplate} />
+        {/* Static block: Banner + Level header gộp, bo tròn trên */}
+        <div style={{ marginBottom: '0' }}>
+          <div ref={staticBlockRef} style={{ borderRadius: '16px 16px 0 0', overflow: 'hidden' }}>
+            <UnifiedBlock
+              position={position}
+              meta={meta}
+              levels={levels}
+              colTemplate={colTemplate}
+            />
           </div>
 
-          {/* Body */}
+          {/* Body bảng — border nối liền xuống dưới */}
           <div style={{
             backgroundColor: 'white',
             border: '1px solid #e2e8f0',
@@ -347,21 +392,22 @@ export default function PositionPage() {
             {DIMENSIONS.map(dim => (
               <SmartRow key={dim.id} dim={dim} levels={levels} colTemplate={colTemplate} />
             ))}
-            {/* Sentinel cuối bảng */}
             <div ref={tableEndRef} style={{ height: 1 }} />
           </div>
         </div>
 
         {/* Back */}
-        <Link
-          to="/"
-          className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-blue-700 transition-colors"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          Về trang chủ
-        </Link>
+        <div style={{ marginTop: '24px' }}>
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-blue-700 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Về trang chủ
+          </Link>
+        </div>
       </div>
     </div>
   )
