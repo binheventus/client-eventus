@@ -192,40 +192,37 @@ function HomeHub({ onOpenCategory }) {
     <div className="flex-1 overflow-y-auto px-6 pb-6 pt-6">
       <div className="mx-auto max-w-[1440px] space-y-6">
         <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
-          <div className="bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 px-6 py-8 text-white md:px-8 md:py-9">
+          <div className="bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 px-6 py-7 text-white md:px-8 md:py-8">
             <div className="max-w-4xl">
-              <p className="text-[12px] font-semibold uppercase tracking-[0.18em] text-blue-100">
-                Eventus Production
-              </p>
-              <h1 className="mt-3 text-[34px] font-semibold tracking-tight md:text-[44px]">
-                Handbook nội bộ cho toàn bộ team
+              <h1 className="text-[32px] font-semibold tracking-tight md:text-[40px]">
+                Eventus Production Handbook
               </h1>
-              <p className="mt-4 max-w-3xl text-[15px] leading-7 text-blue-100/90">
+              <p className="mt-3 whitespace-nowrap text-[14px] leading-6 text-blue-100/90">
                 Tra cứu quy trình, nội quy, hướng dẫn, khung năng lực, sơ đồ tổ chức và các module vận hành nội bộ từ một nơi duy nhất.
               </p>
             </div>
           </div>
         </section>
 
-        <section className="grid gap-5 xl:grid-cols-2">
+        <section className="grid gap-4 xl:grid-cols-2">
           {featured.map((category) => (
             <button
               key={category.id}
               onClick={() => onOpenCategory(category.id)}
-              className="group overflow-hidden rounded-[28px] border border-slate-200 bg-white text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
+              className="group overflow-hidden rounded-[24px] border border-slate-200 bg-white text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
             >
-              <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-6 py-5">
+              <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex items-center gap-4">
-                    <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-slate-900 via-blue-900 to-teal-700 text-[20px] text-white shadow-sm">
+                    <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-slate-900 via-blue-900 to-teal-700 text-[18px] text-white shadow-sm">
                       {category.icon}
                     </div>
                     <div>
-                      <div className="text-[22px] font-semibold tracking-tight text-slate-900">{category.label}</div>
-                      <div className="mt-1 text-[13px] text-slate-500">{category.shortDesc}</div>
+                      <div className="text-[20px] font-semibold tracking-tight text-slate-900">{category.label}</div>
+                      <div className="mt-1 text-[12px] text-slate-500">{category.shortDesc}</div>
                     </div>
                   </div>
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-400 transition-all group-hover:translate-x-0.5 group-hover:text-slate-700">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-400 transition-all group-hover:translate-x-0.5 group-hover:text-slate-700">
                     <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
@@ -233,9 +230,9 @@ function HomeHub({ onOpenCategory }) {
                 </div>
               </div>
 
-              <div className="px-6 py-5">
-                <p className="text-[14px] leading-7 text-slate-600">{category.desc}</p>
-                <div className="mt-5 flex items-center justify-between gap-4">
+              <div className="px-5 py-4">
+                <p className="text-[13px] leading-6 text-slate-600">{category.desc}</p>
+                <div className="mt-4 flex items-center justify-between gap-4">
                   <div className="text-[12px] font-medium uppercase tracking-[0.14em] text-slate-400">
                     {category.itemCount > 0 ? `${category.itemCount} mục nội dung` : category.href.replace('/', '') || 'Trang chính'}
                   </div>
@@ -867,7 +864,13 @@ export default function WikiPage() {
             {CATEGORIES.map(cat => (
               <button
                 key={cat.id}
-                onClick={() => selectCat(cat.id)}
+                onClick={() => {
+                  if (activeCat === 'home') {
+                    openHomeCategory(cat.id)
+                  } else {
+                    selectCat(cat.id)
+                  }
+                }}
                 className={`w-full rounded-2xl border px-4 py-3 text-left transition-all duration-200 ${
                   activeCat === cat.id
                     ? 'border-blue-200 bg-gradient-to-r from-blue-50 via-white to-teal-50 shadow-sm shadow-blue-100/70'
