@@ -833,31 +833,10 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
                           <div>
                             <div className="flex items-center gap-2 mb-2">
                               {q.options.map((opt, idx) => {
-                                const total = q.options.length;
-                                const step = idx / (total - 1);
-
-                                // Màu nền khi chưa chọn: gradient đỏ nhạt → vàng → xanh lá nhạt
-                                const unselectedColors = [
-                                  'bg-red-100 border-red-200 text-red-700 hover:border-red-400',
-                                  'bg-orange-100 border-orange-200 text-orange-700 hover:border-orange-400',
-                                  'bg-yellow-100 border-yellow-200 text-yellow-700 hover:border-yellow-400',
-                                  'bg-lime-100 border-lime-200 text-lime-700 hover:border-lime-400',
-                                  'bg-green-100 border-green-200 text-green-700 hover:border-green-400',
-                                ];
-
-                                // Màu khi được chọn: đậm hơn
-                                const selectedColors = [
-                                  'bg-red-500 border-red-500 text-white shadow-md',
-                                  'bg-orange-400 border-orange-400 text-white shadow-md',
-                                  'bg-yellow-400 border-yellow-400 text-white shadow-md',
-                                  'bg-lime-500 border-lime-500 text-white shadow-md',
-                                  'bg-green-500 border-green-500 text-white shadow-md',
-                                ];
-
                                 const isSelected = formData[q.id] === opt;
                                 const colorClass = isSelected
-                                  ? selectedColors[idx] || selectedColors[selectedColors.length - 1]
-                                  : unselectedColors[idx] || unselectedColors[unselectedColors.length - 1];
+                                  ? 'bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 border-slate-900 text-white shadow-md'
+                                  : 'bg-white border-slate-200 text-slate-600 hover:border-blue-200 hover:bg-slate-50';
 
                                 return (
                                   <label key={opt} className="flex flex-col items-center gap-1.5 flex-1 cursor-pointer">

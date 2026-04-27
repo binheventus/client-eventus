@@ -128,6 +128,23 @@
           }
         },
         {
+          "id": "cong_viec_so_voi_hinh_dung",
+          "label": "Công việc thực tế so với hình dung ban đầu của bạn khi vào Eventus?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "scale_label": {
+            "min": "Chưa khớp với hình dung",
+            "max": "Đúng như mong đợi"
+          }
+        },
+        {
           "id": "lo_trinh_phat_trien",
           "label": "Bạn có hình dung được lộ trình phát triển của mình ở Eventus 6–12 tháng tới không?",
           "type": "radio",
