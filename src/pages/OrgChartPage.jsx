@@ -89,20 +89,7 @@ function countMembers(department) {
   return 1 + department.subteams.reduce((total, subteam) => total + subteam.members.length, 0)
 }
 
-function getOverviewSubteams(department) {
-  if (department.id === 'video-cam-op') {
-    return [...department.subteams].sort((a, b) => a.members.length - b.members.length)
-  }
-  return department.subteams
-}
-
 function DepartmentOverviewCard({ department }) {
-  const shouldShowMembersInline = department.id === 'account'
-  const inlineMembers = shouldShowMembersInline
-    ? department.subteams.flatMap((subteam) => subteam.members)
-    : []
-  const overviewSubteams = getOverviewSubteams(department)
-
   return (
     <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
       <h3 className="mt-2 text-[20px] font-semibold tracking-tight text-slate-900">{department.name}</h3>
@@ -111,40 +98,6 @@ function DepartmentOverviewCard({ department }) {
         <div className="mt-1 text-[15px] font-semibold text-slate-900">{department.leader.name}</div>
         <div className="mt-1 text-[12px] text-slate-500">{department.leader.title}</div>
       </div>
-      {!shouldShowMembersInline && (
-        <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-          {department.id === 'photography' ? (
-            <div className="text-[13px] font-medium text-slate-700">{department.subteams[0]?.members.length || 0} Others Team Member</div>
-          ) : department.id === 'accountant' ? (
-            <div className="text-[13px] font-medium text-slate-700">4 Others Team Member</div>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {overviewSubteams.map((subteam) => (
-                <span
-                  key={`${department.id}-${subteam.id}`}
-                  className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-medium text-slate-700"
-                >
-                  {subteam.name}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {shouldShowMembersInline && (
-        <div className="mt-4 grid gap-3">
-            {inlineMembers.map((member, index) => (
-              <PersonToken
-                key={`${department.id}-inline-${member.name}-${index}`}
-                name={member.name}
-                title={member.title}
-                seniority={member.seniority}
-                showSeniority={false}
-              />
-            ))}
-        </div>
-      )}
     </div>
   )
 }

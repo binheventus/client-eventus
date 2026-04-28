@@ -62,11 +62,11 @@
           "name": "Team Members",
           "members": [
             { "name": "Nguyễn Trung Hiếu", "seniority": "Senior" },
-            { "name": "Nguyễn Mạnh Hùng", "seniority": "Senior" },
-            { "name": "Lê Thái Dương", "seniority": "Senior" },
+            { "name": "Nguyễn Mạnh Hùng", "seniority": "Junior" },
+            { "name": "Lê Thái Dương", "seniority": "Junior" },
             { "name": "Nguyễn Duy Nam", "seniority": "Senior" },
-            { "name": "Vũ Minh Quang", "seniority": "Senior" },
-            { "name": "Lã Thành Long", "seniority": "Senior" }
+            { "name": "Vũ Minh Quang", "seniority": "Junior" },
+            { "name": "Lã Thành Long", "seniority": "Junior" }
           ]
         }
       ]
@@ -76,7 +76,7 @@
       "name": "Equipment Team",
       "leader": {
         "name": "Lê Anh Huy",
-        "title": "Equipment",
+        "title": "Equipment Coordinator",
         "seniority": "Junior"
       },
       "subteams": [],
