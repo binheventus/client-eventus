@@ -33,12 +33,12 @@ function CompactPersonToken({ name, title }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
       <div className="flex items-center gap-2.5">
-        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-slate-900 via-blue-900 to-teal-700 text-[11px] font-semibold text-white">
+        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-slate-900 via-blue-900 to-teal-700 text-[10px] font-semibold text-white">
           {getInitials(name)}
         </div>
         <div className="min-w-0">
-          <div className="text-[13px] font-semibold leading-5 text-slate-900">{name}</div>
-          {title && <div className="mt-0.5 text-[11px] leading-4 text-slate-500">{title}</div>}
+          <div className="text-[12px] font-semibold leading-5 text-slate-900">{name}</div>
+          {title && <div className="mt-0.5 text-[10px] leading-4 text-slate-500">{title}</div>}
         </div>
       </div>
     </div>
@@ -109,13 +109,18 @@ function DepartmentOverviewCard({ department }) {
 }
 
 function DepartmentCard({ department, compact = false }) {
-  const memberGridClass = compact ? 'grid gap-2 sm:grid-cols-2 xl:grid-cols-2' : 'grid gap-3 sm:grid-cols-2 xl:grid-cols-3'
+  const getMemberGridClass = (subteam) => {
+    const isWideSingleColumn = ['camera-operator', 'flycam-operator', 'account-members', 'accountant-members'].includes(subteam.id)
+    if (isWideSingleColumn) return 'grid gap-2'
+    if (compact) return 'grid gap-2 sm:grid-cols-2 xl:grid-cols-2'
+    return 'grid gap-3 sm:grid-cols-2 xl:grid-cols-3'
+  }
   const subteamLayoutClass = department.id === 'video-cam-op' ? 'grid gap-5 xl:grid-cols-10' : 'space-y-5'
 
   return (
     <section className="rounded-[26px] border border-slate-200 bg-white p-6 shadow-sm md:p-7">
       <div className="mb-6 border-b border-slate-100 pb-5">
-        <h2 className={`${compact ? 'text-[21px]' : 'text-[24px]'} font-semibold tracking-tight text-slate-900`}>{department.name}</h2>
+        <h2 className={`${compact ? 'text-[20px]' : 'text-[22px]'} font-semibold tracking-tight text-slate-900`}>{department.name}</h2>
       </div>
 
       <div className="mb-6">
@@ -139,13 +144,13 @@ function DepartmentCard({ department, compact = false }) {
           <div key={subteam.id} className={`rounded-[22px] border border-slate-200 bg-slate-50/80 p-4 md:p-5 ${subteamWidthClass}`}>
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
-                <h3 className="text-[16px] font-semibold text-slate-900">{subteam.name}</h3>
+                <h3 className="text-[15px] font-semibold text-slate-900">{subteam.name}</h3>
               </div>
-              <div className="text-[11px] font-medium uppercase tracking-[0.12em] text-slate-400">
+              <div className="text-[10px] font-medium uppercase tracking-[0.12em] text-slate-400">
                 {subteam.members.length} người
               </div>
             </div>
-            <div className={memberGridClass}>
+            <div className={getMemberGridClass(subteam)}>
               {subteam.members.map((member, index) => (
                 <CompactPersonToken
                   key={`${subteam.id}-${member.name}-${index}`}
@@ -176,7 +181,7 @@ export default function OrgChartPage() {
         <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
           <div className="bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 px-6 py-4 text-white md:px-8 md:py-5">
             <h1 className="text-[26px] font-semibold tracking-tight md:text-[32px]">Sơ đồ tổ chức</h1>
-            <p className="mt-2 max-w-5xl text-[13px] leading-6 text-blue-100/90">
+            <p className="mt-2 max-w-none text-[12px] leading-6 text-blue-100/90">
               Eventus là nơi quy tụ những con người đa dạng, mang đến nhiều kỹ năng và nhiều góc nhìn. Chúng tôi trân trọng từng cá nhân, xem mỗi người như một mảnh ghép quan trọng giúp xây dựng lên sức mạnh tập thể. Với niềm tin rằng mọi ý tưởng đều có giá trị, chúng tôi khuyến khích bạn tỏa sáng theo phong cách riêng, đồng thời tạo điều kiện để học hỏi và thử thách bản thân qua các dự án đa dạng.
             </p>
           </div>
