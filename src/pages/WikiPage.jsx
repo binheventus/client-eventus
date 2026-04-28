@@ -919,7 +919,7 @@ export default function WikiPage() {
 
     if (existingTitleTaken) {
       setSaving(false)
-      setItemActionError('Tên menu con đã tồn tại trong danh mục này.')
+      setItemActionError('Tên tài liệu đã tồn tại trong danh mục này.')
       return
     }
 
@@ -1025,12 +1025,12 @@ export default function WikiPage() {
     const exists = currentCategoryItems.some(item => item.toLowerCase() === normalizedTitle.toLowerCase())
 
     if (!normalizedTitle) {
-      setItemActionError('Vui lòng nhập tên menu con.')
+      setItemActionError('Vui lòng nhập tên tài liệu.')
       return
     }
 
     if (exists) {
-      setItemActionError('Tên menu con này đã tồn tại.')
+      setItemActionError('Tên tài liệu này đã tồn tại.')
       return
     }
 
@@ -1204,7 +1204,7 @@ export default function WikiPage() {
                     }}
                     className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-[13px] font-semibold text-blue-700 transition hover:bg-blue-100"
                   >
-                    + Thêm menu con
+                    + Thêm tài liệu
                   </button>
                 </div>
               )}
@@ -1286,7 +1286,7 @@ export default function WikiPage() {
                           onClick={() => setShowDeleteConfirm(true)}
                           className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-[13px] font-semibold text-red-600 transition hover:bg-red-100"
                         >
-                          🗑️ Xóa menu
+                          🗑️ Xóa tài liệu
                         </button>
                         <button
                           onClick={startEdit}
@@ -1334,12 +1334,12 @@ export default function WikiPage() {
                 <p className="mb-3 text-[12px] text-red-500">{itemActionError}</p>
               )}
               <label className="mb-3 block">
-                <span className="mb-1.5 block text-[12px] font-semibold text-slate-600">Tên menu con</span>
+                <span className="mb-1.5 block text-[12px] font-semibold text-slate-600">Tên tài liệu</span>
                 <input
                   value={menuTitleDraft}
                   onChange={e => setMenuTitleDraft(e.target.value)}
                   className="w-full rounded-xl border border-slate-200 px-4 py-3 text-[13px] leading-relaxed text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-300"
-                  placeholder="Nhập tên menu con hiển thị ngoài danh sách..."
+                  placeholder="Nhập tên tài liệu hiển thị ngoài danh sách..."
                 />
               </label>
               <label className="mb-3 block">
@@ -1458,15 +1458,15 @@ export default function WikiPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-5 backdrop-blur-sm">
           <div className="w-full max-w-lg rounded-[26px] border border-slate-200 bg-white shadow-2xl">
             <div className="border-b border-slate-200 px-6 py-5">
-              <h3 className="text-[18px] font-semibold tracking-tight text-slate-900">Thêm menu con mới</h3>
+              <h3 className="text-[18px] font-semibold tracking-tight text-slate-900">Thêm tài liệu mới</h3>
               <p className="mt-1 text-[13px] leading-6 text-slate-500">
-                Tạo thêm một mục mới trong danh mục <span className="font-medium text-slate-700">{currentCat?.label}</span>.
+                Tạo thêm một tài liệu mới trong danh mục <span className="font-medium text-slate-700">{currentCat?.label}</span>.
               </p>
             </div>
 
             <div className="px-6 py-5">
               <label className="block">
-                <span className="mb-1.5 block text-[12px] font-semibold text-slate-600">Tên menu con</span>
+                <span className="mb-1.5 block text-[12px] font-semibold text-slate-600">Tên tài liệu</span>
                 <input
                   value={newItemTitle}
                   onChange={e => setNewItemTitle(e.target.value)}
@@ -1495,7 +1495,7 @@ export default function WikiPage() {
                 disabled={itemActionLoading}
                 className="rounded-lg bg-blue-600 px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
               >
-                {itemActionLoading ? 'Đang tạo...' : 'Tạo menu con'}
+                {itemActionLoading ? 'Đang tạo...' : 'Tạo tài liệu'}
               </button>
             </div>
           </div>
@@ -1506,9 +1506,9 @@ export default function WikiPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-5 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-[26px] border border-slate-200 bg-white shadow-2xl">
             <div className="px-6 py-5">
-              <h3 className="text-[18px] font-semibold tracking-tight text-slate-900">Xóa menu con này?</h3>
+              <h3 className="text-[18px] font-semibold tracking-tight text-slate-900">Xóa tài liệu này?</h3>
               <p className="mt-2 text-[13px] leading-6 text-slate-500">
-                Mục <span className="font-medium text-slate-700">{selectedTitle}</span> sẽ bị xóa khỏi danh sách menu con.
+                Tài liệu <span className="font-medium text-slate-700">{selectedTitle}</span> sẽ bị xóa khỏi danh sách.
                 {currentPage ? ' Nội dung của bài này cũng sẽ bị xóa khỏi hệ thống.' : ''}
               </p>
             </div>

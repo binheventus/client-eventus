@@ -6,7 +6,7 @@
   "departments": [
     {
       "id": "video-cam-op",
-      "name": "Video & Cam-Op Team",
+      "name": "Video Team",
       "leader": {
         "name": "Phạm Lê Khánh Duy",
         "title": "Leader"
@@ -69,7 +69,7 @@
     },
     {
       "id": "account",
-      "name": "Account",
+      "name": "Account Team",
       "leader": {
         "name": "Bùi Thị Khánh Linh",
         "title": "Account"
@@ -86,7 +86,7 @@
     },
     {
       "id": "accountant",
-      "name": "Accountant",
+      "name": "Accountant Team",
       "leader": {
         "name": "Bùi Thị Khánh Linh",
         "title": "Accountant"

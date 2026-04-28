@@ -29,6 +29,22 @@ function PersonToken({ name, title, tone = 'default' }) {
   )
 }
 
+function CompactPersonToken({ name, title }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
+      <div className="flex items-center gap-2.5">
+        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-slate-900 via-blue-900 to-teal-700 text-[11px] font-semibold text-white">
+          {getInitials(name)}
+        </div>
+        <div className="min-w-0">
+          <div className="text-[13px] font-semibold leading-5 text-slate-900">{name}</div>
+          {title && <div className="mt-0.5 text-[11px] leading-4 text-slate-500">{title}</div>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function countMembers(department) {
   return 1 + department.subteams.reduce((total, subteam) => total + subteam.members.length, 0)
 }
@@ -49,7 +65,6 @@ function DepartmentOverviewCard({ department }) {
 
   return (
     <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Department</div>
       <h3 className="mt-2 text-[20px] font-semibold tracking-tight text-slate-900">{department.name}</h3>
       <div className="mt-2 text-[12px] text-slate-500">{countMembers(department)} thành viên</div>
       <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
@@ -59,22 +74,27 @@ function DepartmentOverviewCard({ department }) {
       </div>
       {!shouldShowMembersInline && (
         <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Nhóm con</div>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {overviewSubteams.map((subteam) => (
-              <span
-                key={`${department.id}-${subteam.id}`}
-                className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-medium text-slate-700"
-              >
-                {subteam.name}
-              </span>
-            ))}
-          </div>
+          {department.id === 'photography' ? (
+            <div className="text-[13px] font-medium text-slate-700">5 Others Team Member</div>
+          ) : department.id === 'accountant' ? (
+            <div className="text-[13px] font-medium text-slate-700">4 Others Team Member</div>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {overviewSubteams.map((subteam) => (
+                <span
+                  key={`${department.id}-${subteam.id}`}
+                  className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-medium text-slate-700"
+                >
+                  {subteam.name}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
       {shouldShowMembersInline && (
-        <div className="mt-4 grid gap-3">
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
             {inlineMembers.map((member, index) => (
               <PersonToken
                 key={`${department.id}-inline-${member.name}-${index}`}
@@ -92,8 +112,7 @@ function DepartmentCard({ department }) {
   return (
     <section className="rounded-[26px] border border-slate-200 bg-white p-6 shadow-sm md:p-7">
       <div className="mb-6 border-b border-slate-100 pb-5">
-        <div className="text-[12px] font-semibold uppercase tracking-[0.18em] text-slate-400">Department</div>
-        <h2 className="mt-2 text-[24px] font-semibold tracking-tight text-slate-900">{department.name}</h2>
+        <h2 className="text-[24px] font-semibold tracking-tight text-slate-900">{department.name}</h2>
         <p className="mt-2 text-[13px] leading-6 text-slate-500">
           {countMembers(department)} thành viên trong {department.subteams.length} nhóm chức năng.
         </p>
@@ -109,16 +128,15 @@ function DepartmentCard({ department }) {
           <div key={subteam.id} className="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4 md:p-5">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Subteam</div>
-                <h3 className="mt-1 text-[16px] font-semibold text-slate-900">{subteam.name}</h3>
+                <h3 className="text-[16px] font-semibold text-slate-900">{subteam.name}</h3>
               </div>
               <div className="text-[11px] font-medium uppercase tracking-[0.12em] text-slate-400">
                 {subteam.members.length} người
               </div>
             </div>
-            <div className="grid gap-3">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {subteam.members.map((member, index) => (
-                <PersonToken
+                <CompactPersonToken
                   key={`${subteam.id}-${member.name}-${index}`}
                   name={member.name}
                   title={member.title}
