@@ -1266,20 +1266,12 @@ export default function WikiPage() {
                     page={{
                       ...currentPage,
                       editButton: admin.isAdmin ? (
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => setShowDeleteConfirm(true)}
-                            className="flex flex-shrink-0 items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-[12px] font-semibold text-white ring-1 ring-white/15 backdrop-blur transition-colors hover:bg-white/18"
-                          >
-                            🗑️ Xóa menu
-                          </button>
-                          <button
-                            onClick={startEdit}
-                            className="flex flex-shrink-0 items-center gap-1.5 rounded-lg bg-white/12 px-3 py-1.5 text-[12px] font-semibold text-white ring-1 ring-white/15 backdrop-blur transition-colors hover:bg-white/18"
-                          >
-                            ✏️ Chỉnh sửa
-                          </button>
-                        </div>
+                        <button
+                          onClick={startEdit}
+                          className="flex flex-shrink-0 items-center gap-1.5 rounded-lg bg-white/12 px-3 py-1.5 text-[12px] font-semibold text-white ring-1 ring-white/15 backdrop-blur transition-colors hover:bg-white/18"
+                        >
+                          ✏️ Chỉnh sửa
+                        </button>
                       ) : null,
                     }}
                   />
@@ -1317,23 +1309,23 @@ export default function WikiPage() {
                 <div />
                 <div className="flex gap-2">
                   <button
-                    onClick={() => setShowDeleteConfirm(true)}
-                    className="text-[12px] px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100"
-                  >
-                    Xóa menu
-                  </button>
-                  <button
                     onClick={() => setShowPromptGuide(true)}
                     className="text-[12px] px-3 py-1.5 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
                   >
                     Hướng dẫn chuẩn hóa cấu trúc nội dung
+                  </button>
+                  <button
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="text-[12px] px-3.5 py-1.5 rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100"
+                  >
+                    Xóa trang này
                   </button>
                   <button onClick={() => setEditing(false)}
                     className="text-[12px] px-3 py-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50">
                     Huỷ
                   </button>
                   <button onClick={savePage} disabled={saving}
-                    className="text-[12px] px-4 py-1.5 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-60">
+                    className="min-w-[96px] text-[12px] px-5 py-1.5 rounded-lg bg-blue-600 text-white font-semibold shadow-sm shadow-blue-300/50 hover:bg-blue-700 disabled:opacity-60">
                     {saving ? 'Đang lưu...' : '💾 Lưu'}
                   </button>
                 </div>
