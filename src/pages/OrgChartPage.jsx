@@ -110,15 +110,12 @@ function DepartmentOverviewCard({ department }) {
 
 function DepartmentCard({ department, compact = false }) {
   const memberGridClass = compact ? 'grid gap-2 sm:grid-cols-2 xl:grid-cols-2' : 'grid gap-3 sm:grid-cols-2 xl:grid-cols-3'
-  const subteamLayoutClass = department.id === 'video-cam-op' ? 'grid gap-5 xl:grid-cols-3' : 'space-y-5'
+  const subteamLayoutClass = department.id === 'video-cam-op' ? 'grid gap-5 xl:grid-cols-4' : 'space-y-5'
 
   return (
     <section className="rounded-[26px] border border-slate-200 bg-white p-6 shadow-sm md:p-7">
       <div className="mb-6 border-b border-slate-100 pb-5">
         <h2 className={`${compact ? 'text-[21px]' : 'text-[24px]'} font-semibold tracking-tight text-slate-900`}>{department.name}</h2>
-        <p className="mt-2 text-[13px] leading-6 text-slate-500">
-          {countMembers(department)} thành viên trong {department.subteams.length} nhóm chức năng.
-        </p>
       </div>
 
       <div className="mb-6">
@@ -127,8 +124,19 @@ function DepartmentCard({ department, compact = false }) {
       </div>
 
       <div className={subteamLayoutClass}>
-        {department.subteams.map((subteam) => (
-          <div key={subteam.id} className="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4 md:p-5">
+        {department.subteams.map((subteam) => {
+          const subteamWidthClass = department.id === 'video-cam-op'
+            ? subteam.id === 'video-editor'
+              ? 'xl:col-span-2'
+              : 'xl:col-span-1'
+            : department.id === 'photography'
+              ? 'xl:col-span-2'
+              : department.id === 'account'
+                ? 'xl:col-span-1'
+                : ''
+
+          return (
+          <div key={subteam.id} className={`rounded-[22px] border border-slate-200 bg-slate-50/80 p-4 md:p-5 ${subteamWidthClass}`}>
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
                 <h3 className="text-[16px] font-semibold text-slate-900">{subteam.name}</h3>
@@ -147,7 +155,7 @@ function DepartmentCard({ department, compact = false }) {
               ))}
             </div>
           </div>
-        ))}
+        )})}
       </div>
     </section>
   )
@@ -155,7 +163,12 @@ function DepartmentCard({ department, compact = false }) {
 
 export default function OrgChartPage() {
   const videoDepartment = orgChart.departments.find((department) => department.id === 'video-cam-op')
-  const lowerDepartments = orgChart.departments.filter((department) => department.id !== 'video-cam-op')
+  const lowerDepartments = orgChart.departments
+    .filter((department) => department.id !== 'video-cam-op')
+    .sort((a, b) => {
+      const order = ['photography', 'accountant', 'account']
+      return order.indexOf(a.id) - order.indexOf(b.id)
+    })
 
   return (
     <div className="flex-1 overflow-y-auto px-6 pb-6 pt-6">
@@ -199,10 +212,15 @@ export default function OrgChartPage() {
               <DepartmentCard department={videoDepartment} compact />
             )}
 
-            <div className="grid gap-5 xl:grid-cols-3">
-              {lowerDepartments.map((department) => (
-                <DepartmentCard key={department.id} department={department} compact />
-              ))}
+            <div className="grid gap-5 xl:grid-cols-4">
+              {lowerDepartments.map((department) => {
+                const widthClass = department.id === 'photography' ? 'xl:col-span-2' : 'xl:col-span-1'
+                return (
+                  <div key={department.id} className={widthClass}>
+                    <DepartmentCard department={department} compact />
+                  </div>
+                )
+              })}
             </div>
           </div>
         </section>
