@@ -94,7 +94,7 @@ function DepartmentOverviewCard({ department }) {
       )}
 
       {shouldShowMembersInline && (
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <div className="mt-4 grid gap-3">
             {inlineMembers.map((member, index) => (
               <PersonToken
                 key={`${department.id}-inline-${member.name}-${index}`}
@@ -108,11 +108,14 @@ function DepartmentOverviewCard({ department }) {
   )
 }
 
-function DepartmentCard({ department }) {
+function DepartmentCard({ department, compact = false }) {
+  const memberGridClass = compact ? 'grid gap-2 sm:grid-cols-2 xl:grid-cols-2' : 'grid gap-3 sm:grid-cols-2 xl:grid-cols-3'
+  const subteamLayoutClass = department.id === 'video-cam-op' ? 'grid gap-5 xl:grid-cols-3' : 'space-y-5'
+
   return (
     <section className="rounded-[26px] border border-slate-200 bg-white p-6 shadow-sm md:p-7">
       <div className="mb-6 border-b border-slate-100 pb-5">
-        <h2 className="text-[24px] font-semibold tracking-tight text-slate-900">{department.name}</h2>
+        <h2 className={`${compact ? 'text-[21px]' : 'text-[24px]'} font-semibold tracking-tight text-slate-900`}>{department.name}</h2>
         <p className="mt-2 text-[13px] leading-6 text-slate-500">
           {countMembers(department)} thành viên trong {department.subteams.length} nhóm chức năng.
         </p>
@@ -123,7 +126,7 @@ function DepartmentCard({ department }) {
         <PersonToken name={department.leader.name} title={department.leader.title} tone="leader" />
       </div>
 
-      <div className="space-y-5">
+      <div className={subteamLayoutClass}>
         {department.subteams.map((subteam) => (
           <div key={subteam.id} className="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4 md:p-5">
             <div className="mb-4 flex items-center justify-between gap-3">
@@ -134,7 +137,7 @@ function DepartmentCard({ department }) {
                 {subteam.members.length} người
               </div>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <div className={memberGridClass}>
               {subteam.members.map((member, index) => (
                 <CompactPersonToken
                   key={`${subteam.id}-${member.name}-${index}`}
@@ -151,6 +154,9 @@ function DepartmentCard({ department }) {
 }
 
 export default function OrgChartPage() {
+  const videoDepartment = orgChart.departments.find((department) => department.id === 'video-cam-op')
+  const lowerDepartments = orgChart.departments.filter((department) => department.id !== 'video-cam-op')
+
   return (
     <div className="flex-1 overflow-y-auto px-6 pb-6 pt-6">
       <div className="mx-auto max-w-[1440px] space-y-6">
@@ -188,10 +194,16 @@ export default function OrgChartPage() {
             <h2 className="mt-2 text-[26px] font-semibold tracking-tight text-slate-900">Danh sách nhân sự</h2>
           </div>
 
-          <div className="grid gap-5 xl:grid-cols-2">
-            {orgChart.departments.map((department) => (
-              <DepartmentCard key={department.id} department={department} />
-            ))}
+          <div className="space-y-5">
+            {videoDepartment && (
+              <DepartmentCard department={videoDepartment} compact />
+            )}
+
+            <div className="grid gap-5 xl:grid-cols-3">
+              {lowerDepartments.map((department) => (
+                <DepartmentCard key={department.id} department={department} compact />
+              ))}
+            </div>
           </div>
         </section>
       </div>
