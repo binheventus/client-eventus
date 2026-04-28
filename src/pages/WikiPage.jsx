@@ -115,6 +115,61 @@ const CATEGORY_BANNER_STYLES = {
   },
 }
 
+const CONTENT_STANDARDIZATION_PROMPT = `Tôi sẽ gửi cho bạn 1 bài viết thô để đưa vào hệ thống wiki nội bộ của công ty.
+
+Nhiệm vụ của bạn:
+1. Đọc hiểu lại nội dung.
+2. Viết lại cho đúng cấu trúc hiển thị của hệ thống.
+3. Trả lại cho tôi đúng 2 phần:
+   - Mô tả mở đầu trên banner
+   - Nội dung đã chuẩn hóa để paste thẳng vào editor
+
+Yêu cầu rất quan trọng:
+- Trả lời bằng tiếng Việt.
+- Giữ nguyên ý nghĩa gốc, không tự ý rút bớt nội dung quan trọng.
+- Có thể viết lại câu cho gọn, rõ và mạch lạc hơn.
+- Ưu tiên dễ đọc, dễ paste, hiển thị đẹp trong wiki.
+
+Quy tắc cấu trúc bắt buộc:
+- Chỉ dùng # cho tiêu đề lớn.
+- Chỉ dùng ## cho tiêu đề mục con.
+- Không dùng ###, #### hoặc cấp heading sâu hơn.
+- Không tạo quá nhiều block nhỏ không cần thiết.
+- Với các phần như quy định, mức phạt, danh sách lỗi, ưu tiên dùng bullet - thay vì tách từng ý thành heading riêng.
+- Dùng bullet - cho danh sách thông thường.
+- Dùng danh sách số khi thật sự là quy trình tuần tự.
+- Không lạm dụng in đậm **...**.
+- Hạn chế dùng **...** ở giữa các dòng mở đầu, vì hệ thống có thể parse lỗi.
+- Chỉ in đậm khi thật sự cần nhấn mạnh một từ hoặc cụm ngắn.
+- Không để các dòng tiêu đề phụ kết thúc bằng dấu : nếu không cần.
+- Nếu một ý có phần giải thích bên dưới, viết thành:
+  - một dòng thường
+  - rồi các bullet bên dưới
+- Các link URL phải giữ nguyên đầy đủ.
+- Không thêm ký hiệu trang trí không cần thiết.
+- Chỉ dùng ⛔ cho các cảnh báo thực sự quan trọng.
+
+Quy tắc riêng cho phần Mô tả mở đầu trên banner:
+- Viết 1 đến 2 câu ngắn.
+- Tóm tắt đúng tinh thần bài.
+- Không viết dài.
+- Không xuống dòng.
+- Không dùng bullet.
+- Không dùng markdown đặc biệt.
+
+Định dạng đầu ra bắt buộc:
+Mô tả mở đầu trên banner
+[nội dung]
+
+Nội dung đã chuẩn hóa
+\`\`\`md
+[nội dung markdown hoàn chỉnh]
+\`\`\`
+
+Bây giờ tôi sẽ gửi:
+- Tên bài
+- Nội dung thô`
+
 function CategoryCardIcon({ categoryId, stroke = '#334155' }) {
   const common = {
     fill: 'none',
@@ -770,6 +825,8 @@ export default function WikiPage() {
   const [bannerDraft, setBannerDraft] = useState('')
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [showPromptGuide, setShowPromptGuide] = useState(false)
+  const [copyPromptState, setCopyPromptState] = useState('idle')
   const admin = useAdmin()
 
   useEffect(() => {
@@ -872,6 +929,17 @@ export default function WikiPage() {
     setBannerDraft(extractBannerDescription(currentPage?.content || ''))
     setDraft(stripBannerDescription(currentPage?.content || ''))
     setEditing(true)
+  }
+
+  async function copyPromptGuide() {
+    try {
+      await navigator.clipboard.writeText(CONTENT_STANDARDIZATION_PROMPT)
+      setCopyPromptState('copied')
+      window.setTimeout(() => setCopyPromptState('idle'), 1800)
+    } catch {
+      setCopyPromptState('error')
+      window.setTimeout(() => setCopyPromptState('idle'), 2200)
+    }
   }
 
   return (
@@ -1086,8 +1154,14 @@ export default function WikiPage() {
           {activeCat !== 'home' && activeCat !== 'khung_nang_luc' && activeCat !== 'review_30_day' && activeCat !== 'org_chart' && selectedTitle && editing && (
             <div className="flex-1 flex flex-col p-6">
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-[15px] font-bold text-slate-700">✏️ {selectedTitle}</h2>
+                <div />
                 <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowPromptGuide(true)}
+                    className="text-[12px] px-3 py-1.5 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+                  >
+                    Hướng dẫn chuẩn hóa cấu trúc nội dung
+                  </button>
                   <button onClick={() => setEditing(false)}
                     className="text-[12px] px-3 py-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50">
                     Huỷ
@@ -1098,9 +1172,6 @@ export default function WikiPage() {
                   </button>
                 </div>
               </div>
-              <p className="text-[11px] text-slate-400 mb-2">
-                Hỗ trợ cả nội dung text thường lẫn Markdown cơ bản. Nếu có `#`, `##`, `-`, `1.` thì giao diện sẽ lên đẹp và ổn định hơn.
-              </p>
               <label className="mb-3 block">
                 <span className="mb-1.5 block text-[12px] font-semibold text-slate-600">Tiêu đề hiển thị của bài</span>
                 <input
@@ -1149,6 +1220,68 @@ export default function WikiPage() {
                 className="flex-1 text-[13px] py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700">
                 Đăng nhập
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPromptGuide && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-5 backdrop-blur-sm">
+          <div className="flex max-h-[88vh] w-full max-w-5xl flex-col overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-2xl">
+            <div className="border-b border-slate-200 bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 px-6 py-5 text-white">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-100/90">
+                    Hướng dẫn nội bộ
+                  </p>
+                  <h3 className="mt-1 text-[22px] font-semibold tracking-tight">
+                    Hướng dẫn chuẩn hóa cấu trúc nội dung
+                  </h3>
+                  <p className="mt-2 text-[13px] leading-6 text-blue-100/90">
+                    Nhân viên chỉ cần copy prompt bên dưới, dán vào ChatGPT của mình, rồi gửi tiếp tên bài và nội dung thô để nhận lại bản đã chuẩn hóa.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowPromptGuide(false)}
+                  className="rounded-full bg-white/12 px-3 py-1.5 text-[12px] font-semibold text-white ring-1 ring-white/15 transition-colors hover:bg-white/20"
+                >
+                  Đóng
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-y-auto px-6 py-5">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                  Cách dùng nhanh
+                </p>
+                <div className="mt-3 space-y-2 text-[13px] leading-6 text-slate-600">
+                  <p>1. Bấm nút copy ở dưới để sao chép prompt mẫu.</p>
+                  <p>2. Dán prompt vào ChatGPT của nhân viên.</p>
+                  <p>3. Gửi tiếp theo mẫu: <span className="font-medium text-slate-800">Tên bài:</span> ... và <span className="font-medium text-slate-800">Nội dung thô:</span> ...</p>
+                  <p>4. Paste kết quả đã chuẩn hóa vào wiki editor.</p>
+                </div>
+              </div>
+
+              <div className="mt-5 flex items-center justify-between gap-3">
+                <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                  Prompt mẫu
+                </p>
+                <button
+                  onClick={copyPromptGuide}
+                  className="rounded-full bg-slate-900 px-4 py-2 text-[12px] font-semibold text-white transition hover:bg-blue-900"
+                >
+                  {copyPromptState === 'copied'
+                    ? 'Đã copy prompt'
+                    : copyPromptState === 'error'
+                      ? 'Không copy được'
+                      : 'Copy prompt'}
+                </button>
+              </div>
+
+              <pre className="mt-3 overflow-x-auto rounded-[22px] border border-slate-200 bg-white p-5 text-[12px] leading-6 text-slate-700 shadow-sm whitespace-pre-wrap">
+                {CONTENT_STANDARDIZATION_PROMPT}
+              </pre>
             </div>
           </div>
         </div>
