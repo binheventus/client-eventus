@@ -9,7 +9,21 @@ function getInitials(name = '') {
     .join('')
 }
 
-function PersonToken({ name, title, tone = 'default' }) {
+function getSeniorityClasses(seniority = 'Senior') {
+  if (seniority === 'Intern') return 'border-amber-200 bg-amber-50 text-amber-700'
+  if (seniority === 'Junior') return 'border-sky-200 bg-sky-50 text-sky-700'
+  return 'border-emerald-200 bg-emerald-50 text-emerald-700'
+}
+
+function SeniorityBadge({ seniority = 'Senior' }) {
+  return (
+    <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${getSeniorityClasses(seniority)}`}>
+      {seniority}
+    </span>
+  )
+}
+
+function PersonToken({ name, title, tone = 'default', seniority = 'Senior' }) {
   const toneClasses = tone === 'leader'
     ? 'border-blue-200 bg-blue-50'
     : 'border-slate-200 bg-white'
@@ -22,6 +36,9 @@ function PersonToken({ name, title, tone = 'default' }) {
         </div>
         <div className="min-w-0">
           <div className="break-words text-[14px] font-semibold leading-5 text-slate-900">{name}</div>
+          <div className="mt-1">
+            <SeniorityBadge seniority={seniority} />
+          </div>
           {title && <div className="mt-1 text-[12px] leading-5 text-slate-500">{title}</div>}
         </div>
       </div>
@@ -29,7 +46,7 @@ function PersonToken({ name, title, tone = 'default' }) {
   )
 }
 
-function CompactPersonToken({ name, title }) {
+function CompactPersonToken({ name, title, seniority = 'Senior' }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
       <div className="flex items-center gap-2.5">
@@ -38,6 +55,9 @@ function CompactPersonToken({ name, title }) {
         </div>
         <div className="min-w-0">
           <div className="text-[12px] font-semibold leading-5 text-slate-900">{name}</div>
+          <div className="mt-1">
+            <SeniorityBadge seniority={seniority} />
+          </div>
           {title && <div className="mt-0.5 text-[10px] leading-4 text-slate-500">{title}</div>}
         </div>
       </div>
@@ -70,12 +90,15 @@ function DepartmentOverviewCard({ department }) {
       <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
         <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-blue-500">Lead</div>
         <div className="mt-1 text-[15px] font-semibold text-slate-900">{department.leader.name}</div>
+        <div className="mt-1">
+          <SeniorityBadge seniority={department.leader.seniority || 'Senior'} />
+        </div>
         <div className="mt-1 text-[12px] text-slate-500">{department.leader.title}</div>
       </div>
       {!shouldShowMembersInline && (
         <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
           {department.id === 'photography' ? (
-            <div className="text-[13px] font-medium text-slate-700">5 Others Team Member</div>
+            <div className="text-[13px] font-medium text-slate-700">{department.subteams[0]?.members.length || 0} Others Team Member</div>
           ) : department.id === 'accountant' ? (
             <div className="text-[13px] font-medium text-slate-700">4 Others Team Member</div>
           ) : (
@@ -100,6 +123,7 @@ function DepartmentOverviewCard({ department }) {
                 key={`${department.id}-inline-${member.name}-${index}`}
                 name={member.name}
                 title={member.title}
+                seniority={member.seniority}
               />
             ))}
         </div>
@@ -125,7 +149,12 @@ function DepartmentCard({ department, compact = false }) {
 
       <div className="mb-6">
         <div className="mb-3 text-[12px] font-semibold uppercase tracking-[0.14em] text-slate-400">Lead</div>
-        <PersonToken name={department.leader.name} title={department.leader.title} tone="leader" />
+        <PersonToken
+          name={department.leader.name}
+          title={department.leader.title}
+          tone="leader"
+          seniority={department.leader.seniority}
+        />
       </div>
 
       <div className={subteamLayoutClass}>
@@ -133,7 +162,9 @@ function DepartmentCard({ department, compact = false }) {
           const subteamWidthClass = department.id === 'video-cam-op'
             ? subteam.id === 'video-editor'
               ? 'xl:col-span-4'
-              : 'xl:col-span-3'
+              : subteam.id === 'camera-operator'
+                ? 'xl:col-span-4'
+                : 'xl:col-span-2'
             : department.id === 'photography'
               ? 'xl:col-span-2'
               : department.id === 'account'
@@ -156,6 +187,7 @@ function DepartmentCard({ department, compact = false }) {
                   key={`${subteam.id}-${member.name}-${index}`}
                   name={member.name}
                   title={member.title}
+                  seniority={member.seniority}
                 />
               ))}
             </div>
@@ -192,7 +224,12 @@ export default function OrgChartPage() {
             <div className="text-[12px] font-semibold uppercase tracking-[0.18em] text-slate-400">Executive</div>
           </div>
           <div className="mx-auto max-w-md">
-            <PersonToken name={orgChart.executive.name} title={orgChart.executive.title} tone="leader" />
+            <PersonToken
+              name={orgChart.executive.name}
+              title={orgChart.executive.title}
+              tone="leader"
+              seniority={orgChart.executive.seniority}
+            />
           </div>
 
           <div className="mt-6 hidden h-12 items-center justify-center md:flex">
@@ -219,7 +256,7 @@ export default function OrgChartPage() {
 
             <div className="grid gap-5 xl:grid-cols-10">
               {lowerDepartments.map((department) => {
-                const widthClass = department.id === 'photography' ? 'xl:col-span-4' : 'xl:col-span-3'
+                const widthClass = department.id === 'photography' ? 'xl:col-span-4' : department.id === 'accountant' ? 'xl:col-span-4' : 'xl:col-span-2'
                 return (
                   <div key={department.id} className={widthClass}>
                     <DepartmentCard department={department} compact />
