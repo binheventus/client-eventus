@@ -697,11 +697,11 @@ function ArticleDocument({ title, category, page }) {
     <div className="px-6 pb-6 lg:px-8">
         <div className="mx-auto max-w-6xl space-y-6">
           <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
-            <div className="bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 px-6 py-5 text-white md:px-8 md:py-6">
-              <div className="mb-3 flex items-start justify-end gap-4">
+            <div className="bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 px-6 py-4 text-white md:px-8 md:py-5">
+              <div className="mb-2 flex items-start justify-end gap-4">
                 {editButton}
               </div>
-              <h1 className="max-w-5xl text-[28px] font-semibold tracking-tight md:text-[34px]">{article.title}</h1>
+              <h1 className="max-w-5xl text-[24px] font-semibold tracking-tight md:text-[30px]">{article.title}</h1>
               <p className="mt-2 max-w-none text-[14px] leading-6 text-blue-100/90">
                 {parseInline(bannerDescription)}
               </p>
@@ -732,7 +732,7 @@ function ArticleDocument({ title, category, page }) {
                   {String(index + 1).padStart(2, '0')}
                 </div>
                 <div>
-                  <h2 className="text-[22px] font-semibold tracking-tight text-slate-900 md:text-[24px]">{section.title}</h2>
+                  <h2 className="text-[20px] font-semibold tracking-tight text-slate-900 md:text-[22px]">{section.title}</h2>
                 </div>
               </div>
 
@@ -746,7 +746,7 @@ function ArticleDocument({ title, category, page }) {
                 <div className="mt-8 space-y-5">
                   {section.subsections.map((subsection, idx) => (
                     <div key={subsection.id || idx} id={subsection.id} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-5">
-                      <h3 className="mb-4 text-[17px] font-semibold text-slate-900 md:text-[18px]">{subsection.title}</h3>
+                      <h3 className="mb-4 text-[16px] font-semibold text-slate-900 md:text-[17px]">{subsection.title}</h3>
                       <div className="space-y-4">
                         {subsection.blocks.map((block, blockIdx) => (
                           <ContentBlock key={blockIdx} block={block} />
