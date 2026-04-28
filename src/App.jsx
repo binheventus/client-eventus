@@ -6,6 +6,12 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<WikiPage />} />
+        <Route path="/quy-trinh" element={<WikiPage />} />
+        <Route path="/quy-trinh/:articleSlug" element={<WikiPage />} />
+        <Route path="/noi-quy" element={<WikiPage />} />
+        <Route path="/noi-quy/:articleSlug" element={<WikiPage />} />
+        <Route path="/huong-dan" element={<WikiPage />} />
+        <Route path="/huong-dan/:articleSlug" element={<WikiPage />} />
         <Route path="/competency" element={<WikiPage />} />
         <Route path="/orgchart" element={<WikiPage />} />
         <Route path="/30dayreview" element={<WikiPage />} />

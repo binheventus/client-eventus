@@ -171,6 +171,11 @@ Bây giờ tôi sẽ gửi:
 - Nội dung thô`
 
 const CATEGORY_CONFIG_PREFIX = '__menu_config__:'
+const CATEGORY_ROUTE_SEGMENTS = {
+  quy_trinh: 'quy-trinh',
+  noi_quy: 'noi-quy',
+  huong_dan: 'huong-dan',
+}
 
 function getCategoryConfigTitle(categoryId) {
   return `${CATEGORY_CONFIG_PREFIX}${categoryId}`
@@ -195,6 +200,23 @@ function parseCategoryConfig(row, fallbackItems = []) {
   }
 
   return fallbackItems
+}
+
+function getCategoryBasePath(categoryId) {
+  const segment = CATEGORY_ROUTE_SEGMENTS[categoryId]
+  return segment ? `/${segment}` : '/'
+}
+
+function getArticlePath(categoryId, title) {
+  const segment = CATEGORY_ROUTE_SEGMENTS[categoryId]
+  if (!segment) return '/'
+  return `/${segment}/${slugify(title)}`
+}
+
+function getCategoryIdFromPath(pathname = '') {
+  const cleanPath = String(pathname || '').replace(/^\/+/, '')
+  const segment = cleanPath.split('/')[0]
+  return Object.entries(CATEGORY_ROUTE_SEGMENTS).find(([, value]) => value === segment)?.[0] || null
 }
 
 function CategoryCardIcon({ categoryId, stroke = '#334155' }) {
@@ -834,7 +856,7 @@ function useAdmin() {
 /* ─── Main WikiPage ─── */
 export default function WikiPage() {
   const location = useLocation()
-  const { positionId } = useParams()
+  const { positionId, articleSlug } = useParams()
   const navigate = useNavigate()
   const [pages, setPages] = useState([])
   const [activeCat, setActiveCat] = useState('home')
@@ -940,6 +962,9 @@ export default function WikiPage() {
     await upsertCategoryItems(nextItems)
     setSelectedTitle(normalizedMenuTitle)
     setItemActionError('')
+    if (CATEGORY_ROUTE_SEGMENTS[activeCat]) {
+      navigate(getArticlePath(activeCat, normalizedMenuTitle), { replace: true })
+    }
     setSaving(false)
     setEditing(false)
   }
@@ -983,7 +1008,20 @@ export default function WikiPage() {
       return
     }
 
-  }, [location.pathname, positionId])
+    const routeCategoryId = getCategoryIdFromPath(location.pathname)
+    if (routeCategoryId) {
+      setActiveCat(routeCategoryId)
+      setEditing(false)
+
+      if (!articleSlug) {
+        setSelectedTitle(null)
+        return
+      }
+
+      const matchedTitle = currentCategoryItems.find(title => slugify(title) === articleSlug)
+      setSelectedTitle(matchedTitle || null)
+    }
+  }, [location.pathname, positionId, articleSlug, currentCategoryItems])
 
   function selectCat(id) {
     if (id === 'khung_nang_luc') {
@@ -992,6 +1030,8 @@ export default function WikiPage() {
       navigate('/orgchart')
     } else if (id === 'review_30_day') {
       navigate('/30dayreview')
+    } else if (CATEGORY_ROUTE_SEGMENTS[id]) {
+      navigate(getCategoryBasePath(id))
     } else if (location.pathname !== '/') {
       navigate('/')
     }
@@ -1006,11 +1046,21 @@ export default function WikiPage() {
       return
     }
 
-    setActiveCat(id)
-    setSelectedTitle(null)
-    setEditing(false)
+    if (CATEGORY_ROUTE_SEGMENTS[id]) {
+      navigate(getCategoryBasePath(id))
+    } else {
+      setActiveCat(id)
+      setSelectedTitle(null)
+      setEditing(false)
+    }
   }
-  function openPage(title) { setSelectedTitle(title); setEditing(false) }
+  function openPage(title) {
+    if (CATEGORY_ROUTE_SEGMENTS[activeCat]) {
+      navigate(getArticlePath(activeCat, title))
+      return
+    }
+    setSelectedTitle(title); setEditing(false)
+  }
   function startEdit() {
     setMenuTitleDraft(selectedTitle || '')
     setTitleDraft(extractPageTitle(currentPage?.content || '') || selectedTitle || '')
@@ -1041,6 +1091,9 @@ export default function WikiPage() {
     setNewItemTitle('')
     setShowAddItemModal(false)
     setSelectedTitle(normalizedTitle)
+    if (CATEGORY_ROUTE_SEGMENTS[activeCat]) {
+      navigate(getArticlePath(activeCat, normalizedTitle))
+    }
     setEditing(false)
   }
 
@@ -1057,6 +1110,9 @@ export default function WikiPage() {
     setItemActionLoading(false)
     setShowDeleteConfirm(false)
     setSelectedTitle(null)
+    if (CATEGORY_ROUTE_SEGMENTS[activeCat]) {
+      navigate(getCategoryBasePath(activeCat))
+    }
     setEditing(false)
     setItemActionError('')
   }
