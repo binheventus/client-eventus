@@ -110,7 +110,7 @@ function DepartmentOverviewCard({ department }) {
 
 function DepartmentCard({ department, compact = false }) {
   const memberGridClass = compact ? 'grid gap-2 sm:grid-cols-2 xl:grid-cols-2' : 'grid gap-3 sm:grid-cols-2 xl:grid-cols-3'
-  const subteamLayoutClass = department.id === 'video-cam-op' ? 'grid gap-5 xl:grid-cols-4' : 'space-y-5'
+  const subteamLayoutClass = department.id === 'video-cam-op' ? 'grid gap-5 xl:grid-cols-10' : 'space-y-5'
 
   return (
     <section className="rounded-[26px] border border-slate-200 bg-white p-6 shadow-sm md:p-7">
@@ -127,8 +127,8 @@ function DepartmentCard({ department, compact = false }) {
         {department.subteams.map((subteam) => {
           const subteamWidthClass = department.id === 'video-cam-op'
             ? subteam.id === 'video-editor'
-              ? 'xl:col-span-2'
-              : 'xl:col-span-1'
+              ? 'xl:col-span-4'
+              : 'xl:col-span-3'
             : department.id === 'photography'
               ? 'xl:col-span-2'
               : department.id === 'account'
@@ -212,9 +212,9 @@ export default function OrgChartPage() {
               <DepartmentCard department={videoDepartment} compact />
             )}
 
-            <div className="grid gap-5 xl:grid-cols-4">
+            <div className="grid gap-5 xl:grid-cols-10">
               {lowerDepartments.map((department) => {
-                const widthClass = department.id === 'photography' ? 'xl:col-span-2' : 'xl:col-span-1'
+                const widthClass = department.id === 'photography' ? 'xl:col-span-4' : 'xl:col-span-3'
                 return (
                   <div key={department.id} className={widthClass}>
                     <DepartmentCard department={department} compact />
