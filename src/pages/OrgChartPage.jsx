@@ -12,7 +12,11 @@ function getInitials(name = '') {
 function getSeniorityClasses(seniority = 'Senior') {
   if (seniority === 'Intern') return 'border-amber-200 bg-amber-50 text-amber-700'
   if (seniority === 'Junior') return 'border-sky-200 bg-sky-50 text-sky-700'
-  return 'border-emerald-200 bg-emerald-50 text-emerald-700'
+  return 'border-violet-200 bg-violet-50 text-violet-800 shadow-sm shadow-violet-100/70'
+}
+
+function getRoleBadgeClasses(role = 'CEO') {
+  return 'border-blue-200 bg-blue-50 text-blue-800'
 }
 
 function SeniorityBadge({ seniority = 'Senior' }) {
@@ -23,7 +27,15 @@ function SeniorityBadge({ seniority = 'Senior' }) {
   )
 }
 
-function PersonToken({ name, title, tone = 'default', seniority = 'Senior', showSeniority = true }) {
+function RoleBadge({ role }) {
+  return (
+    <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${getRoleBadgeClasses(role)}`}>
+      {role}
+    </span>
+  )
+}
+
+function PersonToken({ name, title, tone = 'default', seniority = 'Senior', showSeniority = true, roleBadge = '' }) {
   const toneClasses = tone === 'leader'
     ? 'border-blue-200 bg-blue-50'
     : 'border-slate-200 bg-white'
@@ -36,7 +48,11 @@ function PersonToken({ name, title, tone = 'default', seniority = 'Senior', show
         </div>
         <div className="min-w-0">
           <div className="break-words text-[14px] font-semibold leading-5 text-slate-900">{name}</div>
-          {showSeniority && (
+          {roleBadge ? (
+            <div className="mt-1">
+              <RoleBadge role={roleBadge} />
+            </div>
+          ) : showSeniority && (
             <div className="mt-1">
               <SeniorityBadge seniority={seniority} />
             </div>
@@ -92,7 +108,6 @@ function DepartmentOverviewCard({ department }) {
       <h3 className="mt-2 text-[20px] font-semibold tracking-tight text-slate-900">{department.name}</h3>
       <div className="mt-2 text-[12px] text-slate-500">{countMembers(department)} thành viên</div>
       <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-blue-500">Lead</div>
         <div className="mt-1 text-[15px] font-semibold text-slate-900">{department.leader.name}</div>
         <div className="mt-1 text-[12px] text-slate-500">{department.leader.title}</div>
       </div>
@@ -150,7 +165,6 @@ function DepartmentCard({ department, compact = false }) {
       </div>
 
       <div className="mb-6">
-        <div className="mb-3 text-[12px] font-semibold uppercase tracking-[0.14em] text-slate-400">Lead</div>
         <PersonToken
           name={department.leader.name}
           title={department.leader.title}
@@ -202,9 +216,10 @@ function DepartmentCard({ department, compact = false }) {
 }
 
 export default function OrgChartPage() {
+  const overviewDepartments = orgChart.departments
   const videoDepartment = orgChart.departments.find((department) => department.id === 'video-cam-op')
   const lowerDepartments = orgChart.departments
-    .filter((department) => department.id !== 'video-cam-op')
+    .filter((department) => department.id !== 'video-cam-op' && !department.overviewOnly)
     .sort((a, b) => {
       const order = ['photography', 'accountant', 'account']
       return order.indexOf(a.id) - order.indexOf(b.id)
@@ -229,9 +244,10 @@ export default function OrgChartPage() {
           <div className="mx-auto max-w-md">
             <PersonToken
               name={orgChart.executive.name}
-              title={orgChart.executive.title}
+              title=""
               tone="leader"
-              seniority={orgChart.executive.seniority}
+              showSeniority={false}
+              roleBadge="CEO"
             />
           </div>
 
@@ -239,8 +255,8 @@ export default function OrgChartPage() {
             <div className="h-full w-px bg-slate-200" />
           </div>
 
-          <div className="grid gap-5 xl:grid-cols-2 2xl:grid-cols-4">
-            {orgChart.departments.map((department) => (
+          <div className="grid gap-5 xl:grid-cols-2 2xl:grid-cols-5">
+            {overviewDepartments.map((department) => (
               <DepartmentOverviewCard key={`${department.id}-overview`} department={department} />
             ))}
           </div>

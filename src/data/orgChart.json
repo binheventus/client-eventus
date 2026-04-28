@@ -72,6 +72,17 @@
       ]
     },
     {
+      "id": "equipment",
+      "name": "Equipment Team",
+      "leader": {
+        "name": "Lê Anh Huy",
+        "title": "Equipment",
+        "seniority": "Junior"
+      },
+      "subteams": [],
+      "overviewOnly": true
+    },
+    {
       "id": "account",
       "name": "Account Team",
       "leader": {
