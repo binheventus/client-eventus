@@ -89,6 +89,21 @@ function countMembers(department) {
   return 1 + department.subteams.reduce((total, subteam) => total + subteam.members.length, 0)
 }
 
+function getSeniorityRank(seniority = 'Senior') {
+  if (seniority === 'Senior') return 0
+  if (seniority === 'Junior') return 1
+  if (seniority === 'Intern') return 2
+  return 3
+}
+
+function sortMembersBySeniority(members = []) {
+  return [...members].sort((a, b) => {
+    const rankDiff = getSeniorityRank(a.seniority) - getSeniorityRank(b.seniority)
+    if (rankDiff !== 0) return rankDiff
+    return String(a.name || '').localeCompare(String(b.name || ''), 'vi')
+  })
+}
+
 function DepartmentOverviewCard({ department }) {
   return (
     <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
@@ -151,7 +166,7 @@ function DepartmentCard({ department, compact = false }) {
               </div>
             </div>
             <div className={getMemberGridClass(subteam)}>
-              {subteam.members.map((member, index) => (
+              {sortMembersBySeniority(subteam.members).map((member, index) => (
                 <CompactPersonToken
                   key={`${subteam.id}-${member.name}-${index}`}
                   name={member.name}
@@ -191,9 +206,6 @@ export default function OrgChartPage() {
         </section>
 
         <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
-          <div className="mb-5 text-center">
-            <div className="text-[12px] font-semibold uppercase tracking-[0.18em] text-slate-400">Executive</div>
-          </div>
           <div className="mx-auto max-w-md">
             <PersonToken
               name={orgChart.executive.name}
@@ -204,13 +216,17 @@ export default function OrgChartPage() {
             />
           </div>
 
-          <div className="mt-6 hidden h-12 items-center justify-center md:flex">
-            <div className="h-full w-px bg-slate-200" />
+          <div className="mt-6 hidden px-10 md:block">
+            <div className="mx-auto h-8 w-px bg-slate-200" />
+            <div className="mx-auto h-px w-full bg-slate-200" />
           </div>
 
-          <div className="grid gap-5 xl:grid-cols-2 2xl:grid-cols-5">
+          <div className="grid gap-5 md:grid-cols-2 2xl:grid-cols-5">
             {overviewDepartments.map((department) => (
-              <DepartmentOverviewCard key={`${department.id}-overview`} department={department} />
+              <div key={`${department.id}-overview`} className="relative pt-7">
+                <div className="absolute left-1/2 top-0 h-7 w-px -translate-x-1/2 bg-slate-200" />
+                <DepartmentOverviewCard department={department} />
+              </div>
             ))}
           </div>
         </section>
