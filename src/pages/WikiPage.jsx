@@ -170,6 +170,33 @@ Bây giờ tôi sẽ gửi:
 - Tên bài
 - Nội dung thô`
 
+const CATEGORY_CONFIG_PREFIX = '__menu_config__:'
+
+function getCategoryConfigTitle(categoryId) {
+  return `${CATEGORY_CONFIG_PREFIX}${categoryId}`
+}
+
+function isCategoryConfigRow(page) {
+  return page?.title?.startsWith(CATEGORY_CONFIG_PREFIX)
+}
+
+function parseCategoryConfig(row, fallbackItems = []) {
+  if (!row?.content) return fallbackItems
+
+  try {
+    const parsed = JSON.parse(row.content)
+    if (Array.isArray(parsed?.items)) {
+      return parsed.items
+        .map(item => String(item || '').trim())
+        .filter(Boolean)
+    }
+  } catch {
+    return fallbackItems
+  }
+
+  return fallbackItems
+}
+
 function CategoryCardIcon({ categoryId, stroke = '#334155' }) {
   const common = {
     fill: 'none',
@@ -814,12 +841,18 @@ export default function WikiPage() {
   const [selectedTitle, setSelectedTitle] = useState(null)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
+  const [menuTitleDraft, setMenuTitleDraft] = useState('')
   const [titleDraft, setTitleDraft] = useState('')
   const [bannerDraft, setBannerDraft] = useState('')
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
   const [showPromptGuide, setShowPromptGuide] = useState(false)
   const [copyPromptState, setCopyPromptState] = useState('idle')
+  const [showAddItemModal, setShowAddItemModal] = useState(false)
+  const [newItemTitle, setNewItemTitle] = useState('')
+  const [itemActionError, setItemActionError] = useState('')
+  const [itemActionLoading, setItemActionLoading] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const admin = useAdmin()
 
   useEffect(() => {
@@ -830,22 +863,83 @@ export default function WikiPage() {
   }, [])
 
   const currentCat = CATEGORIES.find(c => c.id === activeCat)
-  const currentPage = pages.find(p => p.category === activeCat && p.title === selectedTitle)
+  const visiblePages = useMemo(() => pages.filter(page => !isCategoryConfigRow(page)), [pages])
+  const categoryConfigRow = pages.find(p => p.category === activeCat && p.title === getCategoryConfigTitle(activeCat))
+  const currentCategoryItems = useMemo(
+    () => parseCategoryConfig(categoryConfigRow, currentCat?.items || []),
+    [categoryConfigRow, currentCat]
+  )
+  const currentPage = visiblePages.find(p => p.category === activeCat && p.title === selectedTitle)
+
+  async function upsertCategoryItems(nextItems) {
+    const cleanItems = nextItems.map(item => String(item || '').trim()).filter(Boolean)
+    const payload = {
+      category: activeCat,
+      title: getCategoryConfigTitle(activeCat),
+      content: JSON.stringify({ items: cleanItems }),
+      updated_at: new Date().toISOString(),
+    }
+
+    if (categoryConfigRow) {
+      const { data: updated } = await supabase
+        .from('wiki_pages')
+        .update({ content: payload.content, updated_at: payload.updated_at })
+        .eq('id', categoryConfigRow.id)
+        .select()
+        .single()
+
+      if (updated) {
+        setPages(prev => prev.map(page => (page.id === updated.id ? updated : page)))
+      }
+    } else {
+      const { data: inserted } = await supabase
+        .from('wiki_pages')
+        .insert(payload)
+        .select()
+        .single()
+
+      if (inserted) {
+        setPages(prev => [...prev, inserted])
+      }
+    }
+  }
 
   async function savePage() {
     setSaving(true)
+    const normalizedMenuTitle = String(menuTitleDraft || '').trim()
+    const oldTitle = selectedTitle
+    const existingTitleTaken = currentCategoryItems.some(
+      item => item.toLowerCase() === normalizedMenuTitle.toLowerCase() && item !== oldTitle
+    )
+
+    if (!normalizedMenuTitle) {
+      setSaving(false)
+      return
+    }
+
+    if (existingTitleTaken) {
+      setSaving(false)
+      setItemActionError('Tên menu con đã tồn tại trong danh mục này.')
+      return
+    }
+
     const storedContent = buildStoredContent(draft, bannerDraft, titleDraft)
+    const nextItems = currentCategoryItems.map(item => (item === oldTitle ? normalizedMenuTitle : item))
+
     if (currentPage) {
       const { data: updated } = await supabase
-        .from('wiki_pages').update({ content: storedContent, updated_at: new Date().toISOString() })
+        .from('wiki_pages').update({ title: normalizedMenuTitle, content: storedContent, updated_at: new Date().toISOString() })
         .eq('id', currentPage.id).select().single()
       if (updated) setPages(prev => prev.map(p => p.id === updated.id ? updated : p))
     } else {
       const { data: inserted } = await supabase
-        .from('wiki_pages').insert({ category: activeCat, title: selectedTitle, content: storedContent })
+        .from('wiki_pages').insert({ category: activeCat, title: normalizedMenuTitle, content: storedContent })
         .select().single()
       if (inserted) setPages(prev => [...prev, inserted])
     }
+    await upsertCategoryItems(nextItems)
+    setSelectedTitle(normalizedMenuTitle)
+    setItemActionError('')
     setSaving(false)
     setEditing(false)
   }
@@ -918,10 +1012,53 @@ export default function WikiPage() {
   }
   function openPage(title) { setSelectedTitle(title); setEditing(false) }
   function startEdit() {
+    setMenuTitleDraft(selectedTitle || '')
     setTitleDraft(extractPageTitle(currentPage?.content || '') || selectedTitle || '')
     setBannerDraft(extractBannerDescription(currentPage?.content || ''))
     setDraft(stripBannerDescription(currentPage?.content || ''))
+    setItemActionError('')
     setEditing(true)
+  }
+
+  async function addMenuItem() {
+    const normalizedTitle = String(newItemTitle || '').trim()
+    const exists = currentCategoryItems.some(item => item.toLowerCase() === normalizedTitle.toLowerCase())
+
+    if (!normalizedTitle) {
+      setItemActionError('Vui lòng nhập tên menu con.')
+      return
+    }
+
+    if (exists) {
+      setItemActionError('Tên menu con này đã tồn tại.')
+      return
+    }
+
+    setItemActionLoading(true)
+    await upsertCategoryItems([...currentCategoryItems, normalizedTitle])
+    setItemActionLoading(false)
+    setItemActionError('')
+    setNewItemTitle('')
+    setShowAddItemModal(false)
+    setSelectedTitle(normalizedTitle)
+    setEditing(false)
+  }
+
+  async function deleteMenuItem() {
+    if (!selectedTitle) return
+    setItemActionLoading(true)
+
+    if (currentPage) {
+      await supabase.from('wiki_pages').delete().eq('id', currentPage.id)
+      setPages(prev => prev.filter(page => page.id !== currentPage.id))
+    }
+
+    await upsertCategoryItems(currentCategoryItems.filter(item => item !== selectedTitle))
+    setItemActionLoading(false)
+    setShowDeleteConfirm(false)
+    setSelectedTitle(null)
+    setEditing(false)
+    setItemActionError('')
   }
 
   async function copyPromptGuide() {
@@ -1057,9 +1194,23 @@ export default function WikiPage() {
           {activeCat !== 'home' && activeCat !== 'khung_nang_luc' && activeCat !== 'review_30_day' && activeCat !== 'org_chart' && !selectedTitle && (
             <div className="flex-1 overflow-y-auto p-6">
               <CategoryBanner cat={currentCat} />
+              {admin.isAdmin && (
+                <div className="mb-4 flex justify-end">
+                  <button
+                    onClick={() => {
+                      setNewItemTitle('')
+                      setItemActionError('')
+                      setShowAddItemModal(true)
+                    }}
+                    className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-[13px] font-semibold text-blue-700 transition hover:bg-blue-100"
+                  >
+                    + Thêm menu con
+                  </button>
+                </div>
+              )}
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {currentCat?.items?.map(title => {
-                  const page = pages.find(p => p.category === activeCat && p.title === title)
+                {currentCategoryItems?.map(title => {
+                  const page = visiblePages.find(p => p.category === activeCat && p.title === title)
                   const cardMeta = CATEGORY_CARD_META[activeCat] || CATEGORY_CARD_META.quy_trinh
                   return (
                     <button
@@ -1115,12 +1266,20 @@ export default function WikiPage() {
                     page={{
                       ...currentPage,
                       editButton: admin.isAdmin ? (
-                        <button
-                          onClick={startEdit}
-                          className="flex flex-shrink-0 items-center gap-1.5 rounded-lg bg-white/12 px-3 py-1.5 text-[12px] font-semibold text-white ring-1 ring-white/15 backdrop-blur transition-colors hover:bg-white/18"
-                        >
-                          ✏️ Chỉnh sửa
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setShowDeleteConfirm(true)}
+                            className="flex flex-shrink-0 items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-[12px] font-semibold text-white ring-1 ring-white/15 backdrop-blur transition-colors hover:bg-white/18"
+                          >
+                            🗑️ Xóa menu
+                          </button>
+                          <button
+                            onClick={startEdit}
+                            className="flex flex-shrink-0 items-center gap-1.5 rounded-lg bg-white/12 px-3 py-1.5 text-[12px] font-semibold text-white ring-1 ring-white/15 backdrop-blur transition-colors hover:bg-white/18"
+                          >
+                            ✏️ Chỉnh sửa
+                          </button>
+                        </div>
                       ) : null,
                     }}
                   />
@@ -1130,12 +1289,20 @@ export default function WikiPage() {
                       Chưa có nội dung.{admin.isAdmin ? ' Tạo nội dung mới cho mục này ngay tại đây.' : ''}
                     </p>
                     {admin.isAdmin && (
-                      <button
-                        onClick={startEdit}
-                        className="mt-5 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-blue-900"
-                      >
-                        ✏️ Chỉnh sửa nội dung
-                      </button>
+                      <div className="mt-5 flex items-center justify-center gap-2">
+                        <button
+                          onClick={() => setShowDeleteConfirm(true)}
+                          className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-[13px] font-semibold text-red-600 transition hover:bg-red-100"
+                        >
+                          🗑️ Xóa menu
+                        </button>
+                        <button
+                          onClick={startEdit}
+                          className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-blue-900"
+                        >
+                          ✏️ Chỉnh sửa nội dung
+                        </button>
+                      </div>
                     )}
                   </div>
                 )}
@@ -1149,6 +1316,12 @@ export default function WikiPage() {
               <div className="flex items-center justify-between mb-3">
                 <div />
                 <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="text-[12px] px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100"
+                  >
+                    Xóa menu
+                  </button>
                   <button
                     onClick={() => setShowPromptGuide(true)}
                     className="text-[12px] px-3 py-1.5 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
@@ -1165,6 +1338,18 @@ export default function WikiPage() {
                   </button>
                 </div>
               </div>
+              {itemActionError && (
+                <p className="mb-3 text-[12px] text-red-500">{itemActionError}</p>
+              )}
+              <label className="mb-3 block">
+                <span className="mb-1.5 block text-[12px] font-semibold text-slate-600">Tên menu con</span>
+                <input
+                  value={menuTitleDraft}
+                  onChange={e => setMenuTitleDraft(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-[13px] leading-relaxed text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                  placeholder="Nhập tên menu con hiển thị ngoài danh sách..."
+                />
+              </label>
               <label className="mb-3 block">
                 <span className="mb-1.5 block text-[12px] font-semibold text-slate-600">Tiêu đề hiển thị của bài</span>
                 <input
@@ -1272,6 +1457,84 @@ export default function WikiPage() {
               <pre className="mt-3 overflow-x-auto rounded-[22px] border border-slate-200 bg-white p-5 text-[12px] leading-6 text-slate-700 shadow-sm whitespace-pre-wrap">
                 {CONTENT_STANDARDIZATION_PROMPT}
               </pre>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAddItemModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-5 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-[26px] border border-slate-200 bg-white shadow-2xl">
+            <div className="border-b border-slate-200 px-6 py-5">
+              <h3 className="text-[18px] font-semibold tracking-tight text-slate-900">Thêm menu con mới</h3>
+              <p className="mt-1 text-[13px] leading-6 text-slate-500">
+                Tạo thêm một mục mới trong danh mục <span className="font-medium text-slate-700">{currentCat?.label}</span>.
+              </p>
+            </div>
+
+            <div className="px-6 py-5">
+              <label className="block">
+                <span className="mb-1.5 block text-[12px] font-semibold text-slate-600">Tên menu con</span>
+                <input
+                  value={newItemTitle}
+                  onChange={e => setNewItemTitle(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-[13px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                  placeholder="Ví dụ: Đội Livestream"
+                  autoFocus
+                />
+              </label>
+              {itemActionError && (
+                <p className="mt-3 text-[12px] text-red-500">{itemActionError}</p>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-6 py-4">
+              <button
+                onClick={() => {
+                  setShowAddItemModal(false)
+                  setItemActionError('')
+                }}
+                className="rounded-lg border border-slate-200 px-4 py-2 text-[13px] font-medium text-slate-500 hover:bg-slate-50"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={addMenuItem}
+                disabled={itemActionLoading}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
+              >
+                {itemActionLoading ? 'Đang tạo...' : 'Tạo menu con'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-5 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-[26px] border border-slate-200 bg-white shadow-2xl">
+            <div className="px-6 py-5">
+              <h3 className="text-[18px] font-semibold tracking-tight text-slate-900">Xóa menu con này?</h3>
+              <p className="mt-2 text-[13px] leading-6 text-slate-500">
+                Mục <span className="font-medium text-slate-700">{selectedTitle}</span> sẽ bị xóa khỏi danh sách menu con.
+                {currentPage ? ' Nội dung của bài này cũng sẽ bị xóa khỏi hệ thống.' : ''}
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-6 py-4">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="rounded-lg border border-slate-200 px-4 py-2 text-[13px] font-medium text-slate-500 hover:bg-slate-50"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={deleteMenuItem}
+                disabled={itemActionLoading}
+                className="rounded-lg bg-red-600 px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-red-700 disabled:opacity-60"
+              >
+                {itemActionLoading ? 'Đang xóa...' : 'Xác nhận xóa'}
+              </button>
             </div>
           </div>
         </div>
