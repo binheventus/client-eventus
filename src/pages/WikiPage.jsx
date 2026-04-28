@@ -727,10 +727,7 @@ function ArticleDocument({ title, category, page }) {
 
           {hasSections ? article.sections.map((section, index) => (
             <section key={section.id || index} id={section.id} className="rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
-              <div className="mb-6 flex items-start gap-4">
-                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-[13px] font-semibold text-blue-700">
-                  {String(index + 1).padStart(2, '0')}
-                </div>
+              <div className="mb-6">
                 <div>
                   <h2 className="text-[17px] font-semibold tracking-tight text-slate-900 md:text-[19px]">{section.title}</h2>
                 </div>
