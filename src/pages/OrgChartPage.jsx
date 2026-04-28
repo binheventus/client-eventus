@@ -23,7 +23,7 @@ function SeniorityBadge({ seniority = 'Senior' }) {
   )
 }
 
-function PersonToken({ name, title, tone = 'default', seniority = 'Senior' }) {
+function PersonToken({ name, title, tone = 'default', seniority = 'Senior', showSeniority = true }) {
   const toneClasses = tone === 'leader'
     ? 'border-blue-200 bg-blue-50'
     : 'border-slate-200 bg-white'
@@ -36,9 +36,11 @@ function PersonToken({ name, title, tone = 'default', seniority = 'Senior' }) {
         </div>
         <div className="min-w-0">
           <div className="break-words text-[14px] font-semibold leading-5 text-slate-900">{name}</div>
-          <div className="mt-1">
-            <SeniorityBadge seniority={seniority} />
-          </div>
+          {showSeniority && (
+            <div className="mt-1">
+              <SeniorityBadge seniority={seniority} />
+            </div>
+          )}
           {title && <div className="mt-1 text-[12px] leading-5 text-slate-500">{title}</div>}
         </div>
       </div>
@@ -46,19 +48,21 @@ function PersonToken({ name, title, tone = 'default', seniority = 'Senior' }) {
   )
 }
 
-function CompactPersonToken({ name, title, seniority = 'Senior' }) {
+function CompactPersonToken({ name, title, seniority = 'Senior', showSeniority = true, narrow = false }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
       <div className="flex items-center gap-2.5">
-        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-slate-900 via-blue-900 to-teal-700 text-[10px] font-semibold text-white">
+        <div className={`flex ${narrow ? 'h-7 w-7 text-[9px]' : 'h-8 w-8 text-[10px]'} flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-slate-900 via-blue-900 to-teal-700 font-semibold text-white`}>
           {getInitials(name)}
         </div>
         <div className="min-w-0">
-          <div className="text-[12px] font-semibold leading-5 text-slate-900">{name}</div>
-          <div className="mt-1">
-            <SeniorityBadge seniority={seniority} />
-          </div>
-          {title && <div className="mt-0.5 text-[10px] leading-4 text-slate-500">{title}</div>}
+          <div className={`${narrow ? 'text-[11px] leading-4' : 'text-[12px] leading-5'} text-slate-900 font-semibold`}>{name}</div>
+          {showSeniority && (
+            <div className="mt-1">
+              <SeniorityBadge seniority={seniority} />
+            </div>
+          )}
+          {title && <div className={`${narrow ? 'text-[9px]' : 'text-[10px]'} mt-0.5 leading-4 text-slate-500`}>{title}</div>}
         </div>
       </div>
     </div>
@@ -90,9 +94,6 @@ function DepartmentOverviewCard({ department }) {
       <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
         <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-blue-500">Lead</div>
         <div className="mt-1 text-[15px] font-semibold text-slate-900">{department.leader.name}</div>
-        <div className="mt-1">
-          <SeniorityBadge seniority={department.leader.seniority || 'Senior'} />
-        </div>
         <div className="mt-1 text-[12px] text-slate-500">{department.leader.title}</div>
       </div>
       {!shouldShowMembersInline && (
@@ -124,6 +125,7 @@ function DepartmentOverviewCard({ department }) {
                 name={member.name}
                 title={member.title}
                 seniority={member.seniority}
+                showSeniority={false}
               />
             ))}
         </div>
@@ -134,7 +136,7 @@ function DepartmentOverviewCard({ department }) {
 
 function DepartmentCard({ department, compact = false }) {
   const getMemberGridClass = (subteam) => {
-    const isWideSingleColumn = ['camera-operator', 'flycam-operator', 'account-members', 'accountant-members'].includes(subteam.id)
+    const isWideSingleColumn = ['flycam-operator', 'account-members'].includes(subteam.id)
     if (isWideSingleColumn) return 'grid gap-2'
     if (compact) return 'grid gap-2 sm:grid-cols-2 xl:grid-cols-2'
     return 'grid gap-3 sm:grid-cols-2 xl:grid-cols-3'
@@ -188,6 +190,7 @@ function DepartmentCard({ department, compact = false }) {
                   name={member.name}
                   title={member.title}
                   seniority={member.seniority}
+                  narrow={['flycam-operator', 'account-members'].includes(subteam.id)}
                 />
               ))}
             </div>

@@ -20,11 +20,11 @@
           "members": [
             { "name": "Phạm Văn Huấn", "seniority": "Senior" },
             { "name": "Lê Văn Hà", "seniority": "Senior" },
-            { "name": "Lê Anh Duy", "seniority": "Senior" },
+            { "name": "Lê Anh Duy", "seniority": "Junior" },
             { "name": "Vũ Quang Minh", "seniority": "Senior" },
-            { "name": "Đặng Hoàng Kỳ Anh", "seniority": "Senior" },
+            { "name": "Đặng Hoàng Kỳ Anh", "seniority": "Junior" },
             { "name": "Đàm Trọng Huy", "seniority": "Senior" },
-            { "name": "Phan Minh Hoàng", "seniority": "Senior" }
+            { "name": "Phan Minh Hoàng", "seniority": "Junior" }
           ]
         },
         {
@@ -34,9 +34,9 @@
             { "name": "Phạm Bảo Đại", "seniority": "Senior" },
             { "name": "Hoàng Anh Cường", "seniority": "Senior" },
             { "name": "Hoàng Quốc Huy", "seniority": "Senior" },
-            { "name": "Nguyễn Đức Quang", "seniority": "Senior" },
+            { "name": "Nguyễn Đức Quang", "seniority": "Junior" },
             { "name": "Dương Thanh Tuyến", "seniority": "Senior" },
-            { "name": "Lê Anh Huy", "seniority": "Senior" }
+            { "name": "Lê Anh Huy", "seniority": "Junior" }
           ]
         },
         {
@@ -102,9 +102,9 @@
           "id": "accountant-members",
           "name": "Team Members",
           "members": [
-            { "name": "Nguyễn Yến Phương", "title": "Accountant", "seniority": "Senior" },
-            { "name": "Phạm Kim Anh", "title": "Intern Accountant", "seniority": "Senior" },
-            { "name": "Nhữ Ngọc Linh", "title": "Intern Accountant", "seniority": "Senior" }
+            { "name": "Nguyễn Yến Phương", "title": "Accountant", "seniority": "Junior" },
+            { "name": "Phạm Kim Anh", "title": "Intern Accountant", "seniority": "Intern" },
+            { "name": "Nhữ Ngọc Linh", "title": "Intern Accountant", "seniority": "Intern" }
           ]
         }
       ]
