@@ -695,14 +695,10 @@ function ArticleDocument({ title, category, page }) {
 
   return (
     <div className="px-6 pb-6 lg:px-8">
-      <div className="mx-auto max-w-6xl space-y-6">
+        <div className="mx-auto max-w-6xl space-y-6">
           <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
             <div className="bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 px-6 py-5 text-white md:px-8 md:py-6">
-              <div className="mb-3 flex items-start justify-between gap-4">
-                <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-100">
-                  <span>{category?.icon}</span>
-                  <span>{category?.label}</span>
-                </div>
+              <div className="mb-3 flex items-start justify-end gap-4">
                 {editButton}
               </div>
               <h1 className="max-w-5xl text-[28px] font-semibold tracking-tight md:text-[34px]">{article.title}</h1>
@@ -736,7 +732,7 @@ function ArticleDocument({ title, category, page }) {
                   {String(index + 1).padStart(2, '0')}
                 </div>
                 <div>
-                  <h2 className="text-2xl font-semibold tracking-tight text-slate-900">{section.title}</h2>
+                  <h2 className="text-[22px] font-semibold tracking-tight text-slate-900 md:text-[24px]">{section.title}</h2>
                 </div>
               </div>
 
@@ -750,7 +746,7 @@ function ArticleDocument({ title, category, page }) {
                 <div className="mt-8 space-y-5">
                   {section.subsections.map((subsection, idx) => (
                     <div key={subsection.id || idx} id={subsection.id} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-5">
-                      <h3 className="mb-4 text-lg font-semibold text-slate-900">{subsection.title}</h3>
+                      <h3 className="mb-4 text-[17px] font-semibold text-slate-900 md:text-[18px]">{subsection.title}</h3>
                       <div className="space-y-4">
                         {subsection.blocks.map((block, blockIdx) => (
                           <ContentBlock key={blockIdx} block={block} />
@@ -1231,10 +1227,7 @@ export default function WikiPage() {
             <div className="border-b border-slate-200 bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 px-6 py-5 text-white">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-100/90">
-                    Hướng dẫn nội bộ
-                  </p>
-                  <h3 className="mt-1 text-[22px] font-semibold tracking-tight">
+                  <h3 className="text-[22px] font-semibold tracking-tight">
                     Hướng dẫn chuẩn hóa cấu trúc nội dung
                   </h3>
                   <p className="mt-2 text-[13px] leading-6 text-blue-100/90">
@@ -1257,9 +1250,9 @@ export default function WikiPage() {
                 </p>
                 <div className="mt-3 space-y-2 text-[13px] leading-6 text-slate-600">
                   <p>1. Bấm nút copy ở dưới để sao chép prompt mẫu.</p>
-                  <p>2. Dán prompt vào ChatGPT của nhân viên.</p>
+                  <p>2. Dán prompt dưới đây vào ChatGPT của bạn.</p>
                   <p>3. Gửi tiếp theo mẫu: <span className="font-medium text-slate-800">Tên bài:</span> ... và <span className="font-medium text-slate-800">Nội dung thô:</span> ...</p>
-                  <p>4. Paste kết quả đã chuẩn hóa vào wiki editor.</p>
+                  <p>4. Paste kết quả đã được ChatGPT chuẩn hóa.</p>
                 </div>
               </div>
 
