@@ -393,33 +393,60 @@ function parseInline(text) {
 }
 
 const BANNER_DESC_MARKER = '<!-- banner-desc:'
+const PAGE_TITLE_MARKER = '<!-- page-title:'
+
+function extractMarkedValue(rawText = '', marker = '') {
+  const text = String(rawText || '').trimStart()
+  if (!text.startsWith(marker)) return ''
+  const endIndex = text.indexOf('-->')
+  if (endIndex === -1) return ''
+  return text.slice(marker.length, endIndex).trim()
+}
 
 function extractBannerDescription(rawText = '') {
   const text = String(rawText || '').trimStart()
-  if (!text.startsWith(BANNER_DESC_MARKER)) return ''
-  const endIndex = text.indexOf('-->')
-  if (endIndex === -1) return ''
-  return text.slice(BANNER_DESC_MARKER.length, endIndex).trim()
+  if (text.startsWith(PAGE_TITLE_MARKER)) {
+    const endIndex = text.indexOf('-->')
+    if (endIndex === -1) return ''
+    return extractMarkedValue(text.slice(endIndex + 3), BANNER_DESC_MARKER)
+  }
+  return extractMarkedValue(text, BANNER_DESC_MARKER)
+}
+
+function extractPageTitle(rawText = '') {
+  return extractMarkedValue(rawText, PAGE_TITLE_MARKER)
 }
 
 function stripBannerDescription(rawText = '') {
   const text = String(rawText || '')
   const trimmed = text.trimStart()
-  if (!trimmed.startsWith(BANNER_DESC_MARKER)) return text
-  const endIndex = trimmed.indexOf('-->')
-  if (endIndex === -1) return text
-  return trimmed.slice(endIndex + 3).replace(/^\s+/, '')
+  let output = trimmed
+
+  if (output.startsWith(PAGE_TITLE_MARKER)) {
+    const titleEndIndex = output.indexOf('-->')
+    if (titleEndIndex !== -1) output = output.slice(titleEndIndex + 3).replace(/^\s+/, '')
+  }
+
+  if (!output.startsWith(BANNER_DESC_MARKER)) return output
+  const endIndex = output.indexOf('-->')
+  if (endIndex === -1) return output
+  return output.slice(endIndex + 3).replace(/^\s+/, '')
 }
 
-function buildStoredContent(content = '', bannerDescription = '') {
+function buildStoredContent(content = '', bannerDescription = '', pageTitle = '') {
   const normalizedContent = stripBannerDescription(content).trim()
   const normalizedBanner = String(bannerDescription || '').trim()
+  const normalizedTitle = String(pageTitle || '').trim()
+  const metaLines = []
 
-  if (!normalizedBanner) return normalizedContent
-  return `${BANNER_DESC_MARKER} ${normalizedBanner} -->\n\n${normalizedContent}`.trim()
+  if (normalizedTitle) metaLines.push(`${PAGE_TITLE_MARKER} ${normalizedTitle} -->`)
+  if (normalizedBanner) metaLines.push(`${BANNER_DESC_MARKER} ${normalizedBanner} -->`)
+  if (!metaLines.length) return normalizedContent
+  return `${metaLines.join('\n')}\n\n${normalizedContent}`.trim()
 }
 
 function parseArticle(rawText, fallbackTitle) {
+  const pageTitle = extractPageTitle(rawText)
   const bannerDescription = extractBannerDescription(rawText)
   const lines = stripBannerDescription(rawText)
     .replace(/\r\n/g, '\n')
@@ -540,7 +567,7 @@ function parseArticle(rawText, fallbackTitle) {
   }
 
   return {
-    title: title || fallbackTitle,
+    title: pageTitle || title || fallbackTitle,
     bannerDescription,
     lead,
     sections,
@@ -623,8 +650,8 @@ function ArticleDocument({ title, category, page }) {
                 </div>
                 {editButton}
               </div>
-              <h1 className="max-w-4xl text-[28px] font-semibold tracking-tight md:text-[34px]">{article.title}</h1>
-              <p className="mt-2 max-w-3xl text-[14px] leading-6 text-blue-100/90">
+              <h1 className="max-w-5xl text-[28px] font-semibold tracking-tight md:text-[34px]">{article.title}</h1>
+              <p className="mt-2 max-w-none text-[14px] leading-6 text-blue-100/90">
                 {parseInline(bannerDescription)}
               </p>
               {updatedLabel && (
@@ -739,6 +766,7 @@ export default function WikiPage() {
   const [selectedTitle, setSelectedTitle] = useState(null)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
+  const [titleDraft, setTitleDraft] = useState('')
   const [bannerDraft, setBannerDraft] = useState('')
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -756,7 +784,7 @@ export default function WikiPage() {
 
   async function savePage() {
     setSaving(true)
-    const storedContent = buildStoredContent(draft, bannerDraft)
+    const storedContent = buildStoredContent(draft, bannerDraft, titleDraft)
     if (currentPage) {
       const { data: updated } = await supabase
         .from('wiki_pages').update({ content: storedContent, updated_at: new Date().toISOString() })
@@ -840,6 +868,7 @@ export default function WikiPage() {
   }
   function openPage(title) { setSelectedTitle(title); setEditing(false) }
   function startEdit() {
+    setTitleDraft(extractPageTitle(currentPage?.content || '') || selectedTitle || '')
     setBannerDraft(extractBannerDescription(currentPage?.content || ''))
     setDraft(stripBannerDescription(currentPage?.content || ''))
     setEditing(true)
@@ -1072,6 +1101,15 @@ export default function WikiPage() {
               <p className="text-[11px] text-slate-400 mb-2">
                 Hỗ trợ cả nội dung text thường lẫn Markdown cơ bản. Nếu có `#`, `##`, `-`, `1.` thì giao diện sẽ lên đẹp và ổn định hơn.
               </p>
+              <label className="mb-3 block">
+                <span className="mb-1.5 block text-[12px] font-semibold text-slate-600">Tiêu đề hiển thị của bài</span>
+                <input
+                  value={titleDraft}
+                  onChange={e => setTitleDraft(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-[13px] leading-relaxed text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                  placeholder="Nhập tiêu đề hiển thị..."
+                />
+              </label>
               <label className="mb-3 block">
                 <span className="mb-1.5 block text-[12px] font-semibold text-slate-600">Mô tả mở đầu trên banner</span>
                 <textarea
