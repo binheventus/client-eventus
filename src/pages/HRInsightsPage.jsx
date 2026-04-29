@@ -457,45 +457,42 @@ export default function HRInsightsPage() {
         </div>
 
         <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="grid gap-5 xl:grid-cols-[minmax(280px,0.9fr)_minmax(520px,1.1fr)] xl:items-start">
-            <div className="flex items-start gap-4">
-              <div className={`flex h-20 w-20 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br ${selectedEmployee.avatarBg} text-[22px] font-semibold text-slate-700 ring-1 ring-slate-200`}>
-                {selectedEmployee.initials}
-              </div>
-
-              <div className="min-w-0 pt-1">
-                <h1 className="text-[26px] font-semibold leading-tight tracking-tight text-slate-950">
-                  {selectedEmployee.name}
-                </h1>
-                <p className="mt-1 text-[14px] text-slate-500">{selectedEmployee.role}</p>
-                <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-[13px] text-slate-600">
-                  <span className="inline-flex items-center gap-2">
-                    <span className="text-slate-400">▦</span>
-                    Ngày sinh: {formatDate(selectedEmployee.birthday)}
-                  </span>
-                  <span className="inline-flex items-center gap-2">
-                    <span className="text-slate-400">⌁</span>
-                    Nhân viên từ: {formatDate(selectedEmployee.joinedAt)}
-                  </span>
-                </div>
-              </div>
+          <div className="flex items-start gap-4">
+            <div className={`flex h-20 w-20 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br ${selectedEmployee.avatarBg} text-[22px] font-semibold text-slate-700 ring-1 ring-slate-200`}>
+              {selectedEmployee.initials}
             </div>
 
-            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-              {meta.map(item => (
-                <div key={item.label} className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 shadow-sm">
-                  <div className="flex items-center gap-2.5">
-                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-blue-50 text-[15px] text-blue-700">
-                      {item.icon}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[11px] text-slate-500">{item.label}</p>
-                      <p className="mt-0.5 truncate text-[12px] font-semibold text-blue-700">{item.value}</p>
-                    </div>
+            <div className="min-w-0 pt-1">
+              <h1 className="text-[26px] font-semibold leading-tight tracking-tight text-slate-950">
+                {selectedEmployee.name}
+              </h1>
+              <div className="mt-2 flex flex-wrap gap-x-6 gap-y-2 text-[13px] text-slate-600">
+                <span className="inline-flex items-center gap-2">
+                  <span className="text-slate-400">▦</span>
+                  Ngày sinh: {formatDate(selectedEmployee.birthday)}
+                </span>
+                <span className="inline-flex items-center gap-2">
+                  <span className="text-slate-400">⌁</span>
+                  Nhân viên từ: {formatDate(selectedEmployee.joinedAt)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {meta.map(item => (
+              <div key={item.label} className="rounded-lg border border-slate-200 bg-white px-4 py-3.5 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-blue-50 text-[18px] text-blue-700">
+                    {item.icon}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[12px] text-slate-500">{item.label}</p>
+                    <p className="mt-1 text-[14px] font-semibold leading-5 text-blue-700">{item.value}</p>
                   </div>
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
           </div>
         </section>
 
@@ -653,10 +650,6 @@ export default function HRInsightsPage() {
                           </ul>
                         )}
 
-                        <div className="mt-4 flex items-center gap-2 text-[12px] text-slate-500">
-                          <span>♙</span>
-                          <span>{note.author}</span>
-                        </div>
                       </article>
                     ))}
                   </div>
@@ -671,17 +664,14 @@ export default function HRInsightsPage() {
                   value={editingValue}
                   onChange={setEditingValue}
                   onDone={savePanel}
+                  rows={8}
                   saving={saving}
                 />
               ) : (
-                <div className="flex flex-wrap gap-2">
-                  {(insight.rememberTags || []).map(tag => (
-                    <span key={tag} className="max-w-full break-words rounded-md bg-blue-50 px-2.5 py-1.5 text-[12px] font-medium leading-5 text-blue-700 ring-1 ring-blue-100">
-                      {tag}
-                    </span>
-                  ))}
-                  {!insight.rememberTags?.length && <span className="text-[13px] text-slate-500">Chưa có điểm cần nhớ.</span>}
-                </div>
+                <ul className="space-y-2 pl-4 text-[13px] leading-6 text-slate-700">
+                  {(insight.rememberTags || []).map(tag => <li key={tag} className="list-disc break-words">{tag}</li>)}
+                  {!insight.rememberTags?.length && <li className="list-none text-slate-500">Chưa có điểm cần nhớ.</li>}
+                </ul>
               )}
             </Panel>
 
@@ -691,6 +681,7 @@ export default function HRInsightsPage() {
                   value={editingValue}
                   onChange={setEditingValue}
                   onDone={savePanel}
+                  rows={8}
                   saving={saving}
                 />
               ) : (
