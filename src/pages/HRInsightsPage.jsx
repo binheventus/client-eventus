@@ -24,6 +24,10 @@ const demoEmployees = [
     analysis: 'Chủ động, cầu tiến, chịu áp lực tốt',
     motivateAction: 'Ghi nhận thành tích trước team (21/05)',
     developAction: 'Tham gia khóa leadership (15/06)',
+    rememberSummary: 'Thích thử thách, mục tiêu cao, Muốn phát triển kỹ năng leadership',
+    goalsSummary: 'Phát triển kỹ năng leadership, có cơ hội dẫn dắt team., Học thêm về chiến lược bán hàng & đàm phán.',
+    latestNoteSummary: 'Cảm thấy gần đây workload khá cao, nhiều việc dồn lại cùng lúc., Muốn được học thêm về chiến lược bán hàng & kỹ năng đàm phán.',
+    latestOneOnOneDate: '2024-05-21',
     updatedAt: '2024-05-18',
   },
   {
@@ -40,6 +44,10 @@ const demoEmployees = [
     analysis: 'Tư duy logic tốt, ít chia sẻ ý kiến',
     motivateAction: '1:1 meeting, feedback (20/05)',
     developAction: 'Đào tạo kỹ năng communication (10/06)',
+    rememberSummary: 'Công nghệ, tối ưu quy trình',
+    goalsSummary: 'Cải thiện communication, chia sẻ ý kiến thường xuyên hơn',
+    latestNoteSummary: '1:1 meeting, feedback',
+    latestOneOnOneDate: '2024-05-20',
     updatedAt: '2024-05-17',
   },
   {
@@ -56,6 +64,10 @@ const demoEmployees = [
     analysis: 'Tỉ mỉ, chu đáo, đôi khi quá cầu toàn',
     motivateAction: 'Thư cảm ơn cá nhân (22/05)',
     developAction: 'Khóa time management (12/06)',
+    rememberSummary: 'Môi trường làm việc tích cực',
+    goalsSummary: 'Giảm cầu toàn, tối ưu quản lý thời gian',
+    latestNoteSummary: 'Thư cảm ơn cá nhân',
+    latestOneOnOneDate: '2024-05-22',
     updatedAt: '2024-05-16',
   },
   {
@@ -72,6 +84,10 @@ const demoEmployees = [
     analysis: 'Sáng tạo, nhanh nhạy, đôi khi thiếu kiên nhẫn',
     motivateAction: 'Chia sẻ feedback khách hàng (19/05)',
     developAction: 'Mentor 1:1 với PO senior (08/06)',
+    rememberSummary: 'Sản phẩm, người dùng, đổi mới',
+    goalsSummary: 'Phát triển tư duy sản phẩm và năng lực phối hợp',
+    latestNoteSummary: 'Chia sẻ feedback khách hàng',
+    latestOneOnOneDate: '2024-05-19',
     updatedAt: '2024-05-15',
   },
   {
@@ -88,6 +104,10 @@ const demoEmployees = [
     analysis: 'Năng động, giao tiếp tốt, cần định hướng rõ hơn',
     motivateAction: 'Khen trong meeting (18/05)',
     developAction: 'Khóa brand strategy (05/06)',
+    rememberSummary: 'Thương hiệu, chiến lược marketing',
+    goalsSummary: 'Cần định hướng rõ hơn về chiến lược thương hiệu',
+    latestNoteSummary: 'Khen trong meeting',
+    latestOneOnOneDate: '2024-05-18',
     updatedAt: '2024-05-14',
   },
 ]
@@ -705,7 +725,7 @@ function EmployeeList({ employees, loading, error, onSelectEmployee }) {
     const keyword = query.trim().toLowerCase()
     if (!keyword) return employees
     return employees.filter(item =>
-      [item.name, item.role, item.interests, item.analysis]
+      [item.name, item.role, item.rememberSummary, item.goalsSummary, item.latestNoteSummary]
         .filter(Boolean)
         .some(value => String(value).toLowerCase().includes(keyword))
     )
@@ -717,10 +737,10 @@ function EmployeeList({ employees, loading, error, onSelectEmployee }) {
         <header className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
             <h1 className="text-[28px] font-semibold tracking-tight text-slate-950">
-              Hiểu nhân viên
+              HR Insights
             </h1>
             <p className="mt-2 text-[14px] leading-6 text-slate-600">
-              Danh sách nhân viên và các thông tin hiểu nhân viên
+              Nơi chuyển hóa dữ liệu nhân sự thành hiểu biết có giá trị
             </p>
             {error && <p className="mt-2 text-[12px] text-orange-700">{error}</p>}
           </div>
@@ -742,27 +762,26 @@ function EmployeeList({ employees, loading, error, onSelectEmployee }) {
           </div>
         </header>
 
-        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="hidden grid-cols-[70px_minmax(220px,1.2fr)_1.1fr_1.2fr_1.2fr_1.2fr_120px_44px] border-b border-slate-200 px-6 py-5 text-[13px] font-semibold text-slate-700 lg:grid">
+        <section className="flex min-h-[calc(100vh-190px)] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="hidden grid-cols-[70px_minmax(220px,1.2fr)_1.2fr_1.25fr_1.2fr_130px_44px] border-b border-slate-200 px-6 py-5 text-[13px] font-semibold text-slate-700 lg:grid">
             <div>STT</div>
             <div>Tên nhân viên</div>
-            <div>Mối quan tâm</div>
-            <div>Phân tích nhân viên</div>
-            <div className="text-center">Hành động để động viên<br />(ngày)</div>
-            <div className="text-center">Hành động để phát triển<br />(ngày)</div>
-            <div>Cập nhật cuối</div>
+            <div>Điểm cần nhớ</div>
+            <div>Mong muốn & mục tiêu</div>
+            <div>Ghi chú 1-1 gần nhất</div>
+            <div>Lần 1:1 gần nhất</div>
             <div />
           </div>
 
           {loading ? (
             <div className="px-6 py-10 text-center text-[14px] text-slate-500">Đang tải danh sách nhân viên...</div>
           ) : (
-            <div className="divide-y divide-slate-200">
+            <div className="flex-1 divide-y divide-slate-200">
               {filteredEmployees.map((item, index) => (
                 <button
                   key={item.id}
                   onClick={() => onSelectEmployee(item.id)}
-                  className="grid w-full gap-4 px-6 py-5 text-left transition hover:bg-slate-50 lg:grid-cols-[70px_minmax(220px,1.2fr)_1.1fr_1.2fr_1.2fr_1.2fr_120px_44px] lg:items-center"
+                  className="grid min-h-[112px] w-full gap-4 px-6 py-5 text-left transition hover:bg-slate-50 lg:grid-cols-[70px_minmax(220px,1.2fr)_1.2fr_1.25fr_1.2fr_130px_44px] lg:items-center"
                 >
                   <div className="hidden text-[14px] text-slate-800 lg:block">{index + 1}</div>
 
@@ -779,11 +798,10 @@ function EmployeeList({ employees, loading, error, onSelectEmployee }) {
                     </div>
                   </div>
 
-                  <TableCell label="Mối quan tâm" value={item.interests} />
-                  <TableCell label="Phân tích nhân viên" value={item.analysis} />
-                  <TableCell label="Hành động để động viên" value={item.motivateAction} />
-                  <TableCell label="Hành động để phát triển" value={item.developAction} />
-                  <TableCell label="Cập nhật cuối" value={formatDate(item.updatedAt)} />
+                  <TableCell label="Điểm cần nhớ" value={item.rememberSummary || item.interests} />
+                  <TableCell label="Mong muốn & mục tiêu" value={item.goalsSummary || item.analysis} />
+                  <TableCell label="Ghi chú 1-1 gần nhất" value={item.latestNoteSummary} />
+                  <TableCell label="Lần 1:1 gần nhất" value={formatDate(item.latestOneOnOneDate)} />
 
                   <div className="hidden justify-self-end text-[20px] leading-none text-slate-900 lg:block">...</div>
                 </button>

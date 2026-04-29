@@ -21,6 +21,13 @@ function normalizeEmployee(row) {
   }
 }
 
+function summarizeList(items = [], fallback = '') {
+  const cleanItems = Array.isArray(items)
+    ? items.map(item => String(item || '').trim()).filter(Boolean)
+    : []
+  return cleanItems.slice(0, 2).join(', ') || fallback
+}
+
 function normalizeInsight(row) {
   return {
     rememberTags: Array.isArray(row?.remember_tags) ? row.remember_tags : [],
@@ -52,13 +59,48 @@ export function getInitials(name = '') {
 export async function fetchHrEmployees() {
   if (!canUseHrInsightsBackend) return []
 
-  const { data, error } = await supabase
+  const { data: employeeRows, error } = await supabase
     .from('hr_employees')
     .select('*')
     .order('updated_at', { ascending: false })
 
   if (error) throw error
-  return (data || []).map(normalizeEmployee)
+  const employees = (employeeRows || []).map(normalizeEmployee)
+  const employeeIds = employees.map(item => item.id)
+  if (!employeeIds.length) return employees
+
+  const [{ data: insightRows, error: insightError }, { data: noteRows, error: noteError }] = await Promise.all([
+    supabase
+      .from('hr_employee_insights')
+      .select('employee_id, remember_tags, goals')
+      .in('employee_id', employeeIds),
+    supabase
+      .from('hr_employee_notes')
+      .select('employee_id, note_date, note_type, points')
+      .in('employee_id', employeeIds)
+      .order('note_date', { ascending: false }),
+  ])
+
+  if (insightError) throw insightError
+  if (noteError) throw noteError
+
+  const insightByEmployee = new Map((insightRows || []).map(row => [row.employee_id, row]))
+  const latestNoteByEmployee = new Map()
+  ;(noteRows || []).forEach(row => {
+    if (!latestNoteByEmployee.has(row.employee_id)) latestNoteByEmployee.set(row.employee_id, row)
+  })
+
+  return employees.map(employee => {
+    const insight = insightByEmployee.get(employee.id)
+    const latestNote = latestNoteByEmployee.get(employee.id)
+    return {
+      ...employee,
+      rememberSummary: summarizeList(insight?.remember_tags, employee.interests),
+      goalsSummary: summarizeList(insight?.goals, employee.analysis),
+      latestNoteSummary: summarizeList(latestNote?.points),
+      latestOneOnOneDate: latestNote?.note_date || null,
+    }
+  })
 }
 
 export async function fetchHrEmployeeDetail(employeeId) {
