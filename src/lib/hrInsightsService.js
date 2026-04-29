@@ -100,6 +100,36 @@ export async function addHrEmployeeNote(employeeId, note) {
   return normalizeNote(data)
 }
 
+export async function updateHrEmployeeNote(noteId, note) {
+  if (!canUseHrInsightsBackend || !noteId) return null
+
+  const { data, error } = await supabase
+    .from('hr_employee_notes')
+    .update({
+      note_date: note.date,
+      note_type: note.type,
+      points: note.points,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', noteId)
+    .select()
+    .single()
+
+  if (error) throw error
+  return normalizeNote(data)
+}
+
+export async function deleteHrEmployeeNote(noteId) {
+  if (!canUseHrInsightsBackend || !noteId) return
+
+  const { error } = await supabase
+    .from('hr_employee_notes')
+    .delete()
+    .eq('id', noteId)
+
+  if (error) throw error
+}
+
 export async function saveHrEmployeeInsight(employeeId, insight) {
   if (!canUseHrInsightsBackend || !employeeId) return null
 

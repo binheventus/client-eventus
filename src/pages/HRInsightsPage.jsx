@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   addHrEmployeeNote,
   canUseHrInsightsBackend,
+  deleteHrEmployeeNote,
   fetchHrEmployeeDetail,
   fetchHrEmployees,
   saveHrEmployeeInsight,
+  updateHrEmployeeNote,
 } from '../lib/hrInsightsService'
 
 const demoEmployees = [
@@ -143,8 +145,6 @@ const demoNotes = [
   },
 ]
 
-const tabs = ['Ghi chú', 'Tổng quan', 'Lịch sử']
-
 function formatDate(value) {
   if (!value) return 'Chưa cập nhật'
   const date = new Date(value)
@@ -209,7 +209,7 @@ function EditableTextarea({ value, onChange, onDone, rows = 4, saving = false })
         value={value}
         onChange={(event) => onChange(event.target.value)}
         rows={rows}
-        className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[13px] leading-6 text-slate-700 outline-none transition focus:border-blue-300 focus:bg-white focus:ring-2 focus:ring-blue-100"
+        className="min-h-[120px] w-full resize-y rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[13px] leading-6 text-slate-700 outline-none transition focus:border-blue-300 focus:bg-white focus:ring-2 focus:ring-blue-100"
       />
       <button
         onClick={onDone}
@@ -225,7 +225,6 @@ function EditableTextarea({ value, onChange, onDone, rows = 4, saving = false })
 export default function HRInsightsPage() {
   const [employees, setEmployees] = useState(demoEmployees)
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(null)
-  const [activeTab, setActiveTab] = useState('Ghi chú')
   const [notes, setNotes] = useState(demoNotes)
   const [insight, setInsight] = useState(demoInsight)
   const [editingPanel, setEditingPanel] = useState(null)
@@ -237,6 +236,10 @@ export default function HRInsightsPage() {
   const [showNoteForm, setShowNoteForm] = useState(false)
   const [noteDate, setNoteDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [noteContent, setNoteContent] = useState('')
+  const [noteMenuId, setNoteMenuId] = useState(null)
+  const [editingNoteId, setEditingNoteId] = useState(null)
+  const [editingNoteDate, setEditingNoteDate] = useState('')
+  const [editingNoteContent, setEditingNoteContent] = useState('')
 
   useEffect(() => {
     if (!canUseHrInsightsBackend) return
@@ -363,6 +366,58 @@ export default function HRInsightsPage() {
     }
   }
 
+  function startEditNote(note) {
+    setNoteMenuId(null)
+    setEditingNoteId(note.id)
+    setEditingNoteDate(note.date ? new Date(note.date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10))
+    setEditingNoteContent(listToText(note.points))
+  }
+
+  async function saveEditedNote(note) {
+    const points = textToList(editingNoteContent)
+    if (!editingNoteDate || !points.length) {
+      setError('Vui lòng nhập ngày 1-1 và nội dung ghi chú.')
+      return
+    }
+
+    const nextNote = {
+      ...note,
+      date: editingNoteDate,
+      points,
+    }
+
+    setNotes(prev => prev.map(item => (item.id === note.id ? nextNote : item)))
+    setEditingNoteId(null)
+    setEditingNoteDate('')
+    setEditingNoteContent('')
+    setError('')
+
+    try {
+      if (canUseHrInsightsBackend && !String(note.id).startsWith('demo-') && !String(note.id).startsWith('draft-')) {
+        const saved = await updateHrEmployeeNote(note.id, nextNote)
+        if (saved) setNotes(prev => prev.map(item => (item.id === note.id ? saved : item)))
+      }
+    } catch {
+      setError('Chưa lưu được thay đổi ghi chú lên Supabase.')
+    }
+  }
+
+  async function deleteNote(note) {
+    setNoteMenuId(null)
+    const confirmed = window.confirm('Bạn có chắc muốn xóa ghi chú này không?')
+    if (!confirmed) return
+
+    setNotes(prev => prev.filter(item => item.id !== note.id))
+
+    try {
+      if (canUseHrInsightsBackend && !String(note.id).startsWith('demo-') && !String(note.id).startsWith('draft-')) {
+        await deleteHrEmployeeNote(note.id)
+      }
+    } catch {
+      setError('Chưa xóa được ghi chú trên Supabase.')
+    }
+  }
+
   if (!selectedEmployeeId) {
     return (
       <EmployeeList
@@ -371,7 +426,6 @@ export default function HRInsightsPage() {
         error={error}
         onSelectEmployee={(id) => {
           setSelectedEmployeeId(id)
-          setActiveTab('Ghi chú')
           setError('')
         }}
       />
@@ -397,20 +451,20 @@ export default function HRInsightsPage() {
               Hiểu nhân viên
             </button>
             <span>›</span>
-            <span>Chi tiết nhân viên</span>
+            <span>{selectedEmployee.name}</span>
           </div>
           {error && <span className="rounded-full bg-orange-50 px-3 py-1 text-[12px] text-orange-700 ring-1 ring-orange-100">{error}</span>}
         </div>
 
-        <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
-            <div className="flex items-start gap-5">
-              <div className={`flex h-24 w-24 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br ${selectedEmployee.avatarBg} text-[24px] font-semibold text-slate-700 ring-1 ring-slate-200`}>
+        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="grid gap-5 xl:grid-cols-[minmax(280px,0.9fr)_minmax(520px,1.1fr)] xl:items-start">
+            <div className="flex items-start gap-4">
+              <div className={`flex h-20 w-20 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br ${selectedEmployee.avatarBg} text-[22px] font-semibold text-slate-700 ring-1 ring-slate-200`}>
                 {selectedEmployee.initials}
               </div>
 
-              <div className="min-w-0 pt-2">
-                <h1 className="text-[28px] font-semibold leading-tight tracking-tight text-slate-950">
+              <div className="min-w-0 pt-1">
+                <h1 className="text-[26px] font-semibold leading-tight tracking-tight text-slate-950">
                   {selectedEmployee.name}
                 </h1>
                 <p className="mt-1 text-[14px] text-slate-500">{selectedEmployee.role}</p>
@@ -427,57 +481,26 @@ export default function HRInsightsPage() {
               </div>
             </div>
 
-            <div className="ml-auto flex items-center gap-2">
-              <button className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-[13px] font-medium text-slate-700 shadow-sm transition hover:bg-slate-50">
-                <span>✎</span>
-                Chỉnh sửa
-              </button>
-              <button className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50">
-                ⋯
-              </button>
-            </div>
-          </div>
-
-          <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {meta.map(item => (
-              <div key={item.label} className="rounded-lg border border-slate-200 bg-white px-4 py-3.5 shadow-sm">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-blue-50 text-[18px] text-blue-700">
-                    {item.icon}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[12px] text-slate-500">{item.label}</p>
-                    <p className="mt-1 truncate text-[14px] font-semibold text-blue-700">{item.value}</p>
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+              {meta.map(item => (
+                <div key={item.label} className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 shadow-sm">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-blue-50 text-[15px] text-blue-700">
+                      {item.icon}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-slate-500">{item.label}</p>
+                      <p className="mt-0.5 truncate text-[12px] font-semibold text-blue-700">{item.value}</p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </section>
 
-        <div className="border-b border-slate-200">
-          <div className="flex gap-2">
-            {tabs.map(tab => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`relative px-5 py-3 text-[14px] font-medium transition ${
-                  activeTab === tab ? 'text-blue-700' : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                {tab === 'Ghi chú' && '▤ '}
-                {tab === 'Tổng quan' && '♙ '}
-                {tab === 'Lịch sử' && '◷ '}
-                {tab}
-                {activeTab === tab && <span className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700" />}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,65fr)_minmax(320px,35fr)]">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,58fr)_minmax(380px,42fr)]">
           <main className="min-w-0">
-            {activeTab === 'Ghi chú' && (
               <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
                   <div>
@@ -518,7 +541,7 @@ export default function HRInsightsPage() {
                           onChange={(event) => setNoteContent(event.target.value)}
                           rows={4}
                           placeholder="Mỗi dòng sẽ hiển thị thành một bullet trong ghi chú."
-                          className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-[13px] leading-6 text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+                          className="w-full resize-y rounded-xl border border-slate-200 bg-white px-3 py-2 text-[13px] leading-6 text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
                         />
                       </label>
                     </div>
@@ -557,16 +580,78 @@ export default function HRInsightsPage() {
                             <span className="mx-2">•</span>
                             <span>{note.type}</span>
                           </div>
-                          <button className="rounded-full px-2 text-[20px] leading-none text-slate-500 transition hover:bg-slate-100">
-                            ⋯
-                          </button>
+                          <div className="relative">
+                            <button
+                              onClick={() => setNoteMenuId(noteMenuId === note.id ? null : note.id)}
+                              className="rounded-full px-2 text-[20px] leading-none text-slate-500 transition hover:bg-slate-100"
+                            >
+                              ⋯
+                            </button>
+                            {noteMenuId === note.id && (
+                              <div className="absolute right-0 top-7 z-10 w-32 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 text-[13px] shadow-lg">
+                                <button
+                                  onClick={() => startEditNote(note)}
+                                  className="block w-full px-3 py-2 text-left text-slate-700 hover:bg-slate-50"
+                                >
+                                  Sửa
+                                </button>
+                                <button
+                                  onClick={() => deleteNote(note)}
+                                  className="block w-full px-3 py-2 text-left text-red-600 hover:bg-red-50"
+                                >
+                                  Xóa
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
 
-                        <ul className="space-y-2 pl-4 text-[13px] leading-6 text-slate-800">
-                          {note.points.map(point => (
-                            <li key={point} className="list-disc">{point}</li>
-                          ))}
-                        </ul>
+                        {editingNoteId === note.id ? (
+                          <div className="space-y-3 rounded-xl border border-blue-100 bg-blue-50/40 p-4">
+                            <label className="block">
+                              <span className="mb-1.5 block text-[12px] font-semibold text-slate-600">Ngày 1-1</span>
+                              <input
+                                type="date"
+                                value={editingNoteDate}
+                                onChange={(event) => setEditingNoteDate(event.target.value)}
+                                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-[13px] text-slate-700 outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-100 md:w-48"
+                              />
+                            </label>
+                            <label className="block">
+                              <span className="mb-1.5 block text-[12px] font-semibold text-slate-600">Nội dung</span>
+                              <textarea
+                                value={editingNoteContent}
+                                onChange={(event) => setEditingNoteContent(event.target.value)}
+                                rows={4}
+                                className="w-full resize-y rounded-xl border border-slate-200 bg-white px-3 py-2 text-[13px] leading-6 text-slate-700 outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+                              />
+                            </label>
+                            <div className="flex justify-end gap-2">
+                              <button
+                                onClick={() => {
+                                  setEditingNoteId(null)
+                                  setEditingNoteDate('')
+                                  setEditingNoteContent('')
+                                }}
+                                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] font-medium text-slate-600 hover:bg-slate-50"
+                              >
+                                Hủy
+                              </button>
+                              <button
+                                onClick={() => saveEditedNote(note)}
+                                className="rounded-lg bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 px-4 py-2 text-[12px] font-semibold text-white"
+                              >
+                                Lưu
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <ul className="space-y-2 pl-4 text-[13px] leading-6 text-slate-800">
+                            {note.points.map(point => (
+                              <li key={point} className="list-disc">{point}</li>
+                            ))}
+                          </ul>
+                        )}
 
                         <div className="mt-4 flex items-center gap-2 text-[12px] text-slate-500">
                           <span>♙</span>
@@ -577,41 +662,6 @@ export default function HRInsightsPage() {
                   </div>
                 )}
               </section>
-            )}
-
-            {activeTab === 'Tổng quan' && (
-              <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <h2 className="text-[18px] font-semibold tracking-tight text-slate-950">Tổng quan nhân sự</h2>
-                  <EditButton onClick={() => startEdit('overview')} />
-                </div>
-                {editingPanel === 'overview' ? (
-                  <EditableTextarea
-                    value={editingValue}
-                    onChange={setEditingValue}
-                    onDone={savePanel}
-                    rows={5}
-                    saving={saving}
-                  />
-                ) : (
-                  <p className="text-[14px] leading-7 text-slate-600">
-                    {insight.overview || 'Chưa có tổng quan nhân sự.'}
-                  </p>
-                )}
-              </section>
-            )}
-
-            {activeTab === 'Lịch sử' && (
-              <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-                <h2 className="text-[18px] font-semibold tracking-tight text-slate-950">Lịch sử cập nhật</h2>
-                <div className="mt-4 space-y-3 text-[13px] text-slate-600">
-                  <p>Cập nhật cuối: {formatDate(selectedEmployee.updatedAt)}</p>
-                  {notes.slice(0, 3).map(note => (
-                    <p key={note.id}>{formatDate(note.date)}: {note.type}</p>
-                  ))}
-                </div>
-              </section>
-            )}
           </main>
 
           <aside className="space-y-4">
@@ -626,7 +676,7 @@ export default function HRInsightsPage() {
               ) : (
                 <div className="flex flex-wrap gap-2">
                   {(insight.rememberTags || []).map(tag => (
-                    <span key={tag} className="rounded-md bg-blue-50 px-2.5 py-1.5 text-[12px] font-medium text-blue-700 ring-1 ring-blue-100">
+                    <span key={tag} className="max-w-full break-words rounded-md bg-blue-50 px-2.5 py-1.5 text-[12px] font-medium leading-5 text-blue-700 ring-1 ring-blue-100">
                       {tag}
                     </span>
                   ))}
