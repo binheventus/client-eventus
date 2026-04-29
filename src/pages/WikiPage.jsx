@@ -722,17 +722,33 @@ function CalloutBlock({ tone = 'info', children }) {
 }
 
 function QuoteBlock({ items = [] }) {
+  const [copiedIndex, setCopiedIndex] = useState(null)
+
+  async function copyQuote(text, index) {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopiedIndex(index)
+      window.setTimeout(() => setCopiedIndex(null), 1400)
+    } catch {
+      setCopiedIndex(null)
+    }
+  }
+
   return (
-    <div className="rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-teal-50/70 p-4 shadow-sm">
-      <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-blue-700 ring-1 ring-blue-100">
-        <span>💬</span>
-        <span>Tin nhắn mẫu</span>
-      </div>
+    <div className="rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-teal-50/70 px-4 py-3 shadow-sm">
       <div className="space-y-3 border-l-4 border-blue-500 pl-4">
         {items.map((item, idx) => (
-          <blockquote key={idx} className="text-[14px] leading-7 text-slate-700">
-            {parseInline(item)}
-          </blockquote>
+          <div key={idx} className="group relative pr-16">
+            <blockquote className="text-[14px] leading-7 text-slate-700">
+              {parseInline(item)}
+            </blockquote>
+            <button
+              onClick={() => copyQuote(item, idx)}
+              className="absolute right-0 top-0 rounded-lg border border-blue-100 bg-white/80 px-2 py-1 text-[11px] font-semibold text-blue-700 opacity-70 shadow-sm transition hover:bg-white hover:opacity-100"
+            >
+              {copiedIndex === idx ? 'Đã copy' : 'Copy'}
+            </button>
+          </div>
         ))}
       </div>
     </div>
