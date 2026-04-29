@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
+import { hasSupabaseConfig, supabase } from '../lib/supabase'
 import { ADMIN_PASSWORD } from '../config'
 import data from '../data/competency.json'
 import PositionPage from './PositionPage'
 import ThirtyDayReviewPage from './ThirtyDayReviewPage'
 import OrgChartPage from './OrgChartPage'
+import HRInsightsPage from './HRInsightsPage'
 
 /* ─── Danh muc sidebar ─── */
 const CATEGORIES = [
@@ -74,6 +75,14 @@ const CATEGORIES = [
     banner: 'Sơ đồ tổ chức Eventus',
     desc: 'Tổng quan cơ cấu nhân sự, team và vai trò trong công ty.',
   },
+  {
+    id: 'hr_insights',
+    label: 'HR Insights',
+    icon: '📊',
+    shortDesc: 'People analytics',
+    banner: 'HR Insights',
+    desc: 'Tổng hợp insight nhân sự, dữ liệu vận hành và các góc nhìn nội bộ của Eventus.',
+  },
 ]
 
 const CATEGORY_CARD_META = {
@@ -109,6 +118,11 @@ const CATEGORY_BANNER_STYLES = {
     desc: 'text-blue-100/90',
   },
   org_chart: {
+    bg: 'from-slate-900 via-blue-900 to-teal-700',
+    label: 'text-blue-100',
+    desc: 'text-blue-100/90',
+  },
+  hr_insights: {
     bg: 'from-slate-900 via-blue-900 to-teal-700',
     label: 'text-blue-100',
     desc: 'text-blue-100/90',
@@ -282,6 +296,7 @@ function getCategoryHref(id) {
   if (id === 'khung_nang_luc') return '/competency'
   if (id === 'review_30_day') return '/30dayreview'
   if (id === 'org_chart') return '/orgchart'
+  if (id === 'hr_insights') return '/hr-insights'
   return '/'
 }
 
@@ -878,6 +893,11 @@ export default function WikiPage() {
   const admin = useAdmin()
 
   useEffect(() => {
+    if (!hasSupabaseConfig) {
+      setLoading(false)
+      return
+    }
+
     supabase.from('wiki_pages').select('*').then(({ data: rows, error }) => {
       if (!error && rows) setPages(rows)
       setLoading(false)
@@ -894,6 +914,8 @@ export default function WikiPage() {
   const currentPage = visiblePages.find(p => p.category === activeCat && p.title === selectedTitle)
 
   async function upsertCategoryItems(nextItems) {
+    if (!supabase) return
+
     const cleanItems = nextItems.map(item => String(item || '').trim()).filter(Boolean)
     const payload = {
       category: activeCat,
@@ -928,6 +950,12 @@ export default function WikiPage() {
 
   async function savePage() {
     setSaving(true)
+    if (!supabase) {
+      setSaving(false)
+      setItemActionError('Thiếu cấu hình Supabase local nên chưa thể lưu nội dung.')
+      return
+    }
+
     const normalizedMenuTitle = String(menuTitleDraft || '').trim()
     const oldTitle = selectedTitle
     const existingTitleTaken = currentCategoryItems.some(
@@ -1008,6 +1036,13 @@ export default function WikiPage() {
       return
     }
 
+    if (location.pathname === '/hr-insights') {
+      setActiveCat('hr_insights')
+      setSelectedTitle(null)
+      setEditing(false)
+      return
+    }
+
     const routeCategoryId = getCategoryIdFromPath(location.pathname)
     if (routeCategoryId) {
       setActiveCat(routeCategoryId)
@@ -1028,6 +1063,8 @@ export default function WikiPage() {
       navigate('/competency')
     } else if (id === 'org_chart') {
       navigate('/orgchart')
+    } else if (id === 'hr_insights') {
+      navigate('/hr-insights')
     } else if (id === 'review_30_day') {
       navigate('/30dayreview')
     } else if (CATEGORY_ROUTE_SEGMENTS[id]) {
@@ -1041,7 +1078,7 @@ export default function WikiPage() {
   }
 
   function openHomeCategory(id) {
-    if (id === 'khung_nang_luc' || id === 'review_30_day' || id === 'org_chart') {
+    if (id === 'khung_nang_luc' || id === 'review_30_day' || id === 'org_chart' || id === 'hr_insights') {
       selectCat(id)
       return
     }
@@ -1084,6 +1121,11 @@ export default function WikiPage() {
       return
     }
 
+    if (!supabase) {
+      setItemActionError('Thiếu cấu hình Supabase local nên chưa thể tạo tài liệu.')
+      return
+    }
+
     setItemActionLoading(true)
     await upsertCategoryItems([...currentCategoryItems, normalizedTitle])
     setItemActionLoading(false)
@@ -1099,6 +1141,11 @@ export default function WikiPage() {
 
   async function deleteMenuItem() {
     if (!selectedTitle) return
+    if (!supabase) {
+      setItemActionError('Thiếu cấu hình Supabase local nên chưa thể xóa tài liệu.')
+      return
+    }
+
     setItemActionLoading(true)
 
     if (currentPage) {
@@ -1246,8 +1293,11 @@ export default function WikiPage() {
           {/* Org chart */}
           {activeCat === 'org_chart' && <OrgChartPage />}
 
+          {/* HR Insights */}
+          {activeCat === 'hr_insights' && <HRInsightsPage />}
+
           {/* Card grid cac danh muc khac */}
-          {activeCat !== 'home' && activeCat !== 'khung_nang_luc' && activeCat !== 'review_30_day' && activeCat !== 'org_chart' && !selectedTitle && (
+          {activeCat !== 'home' && activeCat !== 'khung_nang_luc' && activeCat !== 'review_30_day' && activeCat !== 'org_chart' && activeCat !== 'hr_insights' && !selectedTitle && (
             <div className="flex-1 overflow-y-auto p-6">
               <CategoryBanner cat={currentCat} />
               {admin.isAdmin && (
