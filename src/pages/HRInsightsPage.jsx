@@ -234,6 +234,9 @@ export default function HRInsightsPage() {
   const [detailLoading, setDetailLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [showNoteForm, setShowNoteForm] = useState(false)
+  const [noteDate, setNoteDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [noteContent, setNoteContent] = useState('')
 
   useEffect(() => {
     if (!canUseHrInsightsBackend) return
@@ -327,20 +330,26 @@ export default function HRInsightsPage() {
     }
   }
 
-  async function addNote() {
-    const today = new Date().toISOString().slice(0, 10)
+  async function saveNewNote() {
+    const points = textToList(noteContent)
+    if (!noteDate || !points.length) {
+      setError('Vui lòng nhập ngày 1-1 và nội dung ghi chú.')
+      return
+    }
+
     const draftNote = {
       id: `draft-${Date.now()}`,
-      date: today,
+      date: noteDate,
       type: '1-1 định kỳ',
       author: 'Hoàng Nguyễn (Bạn)',
-      points: [
-        'Ghi chú mới được tạo. Cập nhật nội dung buổi 1-1 tại đây.',
-        'Dùng để lưu nhanh cảm nhận, phản hồi và mong muốn của nhân sự.',
-      ],
+      points,
     }
 
     setNotes(prev => [draftNote, ...prev])
+    setShowNoteForm(false)
+    setNoteDate(new Date().toISOString().slice(0, 10))
+    setNoteContent('')
+    setError('')
 
     try {
       if (canUseHrInsightsBackend && selectedEmployeeId && !String(selectedEmployeeId).startsWith('demo-')) {
@@ -478,13 +487,62 @@ export default function HRInsightsPage() {
                     </p>
                   </div>
                   <button
-                    onClick={addNote}
+                    onClick={() => {
+                      setShowNoteForm(true)
+                      setError('')
+                    }}
                     className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 px-4 py-2.5 text-[13px] font-semibold text-white shadow-sm shadow-blue-200/60 transition hover:bg-teal-700"
                   >
                     <span className="text-[16px] leading-none">+</span>
                     Thêm ghi chú
                   </button>
                 </div>
+
+                {showNoteForm && (
+                  <div className="mb-5 rounded-xl border border-blue-100 bg-blue-50/40 p-4">
+                    <div className="grid gap-4 md:grid-cols-[180px_minmax(0,1fr)]">
+                      <label className="block">
+                        <span className="mb-1.5 block text-[12px] font-semibold text-slate-600">Ngày 1-1</span>
+                        <input
+                          type="date"
+                          value={noteDate}
+                          onChange={(event) => setNoteDate(event.target.value)}
+                          className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-[13px] text-slate-700 outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+                        />
+                      </label>
+
+                      <label className="block">
+                        <span className="mb-1.5 block text-[12px] font-semibold text-slate-600">Nội dung</span>
+                        <textarea
+                          value={noteContent}
+                          onChange={(event) => setNoteContent(event.target.value)}
+                          rows={4}
+                          placeholder="Mỗi dòng sẽ hiển thị thành một bullet trong ghi chú."
+                          className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-[13px] leading-6 text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+                        />
+                      </label>
+                    </div>
+
+                    <div className="mt-4 flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => {
+                          setShowNoteForm(false)
+                          setNoteContent('')
+                          setError('')
+                        }}
+                        className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-[13px] font-medium text-slate-600 transition hover:bg-slate-50"
+                      >
+                        Hủy
+                      </button>
+                      <button
+                        onClick={saveNewNote}
+                        className="rounded-lg bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 px-5 py-2 text-[13px] font-semibold text-white shadow-sm shadow-blue-200/60 transition hover:bg-teal-700"
+                      >
+                        Lưu ghi chú
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {detailLoading ? (
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-5 text-[13px] text-slate-500">Đang tải ghi chú...</div>
