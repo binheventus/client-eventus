@@ -763,14 +763,13 @@ function EmployeeList({ employees, loading, error, onSelectEmployee }) {
         </header>
 
         <section className="flex min-h-[calc(100vh-190px)] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="hidden grid-cols-[70px_minmax(220px,1.2fr)_1.2fr_1.25fr_1.2fr_130px_44px] border-b border-slate-200 px-6 py-5 text-[13px] font-semibold text-slate-700 lg:grid">
-            <div>STT</div>
-            <div>Tên nhân viên</div>
+          <div className="hidden grid-cols-[44px_minmax(130px,0.7fr)_1.25fr_1.35fr_1.35fr_130px] border-b border-slate-200 px-6 py-5 text-left text-[13px] font-semibold text-slate-700 lg:grid">
+            <div className="text-left">STT</div>
+            <div className="text-left">Tên nhân viên</div>
             <div>Điểm cần nhớ</div>
             <div>Mong muốn & mục tiêu</div>
-            <div>Ghi chú 1-1 gần nhất</div>
-            <div>Lần 1:1 gần nhất</div>
-            <div />
+            <div className="text-left">Ghi chú 1-1 gần nhất</div>
+            <div className="text-left">Lần 1:1 gần nhất</div>
           </div>
 
           {loading ? (
@@ -781,20 +780,14 @@ function EmployeeList({ employees, loading, error, onSelectEmployee }) {
                 <button
                   key={item.id}
                   onClick={() => onSelectEmployee(item.id)}
-                  className="grid min-h-[112px] w-full gap-4 px-6 py-5 text-left transition hover:bg-slate-50 lg:grid-cols-[70px_minmax(220px,1.2fr)_1.2fr_1.25fr_1.2fr_130px_44px] lg:items-center"
+                  className="grid min-h-[96px] w-full gap-4 px-6 py-5 text-left transition hover:bg-slate-50 lg:grid-cols-[44px_minmax(130px,0.7fr)_1.25fr_1.35fr_1.35fr_130px] lg:items-center"
                 >
                   <div className="hidden text-[14px] text-slate-800 lg:block">{index + 1}</div>
 
-                  <div className="flex items-center gap-3">
-                    <div className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${item.avatarBg} text-[13px] font-semibold text-slate-800 ring-1 ring-slate-200`}>
-                      {item.initials}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[14px] font-semibold text-slate-950">{item.name}</span>
-                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-500 lg:hidden">#{index + 1}</span>
-                      </div>
-                      <p className="mt-1 text-[13px] text-slate-500">{item.role}</p>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[14px] font-semibold text-slate-950">{item.name}</span>
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-500 lg:hidden">#{index + 1}</span>
                     </div>
                   </div>
 
@@ -802,30 +795,10 @@ function EmployeeList({ employees, loading, error, onSelectEmployee }) {
                   <TableCell label="Mong muốn & mục tiêu" value={item.goalsSummary || item.analysis} />
                   <TableCell label="Ghi chú 1-1 gần nhất" value={item.latestNoteSummary} />
                   <TableCell label="Lần 1:1 gần nhất" value={formatDate(item.latestOneOnOneDate)} />
-
-                  <div className="hidden justify-self-end text-[20px] leading-none text-slate-900 lg:block">...</div>
                 </button>
               ))}
             </div>
           )}
-
-          <div className="flex flex-col gap-4 border-t border-slate-200 px-6 py-4 text-[14px] text-slate-600 md:flex-row md:items-center md:justify-between">
-            <span>Hiển thị {filteredEmployees.length ? `1 - ${filteredEmployees.length}` : '0'} của {employees.length}</span>
-            <div className="flex items-center gap-2">
-              <button className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-300">‹</button>
-              {[1, 2, 3, 4, 5].map(page => (
-                <button
-                  key={page}
-                  className={`flex h-9 w-9 items-center justify-center rounded-lg text-[14px] font-medium ${
-                    page === 1 ? 'bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 text-white shadow-sm shadow-blue-200/60' : 'text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  {page}
-                </button>
-              ))}
-              <button className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600">›</button>
-            </div>
-          </div>
         </section>
       </div>
     </div>
