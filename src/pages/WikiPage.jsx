@@ -14,7 +14,7 @@ const CATEGORIES = [
     id: 'quy_trinh',
     label: 'Quy trình',
     icon: '⚙️',
-    shortDesc: 'Quy trình làm việc',
+    shortDesc: 'Tiêu chuẩn vận hành công việc',
     banner: 'Quy trình làm việc',
     desc: 'Hướng dẫn quy trình chuẩn cho từng bộ phận — đọc kỹ trước khi đi job.',
     items: [
@@ -29,7 +29,7 @@ const CATEGORIES = [
     id: 'noi_quy',
     label: 'Nội quy',
     icon: '📋',
-    shortDesc: 'Quy định nội bộ',
+    shortDesc: 'Những điều cần tuân thủ khi làm việc',
     banner: 'Nội quy công ty',
     desc: 'Các quy định nội bộ áp dụng cho toàn bộ nhân sự Eventus Production.',
     items: [
@@ -46,7 +46,7 @@ const CATEGORIES = [
     id: 'huong_dan',
     label: 'Hướng dẫn',
     icon: '📖',
-    shortDesc: 'Tài liệu đào tạo',
+    shortDesc: 'Tài liệu giúp bạn làm việc nhanh và đúng hơn',
     banner: 'Hướng dẫn',
     desc: 'Tài liệu onboarding và đào tạo nội bộ dành cho nhân sự Eventus.',
     items: ['Hướng dẫn tân binh', 'Tổng hợp slide Growday'],
@@ -55,7 +55,7 @@ const CATEGORIES = [
     id: 'khung_nang_luc',
     label: 'Khung năng lực',
     icon: '🏆',
-    shortDesc: 'Competency framework',
+    shortDesc: 'Khung đánh giá và phát triển năng lực nhân sự',
     banner: 'Khung năng lực nội bộ',
     desc: 'Định nghĩa kỳ vọng theo từng vị trí và cấp bậc — dùng cho đánh giá, thăng cấp và phát triển cá nhân.',
   },
@@ -63,7 +63,7 @@ const CATEGORIES = [
     id: 'review_30_day',
     label: '30-Day Review',
     icon: '📝',
-    shortDesc: 'Onboarding review',
+    shortDesc: 'Theo dõi và phản hồi trong 30 ngày đầu của nhân sự mới',
     banner: 'Eventus Onboarding 30-Day Review',
     desc: 'Biểu mẫu ghi nhận cảm nhận sau 30 ngày gia nhập Eventus.',
   },
@@ -71,7 +71,7 @@ const CATEGORIES = [
     id: 'org_chart',
     label: 'Sơ đồ tổ chức',
     icon: '🏢',
-    shortDesc: 'Organizational chart',
+    shortDesc: 'Cấu trúc đội ngũ và mối quan hệ công việc',
     banner: 'Sơ đồ tổ chức Eventus',
     desc: 'Tổng quan cơ cấu nhân sự, team và vai trò trong công ty.',
   },
@@ -79,7 +79,7 @@ const CATEGORIES = [
     id: 'hr_insights',
     label: 'HR Insights',
     icon: '📊',
-    shortDesc: 'People analytics',
+    shortDesc: 'Insight từ dữ liệu giúp hiểu rõ đội ngũ',
     banner: 'HR Insights',
     desc: 'Tổng hợp insight nhân sự, dữ liệu vận hành và các góc nhìn nội bộ của Eventus.',
   },
@@ -412,8 +412,12 @@ function getCategoryHref(id) {
   return '/'
 }
 
-function HomeHub({ onOpenCategory }) {
-  const featured = CATEGORIES.map((category) => ({
+function getVisibleCategories(isAdmin) {
+  return CATEGORIES.filter(category => isAdmin || category.id !== 'hr_insights')
+}
+
+function HomeHub({ onOpenCategory, admin }) {
+  const featured = getVisibleCategories(admin.isAdmin).map((category) => ({
     ...category,
     href: getCategoryHref(category.id),
     itemCount: category.items?.length || 0,
@@ -424,13 +428,36 @@ function HomeHub({ onOpenCategory }) {
       <div className="mx-auto max-w-[1440px] space-y-6">
         <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
           <div className="bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 px-6 py-7 text-white md:px-8 md:py-8">
-            <div className="max-w-4xl">
-              <h1 className="text-[32px] font-semibold tracking-tight md:text-[40px]">
-                Eventus Production Handbook
-              </h1>
-              <p className="mt-3 whitespace-nowrap text-[14px] leading-6 text-blue-100/90">
-                Tra cứu quy trình, nội quy, hướng dẫn, khung năng lực, sơ đồ tổ chức và các module vận hành nội bộ từ một nơi duy nhất.
-              </p>
+            <div className="flex items-start justify-between gap-6">
+              <div className="min-w-0">
+                <h1 className="text-[32px] font-semibold tracking-tight md:text-[40px]">
+                  Eventus Production Handbook
+                </h1>
+                <p className="mt-3 whitespace-nowrap text-[14px] leading-6 text-blue-100/90">
+                  Tra cứu quy trình, nội quy, hướng dẫn, khung năng lực, sơ đồ tổ chức và các module vận hành nội bộ từ một nơi duy nhất.
+                </p>
+              </div>
+              {admin.isAdmin ? (
+                <div className="flex flex-shrink-0 items-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-3 py-2 text-[12px] text-blue-50 backdrop-blur">
+                  <span className="inline-flex items-center gap-1.5 font-semibold">
+                    <span>✅</span>
+                    <span>Admin mode</span>
+                  </span>
+                  <button
+                    onClick={admin.logout}
+                    className="rounded-full bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-800 transition hover:bg-blue-50"
+                  >
+                    Đăng xuất
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => admin.setShowGate(true)}
+                  className="flex-shrink-0 rounded-2xl border border-white/15 bg-white/10 px-4 py-2.5 text-[12px] font-semibold text-blue-50 backdrop-blur transition hover:bg-white/15"
+                >
+                  🔒 Đăng nhập Admin
+                </button>
+              )}
             </div>
           </div>
         </section>
@@ -1056,6 +1083,7 @@ export default function WikiPage() {
   const [itemActionLoading, setItemActionLoading] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const admin = useAdmin()
+  const visibleCategories = useMemo(() => getVisibleCategories(admin.isAdmin), [admin.isAdmin])
 
   useEffect(() => {
     if (!hasSupabaseConfig) {
@@ -1202,6 +1230,14 @@ export default function WikiPage() {
     }
 
     if (location.pathname === '/hr-insights') {
+      if (!admin.isAdmin) {
+        setActiveCat('home')
+        setSelectedTitle(null)
+        setEditing(false)
+        admin.setShowGate(true)
+        navigate('/', { replace: true })
+        return
+      }
       setActiveCat('hr_insights')
       setSelectedTitle(null)
       setEditing(false)
@@ -1221,9 +1257,14 @@ export default function WikiPage() {
       const matchedTitle = currentCategoryItems.find(title => slugify(title) === articleSlug)
       setSelectedTitle(matchedTitle || null)
     }
-  }, [location.pathname, positionId, articleSlug, currentCategoryItems])
+  }, [location.pathname, positionId, articleSlug, currentCategoryItems, admin.isAdmin, navigate])
 
   function selectCat(id) {
+    if (id === 'hr_insights' && !admin.isAdmin) {
+      admin.setShowGate(true)
+      return
+    }
+
     if (id === 'khung_nang_luc') {
       navigate('/competency')
     } else if (id === 'org_chart') {
@@ -1356,7 +1397,7 @@ export default function WikiPage() {
           </div>
 
           <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-1.5">
-            {CATEGORIES.map(cat => (
+            {visibleCategories.map(cat => (
               <button
                 key={cat.id}
                 onClick={() => {
@@ -1398,52 +1439,13 @@ export default function WikiPage() {
             ))}
           </nav>
 
-          <div className="border-t border-slate-200/70 px-4 py-3">
-            {admin.isAdmin ? (
-              <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-900 via-blue-900 to-teal-700 px-4 py-4 text-white shadow-sm">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="inline-flex items-center gap-2 rounded-full bg-white/12 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-blue-100 ring-1 ring-white/10">
-                      <span>✅</span>
-                      <span>Admin mode</span>
-                    </div>
-                    <p className="mt-3 text-[11px] leading-5 text-blue-100/90">
-                      Bạn đang có thể chỉnh sửa nội dung wiki trực tiếp.
-                    </p>
-                  </div>
-                  <button
-                    onClick={admin.logout}
-                    className="inline-flex items-center rounded-full bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-800 transition hover:bg-blue-50"
-                  >
-                    Đăng xuất
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <button
-                onClick={() => admin.setShowGate(true)}
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition-colors hover:border-blue-200 hover:bg-blue-50/60"
-              >
-                <div className="flex items-center gap-2 text-[12px] font-semibold text-slate-700">
-                  <span>🔒</span>
-                  <span>Đăng nhập Admin</span>
-                </div>
-                <p className="mt-1 text-[11px] leading-5 text-slate-400">
-                  Mở chế độ chỉnh sửa để cập nhật nội dung nội bộ.
-                </p>
-              </button>
-            )}
-            <p className="mt-3 text-[10px] leading-5 tracking-wide text-slate-400">
-              Eventus Production · Built by Phạm Thanh Bình · 2026
-            </p>
-          </div>
         </aside>
 
         {/* Main content */}
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
 
           {/* Home */}
-          {activeCat === 'home' && <HomeHub onOpenCategory={openHomeCategory} />}
+          {activeCat === 'home' && <HomeHub onOpenCategory={openHomeCategory} admin={admin} />}
 
           {/* Khung nang luc */}
           {activeCat === 'khung_nang_luc' && (positionId ? <div className="flex-1 overflow-y-auto"><PositionPage embedded /></div> : <CompetencyGrid />)}
