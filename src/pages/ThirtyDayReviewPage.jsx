@@ -206,12 +206,18 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
     setStage('loading');
 
     try {
-      const { data: existing } = await supabase
+      if (!supabase) {
+        throw new Error('Thiếu cấu hình Supabase cho 30-Day Review.');
+      }
+
+      const { data: existing, error: lookupErr } = await supabase
         .from('responses')
         .select('*')
         .eq('sdt', phoneNorm)
         .order('created_at', { ascending: false })
         .limit(1);
+
+      if (lookupErr) throw lookupErr;
 
       if (existing && existing.length > 0) {
         const resp = existing[0];
@@ -267,7 +273,7 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
       isInitialLoad.current = false;
     } catch (err) {
       console.error(err);
-      setLoginError('Có lỗi khi kết nối. Vui lòng thử lại.');
+      setLoginError(`Có lỗi khi kết nối: ${err?.message || 'Vui lòng thử lại.'}`);
       setStage('login');
     } finally {
       setLoginSubmitting(false);
