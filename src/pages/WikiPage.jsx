@@ -129,60 +129,172 @@ const CATEGORY_BANNER_STYLES = {
   },
 }
 
-const CONTENT_STANDARDIZATION_PROMPT = `Tôi sẽ gửi cho bạn 1 bài viết thô để đưa vào hệ thống wiki nội bộ của công ty.
+const CONTENT_STANDARDIZATION_PROMPT = `Bạn là biên tập viên tài liệu vận hành nội bộ cho Eventus.
 
-Nhiệm vụ của bạn:
-1. Đọc hiểu lại nội dung.
-2. Viết lại cho đúng cấu trúc hiển thị của hệ thống.
-3. Trả lại cho tôi đúng 2 phần:
-   - Mô tả mở đầu trên banner
-   - Nội dung đã chuẩn hóa để paste thẳng vào editor
+Nhiệm vụ của bạn là đọc hiểu nội dung gốc và viết lại thành tài liệu wiki nội bộ có cấu trúc đẹp, rõ ràng, dễ đọc.
 
-Yêu cầu rất quan trọng:
-- Trả lời bằng tiếng Việt.
-- Giữ nguyên ý nghĩa gốc, không tự ý rút bớt nội dung quan trọng.
-- Có thể viết lại câu cho gọn, rõ và mạch lạc hơn.
-- Ưu tiên dễ đọc, dễ paste, hiển thị đẹp trong wiki.
+Đây KHÔNG phải nhiệm vụ chuyển text sang Markdown đơn giản.
+Đây là nhiệm vụ biên tập lại tài liệu vận hành: giữ đầy đủ ý quan trọng, nhưng trình bày lại cho chuyên nghiệp hơn.
 
-Quy tắc cấu trúc bắt buộc:
-- Chỉ dùng # cho tiêu đề lớn.
-- Chỉ dùng ## cho tiêu đề mục con.
-- Không dùng ###, #### hoặc cấp heading sâu hơn.
-- Không tạo quá nhiều block nhỏ không cần thiết.
-- Với các phần như quy định, mức phạt, danh sách lỗi, ưu tiên dùng bullet - thay vì tách từng ý thành heading riêng.
-- Dùng bullet - cho danh sách thông thường.
-- Dùng danh sách số khi thật sự là quy trình tuần tự.
-- Không lạm dụng in đậm **...**.
-- Hạn chế dùng **...** ở giữa các dòng mở đầu, vì hệ thống có thể parse lỗi.
-- Chỉ in đậm khi thật sự cần nhấn mạnh một từ hoặc cụm ngắn.
-- Không để các dòng tiêu đề phụ kết thúc bằng dấu : nếu không cần.
-- Nếu một ý có phần giải thích bên dưới, viết thành:
-  - một dòng thường
-  - rồi các bullet bên dưới
-- Các link URL phải giữ nguyên đầy đủ.
-- Không thêm ký hiệu trang trí không cần thiết.
-- Chỉ dùng ⛔ cho các cảnh báo thực sự quan trọng.
+YÊU CẦU QUAN TRỌNG:
 
-Quy tắc riêng cho phần Mô tả mở đầu trên banner:
-- Viết 1 đến 2 câu ngắn.
-- Tóm tắt đúng tinh thần bài.
-- Không viết dài.
-- Không xuống dòng.
-- Không dùng bullet.
-- Không dùng markdown đặc biệt.
+1. Không giữ nguyên cách chia mục thô của bài gốc nếu cách chia đó xấu.
+2. Không tóm tắt quá ngắn.
+3. Không tự bịa thêm nội dung mới.
+4. Không dùng \`**bold**\`.
+5. Không dùng nhiều bullet lồng nhau.
+6. Không để tiêu đề toàn chữ in hoa.
+7. Không dùng \`# 1. Tên mục\`. Hãy đổi thành dạng đẹp hơn: \`# Bước 1: Tên bước\`.
+8. Không đưa tiêu đề chính của bài vào nội dung Markdown. Tiêu đề chính sẽ được nhập riêng ở hệ thống.
+9. Không tạo quá nhiều block nhỏ.
+10. Mẫu tin nhắn gửi khách phải dùng quote block \`>\`.
+11. Phần xử phạt phải gọn, mỗi lỗi là một bullet.
+12. Giữ đầy đủ số tiền phạt, deadline, tên người, tên bộ phận, link, quy định quan trọng.
 
-Định dạng đầu ra bắt buộc:
-Mô tả mở đầu trên banner
-[nội dung]
+QUY TẮC GIỮ NỘI DUNG GỐC:
 
-Nội dung đã chuẩn hóa
-\`\`\`md
-[nội dung markdown hoàn chỉnh]
+- Với các mẫu tin nhắn gửi khách, phải giữ gần nguyên văn nội dung gốc. Chỉ sửa lỗi chính tả rất nhỏ nếu cần, không được viết lại theo cách khác.
+- Với các đoạn giải thích quan trọng, không được rút gọn thành bản tóm tắt. Hãy giữ đủ ý như bài gốc, chỉ chia câu và xuống dòng cho dễ đọc hơn.
+- Không được đưa cùng một nội dung vào hai vị trí khác nhau. Nếu bài có phần riêng về “khách qua văn phòng”, hãy để nội dung chính ở phần đó, không lặp lại ngắn ở phần trước.
+- Không được đổi tên bước nếu tên bước gốc đã rõ. Chỉ chuẩn hóa nhẹ cho dễ đọc.
+- Các câu mẫu gửi khách là nội dung vận hành đã được duyệt, nên phải giữ gần nguyên văn. Không được tự viết lại cho “hay hơn”.
+- Không được rút gọn phần xử phạt. Mỗi lỗi xử phạt phải giữ đủ điều kiện, ngữ cảnh và mức phạt như nội dung gốc.
+- Phần bảo mật cuối bài phải giữ gần nguyên văn nội dung gốc. Không tự viết lại ngắn hơn. Chỉ được bỏ ký hiệu \`***\` và sửa khoảng trắng nếu cần.
+- Định dạng phần bảo mật cuối bài là text thường, không tạo heading riêng: \`Lưu ý bảo mật: [nội dung bảo mật gần nguyên văn]\`.
+- Không bỏ sót các thao tác vận hành nhỏ nhưng quan trọng, ví dụ: cất giấy tờ vào sổ Binder, cập nhật hệ thống ngay khi xuất/nhập/bàn giao, kiểm tra thiết bị gửi ở tầng 2.
+- Nếu một ý trong bài gốc là trách nhiệm bắt buộc, hãy dùng giọng rõ ràng như “cần”, “phải”, “bắt buộc”, không viết quá nhẹ.
+
+QUY TẮC MARKDOWN:
+
+- Phần lớn dùng \`#\`, ví dụ:
+# Bước 1: Nhận job và confirm
+
+- Mục con dùng \`##\`, ví dụ:
+## Cập nhật trạng thái công việc
+
+- Hạn chế dùng \`###\`. Chỉ dùng khi thật sự cần.
+- Không dùng \`####\`.
+- Không dùng bold \`**...**\`.
+- Không dùng bullet lồng nhiều tầng.
+
+Sai:
+- Nội dung chính:
+  - Ý nhỏ:
+    - Ý nhỏ hơn
+
+Đúng:
+- Nội dung chính.
+- Ý liên quan 1.
+- Ý liên quan 2.
+
+- Với đoạn quy trình dài, hãy viết thành đoạn văn ngắn dễ đọc, không ép tất cả thành bullet.
+- Với danh sách kiểm tra, quy định, xử phạt: dùng bullet.
+
+- Với phần xử phạt: không tách mỗi lỗi thành block riêng. Viết gọn dạng:
+- Mất file: phạt từ 500.000đ/lần + không tính lương job, tùy mức độ nghiêm trọng.
+- Copy file sai quy định: phạt 200.000đ/lần.
+
+- Với mẫu tin nhắn gửi khách: bắt buộc dùng quote block bằng dấu \`>\`.
+Ví dụ:
+> Em gửi anh/chị video đã dựng, anh/chị xem và feedback giúp em để em hoàn thiện ạ.
+
+- Nếu mẫu tin nhắn có nhiều dòng, mỗi dòng đều phải bắt đầu bằng \`>\`.
+Ví dụ:
+> Hi anh/chị, em A phụ trách dựng video B cho anh/chị ạ.
+> Em đã nhận được nội dung/kịch bản dựng của bên mình.
+> Em dự kiến sẽ gửi lại anh/chị vào [thời gian cụ thể] ạ.
+
+- Chỉ chuyển thành quote block những câu thật sự là mẫu tin nhắn gửi khách hoặc câu thoại mẫu.
+- Không tự tạo mẫu tin nhắn mới nếu nội dung gốc không có.
+- Với các câu mẫu gửi khách, giữ gần nguyên văn nhưng được sửa lỗi trình bày nhỏ:
+  - Bỏ chữ “Ví dụ:” khỏi trong quote nếu đã có dòng dẫn bên trên.
+  - Sửa khoảng trắng thừa trước dấu câu.
+  - Chuẩn hóa khoảng trắng như \`400k/nửa ngày\`, không viết \`400k/ nửa ngày\`.
+  - Không đổi ý, không viết lại câu theo văn phong mới.
+- Sau quote block, nếu có ý giải thích tiếp theo thì viết thành đoạn văn ngắn hoặc bullet rõ ràng, không để bullet bị lạc nhịp.
+- Không để các ký hiệu lỗi như \`###\`, \`####\`, \`**\`, HTML comment, hoặc markdown thừa xuất hiện trong nội dung cuối cùng.
+
+PHONG CÁCH ĐẦU RA CẦN BẮT CHƯỚC:
+
+\`\`\`markdown
+# Bước 1: Nhận job và confirm
+
+## Cập nhật trạng thái công việc
+
+Hàng ngày, nhân sự cần đăng nhập vào trang nhansu.eventus để cập nhật trạng thái công việc và ghi chú chi tiết tiến độ hiện tại.
+
+Job dựng sẽ được đội Account thông báo trước qua app My Eventus và trang nhansu.eventus. Khi nhận job, nhân sự cần kiểm tra kỹ thông tin trước khi bắt đầu dựng.
+
+## Kiểm tra source và kịch bản
+
+Trước khi dựng, nhân sự bắt buộc kiểm tra lại số lượng máy quay và số lượng file quay để tránh thiếu source hoặc lệch thông tin bàn giao.
+
+Với các job TVC, phim doanh nghiệp hoặc phim tổng kết, Editor cần dùng công cụ đếm ký tự để ước lượng thời lượng kịch bản:
+
+- Link công cụ: halink.vn/tienich/dem-ky-tu
+- Quy đổi tham khảo: 1.000 ký tự tương đương khoảng 1 phút video.
+
+Nếu nội dung kịch bản dài hơn 10 phút, Editor cần chủ động phối hợp với đội Account và Biên kịch để tư vấn khách hàng rút gọn nội dung về khoảng 5-7 phút trước khi tiếp tục sản xuất.
+
+# Bước 2: Triển khai công việc
+
+## Nắm brief và trao đổi nội bộ
+
+Editor cần đọc kỹ timeline sự kiện và agenda của khách trước khi dựng. Nếu cần thêm thông tin, hãy trao đổi với đội quay để nắm các lưu ý quan trọng trong source, ví dụ như khách VIP, shot quay đặc biệt hoặc các yêu cầu riêng từ khách.
+
+Trước khi trao đổi với khách hàng, Editor cần trao đổi trước với anh Bình, Linh/Huyền hoặc Duy, đặc biệt với các video chỉ dựng.
+
+## Nguyên tắc trao đổi với khách hàng
+
+Editor chỉ được trao đổi với khách trong group làm việc để tất cả các bên cùng theo dõi. Không trao đổi riêng với khách qua tin nhắn cá nhân.
+
+Nếu khách nhắn riêng, cần phản hồi lại nội dung đó trong group để đảm bảo minh bạch thông tin và tránh sai lệch khi xử lý công việc.
+
+## Mẫu tin nhắn gửi khách
+
+> Em gửi anh/chị video đã dựng, anh/chị xem và feedback giúp em để em hoàn thiện ạ:
+> Anh/chị xem link trên bằng máy tính để feedback nhé ạ, trên mobile thì mình chỉ xem được chứ không feedback được ạ.
+
+# Bước 5: Hình thức xử phạt
+
+- Mất file: phạt từ 500.000đ/lần + không tính lương job, tùy mức độ nghiêm trọng.
+- Đi muộn job: phạt từ 100.000đ/lần + không tính lương job, tùy mức độ nghiêm trọng.
+- Copy file không đặt tên đúng quy định: phạt 200.000đ/lần.
+- Copy thiếu file: phạt 200.000đ/lần.
+- Mặc sai đồng phục hoặc không đúng yêu cầu: phạt 100.000đ/lần.
+- Đeo pod, vape, hút thuốc lá hoặc thuốc lào trước mặt khách: phạt 200.000đ/lần.
+
+Với những lỗi nghiêm trọng, công ty có thể áp dụng mức xử lý cao hơn tương ứng với mức độ ảnh hưởng.
 \`\`\`
 
-Bây giờ tôi sẽ gửi:
-- Tên bài
-- Nội dung thô`
+CẤU TRÚC ĐẦU RA BẮT BUỘC:
+
+Mô tả mở đầu trên banner:
+[Viết 1 câu ngắn 20-35 từ, tóm tắt đúng nội dung bài.]
+
+Nội dung Markdown:
+\`\`\`markdown
+[Toàn bộ nội dung đã chuẩn hóa]
+\`\`\`
+
+TRƯỚC KHI TRẢ KẾT QUẢ, HÃY TỰ KIỂM TRA:
+
+- Có thiếu phần “Mô tả mở đầu trên banner” không?
+- Có mẫu tin nhắn nào bị viết lại khác bản gốc quá nhiều không?
+- Có đoạn quy định nào bị rút gọn làm mất chi tiết không?
+- Có nội dung nào bị lặp ở hai bước khác nhau không?
+- Có bullet lồng nhiều tầng không?
+- Có tiêu đề nào còn toàn chữ in hoa không?
+- Có ký hiệu lỗi như \`**\`, \`###\`, \`####\` không?
+- Có tự thêm mẫu câu hoặc quy định không có trong bài gốc không?
+- Phần xử phạt đã giữ đủ điều kiện, ngữ cảnh và mức phạt như bài gốc chưa?
+- Phần bảo mật cuối bài đã giữ gần nguyên văn và không bị biến thành heading chưa?
+
+Nếu có bất kỳ lỗi nào ở trên, hãy sửa lại trước khi trả kết quả.
+
+Dưới đây là nội dung gốc cần chuẩn hóa:
+
+[DÁN NỘI DUNG GỐC VÀO ĐÂY]`
 
 const CATEGORY_CONFIG_PREFIX = '__menu_config__:'
 const CATEGORY_ROUTE_SEGMENTS = {
