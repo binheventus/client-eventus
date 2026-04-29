@@ -472,6 +472,10 @@ function isCallout(line) {
   return /^[⚠️⛔✅ℹ️*]+\s*/.test(line) || /^Lưu ý/i.test(line)
 }
 
+function isQuoteLine(line) {
+  return /^>\s*/.test(line)
+}
+
 function parseInline(text) {
   const nodes = []
   const pattern = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|https?:\/\/[^\s)]+)/g
@@ -633,13 +637,24 @@ function parseArticle(rawText, fallbackTitle) {
       continue
     }
 
-    if (!currentSection && !currentSubsection && !isListItem(line) && line.length > 60) {
+    if (!currentSection && !currentSubsection && !isListItem(line) && !isQuoteLine(line) && line.length > 60) {
       lead.push(line)
       continue
     }
 
     if (isCallout(line)) {
       pushBlock({ type: 'callout', tone: line.startsWith('⛔') ? 'warning' : 'info', text: line })
+      continue
+    }
+
+    if (isQuoteLine(line)) {
+      const items = [line.replace(/^>\s*/, '').trim()].filter(Boolean)
+      while (i + 1 < lines.length && lines[i + 1] && isQuoteLine(lines[i + 1])) {
+        i += 1
+        const quoteText = lines[i].replace(/^>\s*/, '').trim()
+        if (quoteText) items.push(quoteText)
+      }
+      pushBlock({ type: 'quote', items })
       continue
     }
 
@@ -677,7 +692,7 @@ function parseArticle(rawText, fallbackTitle) {
     let paragraph = line
     while (i + 1 < lines.length) {
       const next = lines[i + 1]
-      if (!next || isMainHeading(next) || isSubHeading(next) || isListItem(next) || isCallout(next) || /^Cập nhật ngày/i.test(next)) break
+      if (!next || isMainHeading(next) || isSubHeading(next) || isListItem(next) || isCallout(next) || isQuoteLine(next) || /^Cập nhật ngày/i.test(next)) break
       if (next.endsWith(':')) break
       i += 1
       paragraph += ` ${lines[i]}`
@@ -706,6 +721,24 @@ function CalloutBlock({ tone = 'info', children }) {
   )
 }
 
+function QuoteBlock({ items = [] }) {
+  return (
+    <div className="rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-teal-50/70 p-4 shadow-sm">
+      <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-blue-700 ring-1 ring-blue-100">
+        <span>💬</span>
+        <span>Tin nhắn mẫu</span>
+      </div>
+      <div className="space-y-3 border-l-4 border-blue-500 pl-4">
+        {items.map((item, idx) => (
+          <blockquote key={idx} className="text-[14px] leading-7 text-slate-700">
+            {parseInline(item)}
+          </blockquote>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function ContentBlock({ block }) {
   if (block.type === 'paragraph') {
     return <p className="text-[15px] leading-7 text-slate-600">{parseInline(block.text)}</p>
@@ -717,6 +750,10 @@ function ContentBlock({ block }) {
 
   if (block.type === 'callout') {
     return <CalloutBlock tone={block.tone}>{parseInline(block.text)}</CalloutBlock>
+  }
+
+  if (block.type === 'quote') {
+    return <QuoteBlock items={block.items} />
   }
 
   if (block.type === 'list') {
