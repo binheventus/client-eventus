@@ -242,10 +242,10 @@ function TagGrid({ field, options, mode, value = [], onChange }) {
               if (mode === 'single') onChange(active ? [] : [option])
               else onChange(active ? value.filter(item => item !== option) : [...value, option])
             }}
-            className={`rounded-md border px-3.5 py-1.5 font-['JetBrains_Mono'] text-[13px] font-medium transition ${
+            className={`rounded-xl border px-3.5 py-2 font-['JetBrains_Mono'] text-[12px] font-semibold transition ${
               active
-                ? 'border-[#0052cc] bg-[#0052cc] font-bold text-white'
-                : 'border-[#d4d1c7] bg-white text-[#6b6b6b] hover:border-[#0052cc] hover:bg-[#e6efff] hover:text-[#0052cc]'
+                ? 'border-blue-700 bg-blue-700 text-white shadow-sm shadow-blue-200/70'
+                : 'border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700'
             }`}
           >
             {option}
@@ -265,34 +265,34 @@ function TextInput({ value = '', onChange, placeholder, type = 'text' }) {
       step={type === 'number' ? '0.5' : undefined}
       onChange={event => onChange(event.target.value)}
       placeholder={placeholder}
-      className={`w-full rounded-md border px-3.5 py-2.5 font-['Manrope'] text-[15px] text-[#1a1a1a] outline-none transition placeholder:text-[#9a9a9a] focus:border-[#0052cc] focus:bg-white focus:shadow-[0_0_0_3px_#e6efff] ${
-        String(value || '').trim() ? 'border-[#d4d1c7] bg-white' : 'border-[#e5e3dc] bg-[#fafaf7]'
-      } ${type === 'number' ? 'text-center font-[' + "'JetBrains_Mono'" + '] text-3xl font-bold text-[#0052cc]' : ''}`}
+      className={`w-full rounded-xl border px-4 py-3 text-[14px] text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-300 focus:bg-white focus:ring-2 focus:ring-blue-100 ${
+        String(value || '').trim() ? 'border-slate-300 bg-white' : 'border-slate-200 bg-slate-50'
+      } ${type === 'number' ? "text-center font-['JetBrains_Mono'] text-3xl font-bold text-blue-700" : ''}`}
     />
   )
 }
 
 function SectionCard({ section, formState, setField, setTags, toggleCard }) {
   return (
-    <section className="mb-5 rounded-xl border border-[#e5e3dc] bg-white px-8 py-7 shadow-[0_1px_3px_rgba(0,0,0,0.02)] max-sm:px-5 max-sm:py-6">
-      <div className="mb-5 flex items-center gap-3.5 border-b border-[#e5e3dc] pb-4">
-        <span className="shrink-0 rounded bg-[#e6efff] px-2.5 py-1 font-['JetBrains_Mono'] text-[13px] font-bold tracking-wider text-[#0052cc]">
+    <section className="mb-4 rounded-[24px] border border-slate-200 bg-white px-6 py-5 shadow-sm max-sm:px-5 max-sm:py-5">
+      <div className="mb-5 flex items-center gap-3.5 border-b border-slate-100 pb-4">
+        <span className="shrink-0 rounded-xl bg-blue-50 px-2.5 py-1 font-['JetBrains_Mono'] text-[12px] font-bold tracking-wider text-blue-700">
           {section.num}
         </span>
-        <h2 className="text-[18px] font-bold tracking-[-0.01em] text-[#1a1a1a]">{section.title}</h2>
+        <h2 className="text-[18px] font-semibold tracking-tight text-slate-900">{section.title}</h2>
         {section.important && (
-          <span className="ml-auto shrink-0 rounded border border-[#d2691e] bg-[#fdf3ea] px-2.5 py-1 font-['JetBrains_Mono'] text-[10px] font-bold uppercase tracking-[0.15em] text-[#d2691e]">
+          <span className="ml-auto shrink-0 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 font-['JetBrains_Mono'] text-[10px] font-bold uppercase tracking-[0.12em] text-amber-700">
             {section.important}
           </span>
         )}
-        {section.optional && <span className="ml-auto font-['JetBrains_Mono'] text-[11px] font-medium text-[#9a9a9a]">optional</span>}
+        {section.optional && <span className="ml-auto font-['JetBrains_Mono'] text-[11px] font-medium text-slate-400">optional</span>}
       </div>
 
-      {section.note && <div className="mb-4 rounded-md border border-[#f0e9b8] bg-[#fefbe9] px-3.5 py-2.5 text-[14px] leading-6 text-[#7a6311]">{section.note}</div>}
+      {section.note && <div className="mb-4 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-[13px] leading-6 text-amber-800">{section.note}</div>}
 
       {(section.fields || []).map(field => (
-        <div key={field.label} className="grid grid-cols-[180px_1fr] items-start gap-x-6 border-b border-[#e5e3dc] py-3.5 last:border-b-0 last:pb-0 first:pt-0 max-sm:grid-cols-1 max-sm:gap-y-2">
-          <span className="pt-2 font-['JetBrains_Mono'] text-[12px] font-semibold uppercase leading-5 tracking-[0.03em] text-[#6b6b6b] max-sm:pt-0">
+        <div key={field.label} className="grid grid-cols-[180px_1fr] items-start gap-x-6 border-b border-slate-100 py-3.5 last:border-b-0 last:pb-0 first:pt-0 max-sm:grid-cols-1 max-sm:gap-y-2">
+          <span className="pt-2 font-['JetBrains_Mono'] text-[11px] font-semibold uppercase leading-5 tracking-[0.08em] text-slate-500 max-sm:pt-0">
             {field.displayLabel || field.label}
           </span>
           {field.type === 'text' ? (
@@ -317,11 +317,11 @@ function SectionCard({ section, formState, setField, setTags, toggleCard }) {
         <div className="flex flex-col gap-4">
           {section.steps.map((step, index) => (
             <div key={step.field} className="flex items-start gap-3.5">
-              <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#0052cc] bg-[#e6efff] font-['JetBrains_Mono'] text-[13px] font-bold text-[#0052cc]">
+              <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-blue-200 bg-blue-50 font-['JetBrains_Mono'] text-[13px] font-bold text-blue-700">
                 {index + 1}
               </div>
               <div className="flex-1">
-                <div className="mb-2 font-['JetBrains_Mono'] text-[11px] font-bold uppercase tracking-[0.15em] text-[#0052cc]">{step.name}</div>
+                <div className="mb-2 font-['JetBrains_Mono'] text-[11px] font-bold uppercase tracking-[0.15em] text-blue-700">{step.name}</div>
                 {step.type === 'text' ? (
                   <TextInput value={formState.fields[step.field] || ''} onChange={value => setField(step.field, value)} placeholder={step.placeholder} />
                 ) : (
@@ -345,8 +345,8 @@ function SectionCard({ section, formState, setField, setTags, toggleCard }) {
       {section.timing && (
         <div className="grid grid-cols-3 gap-3.5 max-sm:grid-cols-1">
           {section.timing.map(label => (
-            <div key={label} className="rounded-[10px] border border-[#e5e3dc] bg-[#fafaf7] px-4 py-4 text-center transition focus-within:border-[#0052cc] focus-within:bg-white focus-within:shadow-[0_0_0_3px_#e6efff]">
-              <div className="mb-2.5 font-['JetBrains_Mono'] text-[11px] font-bold uppercase tracking-[0.15em] text-[#6b6b6b]">{label}</div>
+            <div key={label} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-center transition focus-within:border-blue-300 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100">
+              <div className="mb-2.5 font-['JetBrains_Mono'] text-[11px] font-bold uppercase tracking-[0.15em] text-slate-500">{label}</div>
               <input
                 type="number"
                 min="0"
@@ -354,9 +354,9 @@ function SectionCard({ section, formState, setField, setTags, toggleCard }) {
                 value={formState.fields[label] || ''}
                 onChange={event => setField(label, event.target.value)}
                 placeholder="—"
-                className="w-full bg-transparent text-center font-['JetBrains_Mono'] text-3xl font-bold leading-none text-[#0052cc] outline-none placeholder:text-[#9a9a9a]"
+                className="w-full bg-transparent text-center font-['JetBrains_Mono'] text-3xl font-bold leading-none text-blue-700 outline-none placeholder:text-slate-400"
               />
-              <div className="mt-1.5 font-['JetBrains_Mono'] text-[12px] text-[#6b6b6b]">giây</div>
+              <div className="mt-1.5 font-['JetBrains_Mono'] text-[12px] text-slate-500">giây</div>
             </div>
           ))}
         </div>
@@ -366,12 +366,12 @@ function SectionCard({ section, formState, setField, setTags, toggleCard }) {
         <>
           <div className="flex flex-col gap-2">
             {section.negativeItems.map(item => (
-              <div key={item} className="flex items-center gap-3 rounded-md bg-[#fce8e6] px-3 py-2 font-['JetBrains_Mono'] text-[13px] font-medium text-[#c0392b] before:flex before:h-5 before:w-5 before:items-center before:justify-center before:rounded before:bg-[#c0392b] before:text-xs before:font-bold before:text-white before:content-['✕']">
+              <div key={item} className="flex items-center gap-3 rounded-xl bg-red-50 px-3 py-2 font-['JetBrains_Mono'] text-[12px] font-medium text-red-700 before:flex before:h-5 before:w-5 before:items-center before:justify-center before:rounded before:bg-red-600 before:text-xs before:font-bold before:text-white before:content-['✕']">
                 {item}
               </div>
             ))}
           </div>
-          <div className="mt-3.5 rounded-md border border-[#f0e9b8] bg-[#fefbe9] px-3.5 py-2.5 text-[14px] leading-6 text-[#7a6311]">+ Thêm negative riêng (ngăn cách bằng dấu phẩy):</div>
+          <div className="mt-3.5 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-[13px] leading-6 text-amber-800">+ Thêm negative riêng (ngăn cách bằng dấu phẩy):</div>
         </>
       )}
 
@@ -385,8 +385,8 @@ function SectionCard({ section, formState, setField, setTags, toggleCard }) {
                 key={label}
                 type="button"
                 onClick={() => toggleCard(label)}
-                className={`rounded-[10px] border px-3.5 py-5 text-center text-[14px] font-semibold leading-6 transition ${
-                  active ? 'border-[#0052cc] bg-[#e6efff] text-[#0052cc]' : 'border-[#e5e3dc] bg-[#fafaf7] text-[#6b6b6b] hover:border-[#0052cc] hover:bg-[#e6efff] hover:text-[#0052cc]'
+                className={`rounded-2xl border px-3.5 py-5 text-center text-[14px] font-semibold leading-6 transition ${
+                  active ? 'border-blue-200 bg-blue-50 text-blue-700 shadow-sm shadow-blue-100/70' : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700'
                 }`}
               >
                 <div className="text-xl">{icon}</div>
@@ -475,23 +475,25 @@ export default function VFXPromptBuilderPage() {
   }
 
   return (
-    <div className="relative flex-1 overflow-y-auto bg-[#f6f5f0] px-6 pb-36 pt-12 text-[#1a1a1a] [font-family:'Manrope',system-ui,sans-serif] max-sm:px-4 max-sm:pt-8">
-      <div className="mx-auto max-w-[880px]">
-        <header className="mb-10 text-center before:mx-auto before:mb-6 before:block before:h-[3px] before:w-20 before:rounded before:bg-[#0052cc] before:content-['']">
-          <div className="mb-5 inline-block rounded border border-[#0052cc] bg-[#e6efff] px-3.5 py-1.5 font-['JetBrains_Mono'] text-[12px] font-bold uppercase tracking-[0.18em] text-[#0052cc]">
+    <div className="relative flex-1 overflow-y-auto bg-slate-50 px-6 pb-10 pt-6 text-slate-900 [font-family:'Manrope',system-ui,sans-serif] max-sm:px-4 max-sm:pt-4">
+      <div className="mx-auto max-w-[1180px]">
+        <header className="mb-6 overflow-hidden rounded-[30px] bg-gradient-to-br from-slate-950 via-blue-950 to-teal-700 px-8 py-8 text-white shadow-lg shadow-slate-200 max-sm:px-6 max-sm:py-7">
+          <div className="mb-4 inline-flex rounded-full border border-white/20 bg-white/10 px-4 py-1.5 font-['JetBrains_Mono'] text-[11px] font-bold uppercase tracking-[0.18em] text-blue-100">
             Eventus · Prompt Builder
           </div>
-          <h1 className="mb-3.5 text-[38px] font-extrabold leading-[1.15] tracking-[-0.02em] text-[#1a1a1a] max-sm:text-[29px]">
-            VFX Transition<br /><span className="text-[#0052cc]">Prompt Builder</span>
+          <h1 className="mb-3 text-[40px] font-extrabold leading-[1.08] tracking-[-0.03em] max-sm:text-[30px]">
+            VFX Transition Prompt Builder
           </h1>
-          <p className="font-['JetBrains_Mono'] text-[15px] text-[#6b6b6b]">// điền form → tạo brief → Claude → prompt tiếng Anh</p>
+          <p className="max-w-3xl text-[16px] leading-7 text-blue-100 max-sm:text-[14px]">
+            Điền form theo từng tham số transition, hệ thống tạo brief và gọi Claude để trả về prompt tiếng Anh dùng cho Veo / Kling.
+          </p>
         </header>
 
-        <section className="mb-8 rounded-lg border border-[#e5e3dc] border-l-[#0052cc] border-l-[3px] bg-white px-5 py-4 text-[15px] leading-8 text-[#1a1a1a]">
-          <div className="mb-2 font-['JetBrains_Mono'] text-[12px] font-bold uppercase tracking-[0.15em] text-[#0052cc]">// Cách dùng</div>
+        <section className="mb-5 rounded-[24px] border border-slate-200 bg-white px-6 py-5 text-[14px] leading-8 text-slate-700 shadow-sm">
+          <div className="mb-2 font-['JetBrains_Mono'] text-[11px] font-bold uppercase tracking-[0.15em] text-blue-700">Cách dùng</div>
           {['Tick các tag phù hợp · điền các ô text quan trọng (không cần điền hết).', 'Click "Generate Prompt" để Claude viết prompt tiếng Anh chuẩn.', 'Kiểm tra prompt trong popup rồi copy paste vào Veo / Kling.'].map((step, index) => (
             <div key={step}>
-              <span className="mr-2 inline-block h-[22px] w-[22px] rounded-full bg-[#e6efff] text-center font-['JetBrains_Mono'] text-[12px] font-bold leading-[22px] text-[#0052cc]">{index + 1}</span>
+              <span className="mr-2 inline-block h-[22px] w-[22px] rounded-full bg-blue-50 text-center font-['JetBrains_Mono'] text-[12px] font-bold leading-[22px] text-blue-700">{index + 1}</span>
               {step}
             </div>
           ))}
@@ -508,42 +510,44 @@ export default function VFXPromptBuilderPage() {
           />
         ))}
 
-        <footer className="mt-10 border-t border-[#e5e3dc] pt-6 text-center font-['JetBrains_Mono'] text-[12px] font-medium tracking-[0.18em] text-[#9a9a9a]">
+        <section className="mt-5 rounded-[24px] border border-slate-200 bg-white px-5 py-5 shadow-sm">
+          <div className="flex items-center gap-3 max-sm:flex-col max-sm:items-stretch">
+            <span className="whitespace-nowrap rounded-full border border-slate-200 bg-slate-50 px-3.5 py-2 text-center font-['JetBrains_Mono'] text-[12px] font-semibold text-slate-600">
+              <span className="font-bold text-blue-700">{progress}</span> / 14 mục đã điền
+            </span>
+            <button type="button" onClick={resetForm} className="rounded-xl border border-slate-200 bg-white px-5 py-3 font-['JetBrains_Mono'] text-[12px] font-bold uppercase tracking-[0.08em] text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900">
+              Reset
+            </button>
+            <button type="button" onClick={generatePrompt} disabled={loading} className="flex-1 rounded-xl border border-blue-700 bg-blue-700 px-5 py-3 font-['JetBrains_Mono'] text-[12px] font-bold uppercase tracking-[0.08em] text-white transition hover:-translate-y-0.5 hover:bg-blue-800 hover:shadow-lg hover:shadow-blue-200 disabled:cursor-not-allowed disabled:opacity-70">
+              {loading ? 'Generating...' : 'Generate Prompt'}
+            </button>
+          </div>
+        </section>
+
+        <footer className="mt-8 border-t border-slate-200 pt-6 text-center font-['JetBrains_Mono'] text-[11px] font-medium tracking-[0.18em] text-slate-400">
           EVENTUS · VFX TRANSITION TEMPLATE · v1.0
         </footer>
       </div>
 
-      <div className="fixed bottom-6 left-1/2 z-40 flex w-[calc(100%-48px)] max-w-[880px] -translate-x-1/2 items-center gap-3 rounded-[14px] border border-[#d4d1c7] bg-white px-[18px] py-3.5 shadow-[0_8px_32px_rgba(0,0,0,0.08)] max-sm:w-[calc(100%-32px)] max-sm:gap-2 max-sm:px-3 max-sm:py-2.5">
-        <span className="whitespace-nowrap rounded-full border border-[#e5e3dc] bg-[#fafaf7] px-3.5 py-2 font-['JetBrains_Mono'] text-[12px] font-semibold text-[#6b6b6b]">
-          <span className="font-bold text-[#0052cc]">{progress}</span> / 14 mục
-        </span>
-        <button type="button" onClick={resetForm} className="rounded-lg border border-[#d4d1c7] bg-white px-5 py-3 font-['JetBrains_Mono'] text-[13px] font-bold uppercase tracking-[0.08em] text-[#6b6b6b] transition hover:border-[#1a1a1a] hover:text-[#1a1a1a] max-sm:px-3">
-          Reset
-        </button>
-        <button type="button" onClick={generatePrompt} disabled={loading} className="flex-1 rounded-lg border border-[#0052cc] bg-[#0052cc] px-5 py-3 font-['JetBrains_Mono'] text-[13px] font-bold uppercase tracking-[0.08em] text-white transition hover:-translate-y-0.5 hover:bg-[#003d99] hover:shadow-[0_6px_20px_rgba(0,82,204,0.3)] disabled:cursor-not-allowed disabled:opacity-70">
-          {loading ? 'Generating...' : 'Generate Prompt'}
-        </button>
-      </div>
-
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(20,20,20,0.5)] p-6 backdrop-blur-md" onClick={(event) => event.target === event.currentTarget && setModalOpen(false)}>
-          <div className="flex max-h-[88vh] w-full max-w-[760px] flex-col rounded-[14px] border border-[#d4d1c7] bg-white shadow-[0_20px_60px_rgba(0,0,0,0.2)]">
-            <div className="flex items-center justify-between border-b border-[#e5e3dc] px-6 py-5">
-              <span className="font-['JetBrains_Mono'] text-[14px] font-bold uppercase tracking-[0.15em] text-[#0052cc]">// Prompt đã sẵn sàng</span>
-              <button type="button" onClick={() => setModalOpen(false)} className="rounded-md px-2.5 py-1 text-2xl leading-none text-[#6b6b6b] transition hover:bg-[#fafaf7] hover:text-[#1a1a1a]">×</button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-6 backdrop-blur-md" onClick={(event) => event.target === event.currentTarget && setModalOpen(false)}>
+          <div className="flex max-h-[88vh] w-full max-w-[780px] flex-col rounded-[24px] border border-slate-200 bg-white shadow-2xl shadow-slate-950/20">
+            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
+              <span className="font-['JetBrains_Mono'] text-[13px] font-bold uppercase tracking-[0.15em] text-blue-700">Prompt đã sẵn sàng</span>
+              <button type="button" onClick={() => setModalOpen(false)} className="rounded-lg px-2.5 py-1 text-2xl leading-none text-slate-500 transition hover:bg-slate-100 hover:text-slate-900">×</button>
             </div>
             <div className="flex-1 overflow-y-auto px-6 py-6">
               <pre className={`max-h-[55vh] overflow-y-auto whitespace-pre-wrap break-words rounded-lg border p-5 font-['JetBrains_Mono'] text-[13px] leading-7 ${
-                error ? 'border-[#c0392b] bg-[#fce8e6] text-[#c0392b]' : 'border-[#e5e3dc] bg-[#fafaf7] text-[#1a1a1a]'
+                error ? 'border-red-200 bg-red-50 text-red-700' : 'border-slate-200 bg-slate-50 text-slate-900'
               }`}>
                 {loading ? 'Đang gọi Claude API để viết prompt tiếng Anh...' : error || generatedPrompt}
               </pre>
             </div>
-            <div className="flex gap-3 border-t border-[#e5e3dc] px-6 py-4">
-              <button type="button" onClick={() => setModalOpen(false)} className="rounded-lg border border-[#d4d1c7] bg-white px-5 py-3 font-['JetBrains_Mono'] text-[13px] font-bold uppercase tracking-[0.08em] text-[#6b6b6b] transition hover:border-[#1a1a1a] hover:text-[#1a1a1a]">
+            <div className="flex gap-3 border-t border-slate-100 px-6 py-4">
+              <button type="button" onClick={() => setModalOpen(false)} className="rounded-xl border border-slate-200 bg-white px-5 py-3 font-['JetBrains_Mono'] text-[12px] font-bold uppercase tracking-[0.08em] text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900">
                 Đóng
               </button>
-              <button type="button" onClick={copyPrompt} disabled={!generatedPrompt || loading} className="flex-1 rounded-lg border border-[#0052cc] bg-[#0052cc] px-5 py-3 font-['JetBrains_Mono'] text-[13px] font-bold uppercase tracking-[0.08em] text-white transition hover:bg-[#003d99] disabled:cursor-not-allowed disabled:opacity-60">
+              <button type="button" onClick={copyPrompt} disabled={!generatedPrompt || loading} className="flex-1 rounded-xl border border-blue-700 bg-blue-700 px-5 py-3 font-['JetBrains_Mono'] text-[12px] font-bold uppercase tracking-[0.08em] text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60">
                 Copy vào clipboard
               </button>
             </div>
@@ -551,7 +555,7 @@ export default function VFXPromptBuilderPage() {
         </div>
       )}
 
-      <div className={`fixed bottom-[110px] left-1/2 z-[60] -translate-x-1/2 rounded-lg bg-[#1a1a1a] px-6 py-3 font-['JetBrains_Mono'] text-[13px] font-semibold tracking-wide text-white shadow-[0_8px_30px_rgba(0,0,0,0.25)] transition ${toast ? 'translate-y-0 opacity-100' : 'translate-y-5 opacity-0'}`}>
+      <div className={`fixed bottom-8 left-1/2 z-[60] -translate-x-1/2 rounded-xl bg-slate-950 px-6 py-3 font-['JetBrains_Mono'] text-[13px] font-semibold tracking-wide text-white shadow-xl shadow-slate-950/20 transition ${toast ? 'translate-y-0 opacity-100' : 'translate-y-5 opacity-0'}`}>
         {toast}
       </div>
     </div>
