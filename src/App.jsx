@@ -15,6 +15,7 @@ export default function App() {
         <Route path="/competency" element={<WikiPage />} />
         <Route path="/orgchart" element={<WikiPage />} />
         <Route path="/hr-insights" element={<WikiPage />} />
+        <Route path="/vfx-builder" element={<WikiPage />} />
         <Route path="/30dayreview" element={<WikiPage />} />
         <Route path="/position/:positionId" element={<WikiPage />} />
         <Route path="/position/:positionId/level/:levelIndex" element={<WikiPage />} />

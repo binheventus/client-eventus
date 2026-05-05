@@ -7,6 +7,7 @@ import PositionPage from './PositionPage'
 import ThirtyDayReviewPage from './ThirtyDayReviewPage'
 import OrgChartPage from './OrgChartPage'
 import HRInsightsPage from './HRInsightsPage'
+import VFXPromptBuilderPage from './VFXPromptBuilderPage'
 
 /* ─── Danh muc sidebar ─── */
 const CATEGORIES = [
@@ -83,6 +84,14 @@ const CATEGORIES = [
     banner: 'HR Insights',
     desc: 'Tổng hợp insight nhân sự, dữ liệu vận hành và các góc nhìn nội bộ của Eventus.',
   },
+  {
+    id: 'vfx_builder',
+    label: 'VFX Prompt Builder',
+    icon: '✨',
+    shortDesc: 'Tạo prompt VFX chuẩn cho Veo / Kling',
+    banner: 'VFX Prompt Builder',
+    desc: 'Form chọn tham số transition và gọi Claude để tạo prompt tiếng Anh cho video AI.',
+  },
 ]
 
 const CATEGORY_CARD_META = {
@@ -123,6 +132,11 @@ const CATEGORY_BANNER_STYLES = {
     desc: 'text-blue-100/90',
   },
   hr_insights: {
+    bg: 'from-slate-900 via-blue-900 to-teal-700',
+    label: 'text-blue-100',
+    desc: 'text-blue-100/90',
+  },
+  vfx_builder: {
     bg: 'from-slate-900 via-blue-900 to-teal-700',
     label: 'text-blue-100',
     desc: 'text-blue-100/90',
@@ -409,6 +423,7 @@ function getCategoryHref(id) {
   if (id === 'review_30_day') return '/30dayreview'
   if (id === 'org_chart') return '/orgchart'
   if (id === 'hr_insights') return '/hr-insights'
+  if (id === 'vfx_builder') return '/vfx-builder'
   return '/'
 }
 
@@ -1244,6 +1259,13 @@ export default function WikiPage() {
       return
     }
 
+    if (location.pathname === '/vfx-builder') {
+      setActiveCat('vfx_builder')
+      setSelectedTitle(null)
+      setEditing(false)
+      return
+    }
+
     const routeCategoryId = getCategoryIdFromPath(location.pathname)
     if (routeCategoryId) {
       setActiveCat(routeCategoryId)
@@ -1271,6 +1293,8 @@ export default function WikiPage() {
       navigate('/orgchart')
     } else if (id === 'hr_insights') {
       navigate('/hr-insights')
+    } else if (id === 'vfx_builder') {
+      navigate('/vfx-builder')
     } else if (id === 'review_30_day') {
       navigate('/30dayreview')
     } else if (CATEGORY_ROUTE_SEGMENTS[id]) {
@@ -1284,7 +1308,7 @@ export default function WikiPage() {
   }
 
   function openHomeCategory(id) {
-    if (id === 'khung_nang_luc' || id === 'review_30_day' || id === 'org_chart' || id === 'hr_insights') {
+    if (id === 'khung_nang_luc' || id === 'review_30_day' || id === 'org_chart' || id === 'hr_insights' || id === 'vfx_builder') {
       selectCat(id)
       return
     }
@@ -1463,8 +1487,11 @@ export default function WikiPage() {
           {/* HR Insights */}
           {activeCat === 'hr_insights' && <HRInsightsPage />}
 
+          {/* VFX Prompt Builder */}
+          {activeCat === 'vfx_builder' && <VFXPromptBuilderPage />}
+
           {/* Card grid cac danh muc khac */}
-          {activeCat !== 'home' && activeCat !== 'khung_nang_luc' && activeCat !== 'review_30_day' && activeCat !== 'org_chart' && activeCat !== 'hr_insights' && !selectedTitle && (
+          {activeCat !== 'home' && activeCat !== 'khung_nang_luc' && activeCat !== 'review_30_day' && activeCat !== 'org_chart' && activeCat !== 'hr_insights' && activeCat !== 'vfx_builder' && !selectedTitle && (
             <div className="flex-1 overflow-y-auto p-6">
               <CategoryBanner cat={currentCat} />
               {admin.isAdmin && (
@@ -1529,7 +1556,7 @@ export default function WikiPage() {
           )}
 
           {/* Content view */}
-          {activeCat !== 'home' && activeCat !== 'khung_nang_luc' && activeCat !== 'review_30_day' && activeCat !== 'org_chart' && selectedTitle && !editing && (
+          {activeCat !== 'home' && activeCat !== 'khung_nang_luc' && activeCat !== 'review_30_day' && activeCat !== 'org_chart' && activeCat !== 'vfx_builder' && selectedTitle && !editing && (
             <div className="flex-1 overflow-y-auto">
               <div className="px-6 pt-0 pb-5">
                 {currentPage ? (
@@ -1576,7 +1603,7 @@ export default function WikiPage() {
           )}
 
           {/* Editor */}
-          {activeCat !== 'home' && activeCat !== 'khung_nang_luc' && activeCat !== 'review_30_day' && activeCat !== 'org_chart' && selectedTitle && editing && (
+          {activeCat !== 'home' && activeCat !== 'khung_nang_luc' && activeCat !== 'review_30_day' && activeCat !== 'org_chart' && activeCat !== 'vfx_builder' && selectedTitle && editing && (
             <div className="flex-1 flex flex-col p-6">
               <div className="flex items-center justify-between mb-3">
                 <div />
