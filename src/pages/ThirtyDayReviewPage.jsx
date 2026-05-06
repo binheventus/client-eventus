@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { thirtyDayReviewSupabase as supabase } from '../lib/thirtyDayReviewSupabase'
 import questionsConfig from '../data/thirtyDayReviewQuestions.json'
 import {
   Star,
@@ -82,6 +81,19 @@ function getTodayISO() {
   return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
 }
 
+async function requestReviewApi(path, options = {}) {
+  const response = await fetch(path, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(options.headers || {}),
+    },
+  })
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(payload?.error || 'Không kết nối được 30-Day Review API.')
+  return payload
+}
+
 export default function ThirtyDayReviewPage({ embedded = false }) {
   const urlParams = new URLSearchParams(window.location.search);
   const tokenFromUrl = urlParams.get('r');
@@ -135,13 +147,9 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
 
     (async () => {
       try {
-        const { data: respData, error: respError } = await supabase
-          .from('responses')
-          .select('*')
-          .eq('access_token', tokenFromUrl)
-          .single();
+        const { response: respData } = await requestReviewApi(`/api/30day-review-response?accessToken=${encodeURIComponent(tokenFromUrl)}`);
 
-        if (respError || !respData) {
+        if (!respData) {
           setErrorMessage('Đường link không hợp lệ hoặc đã bị xóa.');
           setStage('error');
           return;
@@ -206,18 +214,7 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
     setStage('loading');
 
     try {
-      if (!supabase) {
-        throw new Error('Thiếu cấu hình Supabase cho 30-Day Review.');
-      }
-
-      const { data: existing, error: lookupErr } = await supabase
-        .from('responses')
-        .select('*')
-        .eq('sdt', phoneNorm)
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-      if (lookupErr) throw lookupErr;
+      const { responses: existing = [] } = await requestReviewApi(`/api/30day-review-response?sdt=${encodeURIComponent(phoneNorm)}`);
 
       if (existing && existing.length > 0) {
         const resp = existing[0];
@@ -241,9 +238,9 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
         const config = await loadQuestionsConfig();
         const newToken = generateToken();
 
-        const { data: created, error: createErr } = await supabase
-          .from('responses')
-          .insert({
+        const { response: created } = await requestReviewApi('/api/30day-review-response', {
+          method: 'POST',
+          body: JSON.stringify({
             access_token: newToken,
             ho_ten: hoTen.trim(),
             sdt: phoneNorm,
@@ -252,11 +249,8 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
             question_version: LOCAL_QUESTION_VERSION,
             data: {},
             status: 'draft',
-          })
-          .select()
-          .single();
-
-        if (createErr) throw createErr;
+          }),
+        });
 
         setQuestionsData(config.config);
         setQuestionVersion(config.version);
@@ -281,21 +275,23 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
   };
 
   const saveToServer = useCallback(async (data) => {
-    if (!responseId) return;
+    if (!accessToken) return;
     setSaveState('saving');
     try {
-      const { error } = await supabase
-        .from('responses')
-        .update({ data })
-        .eq('id', responseId);
-      if (error) throw error;
+      await requestReviewApi('/api/30day-review-response', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          accessToken,
+          updates: { data },
+        }),
+      });
       setSaveState('saved');
       setLastSavedAt(new Date());
     } catch (err) {
       console.error('Save error:', err);
       setSaveState('error');
     }
-  }, [responseId]);
+  }, [accessToken]);
 
   useEffect(() => {
     if (isInitialLoad.current || !responseId) return;
@@ -358,16 +354,17 @@ export default function ThirtyDayReviewPage({ embedded = false }) {
 
     setSaveState('saving');
     try {
-      const { error } = await supabase
-        .from('responses')
-        .update({
-          data: formData,
-          status: 'submitted',
-          submitted_at: new Date().toISOString(),
-        })
-        .eq('id', responseId);
-
-      if (error) throw error;
+      await requestReviewApi('/api/30day-review-response', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          accessToken,
+          updates: {
+            data: formData,
+            status: 'submitted',
+            submitted_at: new Date().toISOString(),
+          },
+        }),
+      });
       setStatus('submitted');
       setSaveState('saved');
       setLastSavedAt(new Date());

@@ -1,0 +1,108 @@
+VFX Transition Prompt Builder - 14 nhom cau hoi hien tai
+
+Muc dich:
+Danh sach nay gom 14 nhom thong tin dang duoc dung trong form VFX Transition Prompt Builder.
+Co the dung tai lieu nay de dua sang cac cong cu AI khac nghien cuu, rut gon, bo sung hoac toi uu lai cau hoi.
+
+1. Thong tin co ban
+- Platform: Veo 3 / Kling 2.0 / ca hai...
+- Shot length: vi du 5s, 8s, 10s...
+- Aspect ratio: 16:9, 9:16, 1:1, 4:3, 2.39:1
+- Resolution: optional, vi du 4K, 1080p...
+
+2. Input hinh anh
+- Frame dau: mo ta ngan anh dau.
+- Frame cuoi: mo ta ngan anh cuoi.
+- Match layout: Co / Khong / Linh hoat.
+- Focus chinh: vat the hoac nhan vat trung tam.
+- Diem cong chuyen: vi du line sang, man hinh, den, logo...
+
+3. Y tuong Transition Flow
+- Bat dau: Camera va trang thai ban dau.
+- Kich hoat: Hieu ung bat dau tu dau, cai gi trigger.
+- Bien doi: stretch, explode, dissolve, morph, energy, tunnel.
+- Di chuyen chinh: FPV, zoom, xuyen, roi, bay, orbit.
+- Reveal: toi -> sang, assemble, emerge, fade.
+
+4. Camera Choreography
+- Loai camera: cinematic, FPV, drone, virtual crane.
+- Chuyen dong camera: push-in, pull-out, orbit, dive, glide, whip.
+- Nhip camera: slow -> fast -> slow, constant, burst.
+- Motion dac biet: roll, tilt, drop, acceleration manh, khong.
+
+5. Style hinh anh
+- Genre: Cinematic, Trailer, Commercial.
+- Mood: Futuristic, High-tech, Luxury, Minimal.
+- Realism style: Realistic, Hyper-realistic, Stylized.
+- Density: Clean, Dense VFX, Atmospheric.
+
+6. He VFX chinh
+- Light trails
+- Volumetric light
+- Beams
+- Glow / bloom
+- Energy pulse
+- Holographic lines
+- Particle dust
+- Particle spark
+- Particle digital
+- Smoke / haze
+- Shockwave
+- Grid / tech lines
+
+7. VFX phu
+- Lens flare
+- Motion streak
+- Floating dust
+- Subtle sparks
+- Atmosphere fog
+
+8. Mau sac va Anh sang
+- Main color: vi du cyan, deep blue, gold...
+- Secondary color: vi du magenta, white, amber...
+- Light type: cold, warm, neutral.
+- Contrast: low, medium, high.
+- Glow intensity: nhe, vua, manh.
+
+9. Nhip va Timing
+- Build-up: so giay.
+- Acceleration: so giay.
+- Reveal: so giay.
+- Hit beat: Co / Khong.
+
+10. Muc do Realism
+- Ultra realistic
+- Cinematic realistic
+- Semi-stylized
+- Abstract
+
+11. Rang buoc bat buoc
+- Giu nguyen: vi du logo, mau thuong hieu, layout...
+- Khong duoc thay doi: vi du ti le logo, vi tri text...
+- Khong them: vi du text, watermark, nguoi...
+
+12. Negative Prompt
+- Negative co dinh:
+  - Fake CGI
+  - Game-like visuals
+  - Qua nhieu particle
+  - Blur manh
+  - Rung handheld
+  - Chay sang qua muc
+  - Fantasy qua da
+- Negative them: vi du cartoon, anime, low resolution...
+
+13. Reference
+- Trailer cong nghe
+- Opening event lon
+- Sci-fi cinematic
+- Automotive spot
+- Fashion film
+- Reference khac: link YouTube hoac mo ta ngan.
+
+14. Output mong muon
+- Prompt tieng Anh
+- Co negative prompt
+- Viet theo beat
+- Ghi chu them: optional, yeu cau dac biet cho prompt.
+

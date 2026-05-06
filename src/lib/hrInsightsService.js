@@ -1,6 +1,21 @@
-import { hasSupabaseConfig, supabase } from './supabase'
+import { ADMIN_PASSWORD } from '../config'
 
-export const canUseHrInsightsBackend = hasSupabaseConfig && Boolean(supabase)
+export const canUseHrInsightsBackend = true
+
+async function requestHrApi(path, options = {}) {
+  const response = await fetch(path, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      'x-admin-password': ADMIN_PASSWORD,
+      ...(options.headers || {}),
+    },
+  })
+
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(payload?.error || 'Không kết nối được HR Insights API.')
+  return payload
+}
 
 function normalizeEmployee(row) {
   return {
@@ -59,30 +74,9 @@ export function getInitials(name = '') {
 export async function fetchHrEmployees() {
   if (!canUseHrInsightsBackend) return []
 
-  const { data: employeeRows, error } = await supabase
-    .from('hr_employees')
-    .select('*')
-    .order('updated_at', { ascending: false })
-
-  if (error) throw error
+  const { employees: employeeRows, insights: insightRows, notes: noteRows } = await requestHrApi('/api/hr-insights')
   const employees = (employeeRows || []).map(normalizeEmployee)
-  const employeeIds = employees.map(item => item.id)
-  if (!employeeIds.length) return employees
-
-  const [{ data: insightRows, error: insightError }, { data: noteRows, error: noteError }] = await Promise.all([
-    supabase
-      .from('hr_employee_insights')
-      .select('employee_id, remember_tags, goals')
-      .in('employee_id', employeeIds),
-    supabase
-      .from('hr_employee_notes')
-      .select('employee_id, note_date, note_type, points')
-      .in('employee_id', employeeIds)
-      .order('note_date', { ascending: false }),
-  ])
-
-  if (insightError) throw insightError
-  if (noteError) throw noteError
+  if (!employees.length) return employees
 
   const insightByEmployee = new Map((insightRows || []).map(row => [row.employee_id, row]))
   const latestNoteByEmployee = new Map()
@@ -106,15 +100,7 @@ export async function fetchHrEmployees() {
 export async function fetchHrEmployeeDetail(employeeId) {
   if (!canUseHrInsightsBackend || !employeeId) return null
 
-  const [{ data: employee, error: employeeError }, { data: insight, error: insightError }, { data: notes, error: notesError }] = await Promise.all([
-    supabase.from('hr_employees').select('*').eq('id', employeeId).single(),
-    supabase.from('hr_employee_insights').select('*').eq('employee_id', employeeId).maybeSingle(),
-    supabase.from('hr_employee_notes').select('*').eq('employee_id', employeeId).order('note_date', { ascending: false }),
-  ])
-
-  if (employeeError) throw employeeError
-  if (insightError) throw insightError
-  if (notesError) throw notesError
+  const { employee, insight, notes } = await requestHrApi(`/api/hr-insights?employeeId=${encodeURIComponent(employeeId)}`)
 
   return {
     employee: normalizeEmployee(employee),
@@ -126,67 +112,37 @@ export async function fetchHrEmployeeDetail(employeeId) {
 export async function addHrEmployeeNote(employeeId, note) {
   if (!canUseHrInsightsBackend || !employeeId) return null
 
-  const { data, error } = await supabase
-    .from('hr_employee_notes')
-    .insert({
-      employee_id: employeeId,
-      note_date: note.date,
-      note_type: note.type,
-      author: note.author,
-      points: note.points,
-    })
-    .select()
-    .single()
-
-  if (error) throw error
-  return normalizeNote(data)
+  const { note: savedNote } = await requestHrApi('/api/hr-insights-note', {
+    method: 'POST',
+    body: JSON.stringify({ employeeId, note }),
+  })
+  return normalizeNote(savedNote)
 }
 
 export async function updateHrEmployeeNote(noteId, note) {
   if (!canUseHrInsightsBackend || !noteId) return null
 
-  const { data, error } = await supabase
-    .from('hr_employee_notes')
-    .update({
-      note_date: note.date,
-      note_type: note.type,
-      points: note.points,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', noteId)
-    .select()
-    .single()
-
-  if (error) throw error
-  return normalizeNote(data)
+  const { note: savedNote } = await requestHrApi('/api/hr-insights-note', {
+    method: 'PATCH',
+    body: JSON.stringify({ noteId, note }),
+  })
+  return normalizeNote(savedNote)
 }
 
 export async function deleteHrEmployeeNote(noteId) {
   if (!canUseHrInsightsBackend || !noteId) return
 
-  const { error } = await supabase
-    .from('hr_employee_notes')
-    .delete()
-    .eq('id', noteId)
-
-  if (error) throw error
+  await requestHrApi(`/api/hr-insights-note?noteId=${encodeURIComponent(noteId)}`, {
+    method: 'DELETE',
+  })
 }
 
 export async function saveHrEmployeeInsight(employeeId, insight) {
   if (!canUseHrInsightsBackend || !employeeId) return null
 
-  const { data, error } = await supabase
-    .from('hr_employee_insights')
-    .upsert({
-      employee_id: employeeId,
-      remember_tags: insight.rememberTags,
-      goals: insight.goals,
-      overview: insight.overview,
-      updated_at: new Date().toISOString(),
-    })
-    .select()
-    .single()
-
-  if (error) throw error
-  return normalizeInsight(data)
+  const { insight: savedInsight } = await requestHrApi('/api/hr-insights-insight', {
+    method: 'PUT',
+    body: JSON.stringify({ employeeId, insight }),
+  })
+  return normalizeInsight(savedInsight)
 }
