@@ -25,7 +25,7 @@ class ErrorBoundary extends React.Component {
 
       return (
         <div style={{ minHeight: '100vh', padding: 32, fontFamily: 'sans-serif', background: '#f8fafc', color: '#0f172a' }}>
-          <h1 style={{ margin: 0, fontSize: 24 }}>Eventus Handbook gặp lỗi khi tải trang</h1>
+          <h1 style={{ margin: 0, fontSize: 24 }}>Eventus AI Lab gặp lỗi khi tải trang</h1>
           <p style={{ marginTop: 12, lineHeight: 1.6 }}>Gửi lại màn hình này để kiểm tra lỗi runtime.</p>
           <pre style={{ marginTop: 20, whiteSpace: 'pre-wrap', border: '1px solid #cbd5e1', borderRadius: 12, padding: 16, background: 'white' }}>
             {detail}

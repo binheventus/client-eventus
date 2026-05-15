@@ -152,4 +152,4 @@ where full_name = 'An Nguyen'
 on conflict do nothing;
 ```
 
-Lưu ý bảo mật: nếu Supabase project đang cho phép anon key đọc/ghi như wiki hiện tại, dữ liệu HR cũng sẽ dùng cùng mức bảo vệ đó. Nếu dữ liệu HR là nhạy cảm, nên bổ sung Supabase Auth + RLS trước khi đưa vào production rộng rãi.
+Lưu ý bảo mật: nếu Supabase project đang cho phép anon key đọc/ghi như phần dữ liệu nội bộ hiện tại, dữ liệu HR cũng sẽ dùng cùng mức bảo vệ đó. Nếu dữ liệu HR là nhạy cảm, nên bổ sung Supabase Auth + RLS trước khi đưa vào production rộng rãi.

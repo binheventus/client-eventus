@@ -1,17 +1,21 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
-import WikiPage from './pages/WikiPage'
+import EventusAILabPage from './pages/EventusAILabPage'
+import { QuotePublicPage } from './features/quotes'
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<WikiPage />} />
-        <Route path="/orgchart" element={<WikiPage />} />
-        <Route path="/hr-insights" element={<WikiPage />} />
-        <Route path="/vfx-builder" element={<WikiPage />} />
-        <Route path="/30dayreview" element={<WikiPage />} />
-        <Route path="/position/:positionId" element={<WikiPage />} />
-        <Route path="/position/:positionId/level/:levelIndex" element={<WikiPage />} />
+        <Route path="/" element={<EventusAILabPage />} />
+        <Route path="/hr-insights" element={<EventusAILabPage />} />
+        <Route path="/vfx-builder" element={<EventusAILabPage />} />
+        <Route path="/quotes" element={<EventusAILabPage />} />
+        <Route path="/quotes/new" element={<EventusAILabPage />} />
+        <Route path="/quotes/trash" element={<EventusAILabPage />} />
+        <Route path="/quotes/:id" element={<EventusAILabPage />} />
+        <Route path="/q/:share_token" element={<QuotePublicPage />} />
+        <Route path="/position/:positionId" element={<EventusAILabPage />} />
+        <Route path="/position/:positionId/level/:levelIndex" element={<EventusAILabPage />} />
       </Routes>
     </BrowserRouter>
   )

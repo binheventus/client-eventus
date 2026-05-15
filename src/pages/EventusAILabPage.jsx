@@ -4,29 +4,17 @@ import { hasSupabaseConfig, supabase } from '../lib/supabase'
 import { ADMIN_PASSWORD, VFX_BUILDER_PASSWORD } from '../config'
 import data from '../data/competency.json'
 import PositionPage from './PositionPage'
-import ThirtyDayReviewPage from './ThirtyDayReviewPage'
-import OrgChartPage from './OrgChartPage'
 import HRInsightsPage from './HRInsightsPage'
 import VFXPromptBuilderPage from './VFXPromptBuilderPage'
+import {
+  QuoteCreatePage,
+  QuoteDetailPage,
+  QuoteListPage,
+  QuoteTrashPage,
+} from '../features/quotes'
 
 /* ─── Danh muc sidebar ─── */
 const CATEGORIES = [
-  {
-    id: 'review_30_day',
-    label: '30-Day Review',
-    icon: '📝',
-    shortDesc: 'Theo dõi và phản hồi trong 30 ngày đầu của nhân sự mới',
-    banner: 'Eventus Onboarding 30-Day Review',
-    desc: 'Biểu mẫu ghi nhận cảm nhận sau 30 ngày gia nhập Eventus.',
-  },
-  {
-    id: 'org_chart',
-    label: 'Sơ đồ tổ chức',
-    icon: '🏢',
-    shortDesc: 'Cấu trúc đội ngũ và mối quan hệ công việc',
-    banner: 'Sơ đồ tổ chức Eventus',
-    desc: 'Tổng quan cơ cấu nhân sự, team và vai trò trong công ty.',
-  },
   {
     id: 'hr_insights',
     label: 'HR Insights',
@@ -43,7 +31,17 @@ const CATEGORIES = [
     banner: 'VFX Prompt Builder',
     desc: 'Form chọn tham số transition và gọi Claude để tạo prompt tiếng Anh cho video AI.',
   },
+  {
+    id: 'quotes',
+    label: 'Báo giá',
+    icon: '💼',
+    shortDesc: 'Tạo, quản lý và chia sẻ báo giá dịch vụ',
+    banner: 'Quote Generator',
+    desc: 'Module tạo báo giá tự động cho sales Eventus.',
+  },
 ]
+
+const LAB_CONTENT_TABLE = 'lab_pages'
 
 const CATEGORY_CARD_META = {
   quy_trinh: { accent: 'from-slate-50 to-blue-50/70', iconBg: 'bg-slate-100', iconText: 'text-slate-700', stroke: '#334155' },
@@ -72,16 +70,6 @@ const CATEGORY_BANNER_STYLES = {
     label: 'text-blue-100',
     desc: 'text-blue-100/90',
   },
-  review_30_day: {
-    bg: 'from-slate-900 via-blue-900 to-teal-700',
-    label: 'text-blue-100',
-    desc: 'text-blue-100/90',
-  },
-  org_chart: {
-    bg: 'from-slate-900 via-blue-900 to-teal-700',
-    label: 'text-blue-100',
-    desc: 'text-blue-100/90',
-  },
   hr_insights: {
     bg: 'from-slate-900 via-blue-900 to-teal-700',
     label: 'text-blue-100',
@@ -92,11 +80,16 @@ const CATEGORY_BANNER_STYLES = {
     label: 'text-blue-100',
     desc: 'text-blue-100/90',
   },
+  quotes: {
+    bg: 'from-slate-900 via-blue-900 to-teal-700',
+    label: 'text-blue-100',
+    desc: 'text-blue-100/90',
+  },
 }
 
 const CONTENT_STANDARDIZATION_PROMPT = `Bạn là biên tập viên tài liệu vận hành nội bộ cho Eventus.
 
-Nhiệm vụ của bạn là đọc hiểu nội dung gốc và viết lại thành tài liệu wiki nội bộ có cấu trúc đẹp, rõ ràng, dễ đọc.
+Nhiệm vụ của bạn là đọc hiểu nội dung gốc và viết lại thành tài liệu nội bộ cho Eventus AI Lab có cấu trúc đẹp, rõ ràng, dễ đọc.
 
 Đây KHÔNG phải nhiệm vụ chuyển text sang Markdown đơn giản.
 Đây là nhiệm vụ biên tập lại tài liệu vận hành: giữ đầy đủ ý quan trọng, nhưng trình bày lại cho chuyên nghiệp hơn.
@@ -371,10 +364,9 @@ const PLACEHOLDER_POSITION = {
 
 function getCategoryHref(id) {
   if (id === 'khung_nang_luc') return '/competency'
-  if (id === 'review_30_day') return '/30dayreview'
-  if (id === 'org_chart') return '/orgchart'
   if (id === 'hr_insights') return '/hr-insights'
   if (id === 'vfx_builder') return '/vfx-builder'
+  if (id === 'quotes') return '/quotes'
   return '/'
 }
 
@@ -397,10 +389,10 @@ function HomeHub({ onOpenCategory, admin }) {
             <div className="flex items-start justify-between gap-6">
               <div className="min-w-0">
                 <h1 className="text-[32px] font-semibold tracking-tight md:text-[40px]">
-                  Eventus Production Handbook
+                  Eventus AI Lab
                 </h1>
                 <p className="mt-3 whitespace-nowrap text-[14px] leading-6 text-blue-100/90">
-                  Tra cứu quy trình, nội quy, hướng dẫn, khung năng lực, sơ đồ tổ chức và các module vận hành nội bộ từ một nơi duy nhất.
+                  Tra cứu công cụ AI, dữ liệu vận hành, hướng dẫn nội bộ và các module hỗ trợ team từ một nơi duy nhất.
                 </p>
               </div>
               {admin.isAdmin ? (
@@ -1083,8 +1075,27 @@ function LockedVfxBuilderPage({ onRequestAccess }) {
   )
 }
 
-/* ─── Main WikiPage ─── */
-export default function WikiPage() {
+function QuoteModulePage() {
+  const location = useLocation()
+  const quoteIdMatch = location.pathname.match(/^\/quotes\/([^/]+)$/)
+
+  if (location.pathname === '/quotes/new') {
+    return <QuoteCreatePage />
+  }
+
+  if (location.pathname === '/quotes/trash') {
+    return <QuoteTrashPage />
+  }
+
+  if (quoteIdMatch) {
+    return <QuoteDetailPage />
+  }
+
+  return <QuoteListPage />
+}
+
+/* ─── Main Eventus AI Lab page ─── */
+export default function EventusAILabPage() {
   const location = useLocation()
   const { positionId, articleSlug } = useParams()
   const navigate = useNavigate()
@@ -1115,7 +1126,7 @@ export default function WikiPage() {
       return
     }
 
-    supabase.from('wiki_pages').select('*').then(({ data: rows, error }) => {
+    supabase.from(LAB_CONTENT_TABLE).select('*').then(({ data: rows, error }) => {
       if (!error && rows) setPages(rows)
       setLoading(false)
     })
@@ -1143,7 +1154,7 @@ export default function WikiPage() {
 
     if (categoryConfigRow) {
       const { data: updated } = await supabase
-        .from('wiki_pages')
+        .from(LAB_CONTENT_TABLE)
         .update({ content: payload.content, updated_at: payload.updated_at })
         .eq('id', categoryConfigRow.id)
         .select()
@@ -1154,7 +1165,7 @@ export default function WikiPage() {
       }
     } else {
       const { data: inserted } = await supabase
-        .from('wiki_pages')
+        .from(LAB_CONTENT_TABLE)
         .insert(payload)
         .select()
         .single()
@@ -1195,12 +1206,12 @@ export default function WikiPage() {
 
     if (currentPage) {
       const { data: updated } = await supabase
-        .from('wiki_pages').update({ title: normalizedMenuTitle, content: storedContent, updated_at: new Date().toISOString() })
+        .from(LAB_CONTENT_TABLE).update({ title: normalizedMenuTitle, content: storedContent, updated_at: new Date().toISOString() })
         .eq('id', currentPage.id).select().single()
       if (updated) setPages(prev => prev.map(p => p.id === updated.id ? updated : p))
     } else {
       const { data: inserted } = await supabase
-        .from('wiki_pages').insert({ category: activeCat, title: normalizedMenuTitle, content: storedContent })
+        .from(LAB_CONTENT_TABLE).insert({ category: activeCat, title: normalizedMenuTitle, content: storedContent })
         .select().single()
       if (inserted) setPages(prev => [...prev, inserted])
     }
@@ -1239,20 +1250,6 @@ export default function WikiPage() {
       return
     }
 
-    if (location.pathname === '/30dayreview') {
-      setActiveCat('review_30_day')
-      setSelectedTitle(null)
-      setEditing(false)
-      return
-    }
-
-    if (location.pathname === '/orgchart') {
-      setActiveCat('org_chart')
-      setSelectedTitle(null)
-      setEditing(false)
-      return
-    }
-
     if (location.pathname === '/hr-insights') {
       if (!admin.isAdmin) {
         setActiveCat('home')
@@ -1275,6 +1272,13 @@ export default function WikiPage() {
       if (!vfxAccess.hasAccess) {
         vfxAccess.requestAccess()
       }
+      return
+    }
+
+    if (location.pathname === '/quotes' || location.pathname.startsWith('/quotes/')) {
+      setActiveCat('quotes')
+      setSelectedTitle(null)
+      setEditing(false)
       return
     }
 
@@ -1301,14 +1305,12 @@ export default function WikiPage() {
 
     if (id === 'khung_nang_luc') {
       navigate('/competency')
-    } else if (id === 'org_chart') {
-      navigate('/orgchart')
     } else if (id === 'hr_insights') {
       navigate('/hr-insights')
     } else if (id === 'vfx_builder') {
       navigate('/vfx-builder')
-    } else if (id === 'review_30_day') {
-      navigate('/30dayreview')
+    } else if (id === 'quotes') {
+      navigate('/quotes')
     } else if (CATEGORY_ROUTE_SEGMENTS[id]) {
       navigate(getCategoryBasePath(id))
     } else if (location.pathname !== '/') {
@@ -1320,7 +1322,7 @@ export default function WikiPage() {
   }
 
   function openHomeCategory(id) {
-    if (id === 'khung_nang_luc' || id === 'review_30_day' || id === 'org_chart' || id === 'hr_insights' || id === 'vfx_builder') {
+    if (id === 'khung_nang_luc' || id === 'hr_insights' || id === 'vfx_builder' || id === 'quotes') {
       selectCat(id)
       return
     }
@@ -1391,7 +1393,7 @@ export default function WikiPage() {
     setItemActionLoading(true)
 
     if (currentPage) {
-      await supabase.from('wiki_pages').delete().eq('id', currentPage.id)
+      await supabase.from(LAB_CONTENT_TABLE).delete().eq('id', currentPage.id)
       setPages(prev => prev.filter(page => page.id !== currentPage.id))
     }
 
@@ -1428,7 +1430,7 @@ export default function WikiPage() {
               onClick={() => navigate('/')}
               className="w-full rounded-3xl bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 px-5 py-6 text-left text-white shadow-lg transition-transform hover:-translate-y-0.5"
             >
-              <p className="text-[18px] font-semibold tracking-tight leading-7">Eventus Production Handbook</p>
+              <p className="text-[18px] font-semibold tracking-tight leading-7">Eventus AI Lab</p>
             </button>
           </div>
 
@@ -1486,16 +1488,6 @@ export default function WikiPage() {
           {/* Khung nang luc */}
           {activeCat === 'khung_nang_luc' && (positionId ? <div className="flex-1 overflow-y-auto"><PositionPage embedded /></div> : <CompetencyGrid />)}
 
-          {/* 30 day review */}
-          {activeCat === 'review_30_day' && (
-            <div className="flex-1 overflow-y-auto">
-              <ThirtyDayReviewPage embedded />
-            </div>
-          )}
-
-          {/* Org chart */}
-          {activeCat === 'org_chart' && <OrgChartPage />}
-
           {/* HR Insights */}
           {activeCat === 'hr_insights' && <HRInsightsPage />}
 
@@ -1506,8 +1498,15 @@ export default function WikiPage() {
               : <LockedVfxBuilderPage onRequestAccess={vfxAccess.requestAccess} />
           )}
 
+          {/* Quote Generator */}
+          {activeCat === 'quotes' && (
+            <div className="flex-1 overflow-y-auto p-6">
+              <QuoteModulePage />
+            </div>
+          )}
+
           {/* Card grid cac danh muc khac */}
-          {activeCat !== 'home' && activeCat !== 'khung_nang_luc' && activeCat !== 'review_30_day' && activeCat !== 'org_chart' && activeCat !== 'hr_insights' && activeCat !== 'vfx_builder' && !selectedTitle && (
+          {activeCat !== 'home' && activeCat !== 'khung_nang_luc' && activeCat !== 'hr_insights' && activeCat !== 'vfx_builder' && activeCat !== 'quotes' && !selectedTitle && (
             <div className="flex-1 overflow-y-auto p-6">
               <CategoryBanner cat={currentCat} />
               {admin.isAdmin && (
@@ -1572,7 +1571,7 @@ export default function WikiPage() {
           )}
 
           {/* Content view */}
-          {activeCat !== 'home' && activeCat !== 'khung_nang_luc' && activeCat !== 'review_30_day' && activeCat !== 'org_chart' && activeCat !== 'vfx_builder' && selectedTitle && !editing && (
+          {activeCat !== 'home' && activeCat !== 'khung_nang_luc' && activeCat !== 'vfx_builder' && activeCat !== 'quotes' && selectedTitle && !editing && (
             <div className="flex-1 overflow-y-auto">
               <div className="px-6 pt-0 pb-5">
                 {currentPage ? (
@@ -1619,7 +1618,7 @@ export default function WikiPage() {
           )}
 
           {/* Editor */}
-          {activeCat !== 'home' && activeCat !== 'khung_nang_luc' && activeCat !== 'review_30_day' && activeCat !== 'org_chart' && activeCat !== 'vfx_builder' && selectedTitle && editing && (
+          {activeCat !== 'home' && activeCat !== 'khung_nang_luc' && activeCat !== 'vfx_builder' && activeCat !== 'quotes' && selectedTitle && editing && (
             <div className="flex-1 flex flex-col p-6">
               <div className="flex items-center justify-between mb-3">
                 <div />
