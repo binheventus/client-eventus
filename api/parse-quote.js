@@ -1,5 +1,6 @@
 const DEFAULT_OPENAI_MODEL = 'gpt-5-mini'
 const DEFAULT_ANTHROPIC_MODEL = 'claude-sonnet-4-6'
+const DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com'
 
 export const quoteParseSystemPrompt = `Bạn là AI parser cho module Báo giá tự động của Eventus.
 
@@ -51,6 +52,14 @@ function normalizeApiKey(value = '') {
     .replace(/^ANTHROPIC_API_KEY\s*=\s*/i, '')
     .replace(/^['"]|['"]$/g, '')
     .trim()
+}
+
+function normalizeBaseUrl(value = '') {
+  return String(value || DEFAULT_OPENAI_BASE_URL)
+    .trim()
+    .replace(/^OPENAI_BASE_URL\s*=\s*/i, '')
+    .replace(/^['"]|['"]$/g, '')
+    .replace(/\/+$/, '')
 }
 
 function compactRows(rows = [], fields = []) {
@@ -128,16 +137,20 @@ function normalizeParsedPayload(payload) {
 }
 
 async function callOpenAI({ apiKey, inputText, context }) {
-  const response = await fetch('https://api.openai.com/v1/responses', {
+  const baseUrl = normalizeBaseUrl(process.env.OPENAI_BASE_URL)
+  const model = process.env.QUOTE_PARSE_MODEL || DEFAULT_OPENAI_MODEL
+  const userMessage = buildQuoteParseUserMessage(inputText, context)
+
+  const response = await fetch(`${baseUrl}/v1/responses`, {
     method: 'POST',
     headers: {
       'authorization': `Bearer ${apiKey}`,
       'content-type': 'application/json',
     },
     body: JSON.stringify({
-      model: process.env.QUOTE_PARSE_MODEL || DEFAULT_OPENAI_MODEL,
+      model,
       instructions: quoteParseSystemPrompt,
-      input: buildQuoteParseUserMessage(inputText, context),
+      input: userMessage,
       max_output_tokens: 1600,
       text: {
         format: {
@@ -197,10 +210,44 @@ async function callOpenAI({ apiKey, inputText, context }) {
 
   const payload = await response.json().catch(() => ({}))
   if (!response.ok) {
+    const message = payload?.error?.message || ''
+    const maybeUnsupportedResponses = [404, 405].includes(response.status) || /responses|not found|unsupported|unknown/i.test(message)
+    if (maybeUnsupportedResponses) {
+      return callOpenAIChatCompletions({ apiKey, inputText, context, baseUrl, model, previousError: message })
+    }
     throw new Error(payload?.error?.message || 'OpenAI API trả về lỗi khi parse báo giá.')
   }
 
   return normalizeParsedPayload(parseJsonObject(extractTextFromOpenAI(payload)))
+}
+
+async function callOpenAIChatCompletions({ apiKey, inputText, context, baseUrl, model, previousError }) {
+  const response = await fetch(`${baseUrl}/v1/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'authorization': `Bearer ${apiKey}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model,
+      temperature: 0,
+      max_tokens: 1600,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: quoteParseSystemPrompt },
+        { role: 'user', content: buildQuoteParseUserMessage(inputText, context) },
+      ],
+    }),
+  })
+
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    const detail = payload?.error?.message || previousError
+    throw new Error(detail || 'OpenAI-compatible API trả về lỗi khi parse báo giá.')
+  }
+
+  const text = payload?.choices?.[0]?.message?.content || ''
+  return normalizeParsedPayload(parseJsonObject(text))
 }
 
 async function callAnthropic({ apiKey, inputText, context }) {
