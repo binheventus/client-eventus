@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { fromQuoteTable, hasSupabaseConfig } from '../../../lib/supabase'
+import travelFeesData from '../../../data/pricing/travel_fees.json'
 
 let travelFeesCache = null
-let travelFeesPromise = null
 
 function normalizeText(value = '') {
   return String(value || '')
@@ -40,23 +39,12 @@ export function findTravelFee(travelFees = [], location, condition) {
 }
 
 export async function fetchActiveTravelFees({ force = false } = {}) {
-  if (!hasSupabaseConfig) throw new Error('Thiếu cấu hình Supabase.')
   if (travelFeesCache && !force) return travelFeesCache
-  if (travelFeesPromise && !force) return travelFeesPromise
 
-  travelFeesPromise = fromQuoteTable('travelFees')
-    .select('*')
-    .eq('is_active', true)
-    .then(({ data, error }) => {
-      if (error) throw error
-      travelFeesCache = data || []
-      return travelFeesCache
-    })
-    .finally(() => {
-      travelFeesPromise = null
-    })
-
-  return travelFeesPromise
+  travelFeesCache = [...travelFeesData]
+    .filter(row => row?.is_active !== false)
+    .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0))
+  return travelFeesCache
 }
 
 export function useTravelFees() {

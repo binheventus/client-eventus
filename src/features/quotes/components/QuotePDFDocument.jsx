@@ -1,4 +1,5 @@
 import { Document, Page, StyleSheet, Text, View } from '@react-pdf/renderer'
+import legalEntitiesData from '../../../data/pricing/legal_entities.json'
 
 const BRAND_COLOR = '#f8981d'
 
@@ -58,6 +59,17 @@ export function getQuotePdfFilename(quote = {}) {
 
 function getEntityMeta(quote) {
   const code = quote?.entity_code || 'EVENTUS'
+  const entity = legalEntitiesData.find(row => (row.entity_code || row.code) === code)
+  if (entity) {
+    return {
+      name: entity.display_name || entity.entity_code || code,
+      company: entity.legal_name || entity.entity_name_full || entity.name || ENTITY_META[code]?.company,
+      taxCode: entity.tax_code ? `MST: ${entity.tax_code}` : ENTITY_META[code]?.taxCode,
+      address: entity.address ? `Dia chi: ${entity.address}` : ENTITY_META[code]?.address,
+      email: entity.email ? `Email: ${entity.email}` : ENTITY_META[code]?.email,
+      hotline: entity.hotline ? `Hotline: ${entity.hotline}` : ENTITY_META[code]?.hotline,
+    }
+  }
   return ENTITY_META[code] || ENTITY_META.EVENTUS
 }
 

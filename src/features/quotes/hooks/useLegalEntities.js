@@ -1,27 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { fromQuoteTable, hasSupabaseConfig } from '../../../lib/supabase'
+import legalEntitiesData from '../../../data/pricing/legal_entities.json'
 
 let legalEntitiesCache = null
-let legalEntitiesPromise = null
 
 export async function fetchActiveLegalEntities({ force = false } = {}) {
-  if (!hasSupabaseConfig) throw new Error('Thiếu cấu hình Supabase.')
   if (legalEntitiesCache && !force) return legalEntitiesCache
-  if (legalEntitiesPromise && !force) return legalEntitiesPromise
 
-  legalEntitiesPromise = fromQuoteTable('legalEntities')
-    .select('*')
-    .eq('is_active', true)
-    .then(({ data, error }) => {
-      if (error) throw error
-      legalEntitiesCache = data || []
-      return legalEntitiesCache
-    })
-    .finally(() => {
-      legalEntitiesPromise = null
-    })
-
-  return legalEntitiesPromise
+  legalEntitiesCache = [...legalEntitiesData]
+    .filter(row => row?.is_active !== false)
+    .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0))
+  return legalEntitiesCache
 }
 
 export function useLegalEntities() {

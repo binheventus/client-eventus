@@ -1,28 +1,15 @@
 import { useCallback, useEffect, useState } from 'react'
-import { fromQuoteTable, hasSupabaseConfig } from '../../../lib/supabase'
+import servicesData from '../../../data/pricing/services.json'
 
 let servicesCache = null
-let servicesPromise = null
 
 export async function fetchActiveServices({ force = false } = {}) {
-  if (!hasSupabaseConfig) throw new Error('Thiếu cấu hình Supabase.')
   if (servicesCache && !force) return servicesCache
-  if (servicesPromise && !force) return servicesPromise
 
-  servicesPromise = fromQuoteTable('services')
-    .select('*')
-    .eq('is_active', true)
-    .order('sort_order', { ascending: true })
-    .then(({ data, error }) => {
-      if (error) throw error
-      servicesCache = data || []
-      return servicesCache
-    })
-    .finally(() => {
-      servicesPromise = null
-    })
-
-  return servicesPromise
+  servicesCache = [...servicesData]
+    .filter(row => row?.is_active !== false)
+    .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0))
+  return servicesCache
 }
 
 export function useServices() {

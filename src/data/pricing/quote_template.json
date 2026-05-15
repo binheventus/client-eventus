@@ -1,0 +1,172 @@
+[
+  {
+    "section": "Header",
+    "field_name": "Pháp nhân",
+    "value": "[Lấy từ Sheet 06 theo lựa chọn sales: EVT hoặc MMS]"
+  },
+  {
+    "section": "Header",
+    "field_name": "Logo",
+    "value": "[Lấy từ Sheet 06 theo pháp nhân - sếp sẽ bổ sung sau]"
+  },
+  {
+    "section": "Header",
+    "field_name": "Tên công ty đầy đủ",
+    "value": "[Lấy từ Sheet 06]"
+  },
+  {
+    "section": "Header",
+    "field_name": "MST",
+    "value": "[Lấy từ Sheet 06]"
+  },
+  {
+    "section": "Header",
+    "field_name": "Địa chỉ",
+    "value": "[Lấy từ Sheet 06]"
+  },
+  {
+    "section": "Header",
+    "field_name": "Email",
+    "value": "[Lấy từ Sheet 06]"
+  },
+  {
+    "section": "Header",
+    "field_name": "Hotline",
+    "value": "[Lấy từ Sheet 06]"
+  },
+  {
+    "section": "Khách hàng",
+    "field_name": "Người nhận báo giá",
+    "value": "[Sales nhập: Tên người/công ty]"
+  },
+  {
+    "section": "Khách hàng",
+    "field_name": "Tên dự án/sự kiện",
+    "value": "[Sales nhập: Tên sự kiện]"
+  },
+  {
+    "section": "Khách hàng",
+    "field_name": "Ngày báo giá",
+    "value": "[Tự động: ngày hiện tại]"
+  },
+  {
+    "section": "Khách hàng",
+    "field_name": "Mã số báo giá",
+    "value": "[Tự động: BG-YYYY-XXX]"
+  },
+  {
+    "section": "Nội dung",
+    "field_name": "Tiêu đề",
+    "value": "BÁO GIÁ DỊCH VỤ"
+  },
+  {
+    "section": "Nội dung",
+    "field_name": "Lời mở đầu",
+    "value": "Kính gửi: Quý khách hàng. Chúng tôi xin gửi đến Quý khách báo giá dịch vụ như sau:"
+  },
+  {
+    "section": "Nội dung",
+    "field_name": "Cấu trúc bảng",
+    "value": "Hạng mục | ĐVT | Số lượng | Số buổi | Đơn giá | Thành tiền"
+  },
+  {
+    "section": "Nội dung",
+    "field_name": "Có thể chia theo ngày",
+    "value": "Có (nếu sự kiện diễn ra nhiều ngày)"
+  },
+  {
+    "section": "Tổng kết",
+    "field_name": "Dòng 1",
+    "value": "Cộng (chưa VAT)"
+  },
+  {
+    "section": "Tổng kết",
+    "field_name": "Dòng 2",
+    "value": "VAT 8% [ẩn nếu khách không yêu cầu VAT]"
+  },
+  {
+    "section": "Tổng kết",
+    "field_name": "Dòng 3",
+    "value": "Tổng chi phí (đã bao gồm VAT)"
+  },
+  {
+    "section": "Ghi chú",
+    "field_name": "Hiệu lực",
+    "value": "Báo giá có giá trị trong vòng [7/15/30] ngày kể từ ngày báo giá."
+  },
+  {
+    "section": "Ghi chú",
+    "field_name": "Số lần chỉnh sửa",
+    "value": "Chúng tôi không giới hạn số lần chỉnh sửa sản phẩm, nhưng sau 05 ngày kể từ ngày chúng tôi gửi sản phẩm, nếu khách hàng không feedback, sản phẩm được coi là đã hoàn thành và được nghiệm thu."
+  },
+  {
+    "section": "Ghi chú",
+    "field_name": "Thanh toán",
+    "value": "[Lấy từ Sheet 03 theo tier khách hàng]"
+  },
+  {
+    "section": "Ghi chú",
+    "field_name": "Điều khoản flycam (nếu có)",
+    "value": "Báo giá flycam được tính dựa trên điều kiện thời tiết cho phép và có giấy phép bay. Trường hợp không bay được do thời tiết hoặc lý do pháp lý, không tính phí dịch vụ flycam."
+  },
+  {
+    "section": "Footer",
+    "field_name": "Địa điểm + Ngày",
+    "value": "Hà Nội, Ngày [DD/MM/YYYY]"
+  },
+  {
+    "section": "Footer",
+    "field_name": "Chữ ký/Đóng dấu",
+    "value": "[Vùng để ký tên hoặc đóng dấu công ty]"
+  },
+  {
+    "section": "Brand Assets",
+    "field_name": "Màu chính",
+    "value": "#f8981d (cam Eventus)"
+  },
+  {
+    "section": "Brand Assets",
+    "field_name": "Màu phụ",
+    "value": "[Sếp bổ sung sau nếu có]"
+  },
+  {
+    "section": "Brand Assets",
+    "field_name": "Font chữ",
+    "value": "Default sans-serif (Inter/Roboto). Eventus không có font riêng."
+  },
+  {
+    "section": "Brand Assets",
+    "field_name": "Logo Eventus",
+    "value": "[Sếp bổ sung file PNG nền trong suốt, >1000x1000px]"
+  },
+  {
+    "section": "Brand Assets",
+    "field_name": "Logo Mediamonster",
+    "value": "[Sếp bổ sung file PNG nền trong suốt, >1000x1000px]"
+  },
+  {
+    "section": "Delivery",
+    "field_name": "Phương thức gửi",
+    "value": "Link web (có nút Download PDF). KHÔNG gửi attachment PDF qua email."
+  },
+  {
+    "section": "Delivery",
+    "field_name": "Hiệu lực link",
+    "value": "Bằng hiệu lực báo giá (7/15/30 ngày)"
+  },
+  {
+    "section": "Delivery",
+    "field_name": "Sau khi hết hạn",
+    "value": "Khách mở link thấy thông báo: \"Báo giá đã hết hạn, vui lòng liên hệ sales\""
+  },
+  {
+    "section": "Delivery",
+    "field_name": "Bảo mật",
+    "value": "KHÔNG có mã PIN. Link public với ai có URL."
+  },
+  {
+    "section": "Delivery",
+    "field_name": "Tracking",
+    "value": "Hệ thống tự track: khách đã mở link chưa, mở mấy lần, lần cuối khi nào"
+  }
+]

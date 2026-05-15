@@ -1,26 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { fromQuoteTable, hasSupabaseConfig } from '../../../lib/supabase'
+import customerTiersData from '../../../data/pricing/customer_tiers.json'
 
 let customerTiersCache = null
-let customerTiersPromise = null
 
 export async function fetchCustomerTiers({ force = false } = {}) {
-  if (!hasSupabaseConfig) throw new Error('Thiếu cấu hình Supabase.')
   if (customerTiersCache && !force) return customerTiersCache
-  if (customerTiersPromise && !force) return customerTiersPromise
 
-  customerTiersPromise = fromQuoteTable('customerTiers')
-    .select('*')
-    .then(({ data, error }) => {
-      if (error) throw error
-      customerTiersCache = data || []
-      return customerTiersCache
-    })
-    .finally(() => {
-      customerTiersPromise = null
-    })
-
-  return customerTiersPromise
+  customerTiersCache = [...customerTiersData]
+  return customerTiersCache
 }
 
 export function useCustomerTiers() {

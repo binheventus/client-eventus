@@ -1,0 +1,38 @@
+[
+  {
+    "entity_code": "EVENTUS",
+    "entity_name_full": "CÔNG TY TNHH EVENTUS VIỆT NAM",
+    "tax_code": "0107929531",
+    "address": "Số 3, ngõ 280 đường Lê Trọng Tấn, Phường Phương Liệt, TP. Hà Nội",
+    "email": "Account@eventusproduction.com",
+    "hotline": "0383.17.18.19",
+    "website": "eventusproduction.com",
+    "logo_file": "logo_eventus.png",
+    "is_default": true,
+    "source_entity_code": "EVT",
+    "code": "EVENTUS",
+    "name": "CÔNG TY TNHH EVENTUS VIỆT NAM",
+    "legal_name": "CÔNG TY TNHH EVENTUS VIỆT NAM",
+    "display_name": "Eventus",
+    "is_active": true,
+    "sort_order": 1
+  },
+  {
+    "entity_code": "MEDIAMONSTER",
+    "entity_name_full": "CÔNG TY TNHH MEDIAMONSTER",
+    "tax_code": "1001255108",
+    "address": "Thôn Lê Lợi, Xã Tiền Hải, Tỉnh Hưng Yên",
+    "email": "Account@eventusproduction.com",
+    "hotline": "0383.17.18.19",
+    "website": "eventusproduction.com",
+    "logo_file": "logo_mediamonster.png",
+    "is_default": false,
+    "source_entity_code": "MMS",
+    "code": "MEDIAMONSTER",
+    "name": "CÔNG TY TNHH MEDIAMONSTER",
+    "legal_name": "CÔNG TY TNHH MEDIAMONSTER",
+    "display_name": "Mediamonster",
+    "is_active": true,
+    "sort_order": 2
+  }
+]

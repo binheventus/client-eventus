@@ -1,0 +1,422 @@
+[
+  {
+    "location": "Nội thành Hà Nội",
+    "fee_per_person_per_day": 0,
+    "condition": null,
+    "includes_accommodation": false,
+    "includes_transport": false,
+    "note": null,
+    "is_active": true,
+    "sort_order": 1
+  },
+  {
+    "location": "Ngoại thành Hà Nội <30km",
+    "fee_per_person_per_day": 0,
+    "condition": null,
+    "includes_accommodation": false,
+    "includes_transport": false,
+    "note": "KHÔNG cộng phụ phí - đã tính trong giá OUT của Sheet 1",
+    "is_active": true,
+    "sort_order": 2
+  },
+  {
+    "location": "Hải Phòng",
+    "fee_per_person_per_day": 500000,
+    "condition": null,
+    "includes_accommodation": false,
+    "includes_transport": false,
+    "note": null,
+    "is_active": true,
+    "sort_order": 3
+  },
+  {
+    "location": "Bắc Ninh",
+    "fee_per_person_per_day": 500000,
+    "condition": null,
+    "includes_accommodation": false,
+    "includes_transport": false,
+    "note": null,
+    "is_active": true,
+    "sort_order": 4
+  },
+  {
+    "location": "Hà Nam",
+    "fee_per_person_per_day": 500000,
+    "condition": null,
+    "includes_accommodation": false,
+    "includes_transport": false,
+    "note": null,
+    "is_active": true,
+    "sort_order": 5
+  },
+  {
+    "location": "Thái Nguyên",
+    "fee_per_person_per_day": 500000,
+    "condition": null,
+    "includes_accommodation": false,
+    "includes_transport": false,
+    "note": null,
+    "is_active": true,
+    "sort_order": 6
+  },
+  {
+    "location": "Hải Dương",
+    "fee_per_person_per_day": 500000,
+    "condition": null,
+    "includes_accommodation": false,
+    "includes_transport": false,
+    "note": null,
+    "is_active": true,
+    "sort_order": 7
+  },
+  {
+    "location": "Hưng Yên",
+    "fee_per_person_per_day": 500000,
+    "condition": null,
+    "includes_accommodation": false,
+    "includes_transport": false,
+    "note": "Khu vực Ocean Park, EcoPark có thể tính đơn giá ngoại thành",
+    "is_active": true,
+    "sort_order": 8
+  },
+  {
+    "location": "Nam Định",
+    "fee_per_person_per_day": 500000,
+    "condition": null,
+    "includes_accommodation": false,
+    "includes_transport": false,
+    "note": null,
+    "is_active": true,
+    "sort_order": 9
+  },
+  {
+    "location": "Thái Bình",
+    "fee_per_person_per_day": 500000,
+    "condition": null,
+    "includes_accommodation": false,
+    "includes_transport": false,
+    "note": null,
+    "is_active": true,
+    "sort_order": 10
+  },
+  {
+    "location": "Vĩnh Phúc",
+    "fee_per_person_per_day": 500000,
+    "condition": null,
+    "includes_accommodation": false,
+    "includes_transport": false,
+    "note": null,
+    "is_active": true,
+    "sort_order": 11
+  },
+  {
+    "location": "Ninh Bình",
+    "fee_per_person_per_day": 500000,
+    "condition": null,
+    "includes_accommodation": false,
+    "includes_transport": false,
+    "note": null,
+    "is_active": true,
+    "sort_order": 12
+  },
+  {
+    "location": "Hòa Bình",
+    "fee_per_person_per_day": 500000,
+    "condition": null,
+    "includes_accommodation": false,
+    "includes_transport": false,
+    "note": null,
+    "is_active": true,
+    "sort_order": 13
+  },
+  {
+    "location": "Phú Thọ",
+    "fee_per_person_per_day": 500000,
+    "condition": null,
+    "includes_accommodation": false,
+    "includes_transport": false,
+    "note": null,
+    "is_active": true,
+    "sort_order": 14
+  },
+  {
+    "location": "Bắc Giang",
+    "fee_per_person_per_day": 500000,
+    "condition": null,
+    "includes_accommodation": false,
+    "includes_transport": false,
+    "note": null,
+    "is_active": true,
+    "sort_order": 15
+  },
+  {
+    "location": "Thanh Hóa",
+    "fee_per_person_per_day": 700000,
+    "condition": null,
+    "includes_accommodation": false,
+    "includes_transport": false,
+    "note": null,
+    "is_active": true,
+    "sort_order": 16
+  },
+  {
+    "location": "Hạ Long",
+    "fee_per_person_per_day": 700000,
+    "condition": null,
+    "includes_accommodation": false,
+    "includes_transport": false,
+    "note": null,
+    "is_active": true,
+    "sort_order": 17
+  },
+  {
+    "location": "Nghệ An",
+    "fee_per_person_per_day": 1000000,
+    "condition": null,
+    "includes_accommodation": false,
+    "includes_transport": false,
+    "note": null,
+    "is_active": true,
+    "sort_order": 18
+  },
+  {
+    "location": "Hà Tĩnh",
+    "fee_per_person_per_day": 1000000,
+    "condition": null,
+    "includes_accommodation": false,
+    "includes_transport": false,
+    "note": null,
+    "is_active": true,
+    "sort_order": 19
+  },
+  {
+    "location": "Quảng Bình",
+    "fee_per_person_per_day": 0,
+    "condition": "team địa phương Đồng Hới",
+    "includes_accommodation": false,
+    "includes_transport": false,
+    "note": null,
+    "is_active": true,
+    "sort_order": 20
+  },
+  {
+    "location": "Quảng Bình",
+    "fee_per_person_per_day": 5000000,
+    "condition": "team Hà Nội đi vào",
+    "includes_accommodation": false,
+    "includes_transport": true,
+    "note": "Dự kiến 2 chiều/người. Báo giá cuối điều chỉnh theo vé máy bay thực tế.",
+    "is_active": true,
+    "sort_order": 21
+  },
+  {
+    "location": "Quảng Trị",
+    "fee_per_person_per_day": 0,
+    "condition": "team địa phương",
+    "includes_accommodation": false,
+    "includes_transport": false,
+    "note": null,
+    "is_active": true,
+    "sort_order": 22
+  },
+  {
+    "location": "Thừa Thiên Huế",
+    "fee_per_person_per_day": 0,
+    "condition": "team địa phương",
+    "includes_accommodation": false,
+    "includes_transport": false,
+    "note": null,
+    "is_active": true,
+    "sort_order": 23
+  },
+  {
+    "location": "Thừa Thiên Huế",
+    "fee_per_person_per_day": 5000000,
+    "condition": "team Hà Nội đi vào",
+    "includes_accommodation": false,
+    "includes_transport": true,
+    "note": "Dự kiến 2 chiều/người. Báo giá cuối điều chỉnh theo vé máy bay thực tế.",
+    "is_active": true,
+    "sort_order": 24
+  },
+  {
+    "location": "Đà Nẵng",
+    "fee_per_person_per_day": 0,
+    "condition": "team địa phương Đà Nẵng",
+    "includes_accommodation": false,
+    "includes_transport": false,
+    "note": null,
+    "is_active": true,
+    "sort_order": 25
+  },
+  {
+    "location": "Đà Nẵng",
+    "fee_per_person_per_day": 5000000,
+    "condition": "team Hà Nội đi vào",
+    "includes_accommodation": false,
+    "includes_transport": true,
+    "note": "Dự kiến 2 chiều/người. Báo giá cuối điều chỉnh theo vé máy bay thực tế.",
+    "is_active": true,
+    "sort_order": 26
+  },
+  {
+    "location": "Quảng Nam",
+    "fee_per_person_per_day": 500000,
+    "condition": "nhân sự di chuyển từ Đà Nẵng",
+    "includes_accommodation": false,
+    "includes_transport": false,
+    "note": null,
+    "is_active": true,
+    "sort_order": 27
+  },
+  {
+    "location": "Quảng Ngãi",
+    "fee_per_person_per_day": 0,
+    "condition": "team địa phương Quảng Nam",
+    "includes_accommodation": false,
+    "includes_transport": false,
+    "note": null,
+    "is_active": true,
+    "sort_order": 28
+  },
+  {
+    "location": "Khánh Hòa",
+    "fee_per_person_per_day": 0,
+    "condition": "team địa phương Nha Trang",
+    "includes_accommodation": false,
+    "includes_transport": false,
+    "note": null,
+    "is_active": true,
+    "sort_order": 29
+  },
+  {
+    "location": "Khánh Hòa",
+    "fee_per_person_per_day": 7000000,
+    "condition": "team Hà Nội đi vào",
+    "includes_accommodation": false,
+    "includes_transport": true,
+    "note": "Dự kiến 2 chiều/người. Báo giá cuối điều chỉnh theo vé máy bay thực tế.",
+    "is_active": true,
+    "sort_order": 30
+  },
+  {
+    "location": "Lâm Đồng",
+    "fee_per_person_per_day": 0,
+    "condition": "team địa phương Đà Lạt",
+    "includes_accommodation": false,
+    "includes_transport": false,
+    "note": null,
+    "is_active": true,
+    "sort_order": 31
+  },
+  {
+    "location": "Bà Rịa - Vũng Tàu",
+    "fee_per_person_per_day": 500000,
+    "condition": null,
+    "includes_accommodation": false,
+    "includes_transport": false,
+    "note": null,
+    "is_active": true,
+    "sort_order": 32
+  },
+  {
+    "location": "Bình Dương",
+    "fee_per_person_per_day": 500000,
+    "condition": null,
+    "includes_accommodation": false,
+    "includes_transport": false,
+    "note": null,
+    "is_active": true,
+    "sort_order": 33
+  },
+  {
+    "location": "Đồng Nai",
+    "fee_per_person_per_day": 500000,
+    "condition": null,
+    "includes_accommodation": false,
+    "includes_transport": false,
+    "note": null,
+    "is_active": true,
+    "sort_order": 34
+  },
+  {
+    "location": "Cần Thơ",
+    "fee_per_person_per_day": 0,
+    "condition": "team địa phương",
+    "includes_accommodation": false,
+    "includes_transport": false,
+    "note": null,
+    "is_active": true,
+    "sort_order": 35
+  },
+  {
+    "location": "Tuyên Quang",
+    "fee_per_person_per_day": 700000,
+    "condition": "Trung tâm Tuyên Quang",
+    "includes_accommodation": false,
+    "includes_transport": false,
+    "note": "Báo giá cuối có thể thay đổi theo lịch trình",
+    "is_active": true,
+    "sort_order": 36
+  },
+  {
+    "location": "Cao Bằng",
+    "fee_per_person_per_day": 1200000,
+    "condition": "Trung tâm Cao Bằng",
+    "includes_accommodation": false,
+    "includes_transport": false,
+    "note": "Báo giá cuối có thể thay đổi theo lịch trình",
+    "is_active": true,
+    "sort_order": 37
+  },
+  {
+    "location": "Lai Châu",
+    "fee_per_person_per_day": 1500000,
+    "condition": "Trung tâm Lai Châu",
+    "includes_accommodation": false,
+    "includes_transport": false,
+    "note": "Báo giá cuối có thể thay đổi theo lịch trình",
+    "is_active": true,
+    "sort_order": 38
+  },
+  {
+    "location": "Lào Cai",
+    "fee_per_person_per_day": 1500000,
+    "condition": "Trung tâm Lào Cai",
+    "includes_accommodation": false,
+    "includes_transport": false,
+    "note": "Báo giá cuối có thể thay đổi theo lịch trình",
+    "is_active": true,
+    "sort_order": 39
+  },
+  {
+    "location": "Điện Biên",
+    "fee_per_person_per_day": 2000000,
+    "condition": "Trung tâm Điện Biên",
+    "includes_accommodation": false,
+    "includes_transport": false,
+    "note": "Báo giá cuối có thể thay đổi theo lịch trình",
+    "is_active": true,
+    "sort_order": 40
+  },
+  {
+    "location": "Lạng Sơn",
+    "fee_per_person_per_day": 700000,
+    "condition": "Trung tâm Lạng Sơn",
+    "includes_accommodation": false,
+    "includes_transport": false,
+    "note": "Báo giá cuối có thể thay đổi theo lịch trình",
+    "is_active": true,
+    "sort_order": 41
+  },
+  {
+    "location": "Sơn La",
+    "fee_per_person_per_day": 1000000,
+    "condition": "Trung tâm Sơn La",
+    "includes_accommodation": false,
+    "includes_transport": false,
+    "note": "Báo giá cuối có thể thay đổi theo lịch trình",
+    "is_active": true,
+    "sort_order": 42
+  }
+]

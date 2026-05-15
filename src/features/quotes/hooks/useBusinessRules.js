@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { fromQuoteTable, hasSupabaseConfig } from '../../../lib/supabase'
+import businessRulesData from '../../../data/pricing/business_rules.json'
 
 let businessRulesCache = null
 let businessRulesMapCache = null
-let businessRulesPromise = null
 
 function getRuleCode(row) {
   return row?.rule_code || row?.code || row?.key
@@ -22,25 +21,13 @@ function buildRulesMap(rows = []) {
 }
 
 export async function fetchBusinessRules({ force = false } = {}) {
-  if (!hasSupabaseConfig) throw new Error('Thiếu cấu hình Supabase.')
   if (businessRulesCache && !force) {
     return { rules: businessRulesCache, rulesMap: businessRulesMapCache }
   }
-  if (businessRulesPromise && !force) return businessRulesPromise
 
-  businessRulesPromise = fromQuoteTable('businessRules')
-    .select('*')
-    .then(({ data, error }) => {
-      if (error) throw error
-      businessRulesCache = data || []
-      businessRulesMapCache = buildRulesMap(businessRulesCache)
-      return { rules: businessRulesCache, rulesMap: businessRulesMapCache }
-    })
-    .finally(() => {
-      businessRulesPromise = null
-    })
-
-  return businessRulesPromise
+  businessRulesCache = [...businessRulesData]
+  businessRulesMapCache = buildRulesMap(businessRulesCache)
+  return { rules: businessRulesCache, rulesMap: businessRulesMapCache }
 }
 
 export function useBusinessRules() {

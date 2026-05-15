@@ -1,0 +1,285 @@
+[
+  {
+    "rule_code": "VAT",
+    "category": "Pricing",
+    "rule_name": "Thuế VAT",
+    "value": "8%",
+    "description": "Tính trên tổng cộng trước thuế",
+    "rule_value": "8%"
+  },
+  {
+    "rule_code": "VAT_OPTIONAL",
+    "category": "Pricing",
+    "rule_name": "VAT có thể tùy chọn",
+    "value": "Có",
+    "description": "Sales có thể bật/tắt VAT khi xuất báo giá. Mặc định BẬT.",
+    "rule_value": "Có"
+  },
+  {
+    "rule_code": "OT_THRESHOLD",
+    "category": "Pricing",
+    "rule_name": "Ngưỡng tính OT",
+    "value": "4.5h",
+    "description": "Sự kiện kéo dài trên 4.5 tiếng → tính theo bảng giá FD (cả ngày)",
+    "rule_value": "4.5h"
+  },
+  {
+    "rule_code": "HALF_DAY_DEFINITION",
+    "category": "Pricing",
+    "rule_name": "Định nghĩa nửa ngày",
+    "value": "≤4.5h",
+    "description": "Sự kiện ≤4.5h tính theo giá HD",
+    "rule_value": "≤4.5h"
+  },
+  {
+    "rule_code": "FULL_DAY_DEFINITION",
+    "category": "Pricing",
+    "rule_name": "Định nghĩa cả ngày",
+    "value": "≤8h",
+    "description": "Sự kiện từ 4.5h đến 8h tính theo giá FD",
+    "rule_value": "≤8h"
+  },
+  {
+    "rule_code": "OVERTIME_HOURLY_FEE",
+    "category": "Pricing",
+    "rule_name": "Phụ phí giờ vượt",
+    "value": 500000,
+    "description": "Sự kiện trên 8h: cộng 500.000đ/người/giờ vượt. Làm tròn lên (8.5h = 1 giờ vượt, 9.5h = 2 giờ vượt). Áp dụng cho cả 3 tier.",
+    "rule_value": 500000
+  },
+  {
+    "rule_code": "PRICING_UNIT",
+    "category": "Pricing",
+    "rule_name": "Đơn vị tính giá",
+    "value": "người × số lượng",
+    "description": "Eventus tính giá theo số người (số nhân sự) × số ngày. Không có gói basic/standard/premium - 3 tier giá đã có sẵn ở Sheet 3 cho 3 nhóm khách.",
+    "rule_value": "người × số lượng"
+  },
+  {
+    "rule_code": "GIMBAL_LIVE_WIRELESS",
+    "category": "Pricing",
+    "rule_name": "Wireless cho gimbal live",
+    "value": 1500000,
+    "description": "Khi sales chọn quay live có gimbal → tự động cộng 1.500.000/bộ wireless",
+    "rule_value": 1500000
+  },
+  {
+    "rule_code": "REHEARSAL_SAME_DAY",
+    "category": "Pricing",
+    "rule_name": "Phí rehearsal cùng ngày",
+    "value": "50%",
+    "description": "50% tổng chi phí buổi chính",
+    "rule_value": "50%"
+  },
+  {
+    "rule_code": "REHEARSAL_OTHER_DAY",
+    "category": "Pricing",
+    "rule_name": "Phí rehearsal khác ngày",
+    "value": "70%",
+    "description": "70% tổng chi phí buổi chính",
+    "rule_value": "70%"
+  },
+  {
+    "rule_code": "AUTH_METHOD",
+    "category": "System",
+    "rule_name": "Phương thức đăng nhập",
+    "value": "Email + Password",
+    "description": "Sales đăng nhập bằng email và password. Sếp cấp tài khoản, không cần magic link.",
+    "rule_value": "Email + Password"
+  },
+  {
+    "rule_code": "USER_ROLES",
+    "category": "System",
+    "rule_name": "Vai trò người dùng",
+    "value": "sales, leader, admin",
+    "description": "sales: tạo báo giá, override giá; leader: xem báo giá team; admin: quản lý bảng giá & user",
+    "rule_value": "sales, leader, admin"
+  },
+  {
+    "rule_code": "OVERRIDE_PRICE",
+    "category": "System",
+    "rule_name": "Cho phép sales override giá",
+    "value": "Có",
+    "description": "Mọi sales được override giá thủ công. KHÔNG cần approval. App tự log lại (ai sửa, sửa gì, khi nào, lý do). Sếp review định kỳ.",
+    "rule_value": "Có"
+  },
+  {
+    "rule_code": "LOG_ALL_QUOTES",
+    "category": "System",
+    "rule_name": "Lưu lịch sử mọi báo giá",
+    "value": "Có",
+    "description": "Lưu vào database để tracking tỷ lệ chốt deal theo từng sales, từng nhóm khách, từng tháng",
+    "rule_value": "Có"
+  },
+  {
+    "rule_code": "QUOTE_DELIVERY",
+    "category": "System",
+    "rule_name": "Phương thức gửi báo giá",
+    "value": "Link web",
+    "description": "Sales gửi LINK báo giá cho khách (không gửi PDF attachment). Trong link có nút download PDF nếu khách muốn. KHÔNG có mã PIN bảo vệ.",
+    "rule_value": "Link web"
+  },
+  {
+    "rule_code": "QUOTE_LINK_EXPIRE",
+    "category": "System",
+    "rule_name": "Hiệu lực link báo giá",
+    "value": "Theo hiệu lực báo giá",
+    "description": "Link tự hết hạn theo hiệu lực báo giá (7/15/30 ngày sales chọn). Sau khi hết hạn, khách mở link sẽ thấy thông báo \"Báo giá đã hết hạn, liên hệ sales\".",
+    "rule_value": "Theo hiệu lực báo giá"
+  },
+  {
+    "rule_code": "BRAND_COLOR_PRIMARY",
+    "category": "System",
+    "rule_name": "Màu thương hiệu chính",
+    "value": "#f8981d",
+    "description": "Màu cam Eventus. Dùng cho header, button, highlight trong UI và PDF.",
+    "rule_value": "#f8981d"
+  },
+  {
+    "rule_code": "BRAND_FONT",
+    "category": "System",
+    "rule_name": "Font chữ thương hiệu",
+    "value": "Default",
+    "description": "Eventus không có font riêng. Dùng font hệ thống (Inter, Roboto, hoặc sans-serif mặc định).",
+    "rule_value": "Default"
+  },
+  {
+    "rule_code": "QUOTE_VALIDITY_DEFAULT",
+    "category": "Workflow",
+    "rule_name": "Hiệu lực báo giá mặc định",
+    "value": "30 ngày",
+    "description": "Sales có thể chọn 7/15/30 ngày khi xuất, mặc định 30",
+    "rule_value": "30 ngày"
+  },
+  {
+    "rule_code": "QUOTE_VALIDITY_OPTIONS",
+    "category": "Workflow",
+    "rule_name": "Tùy chọn hiệu lực báo giá",
+    "value": "7, 15, 30",
+    "description": "Sales chọn 1 trong 3 mức",
+    "rule_value": "7, 15, 30"
+  },
+  {
+    "rule_code": "DEFAULT_DEPOSIT",
+    "category": "Workflow",
+    "rule_name": "Tỷ lệ tạm ứng mặc định",
+    "value": "50%",
+    "description": "Tạm ứng 50% xác nhận lịch, 50% còn lại sau khi giao sản phẩm",
+    "rule_value": "50%"
+  },
+  {
+    "rule_code": "FEEDBACK_WINDOW",
+    "category": "Workflow",
+    "rule_name": "Thời gian feedback tối đa",
+    "value": "5 ngày",
+    "description": "Sau 5 ngày khách không feedback → coi như nghiệm thu",
+    "rule_value": "5 ngày"
+  },
+  {
+    "rule_code": "DELIVERY_PHOTO",
+    "category": "Workflow",
+    "rule_name": "Thời gian trả ảnh",
+    "value": "24h",
+    "description": "Ảnh chỉnh sửa trả trong 24h sau sự kiện",
+    "rule_value": "24h"
+  },
+  {
+    "rule_code": "DELIVERY_VIDEO",
+    "category": "Workflow",
+    "rule_name": "Thời gian trả video",
+    "value": "3 ngày",
+    "description": "Video dựng trả trong 3 ngày sau sự kiện",
+    "rule_value": "3 ngày"
+  },
+  {
+    "rule_code": "UNKNOWN_SERVICE_HANDLING",
+    "category": "Workflow",
+    "rule_name": "Xử lý dịch vụ chưa có trong bảng giá",
+    "value": "Manual input + Log",
+    "description": "Sales nhập tay tên + đơn giá. App log lại để admin bổ sung vào bảng giá.",
+    "rule_value": "Manual input + Log"
+  },
+  {
+    "rule_code": "INVOICE_FLYCAM",
+    "category": "Constraints",
+    "rule_name": "Ghi hóa đơn flycam/FPV",
+    "value": "Dịch vụ quay phim",
+    "description": "Flycam và FPV không có đầu vào nên trên hóa đơn ghi \"Dịch vụ quay phim\"",
+    "rule_value": "Dịch vụ quay phim"
+  },
+  {
+    "rule_code": "DRONE_PERMIT_TIME",
+    "category": "Constraints",
+    "rule_name": "Thời gian xin cấp phép bay",
+    "value": "4-6 ngày",
+    "description": "Cần báo khách trước. Không xử lý gấp được.",
+    "rule_value": "4-6 ngày"
+  },
+  {
+    "rule_code": "FLYCAM_CONDITION",
+    "category": "Constraints",
+    "rule_name": "Điều kiện hoạt động flycam",
+    "value": "Thời tiết + giấy phép",
+    "description": "Báo giá flycam phải kèm điều khoản: \"Bay được khi thời tiết cho phép và có giấy phép. Trường hợp không bay được, không tính phí flycam.\"",
+    "rule_value": "Thời tiết + giấy phép"
+  },
+  {
+    "rule_code": "VIP_EMAIL_CC",
+    "category": "Constraints",
+    "rule_name": "Quy định CC mail khách VIP",
+    "value": "CC nhiều đầu mối",
+    "description": "Khách Vin/FPT hay đổi nhân sự, cần CC mail tất cả đầu mối",
+    "rule_value": "CC nhiều đầu mối"
+  },
+  {
+    "rule_code": "INTERNET_LIVESTREAM",
+    "category": "Constraints",
+    "rule_name": "Mạng livestream",
+    "value": "Khách chuẩn bị",
+    "description": "Đường truyền mạng do khách hàng chuẩn bị",
+    "rule_value": "Khách chuẩn bị"
+  },
+  {
+    "rule_code": "BANK_ACCOUNT_ON_QUOTE",
+    "category": "Constraints",
+    "rule_name": "Hiện số tài khoản trên báo giá",
+    "value": "Không",
+    "description": "Báo giá KHÔNG hiển thị STK ngân hàng. Thông tin thanh toán gửi riêng cho khách qua email/zalo.",
+    "rule_value": "Không"
+  },
+  {
+    "rule_code": "ERP_INTEGRATION",
+    "category": "Future",
+    "rule_name": "Tích hợp ERP",
+    "value": "Phase 2",
+    "description": "Sẽ tích hợp với ERP hiện tại của Eventus ở phase 2. Cần sếp cung cấp thông tin ERP (tên hệ thống, API, scope tích hợp) sau khi MVP hoàn thành.",
+    "rule_value": "Phase 2"
+  },
+  {
+    "rule_code": "VAT_RATE",
+    "category": "Pricing",
+    "rule_name": "VAT rate normalized",
+    "value": 0.08,
+    "description": "Derived from VAT for app pricing calculator",
+    "rule_value": 0.08,
+    "derived": true
+  },
+  {
+    "rule_code": "HALF_DAY_THRESHOLD",
+    "category": "Pricing",
+    "rule_name": "Half-day threshold normalized",
+    "value": 4.5,
+    "description": "Derived from OT_THRESHOLD for app service matching",
+    "rule_value": 4.5,
+    "derived": true
+  },
+  {
+    "rule_code": "FULL_DAY_THRESHOLD",
+    "category": "Pricing",
+    "rule_name": "Full-day threshold normalized",
+    "value": 8,
+    "description": "Derived from FULL_DAY_DEFINITION for overtime calculation",
+    "rule_value": 8,
+    "derived": true
+  }
+]
