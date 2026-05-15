@@ -359,7 +359,7 @@ function getVisibleCategories() {
   return CATEGORIES
 }
 
-function HomeHub({ onOpenCategory }) {
+function HomeHub({ onOpenCategory, admin }) {
   const featured = getVisibleCategories().map((category) => ({
     ...category,
     href: getCategoryHref(category.id),
@@ -981,15 +981,39 @@ function ArticleDocument({ title, category, page }) {
 const ADMIN_KEY = 'eventus_admin'
 const VFX_BUILDER_ACCESS_KEY = 'eventus_vfx_builder_access'
 
+function readStoredFlag(key) {
+  try {
+    return window.localStorage.getItem(key) === '1'
+  } catch {
+    return false
+  }
+}
+
+function writeStoredFlag(key) {
+  try {
+    window.localStorage.setItem(key, '1')
+  } catch {
+    // Storage can be blocked by browser privacy settings. Keep in-memory state working.
+  }
+}
+
+function clearStoredFlag(key) {
+  try {
+    window.localStorage.removeItem(key)
+  } catch {
+    // Storage can be blocked by browser privacy settings. Keep in-memory state working.
+  }
+}
+
 function useAdmin() {
-  const [isAdmin, setIsAdmin] = useState(() => localStorage.getItem(ADMIN_KEY) === '1')
+  const [isAdmin, setIsAdmin] = useState(() => readStoredFlag(ADMIN_KEY))
   const [showGate, setShowGate] = useState(false)
   const [input, setInput] = useState('')
   const [error, setError] = useState('')
 
   const tryLogin = () => {
     if (input === ADMIN_PASSWORD) {
-      localStorage.setItem(ADMIN_KEY, '1')
+      writeStoredFlag(ADMIN_KEY)
       setIsAdmin(true); setShowGate(false); setError(''); setInput('')
     } else {
       setError('Sai mật khẩu')
@@ -997,7 +1021,7 @@ function useAdmin() {
   }
 
   const logout = () => {
-    localStorage.removeItem(ADMIN_KEY)
+    clearStoredFlag(ADMIN_KEY)
     setIsAdmin(false)
   }
 
@@ -1005,7 +1029,7 @@ function useAdmin() {
 }
 
 function useVfxBuilderAccess() {
-  const [hasAccess, setHasAccess] = useState(() => localStorage.getItem(VFX_BUILDER_ACCESS_KEY) === '1')
+  const [hasAccess, setHasAccess] = useState(() => readStoredFlag(VFX_BUILDER_ACCESS_KEY))
   const [showGate, setShowGate] = useState(false)
   const [input, setInput] = useState('')
   const [error, setError] = useState('')
@@ -1017,7 +1041,7 @@ function useVfxBuilderAccess() {
 
   const tryUnlock = (onSuccess) => {
     if (input === VFX_BUILDER_PASSWORD) {
-      localStorage.setItem(VFX_BUILDER_ACCESS_KEY, '1')
+      writeStoredFlag(VFX_BUILDER_ACCESS_KEY)
       setHasAccess(true)
       setShowGate(false)
       setError('')
@@ -1446,7 +1470,7 @@ export default function EventusAILabPage() {
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
 
           {/* Home */}
-          {activeCat === 'home' && <HomeHub onOpenCategory={openHomeCategory} />}
+          {activeCat === 'home' && <HomeHub onOpenCategory={openHomeCategory} admin={admin} />}
 
           {/* Khung nang luc */}
           {activeCat === 'khung_nang_luc' && (positionId ? <div className="flex-1 overflow-y-auto"><PositionPage embedded /></div> : <CompetencyGrid />)}

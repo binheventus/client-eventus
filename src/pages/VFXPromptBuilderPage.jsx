@@ -56,6 +56,14 @@ const MODES = [
  { id: 'standalone', title: 'Standalone', tag: '~200 dòng', desc: 'Full brief có nhúng technique library.' },
 ]
 
+function readLocalValue(key) {
+ try {
+ return window.localStorage.getItem(`${STORAGE_PREFIX}${key}`)
+ } catch {
+ return null
+ }
+}
+
 function readStoredState() {
  if (typeof window === 'undefined') {
  return {
@@ -68,13 +76,13 @@ function readStoredState() {
  }
 
  const fields = FIELD_KEYS.reduce((next, key) => {
- next[key] = window.localStorage.getItem(`${STORAGE_PREFIX}${key}`) || ''
+ next[key] = readLocalValue(key) || ''
  return next
  }, {})
 
  let directions = ['camera']
  try {
- const savedDirections = JSON.parse(window.localStorage.getItem(`${STORAGE_PREFIX}directions`) || 'null')
+ const savedDirections = JSON.parse(readLocalValue('directions') || 'null')
  if (Array.isArray(savedDirections) && savedDirections.length) directions = savedDirections.filter(key => VFX_TECHNIQUE_LIBRARY[key])
  } catch {
  directions = ['camera']
@@ -83,15 +91,15 @@ function readStoredState() {
  let images = { start: null, end: null }
  try {
  images = {
- start: JSON.parse(window.localStorage.getItem(`${STORAGE_PREFIX}img_start`) || 'null'),
- end: JSON.parse(window.localStorage.getItem(`${STORAGE_PREFIX}img_end`) || 'null'),
+ start: JSON.parse(readLocalValue('img_start') || 'null'),
+ end: JSON.parse(readLocalValue('img_end') || 'null'),
  }
  } catch {
  images = { start: null, end: null }
  }
 
- const savedIntensity = Number(window.localStorage.getItem(`${STORAGE_PREFIX}intensity`))
- const savedMode = window.localStorage.getItem(`${STORAGE_PREFIX}mode`)
+ const savedIntensity = Number(readLocalValue('intensity'))
+ const savedMode = readLocalValue('mode')
 
  return {
  fields: { ...INITIAL_FIELDS, ...fields },
@@ -104,11 +112,15 @@ function readStoredState() {
 
 function saveLocal(key, value) {
  if (typeof window === 'undefined') return
+ try {
  if (value === null || value === undefined) {
  window.localStorage.removeItem(`${STORAGE_PREFIX}${key}`)
  return
  }
  window.localStorage.setItem(`${STORAGE_PREFIX}${key}`, typeof value === 'string' ? value : JSON.stringify(value))
+ } catch {
+ // Storage can be blocked by browser privacy settings. The builder still works in memory.
+ }
 }
 
 function getAspectRatio(width, height) {

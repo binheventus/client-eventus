@@ -15,6 +15,7 @@ export default function App() {
         <Route path="/q/:share_token" element={<QuotePublicPage />} />
         <Route path="/position/:positionId" element={<EventusAILabPage />} />
         <Route path="/position/:positionId/level/:levelIndex" element={<EventusAILabPage />} />
+        <Route path="*" element={<EventusAILabPage />} />
       </Routes>
     </BrowserRouter>
   )

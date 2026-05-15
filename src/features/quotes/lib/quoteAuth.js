@@ -3,7 +3,12 @@ export function getQuoteUserContext() {
     return { role: 'sales', userId: null, name: '' }
   }
 
-  const isAdmin = window.localStorage.getItem('eventus_admin') === '1'
+  let isAdmin = false
+  try {
+    isAdmin = window.localStorage.getItem('eventus_admin') === '1'
+  } catch {
+    isAdmin = false
+  }
   if (isAdmin) return { role: 'admin', userId: null, name: 'Admin' }
 
   const stored = [
