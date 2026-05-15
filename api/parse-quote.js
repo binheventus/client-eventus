@@ -1,4 +1,5 @@
-const DEFAULT_MODEL = 'claude-sonnet-4-6'
+const DEFAULT_OPENAI_MODEL = 'gpt-5-mini'
+const DEFAULT_ANTHROPIC_MODEL = 'claude-sonnet-4-6'
 
 export const quoteParseSystemPrompt = `Bạn là AI parser cho module Báo giá tự động của Eventus.
 
@@ -46,6 +47,7 @@ Schema output bắt buộc:
 function normalizeApiKey(value = '') {
   return String(value)
     .trim()
+    .replace(/^OPENAI_API_KEY\s*=\s*/i, '')
     .replace(/^ANTHROPIC_API_KEY\s*=\s*/i, '')
     .replace(/^['"]|['"]$/g, '')
     .trim()
@@ -85,6 +87,16 @@ function extractTextFromAnthropic(payload) {
     .trim() || ''
 }
 
+function extractTextFromOpenAI(payload) {
+  if (payload?.output_text) return String(payload.output_text).trim()
+
+  return (payload?.output || [])
+    .flatMap(item => item?.content || [])
+    .map(content => content?.text || '')
+    .join('')
+    .trim()
+}
+
 function parseJsonObject(text = '') {
   const clean = String(text || '').trim()
   try {
@@ -92,7 +104,7 @@ function parseJsonObject(text = '') {
   } catch {
     const start = clean.indexOf('{')
     const end = clean.lastIndexOf('}')
-    if (start < 0 || end <= start) throw new Error('Claude không trả về JSON hợp lệ.')
+    if (start < 0 || end <= start) throw new Error('AI không trả về JSON hợp lệ.')
     return JSON.parse(clean.slice(start, end + 1))
   }
 }
@@ -115,6 +127,82 @@ function normalizeParsedPayload(payload) {
   }
 }
 
+async function callOpenAI({ apiKey, inputText, context }) {
+  const response = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: {
+      'authorization': `Bearer ${apiKey}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: process.env.QUOTE_PARSE_MODEL || DEFAULT_OPENAI_MODEL,
+      instructions: quoteParseSystemPrompt,
+      input: buildQuoteParseUserMessage(inputText, context),
+      max_output_tokens: 1600,
+      text: {
+        format: {
+          type: 'json_schema',
+          name: 'quote_parse_result',
+          strict: true,
+          schema: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              parsed: {
+                type: 'object',
+                additionalProperties: false,
+                properties: {
+                  items: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      additionalProperties: false,
+                      properties: {
+                        service_code: { type: ['string', 'null'] },
+                        quantity: { type: 'number' },
+                        service_name_raw: { type: 'string' },
+                      },
+                      required: ['service_code', 'quantity', 'service_name_raw'],
+                    },
+                  },
+                  location: { type: ['string', 'null'] },
+                  duration_hours: { type: ['number', 'null'] },
+                  tier_code: { type: ['string', 'null'] },
+                  event_date: { type: ['string', 'null'] },
+                  event_name: { type: ['string', 'null'] },
+                  num_days: { type: 'number' },
+                },
+                required: ['items', 'location', 'duration_hours', 'tier_code', 'event_date', 'event_name', 'num_days'],
+              },
+              missing_fields: {
+                type: 'array',
+                items: { type: 'string' },
+              },
+              ambiguous_fields: {
+                type: 'array',
+                items: { type: 'string' },
+              },
+              confidence: {
+                type: 'string',
+                enum: ['high', 'medium', 'low'],
+              },
+              ai_reasoning: { type: 'string' },
+            },
+            required: ['parsed', 'missing_fields', 'ambiguous_fields', 'confidence', 'ai_reasoning'],
+          },
+        },
+      },
+    }),
+  })
+
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(payload?.error?.message || 'OpenAI API trả về lỗi khi parse báo giá.')
+  }
+
+  return normalizeParsedPayload(parseJsonObject(extractTextFromOpenAI(payload)))
+}
+
 async function callAnthropic({ apiKey, inputText, context }) {
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -124,7 +212,7 @@ async function callAnthropic({ apiKey, inputText, context }) {
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: process.env.QUOTE_PARSE_MODEL || DEFAULT_MODEL,
+      model: process.env.QUOTE_PARSE_MODEL || DEFAULT_ANTHROPIC_MODEL,
       max_tokens: 1600,
       temperature: 0,
       system: quoteParseSystemPrompt,
@@ -154,17 +242,24 @@ export default async function handler(req, res) {
   const inputText = String(req.body?.input_text || '').trim()
   if (!inputText) return res.status(400).json({ error: 'Thiếu input_text.' })
 
-  const apiKey = normalizeApiKey(process.env.ANTHROPIC_API_KEY)
-  if (!apiKey) {
-    return res.status(500).json({ error: 'Thiếu ANTHROPIC_API_KEY trên môi trường backend/Vercel.' })
+  const openAiKey = normalizeApiKey(process.env.OPENAI_API_KEY)
+  const anthropicKey = normalizeApiKey(process.env.ANTHROPIC_API_KEY)
+  if (!openAiKey && !anthropicKey) {
+    return res.status(500).json({ error: 'Thiếu OPENAI_API_KEY hoặc ANTHROPIC_API_KEY trên môi trường backend/Vercel.' })
   }
 
   try {
-    const result = await callAnthropic({
-      apiKey,
-      inputText,
-      context: req.body?.context || {},
-    })
+    const result = openAiKey
+      ? await callOpenAI({
+          apiKey: openAiKey,
+          inputText,
+          context: req.body?.context || {},
+        })
+      : await callAnthropic({
+          apiKey: anthropicKey,
+          inputText,
+          context: req.body?.context || {},
+        })
 
     return res.status(200).json(result)
   } catch (error) {
