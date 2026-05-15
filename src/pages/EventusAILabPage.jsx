@@ -4,7 +4,6 @@ import { hasSupabaseConfig, supabase } from '../lib/supabase'
 import { ADMIN_PASSWORD, VFX_BUILDER_PASSWORD } from '../config'
 import data from '../data/competency.json'
 import PositionPage from './PositionPage'
-import HRInsightsPage from './HRInsightsPage'
 import VFXPromptBuilderPage from './VFXPromptBuilderPage'
 import {
   QuoteCreatePage,
@@ -15,14 +14,6 @@ import {
 
 /* ─── Danh muc sidebar ─── */
 const CATEGORIES = [
-  {
-    id: 'hr_insights',
-    label: 'HR Insights',
-    icon: '📊',
-    shortDesc: 'Insight từ dữ liệu giúp hiểu rõ đội ngũ',
-    banner: 'HR Insights',
-    desc: 'Tổng hợp insight nhân sự, dữ liệu vận hành và các góc nhìn nội bộ của Eventus.',
-  },
   {
     id: 'vfx_builder',
     label: 'VFX Prompt Builder',
@@ -66,11 +57,6 @@ const CATEGORY_BANNER_STYLES = {
     desc: 'text-cyan-100/90',
   },
   khung_nang_luc: {
-    bg: 'from-slate-900 via-blue-900 to-teal-700',
-    label: 'text-blue-100',
-    desc: 'text-blue-100/90',
-  },
-  hr_insights: {
     bg: 'from-slate-900 via-blue-900 to-teal-700',
     label: 'text-blue-100',
     desc: 'text-blue-100/90',
@@ -364,18 +350,17 @@ const PLACEHOLDER_POSITION = {
 
 function getCategoryHref(id) {
   if (id === 'khung_nang_luc') return '/competency'
-  if (id === 'hr_insights') return '/hr-insights'
   if (id === 'vfx_builder') return '/vfx-builder'
   if (id === 'quotes') return '/quotes'
   return '/'
 }
 
-function getVisibleCategories(isAdmin) {
-  return CATEGORIES.filter(category => isAdmin || category.id !== 'hr_insights')
+function getVisibleCategories() {
+  return CATEGORIES
 }
 
-function HomeHub({ onOpenCategory, admin }) {
-  const featured = getVisibleCategories(admin.isAdmin).map((category) => ({
+function HomeHub({ onOpenCategory }) {
+  const featured = getVisibleCategories().map((category) => ({
     ...category,
     href: getCategoryHref(category.id),
     itemCount: category.items?.length || 0,
@@ -1118,7 +1103,7 @@ export default function EventusAILabPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const admin = useAdmin()
   const vfxAccess = useVfxBuilderAccess()
-  const visibleCategories = useMemo(() => getVisibleCategories(admin.isAdmin), [admin.isAdmin])
+  const visibleCategories = useMemo(() => getVisibleCategories(), [])
 
   useEffect(() => {
     if (!hasSupabaseConfig) {
@@ -1250,21 +1235,6 @@ export default function EventusAILabPage() {
       return
     }
 
-    if (location.pathname === '/hr-insights') {
-      if (!admin.isAdmin) {
-        setActiveCat('home')
-        setSelectedTitle(null)
-        setEditing(false)
-        admin.setShowGate(true)
-        navigate('/', { replace: true })
-        return
-      }
-      setActiveCat('hr_insights')
-      setSelectedTitle(null)
-      setEditing(false)
-      return
-    }
-
     if (location.pathname === '/vfx-builder') {
       setActiveCat('vfx_builder')
       setSelectedTitle(null)
@@ -1298,15 +1268,8 @@ export default function EventusAILabPage() {
   }, [location.pathname, positionId, articleSlug, currentCategoryItems, admin.isAdmin, vfxAccess.hasAccess, navigate])
 
   function selectCat(id) {
-    if (id === 'hr_insights' && !admin.isAdmin) {
-      admin.setShowGate(true)
-      return
-    }
-
     if (id === 'khung_nang_luc') {
       navigate('/competency')
-    } else if (id === 'hr_insights') {
-      navigate('/hr-insights')
     } else if (id === 'vfx_builder') {
       navigate('/vfx-builder')
     } else if (id === 'quotes') {
@@ -1322,7 +1285,7 @@ export default function EventusAILabPage() {
   }
 
   function openHomeCategory(id) {
-    if (id === 'khung_nang_luc' || id === 'hr_insights' || id === 'vfx_builder' || id === 'quotes') {
+    if (id === 'khung_nang_luc' || id === 'vfx_builder' || id === 'quotes') {
       selectCat(id)
       return
     }
@@ -1483,13 +1446,10 @@ export default function EventusAILabPage() {
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
 
           {/* Home */}
-          {activeCat === 'home' && <HomeHub onOpenCategory={openHomeCategory} admin={admin} />}
+          {activeCat === 'home' && <HomeHub onOpenCategory={openHomeCategory} />}
 
           {/* Khung nang luc */}
           {activeCat === 'khung_nang_luc' && (positionId ? <div className="flex-1 overflow-y-auto"><PositionPage embedded /></div> : <CompetencyGrid />)}
-
-          {/* HR Insights */}
-          {activeCat === 'hr_insights' && <HRInsightsPage />}
 
           {/* VFX Prompt Builder */}
           {activeCat === 'vfx_builder' && (
@@ -1506,7 +1466,7 @@ export default function EventusAILabPage() {
           )}
 
           {/* Card grid cac danh muc khac */}
-          {activeCat !== 'home' && activeCat !== 'khung_nang_luc' && activeCat !== 'hr_insights' && activeCat !== 'vfx_builder' && activeCat !== 'quotes' && !selectedTitle && (
+          {activeCat !== 'home' && activeCat !== 'khung_nang_luc' && activeCat !== 'vfx_builder' && activeCat !== 'quotes' && !selectedTitle && (
             <div className="flex-1 overflow-y-auto p-6">
               <CategoryBanner cat={currentCat} />
               {admin.isAdmin && (

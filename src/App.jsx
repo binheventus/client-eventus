@@ -7,7 +7,6 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<EventusAILabPage />} />
-        <Route path="/hr-insights" element={<EventusAILabPage />} />
         <Route path="/vfx-builder" element={<EventusAILabPage />} />
         <Route path="/quotes" element={<EventusAILabPage />} />
         <Route path="/quotes/new" element={<EventusAILabPage />} />
