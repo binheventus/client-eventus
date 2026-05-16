@@ -1,7 +1,10 @@
-import { Document, Page, StyleSheet, Text, View } from '@react-pdf/renderer'
+import { Document, Image, Page, StyleSheet, Text, View } from '@react-pdf/renderer'
+import equipmentRulesData from '../../../data/pricing/equipment_rules.json'
 import legalEntitiesData from '../../../data/pricing/legal_entities.json'
+import { getMatchedEquipmentRules } from '../lib/equipmentRules'
 
 const BRAND_COLOR = '#f8981d'
+const SIGNATURE_IMAGE_SRC = '/signatures/nguyen-thu-huyen.png'
 
 const ENTITY_META = {
   EVENTUS: {
@@ -35,9 +38,9 @@ function formatCurrency(value) {
   return `${new Intl.NumberFormat('vi-VN').format(Number(value) || 0)} đ`
 }
 
-function formatDate(value) {
-  if (!value) return '-'
-  return new Date(value).toLocaleDateString('vi-VN')
+function formatQuoteDate(value) {
+  const date = value ? new Date(value) : new Date()
+  return date.toLocaleDateString('vi-VN')
 }
 
 function sanitizeFilenamePart(value) {
@@ -73,24 +76,12 @@ function getEntityMeta(quote) {
   return ENTITY_META[code] || ENTITY_META.EVENTUS
 }
 
-function getValidUntil(quote) {
-  if (quote?.valid_until) return quote.valid_until
-  if (!quote?.created_at) return null
-  const date = new Date(quote.created_at)
-  date.setDate(date.getDate() + (Number(quote.validity_days) || 15))
-  return date
-}
-
 function getClientName(quote) {
   return quote?.client_name || quote?.customer_name || quote?.client?.name || '-'
 }
 
 function getItemName(item) {
   return item?.service_name || item?.service?.service_name || item?.service_name_raw || item?.service_code || 'Hang muc'
-}
-
-function hasFlycam(items = []) {
-  return items.some(item => /flycam/i.test(`${item.service_code || ''} ${item.service_name || ''} ${item.service_name_raw || ''}`))
 }
 
 function groupItemsByDay(items = []) {
@@ -253,7 +244,55 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   noteLine: {
-    marginBottom: 4,
+    marginBottom: 5,
+  },
+  noteSection: {
+    marginBottom: 9,
+  },
+  noteHeading: {
+    fontSize: 10,
+    fontWeight: 700,
+    color: '#111827',
+    marginBottom: 5,
+  },
+  notePlaceholder: {
+    color: '#64748b',
+    marginBottom: 2,
+  },
+  signature: {
+    marginTop: 16,
+    marginLeft: 'auto',
+    width: 150,
+    textAlign: 'center',
+  },
+  signatureDate: {
+    marginBottom: 8,
+    fontWeight: 700,
+    color: '#111827',
+  },
+  signatureImage: {
+    width: 75,
+    height: 45,
+    objectFit: 'contain',
+    marginHorizontal: 'auto',
+  },
+  signatureName: {
+    marginTop: 8,
+    fontSize: 11,
+    fontWeight: 700,
+    color: '#111827',
+  },
+  signatureRole: {
+    color: '#64748b',
+  },
+  intro: {
+    marginBottom: 14,
+  },
+  introLine: {
+    marginBottom: 5,
+  },
+  introClient: {
+    fontWeight: 700,
   },
   footer: {
     marginTop: 24,
@@ -309,23 +348,9 @@ function Header({ quote }) {
 
 function InfoSection({ quote }) {
   return (
-    <View style={styles.infoGrid}>
-      <View style={styles.infoBox}>
-        <Text style={styles.label}>Khach hang</Text>
-        <Text style={styles.value}>{getClientName(quote)}</Text>
-        <Text style={[styles.label, { marginTop: 8 }]}>Du an / Su kien</Text>
-        <Text style={styles.value}>{quote?.event_name || '-'}</Text>
-        <Text style={[styles.label, { marginTop: 8 }]}>Dia diem</Text>
-        <Text style={styles.value}>{quote?.location || '-'}</Text>
-      </View>
-      <View style={styles.infoBox}>
-        <Text style={styles.label}>Ngay bao gia</Text>
-        <Text style={styles.value}>{formatDate(quote?.created_at || new Date())}</Text>
-        <Text style={[styles.label, { marginTop: 8 }]}>Ngay su kien</Text>
-        <Text style={styles.value}>{formatDate(quote?.event_date)}</Text>
-        <Text style={[styles.label, { marginTop: 8 }]}>Hieu luc den</Text>
-        <Text style={styles.value}>{formatDate(getValidUntil(quote))}</Text>
-      </View>
+    <View style={styles.intro}>
+      <Text style={[styles.introLine, styles.introClient]}>Kinh gui: {getClientName(quote)}</Text>
+      <Text style={styles.introLine}>Dua tren thong tin trao doi, chung toi xin gui bao gia chi tiet dich vu nhu sau:</Text>
     </View>
   )
 }
@@ -361,7 +386,9 @@ function ItemsTable({ items = [] }) {
 }
 
 function Totals({ quote }) {
-  const showVat = Number(quote?.vat_amount || 0) > 0 || quote?.has_vat
+  const showTravelFee = Number(quote?.travel_fee_total || 0) > 0
+  const showOvertimeFee = Number(quote?.overtime_fee_total || 0) > 0
+  const showVat = Boolean(quote?.has_vat)
 
   return (
     <View style={styles.totals}>
@@ -369,14 +396,18 @@ function Totals({ quote }) {
         <Text>Subtotal</Text>
         <Text>{formatCurrency(quote?.subtotal)}</Text>
       </View>
-      <View style={styles.totalLine}>
-        <Text>Phu phi di chuyen</Text>
-        <Text>{formatCurrency(quote?.travel_fee_total)}</Text>
-      </View>
-      <View style={styles.totalLine}>
-        <Text>Phu phi gio vuot</Text>
-        <Text>{formatCurrency(quote?.overtime_fee_total)}</Text>
-      </View>
+      {showTravelFee ? (
+        <View style={styles.totalLine}>
+          <Text>Phu phi di chuyen</Text>
+          <Text>{formatCurrency(quote?.travel_fee_total)}</Text>
+        </View>
+      ) : null}
+      {showOvertimeFee ? (
+        <View style={styles.totalLine}>
+          <Text>Phu phi gio vuot</Text>
+          <Text>{formatCurrency(quote?.overtime_fee_total)}</Text>
+        </View>
+      ) : null}
       {showVat ? (
         <View style={styles.totalLine}>
           <Text>VAT</Text>
@@ -391,15 +422,46 @@ function Totals({ quote }) {
   )
 }
 
-function Notes({ quote, items }) {
+function Notes({ quote, items = [] }) {
+  const equipmentRules = getMatchedEquipmentRules(items, equipmentRulesData)
+  const validityDays = quote?.validity_days || 15
+  const terms = [
+    `* Bao gia co hieu luc trong ${validityDays} ngay. Thoi gian lam viec tieu chuan toi da 04 tieng/buoi va 08 tieng/ngay. Thoi gian Overtime se duoc tinh phi theo thoa thuan rieng.`,
+    '* Bao gia tren chua bao gom chi phi mua ban quyen am nhac, hinh anh neu co.',
+    '* Bao gia da bao gom toi da 03 lan chinh sua san pham hau ky dua tren format da thong nhat.',
+    '* Trong vong 05 ngay lam viec ke tu ngay ban giao ban Demo, neu Khach hang khong co phan hoi hoac yeu cau chinh sua bang van ban, san pham duoc coi la da hoan thanh & tu dong duoc nghiem thu.',
+  ]
+  const paymentTerms = [
+    '* Dot 1 (Tam ung): Quy khach vui long thanh toan 50% tong gia tri bao gia ngay sau khi xac nhan hop dong/bao gia de giu lich nhan su va chuan bi thiet bi.',
+    '* Dot 2 (Tat toan): Thanh toan 50% gia tri con lai trong vong 03 ngay lam viec sau khi ban giao day du san pham cuoi cung (da nghiem thu) va truoc khi xuat hoa don VAT (neu co).',
+  ]
+
   return (
     <View style={styles.notes}>
-      <Text style={styles.noteLine}>- Bao gia co hieu luc den {formatDate(getValidUntil(quote))}.</Text>
-      <Text style={styles.noteLine}>- Thanh toan theo thoa thuan trong hop dong hoac xac nhan dich vu.</Text>
-      <Text style={styles.noteLine}>- Chi phi phat sinh ngoai pham vi bao gia se duoc xac nhan truoc khi thuc hien.</Text>
-      {hasFlycam(items) ? (
-        <Text style={styles.noteLine}>- Dich vu flycam phu thuoc dieu kien thoi tiet, dia hinh va quy dinh bay tai dia phuong.</Text>
+      {equipmentRules.length ? (
+        <View style={styles.noteSection}>
+          <Text style={styles.noteHeading}>THIET BI SU DUNG</Text>
+          {equipmentRules.map(rule => (
+            <Text key={`${rule.equipment_title}-${rule.sort_order}`} style={styles.noteLine}>
+              * {rule.equipment_title}: {rule.equipment_description}
+            </Text>
+          ))}
+        </View>
       ) : null}
+      <View style={styles.noteSection}>
+        <Text style={styles.noteHeading}>DIEU KHOAN & DIEU KIEN</Text>
+        {terms.map(term => <Text key={term} style={styles.noteLine}>{term}</Text>)}
+      </View>
+      <View>
+        <Text style={styles.noteHeading}>DIEU KHOAN THANH TOAN</Text>
+        {paymentTerms.map(term => <Text key={term} style={styles.noteLine}>{term}</Text>)}
+      </View>
+      <View style={styles.signature}>
+        <Text style={styles.signatureDate}>Ngay lap: {formatQuoteDate(quote?.created_at)}</Text>
+        <Image src={SIGNATURE_IMAGE_SRC} style={styles.signatureImage} />
+        <Text style={styles.signatureName}>Nguyen Thu Huyen</Text>
+        <Text style={styles.signatureRole}>Account Manager</Text>
+      </View>
     </View>
   )
 }

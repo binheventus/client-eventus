@@ -1,6 +1,21 @@
-const DEFAULT_OPENAI_MODEL = 'gpt-5-mini'
+const DEFAULT_OPENAI_MODEL = 'gpt-5.4'
 const DEFAULT_ANTHROPIC_MODEL = 'claude-sonnet-4-6'
 const DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com'
+const EMPTY_QUOTE_PARSE_RESULT = {
+  parsed: {
+    items: [],
+    location: null,
+    duration_hours: null,
+    tier_code: null,
+    event_date: null,
+    event_name: null,
+    num_days: 1,
+  },
+  missing_fields: ['event_date', 'event_name', 'location', 'duration_hours', 'items'],
+  ambiguous_fields: [],
+  confidence: 'low',
+  ai_reasoning: '',
+}
 
 export const quoteParseSystemPrompt = `Bạn là AI parser cho module Báo giá tự động của Eventus.
 
@@ -89,6 +104,19 @@ ${JSON.stringify(compactContext, null, 2)}
 Hãy trả về đúng một JSON object theo schema trong system prompt.`
 }
 
+function buildJsonRepairMessage(rawText, parseError) {
+  return `Nội dung dưới đây đáng lẽ là JSON cho module báo giá nhưng chưa parse được.
+
+Lỗi parse:
+${parseError?.message || parseError || 'Unknown parse error'}
+
+Nội dung cần sửa:
+${String(rawText || '').slice(0, 6000)}
+
+Hãy trả về DUY NHẤT một JSON object hợp lệ đúng schema trong system prompt.
+Không markdown, không giải thích, không bọc trong code fence.`
+}
+
 function extractTextFromAnthropic(payload) {
   return payload?.content
     ?.map(block => block?.type === 'text' ? block.text : '')
@@ -106,16 +134,65 @@ function extractTextFromOpenAI(payload) {
     .trim()
 }
 
+function stripCodeFence(text = '') {
+  return String(text || '')
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim()
+}
+
+function findBalancedJsonObject(text = '') {
+  const source = String(text || '')
+  const start = source.indexOf('{')
+  if (start < 0) return ''
+
+  let depth = 0
+  let inString = false
+  let escaped = false
+
+  for (let index = start; index < source.length; index += 1) {
+    const char = source[index]
+
+    if (escaped) {
+      escaped = false
+      continue
+    }
+
+    if (char === '\\') {
+      escaped = true
+      continue
+    }
+
+    if (char === '"') {
+      inString = !inString
+      continue
+    }
+
+    if (inString) continue
+
+    if (char === '{') depth += 1
+    if (char === '}') depth -= 1
+
+    if (depth === 0) return source.slice(start, index + 1)
+  }
+
+  return ''
+}
+
 function parseJsonObject(text = '') {
-  const clean = String(text || '').trim()
+  const clean = stripCodeFence(text)
   try {
     return JSON.parse(clean)
   } catch {
-    const start = clean.indexOf('{')
-    const end = clean.lastIndexOf('}')
-    if (start < 0 || end <= start) throw new Error('AI không trả về JSON hợp lệ.')
-    return JSON.parse(clean.slice(start, end + 1))
+    const balanced = findBalancedJsonObject(clean)
+    if (!balanced) throw new Error('AI không trả về JSON hợp lệ.')
+    return JSON.parse(balanced)
   }
+}
+
+function parseAndNormalizeJson(text) {
+  return normalizeParsedPayload(parseJsonObject(text))
 }
 
 function normalizeParsedPayload(payload) {
@@ -133,6 +210,22 @@ function normalizeParsedPayload(payload) {
     ambiguous_fields: Array.isArray(payload?.ambiguous_fields) ? payload.ambiguous_fields : [],
     confidence: ['high', 'medium', 'low'].includes(payload?.confidence) ? payload.confidence : 'low',
     ai_reasoning: String(payload?.ai_reasoning || '').trim(),
+  }
+}
+
+function withRepairNotice(result) {
+  return {
+    ...result,
+    ai_reasoning: result.ai_reasoning
+      ? `${result.ai_reasoning} (Đã tự chuẩn hóa lại JSON từ phản hồi AI.)`
+      : 'Đã tự chuẩn hóa lại JSON từ phản hồi AI.',
+  }
+}
+
+function fallbackParseResult(reason) {
+  return {
+    ...EMPTY_QUOTE_PARSE_RESULT,
+    ai_reasoning: reason || 'AI chưa trả về JSON hợp lệ, vui lòng nhập thủ công hoặc thử lại với brief ngắn hơn.',
   }
 }
 
@@ -213,15 +306,25 @@ async function callOpenAI({ apiKey, inputText, context }) {
     const message = payload?.error?.message || ''
     const maybeUnsupportedResponses = [404, 405].includes(response.status) || /responses|not found|unsupported|unknown/i.test(message)
     if (maybeUnsupportedResponses) {
-      return callOpenAIChatCompletions({ apiKey, inputText, context, baseUrl, model, previousError: message })
+      return callOpenAIChatCompletions({ apiKey, inputText, context, baseUrl, model, userMessage, previousError: message })
     }
     throw new Error(payload?.error?.message || 'OpenAI API trả về lỗi khi parse báo giá.')
   }
 
-  return normalizeParsedPayload(parseJsonObject(extractTextFromOpenAI(payload)))
+  const text = extractTextFromOpenAI(payload)
+  if (!text) {
+    return callOpenAIChatCompletions({ apiKey, inputText, context, baseUrl, model, userMessage })
+  }
+
+  try {
+    return parseAndNormalizeJson(text)
+  } catch (error) {
+    return repairOpenAIJson({ apiKey, baseUrl, model, rawText: text, parseError: error })
+  }
 }
 
-async function callOpenAIChatCompletions({ apiKey, inputText, context, baseUrl, model, previousError }) {
+async function callOpenAIChatCompletions({ apiKey, inputText, context, baseUrl, model, userMessage, previousError }) {
+  const message = userMessage || buildQuoteParseUserMessage(inputText, context)
   const response = await fetch(`${baseUrl}/v1/chat/completions`, {
     method: 'POST',
     headers: {
@@ -235,7 +338,7 @@ async function callOpenAIChatCompletions({ apiKey, inputText, context, baseUrl, 
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: quoteParseSystemPrompt },
-        { role: 'user', content: buildQuoteParseUserMessage(inputText, context) },
+        { role: 'user', content: message },
       ],
     }),
   })
@@ -247,7 +350,44 @@ async function callOpenAIChatCompletions({ apiKey, inputText, context, baseUrl, 
   }
 
   const text = payload?.choices?.[0]?.message?.content || ''
-  return normalizeParsedPayload(parseJsonObject(text))
+  try {
+    return parseAndNormalizeJson(text)
+  } catch (error) {
+    return repairOpenAIJson({ apiKey, baseUrl, model, rawText: text, parseError: error })
+  }
+}
+
+async function repairOpenAIJson({ apiKey, baseUrl, model, rawText, parseError }) {
+  if (!rawText) return fallbackParseResult('AI chưa trả về nội dung để phân tích.')
+
+  const response = await fetch(`${baseUrl}/v1/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'authorization': `Bearer ${apiKey}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model,
+      temperature: 0,
+      max_tokens: 1200,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: quoteParseSystemPrompt },
+        { role: 'user', content: buildJsonRepairMessage(rawText, parseError) },
+      ],
+    }),
+  })
+
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    return fallbackParseResult(payload?.error?.message || 'AI chưa trả về JSON hợp lệ sau khi thử sửa.')
+  }
+
+  try {
+    return withRepairNotice(parseAndNormalizeJson(payload?.choices?.[0]?.message?.content || ''))
+  } catch {
+    return fallbackParseResult('AI chưa trả về JSON hợp lệ sau khi thử lại. Vui lòng nhập thủ công hoặc viết brief ngắn hơn.')
+  }
 }
 
 async function callAnthropic({ apiKey, inputText, context }) {
@@ -277,7 +417,11 @@ async function callAnthropic({ apiKey, inputText, context }) {
     throw new Error(payload?.error?.message || 'Claude API trả về lỗi khi parse báo giá.')
   }
 
-  return normalizeParsedPayload(parseJsonObject(extractTextFromAnthropic(payload)))
+  try {
+    return parseAndNormalizeJson(extractTextFromAnthropic(payload))
+  } catch {
+    return fallbackParseResult('AI chưa trả về JSON hợp lệ. Vui lòng nhập thủ công hoặc thử lại với brief ngắn hơn.')
+  }
 }
 
 export default async function handler(req, res) {

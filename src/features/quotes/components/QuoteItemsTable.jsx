@@ -39,15 +39,15 @@ export default function QuoteItemsTable({
       </div>
 
       <div className="overflow-x-auto">
-        <table className="min-w-[760px] w-full text-left text-[13px]">
+        <table className="min-w-[920px] w-full table-fixed text-left text-[13px]">
           <thead className="bg-slate-50 text-[11px] uppercase tracking-[0.12em] text-slate-500">
             <tr>
-              <th className="px-4 py-3 font-semibold">Dịch vụ</th>
-              <th className="w-24 px-3 py-3 font-semibold">SL</th>
-              <th className="w-28 px-3 py-3 font-semibold">Buổi/ngày</th>
-              <th className="w-40 px-3 py-3 font-semibold">Đơn giá</th>
-              <th className="w-40 px-3 py-3 text-right font-semibold">Thành tiền</th>
-              <th className="w-16 px-3 py-3" />
+              <th className="w-[52%] px-4 py-3 font-semibold">Dịch vụ</th>
+              <th className="w-[7%] px-2 py-3 font-semibold">SL</th>
+              <th className="w-[9%] px-2 py-3 font-semibold">Buổi/ngày</th>
+              <th className="w-[13%] px-2 py-3 font-semibold">Đơn giá</th>
+              <th className="w-[14%] px-3 py-3 text-right font-semibold">Thành tiền</th>
+              <th className="w-[5%] px-2 py-3" />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -71,31 +71,31 @@ export default function QuoteItemsTable({
                     {item.is_overridden ? <span className="ml-2 text-orange-600">Đã sửa giá</span> : null}
                   </div>
                 </td>
-                <td className="px-3 py-3">
+                <td className="px-2 py-3">
                   <input
                     type="number"
                     min="0"
                     value={item.quantity}
                     onChange={event => onChangeItem?.(index, { quantity: Number(event.target.value) })}
-                    className="w-full rounded-lg border border-slate-200 px-2 py-2 outline-none focus:border-[#f8981d] focus:ring-2 focus:ring-orange-100"
+                    className="w-full rounded-lg border border-slate-200 px-2 py-2 text-right outline-none focus:border-[#f8981d] focus:ring-2 focus:ring-orange-100"
                   />
                 </td>
-                <td className="px-3 py-3">
+                <td className="px-2 py-3">
                   <input
                     type="number"
                     min="1"
                     value={item.num_sessions}
                     onChange={event => onChangeItem?.(index, { num_sessions: Number(event.target.value) })}
-                    className="w-full rounded-lg border border-slate-200 px-2 py-2 outline-none focus:border-[#f8981d] focus:ring-2 focus:ring-orange-100"
+                    className="w-full rounded-lg border border-slate-200 px-2 py-2 text-right outline-none focus:border-[#f8981d] focus:ring-2 focus:ring-orange-100"
                   />
                 </td>
-                <td className="px-3 py-3">
+                <td className="px-2 py-3">
                   <input
                     type="number"
                     min="0"
                     value={item.unit_price}
                     onChange={event => onChangeItem?.(index, { unit_price: Number(event.target.value) }, { priceChanged: true })}
-                    className="w-full rounded-lg border border-slate-200 px-2 py-2 outline-none focus:border-[#f8981d] focus:ring-2 focus:ring-orange-100"
+                    className="w-full rounded-lg border border-slate-200 px-2 py-2 text-right outline-none focus:border-[#f8981d] focus:ring-2 focus:ring-orange-100"
                   />
                 </td>
                 <td className="px-3 py-5 text-right font-semibold text-slate-900">

@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "pricing:export": "node scripts/export-pricing-from-google-sheet.mjs",
-    "test:quotes": "node --test src/features/quotes/lib/pricingCalculator.test.js",
+    "test:quotes": "node --test src/features/quotes/lib/*.test.js",
     "preview": "vite preview"
   },
   "dependencies": {

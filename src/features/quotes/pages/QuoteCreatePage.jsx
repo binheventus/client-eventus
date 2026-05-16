@@ -22,7 +22,7 @@ const DEFAULT_QUOTE = {
   duration_hours: '',
   tier_code: 'TIER_2',
   client_id: '',
-  client_name: '',
+  client_name: 'Mr. ',
   validity_days: 15,
   has_vat: true,
 }
@@ -183,7 +183,7 @@ export default function QuoteCreatePage() {
   const [quote, setQuote] = useState(DEFAULT_QUOTE)
   const [items, setItems] = useState([])
   const [clients, setClients] = useState([])
-  const [clientQuery, setClientQuery] = useState('')
+  const [clientQuery, setClientQuery] = useState(DEFAULT_QUOTE.client_name)
   const [inputText, setInputText] = useState('')
   const [parseResult, setParseResult] = useState(null)
   const [parseLoading, setParseLoading] = useState(false)
@@ -326,8 +326,6 @@ export default function QuoteCreatePage() {
   function validateBeforeSave() {
     if (!quote.entity_code) return 'Phải chọn pháp nhân.'
     if (!quote.tier_code) return 'Phải chọn loại khách.'
-    if (!quote.event_name.trim()) return 'Phải nhập tên sự kiện.'
-    if (!quote.location.trim()) return 'Phải nhập địa điểm.'
     if (!Number(quote.duration_hours)) return 'Phải nhập thời lượng.'
     if (!displayItems.length) return 'Phải có ít nhất 1 hạng mục.'
     return ''
@@ -421,29 +419,22 @@ export default function QuoteCreatePage() {
   }
 
   return (
-    <div className="mx-auto max-w-[1600px] space-y-5">
+    <div className="mx-auto w-full max-w-[1920px] space-y-5">
       <div>
-        <h1 className="text-[28px] font-semibold tracking-tight text-slate-950">Tạo báo giá</h1>
-        <p className="mt-1 text-[13px] text-slate-500">Nhập brief tự nhiên, kiểm tra lại dữ liệu AI hiểu, rồi lưu báo giá.</p>
+        <h1 className="text-[28px] font-semibold tracking-tight text-slate-950">Báo Giá Thông Minh</h1>
+        <p className="mt-1 max-w-3xl text-[13px] text-slate-500">Chỉ cần nhập ý tưởng, AI sẽ tự động hóa mọi con số. Bạn chỉ việc kiểm tra và chốt đơn trong tích tắc.</p>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(420px,0.85fr)]">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,3fr)_minmax(420px,2fr)]">
         <div className="space-y-5">
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <EntitySelector
-              entities={legalEntities}
-              value={quote.entity_code}
-              onChange={entity_code => setQuote(prev => ({ ...prev, entity_code }))}
+            <QuoteChatInput
+              value={inputText}
+              onChange={setInputText}
+              onAnalyze={analyzeInput}
+              loading={parseLoading}
+              disabled={servicesLoading}
             />
-            <div className="mt-5">
-              <QuoteChatInput
-                value={inputText}
-                onChange={setInputText}
-                onAnalyze={analyzeInput}
-                loading={parseLoading}
-                disabled={servicesLoading}
-              />
-            </div>
             {parseError && <p className="mt-3 rounded-xl bg-red-50 px-4 py-3 text-[13px] text-red-700">{parseError}</p>}
             {parseResult && (
               <div className="mt-4 space-y-3 rounded-2xl bg-slate-50 p-4">
@@ -481,18 +472,6 @@ export default function QuoteCreatePage() {
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="mb-4 text-[16px] font-semibold text-slate-900">Thông tin chi tiết</h2>
             <div className="grid gap-4 md:grid-cols-2">
-              <label className="block">
-                <span className="mb-1.5 block text-[12px] font-semibold text-slate-600">Tên sự kiện</span>
-                <input value={quote.event_name} onChange={event => setQuote(prev => ({ ...prev, event_name: event.target.value }))} className="w-full rounded-xl border border-slate-200 px-4 py-3 text-[13px] outline-none focus:border-[#f8981d] focus:ring-2 focus:ring-orange-100" />
-              </label>
-              <label className="block">
-                <span className="mb-1.5 block text-[12px] font-semibold text-slate-600">Ngày sự kiện</span>
-                <input type="date" value={quote.event_date} onChange={event => setQuote(prev => ({ ...prev, event_date: event.target.value }))} className="w-full rounded-xl border border-slate-200 px-4 py-3 text-[13px] outline-none focus:border-[#f8981d] focus:ring-2 focus:ring-orange-100" />
-              </label>
-              <label className="block">
-                <span className="mb-1.5 block text-[12px] font-semibold text-slate-600">Địa điểm</span>
-                <input value={quote.location} onChange={event => setQuote(prev => ({ ...prev, location: event.target.value }))} className="w-full rounded-xl border border-slate-200 px-4 py-3 text-[13px] outline-none focus:border-[#f8981d] focus:ring-2 focus:ring-orange-100" />
-              </label>
               <label className="block">
                 <span className="mb-1.5 block text-[12px] font-semibold text-slate-600">Thời lượng</span>
                 <input type="number" min="0" step="0.5" value={quote.duration_hours} onChange={event => setQuote(prev => ({ ...prev, duration_hours: event.target.value }))} className="w-full rounded-xl border border-slate-200 px-4 py-3 text-[13px] outline-none focus:border-[#f8981d] focus:ring-2 focus:ring-orange-100" />
@@ -549,9 +528,15 @@ export default function QuoteCreatePage() {
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2 text-[14px]">
                 <div className="flex justify-between text-slate-600"><span>Subtotal</span><span>{formatCurrency(totals.subtotal)}đ</span></div>
-                <div className="flex justify-between text-slate-600"><span>Phụ phí di chuyển</span><span>{formatCurrency(totals.travel_fee_total)}đ</span></div>
-                <div className="flex justify-between text-slate-600"><span>Phụ phí giờ vượt</span><span>{formatCurrency(totals.overtime_fee_total)}đ</span></div>
-                <div className="flex justify-between text-slate-600"><span>VAT</span><span>{formatCurrency(totals.vat_amount)}đ</span></div>
+                {Number(totals.travel_fee_total || 0) > 0 ? (
+                  <div className="flex justify-between text-slate-600"><span>Phụ phí di chuyển</span><span>{formatCurrency(totals.travel_fee_total)}đ</span></div>
+                ) : null}
+                {Number(totals.overtime_fee_total || 0) > 0 ? (
+                  <div className="flex justify-between text-slate-600"><span>Phụ phí giờ vượt</span><span>{formatCurrency(totals.overtime_fee_total)}đ</span></div>
+                ) : null}
+                {quote.has_vat ? (
+                  <div className="flex justify-between text-slate-600"><span>VAT</span><span>{formatCurrency(totals.vat_amount)}đ</span></div>
+                ) : null}
                 <div className="flex justify-between border-t border-slate-200 pt-3 text-[20px] font-bold text-slate-950"><span>Total</span><span>{formatCurrency(totals.total_amount)}đ</span></div>
               </div>
               <div className="space-y-4">
@@ -571,13 +556,20 @@ export default function QuoteCreatePage() {
             </div>
 
             {validationError && <p className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-[13px] text-red-700">{validationError}</p>}
-            <div className="mt-5 flex flex-wrap justify-end gap-3">
-              <button type="button" disabled={saveState !== 'idle'} onClick={() => saveQuote('draft')} className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-[13px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
-                {saveState === 'draft' ? 'Đang lưu...' : 'Lưu nháp'}
-              </button>
-              <button type="button" disabled={saveState !== 'idle'} onClick={() => saveQuote('sent')} className="rounded-xl bg-[#f8981d] px-5 py-3 text-[13px] font-semibold text-white shadow-sm hover:bg-orange-500 disabled:opacity-50">
-                {saveState === 'sent' ? 'Đang tạo link...' : 'Lưu & Tạo link gửi khách'}
-              </button>
+            <div className="mt-5 flex flex-wrap items-end justify-between gap-3 border-t border-slate-100 pt-4">
+              <EntitySelector
+                entities={legalEntities}
+                value={quote.entity_code}
+                onChange={entity_code => setQuote(prev => ({ ...prev, entity_code }))}
+              />
+              <div className="flex flex-wrap justify-end gap-3">
+                <button type="button" disabled={saveState !== 'idle'} onClick={() => saveQuote('draft')} className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-[13px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+                  {saveState === 'draft' ? 'Đang lưu...' : 'Lưu nháp'}
+                </button>
+                <button type="button" disabled={saveState !== 'idle'} onClick={() => saveQuote('sent')} className="rounded-xl bg-[#f8981d] px-5 py-3 text-[13px] font-semibold text-white shadow-sm hover:bg-orange-500 disabled:opacity-50">
+                  {saveState === 'sent' ? 'Đang tạo link...' : 'Lưu & Tạo link gửi khách'}
+                </button>
+              </div>
             </div>
           </section>
         </div>

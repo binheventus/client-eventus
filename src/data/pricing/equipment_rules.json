@@ -1,0 +1,48 @@
+[
+  {
+    "match_prefixes": "PHOTO",
+    "equipment_title": "Thiết bị chụp ảnh",
+    "equipment_description": "Canon R6 Mark II, Canon RF 15-35mm f/2.8L, Canon RF 24-70mm f/2.8L, Canon RF 70-200mm f/2.8L IS USM",
+    "sort_order": 1,
+    "is_active": true,
+    "internal_note": "Hiện khi có hạng mục chụp ảnh",
+    "match_prefix_list": [
+      "PHOTO"
+    ]
+  },
+  {
+    "match_prefixes": "VIDEO,LIVE",
+    "equipment_title": "Thiết bị quay",
+    "equipment_description": "Sony FX3, Sony FE 16-35mm f/2.8 GM, Sony FE 24-70mm f/2.8 GM, Sony FE 70-200mm f/2.8 GM",
+    "sort_order": 2,
+    "is_active": true,
+    "internal_note": "Hiện khi có hạng mục quay phim/live",
+    "match_prefix_list": [
+      "VIDEO",
+      "LIVE"
+    ]
+  },
+  {
+    "match_prefixes": "VIDEO,LIVE",
+    "equipment_title": "Đèn quay",
+    "equipment_description": "Đèn Amaran 300c / Amaran 200X",
+    "sort_order": 3,
+    "is_active": true,
+    "internal_note": "Hiện khi có quay phim/live",
+    "match_prefix_list": [
+      "VIDEO",
+      "LIVE"
+    ]
+  },
+  {
+    "match_prefixes": "FLYCAM",
+    "equipment_title": "Flycam",
+    "equipment_description": "Flycam DJI Mavic 4 Pro",
+    "sort_order": 4,
+    "is_active": true,
+    "internal_note": "Hiện khi có hạng mục flycam",
+    "match_prefix_list": [
+      "FLYCAM"
+    ]
+  }
+]

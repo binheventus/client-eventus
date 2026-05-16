@@ -1406,12 +1406,14 @@ export default function EventusAILabPage() {
     }
   }
 
+  const isQuotesPage = activeCat === 'quotes'
+
   return (
     <div className="h-screen overflow-hidden flex flex-col bg-gradient-to-br from-slate-50 to-blue-50">
       <div className="flex flex-1 min-h-0">
 
         {/* Sidebar */}
-        <aside className="w-80 flex-shrink-0 border-r border-slate-200/80 bg-white/95 flex flex-col">
+        {!isQuotesPage && <aside className="w-80 flex-shrink-0 border-r border-slate-200/80 bg-white/95 flex flex-col">
           <div className="border-b border-slate-200/70 px-4 py-4">
             <button
               onClick={() => navigate('/')}
@@ -1464,7 +1466,7 @@ export default function EventusAILabPage() {
             ))}
           </nav>
 
-        </aside>
+        </aside>}
 
         {/* Main content */}
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
@@ -1484,7 +1486,7 @@ export default function EventusAILabPage() {
 
           {/* Quote Generator */}
           {activeCat === 'quotes' && (
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto px-5 py-5 lg:px-7">
               <QuoteModulePage />
             </div>
           )}

@@ -51,6 +51,12 @@ const SHEETS = [
     required: ['question_id', 'status', 'category'],
     transform: rows => rows,
   },
+  {
+    name: '08_equipment_rules',
+    output: 'equipment_rules.json',
+    required: ['match_prefixes', 'equipment_title', 'equipment_description'],
+    transform: transformEquipmentRules,
+  },
 ]
 
 function getArg(name) {
@@ -273,6 +279,29 @@ function transformLegalEntities(rows) {
   })
 }
 
+function normalizeMatchPrefixes(value) {
+  return String(value || '')
+    .split(',')
+    .map(prefix => prefix.trim().toUpperCase())
+    .filter(Boolean)
+}
+
+function transformEquipmentRules(rows) {
+  return rows.map((row, index) => {
+    const matchPrefixList = normalizeMatchPrefixes(row.match_prefixes)
+
+    return {
+      ...row,
+      match_prefixes: matchPrefixList.join(','),
+      match_prefix_list: matchPrefixList,
+      equipment_title: String(row.equipment_title || '').trim(),
+      equipment_description: String(row.equipment_description || '').trim(),
+      is_active: row.is_active === undefined || row.is_active === null ? true : toBoolean(row.is_active),
+      sort_order: toNumber(row.sort_order) || index + 1,
+    }
+  })
+}
+
 function assertUnique(rows, field, label) {
   const seen = new Set()
   rows.forEach((row, index) => {
@@ -289,6 +318,7 @@ function validatePricingData(data) {
   const tiers = data['customer_tiers.json'] || []
   const rules = data['business_rules.json'] || []
   const entities = data['legal_entities.json'] || []
+  const equipmentRules = data['equipment_rules.json'] || []
 
   if (services.length < 50 && !hasArg('allow-small-service-catalog')) {
     throw new Error(`Services catalog has only ${services.length} rows. Expected around 53. Pass --allow-small-service-catalog if intentional.`)
@@ -318,6 +348,12 @@ function validatePricingData(data) {
 
   assertUnique(entities, 'entity_code', 'legal_entities')
   if (!entities.some(row => row.is_default)) throw new Error('legal_entities must include one default entity.')
+
+  equipmentRules.forEach((row, index) => {
+    if (!row.match_prefix_list?.length) throw new Error(`equipment_rules row ${index + 1} must include at least one match_prefixes value.`)
+    if (!row.equipment_title) throw new Error(`equipment_rules row ${index + 1} is missing equipment_title.`)
+    if (!row.equipment_description) throw new Error(`equipment_rules row ${index + 1} is missing equipment_description.`)
+  })
 }
 
 async function writeJson(outputDir, fileName, data) {
@@ -355,6 +391,7 @@ async function main() {
     services_count: output['services.json'].length,
     travel_fees_count: output['travel_fees.json'].length,
     business_rules_count: output['business_rules.json'].length,
+    equipment_rules_count: output['equipment_rules.json'].length,
   }
   output['metadata.json'] = metadata
 
