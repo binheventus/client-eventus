@@ -10,7 +10,7 @@
   },
   {
     "tier_code": "TIER_2",
-    "tier_name": "Khách mới / Cá nhân / Doanh nghiệp / Agency thông thường",
+    "tier_name": "Khách mới / Khách thông thường",
     "description": "Khách lần đầu làm việc; Khách thường xuyên nhưng không có thỏa thuận đặc biệt",
     "price_column_used": "price_tier_2",
     "payment_terms": "Tạm ứng 50% xác nhận lịch, 50% còn lại sau khi giao sản phẩm",
@@ -19,7 +19,7 @@
   },
   {
     "tier_code": "TIER_3",
-    "tier_name": "Khách giảm giá / Quen / Chiến lược",
+    "tier_name": "Khách giảm giá / Người quen",
     "description": "Khách quen / Người quen / Agency chiến lược có thỏa thuận giảm giá",
     "price_column_used": "price_tier_3",
     "payment_terms": "Tạm ứng 50% + 50% sau giao, hoặc 100% sau hoàn thành (tùy khách)",

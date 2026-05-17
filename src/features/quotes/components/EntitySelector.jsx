@@ -7,11 +7,11 @@ function getEntityLabel(entity) {
   return entity?.display_name || entity?.legal_name || entity?.name || entity?.entity_code
 }
 
-export default function EntitySelector({ entities = [], value, onChange, disabled = false }) {
+export default function EntitySelector({ entities = [], value, onChange, disabled = false, compact = false }) {
   const options = entities.length ? entities : DEFAULT_ENTITIES
 
   return (
-    <div className="space-y-2">
+    <div className={compact ? 'space-y-1.5' : 'space-y-2'}>
       <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
         Pháp nhân
       </label>
@@ -26,13 +26,13 @@ export default function EntitySelector({ entities = [], value, onChange, disable
               type="button"
               disabled={disabled}
               onClick={() => onChange?.(code)}
-              className={`min-w-[132px] rounded-lg border px-3 py-2 text-left transition ${
+              className={`${compact ? 'min-w-[104px] px-2.5 py-2' : 'min-w-[132px] px-3 py-2'} rounded-lg border text-left transition ${
                 active
                   ? 'border-orange-300 bg-orange-50 text-slate-800'
                   : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
               } disabled:cursor-not-allowed disabled:opacity-60`}
             >
-              <div className="truncate text-[12px] font-semibold">{getEntityLabel(entity)}</div>
+              <div className={`truncate font-semibold ${compact ? 'text-[11px]' : 'text-[12px]'}`}>{getEntityLabel(entity)}</div>
             </button>
           )
         })}

@@ -1,5 +1,29 @@
 [
   {
+    "rule_code": "DEFAULT_DURATION_HOURS",
+    "category": "Quote Defaults",
+    "rule_name": "Mặc định thời lượng khi thiếu thông tin",
+    "value": 4,
+    "description": "Áp dụng khi sales nhập brief không có số giờ, ví dụ \"1 chụp 1 quay\". Mặc định hiểu là 4 tiếng / gói 4H.",
+    "rule_value": 4
+  },
+  {
+    "rule_code": "DEFAULT_LOCATION",
+    "category": "Quote Defaults",
+    "rule_name": "Mặc định địa điểm khi thiếu thông tin",
+    "value": "Hà Nội",
+    "description": "Áp dụng khi sales không nhập địa điểm. Mặc định hiểu là nội thành Hà Nội, không tính phí di chuyển.",
+    "rule_value": "Hà Nội"
+  },
+  {
+    "rule_code": "DEFAULT_VIDEO_EDIT_SERVICE",
+    "category": "Quote Defaults",
+    "rule_name": "Mặc định dựng recap khi có quay",
+    "value": "RECAP_1_2_CAM",
+    "description": "Áp dụng khi brief có quay/quay phim/video nhưng không nói rõ có dựng hay không. Hệ thống tự thêm hạng mục dựng recap theo tổng số máy quay: 1-2 cam = RECAP_1_2_CAM, 3-4 cam = RECAP_3_4_CAM, 5-6 cam = RECAP_5_6_CAM, từ 7 cam trở lên = RECAP_7_CAM. Giá trị rule_value chỉ là fallback khi không xác định được số máy quay.",
+    "rule_value": "RECAP_1_2_CAM"
+  },
+  {
     "rule_code": "VAT",
     "category": "Pricing",
     "rule_name": "Thuế VAT",
@@ -20,7 +44,7 @@
     "category": "Pricing",
     "rule_name": "Ngưỡng tính OT",
     "value": "4.5h",
-    "description": "Sự kiện kéo dài trên 4.5 tiếng → tính theo bảng giá FD (cả ngày)",
+    "description": "Sự kiện kéo dài trên 4.5 tiếng → tính OT theo số tiếng phát sinh",
     "rule_value": "4.5h"
   },
   {
@@ -28,7 +52,7 @@
     "category": "Pricing",
     "rule_name": "Định nghĩa nửa ngày",
     "value": "≤4.5h",
-    "description": "Sự kiện ≤4.5h tính theo giá HD",
+    "description": "Sự kiện ≤4.5h tính theo giá 4H",
     "rule_value": "≤4.5h"
   },
   {
@@ -36,7 +60,7 @@
     "category": "Pricing",
     "rule_name": "Định nghĩa cả ngày",
     "value": "≤8h",
-    "description": "Sự kiện từ 4.5h đến 8h tính theo giá FD",
+    "description": "Sự kiện từ 7h đến 8h tính theo giá 8H",
     "rule_value": "≤8h"
   },
   {

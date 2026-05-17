@@ -81,7 +81,7 @@ function getClientName(quote) {
 }
 
 function getItemName(item) {
-  return item?.service_name || item?.service?.service_name || item?.service_name_raw || item?.service_code || 'Hang muc'
+  return item?.service_name || item?.service?.quote_display_name || item?.service?.service_name || item?.service_name_raw || item?.service_code || 'Hang muc'
 }
 
 function groupItemsByDay(items = []) {

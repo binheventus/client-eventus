@@ -1,37 +1,35 @@
 [
   {
-    "match_prefixes": "PHOTO",
+    "match_prefixes": "CHUP",
     "equipment_title": "Thiết bị chụp ảnh",
     "equipment_description": "Canon R6 Mark II, Canon RF 15-35mm f/2.8L, Canon RF 24-70mm f/2.8L, Canon RF 70-200mm f/2.8L IS USM",
     "sort_order": 1,
     "is_active": true,
     "internal_note": "Hiện khi có hạng mục chụp ảnh",
     "match_prefix_list": [
-      "PHOTO"
+      "CHUP"
     ]
   },
   {
-    "match_prefixes": "VIDEO,LIVE",
+    "match_prefixes": "QUAY",
     "equipment_title": "Thiết bị quay",
     "equipment_description": "Sony FX3, Sony FE 16-35mm f/2.8 GM, Sony FE 24-70mm f/2.8 GM, Sony FE 70-200mm f/2.8 GM",
     "sort_order": 2,
     "is_active": true,
-    "internal_note": "Hiện khi có hạng mục quay phim/live",
+    "internal_note": "Hiện khi có hạng mục quay phim",
     "match_prefix_list": [
-      "VIDEO",
-      "LIVE"
+      "QUAY"
     ]
   },
   {
-    "match_prefixes": "VIDEO,LIVE",
+    "match_prefixes": "LIGHTING",
     "equipment_title": "Đèn quay",
     "equipment_description": "Đèn Amaran 300c / Amaran 200X",
     "sort_order": 3,
     "is_active": true,
-    "internal_note": "Hiện khi có quay phim/live",
+    "internal_note": "Hiện khi có hạng mục đèn và kỹ thuật ánh sáng",
     "match_prefix_list": [
-      "VIDEO",
-      "LIVE"
+      "LIGHTING"
     ]
   },
   {
@@ -43,6 +41,28 @@
     "internal_note": "Hiện khi có hạng mục flycam",
     "match_prefix_list": [
       "FLYCAM"
+    ]
+  },
+  {
+    "match_prefixes": "FPV",
+    "equipment_title": "Fpv",
+    "equipment_description": "FPV",
+    "sort_order": 5,
+    "is_active": true,
+    "internal_note": "Hiện khi có hạng mục FPV",
+    "match_prefix_list": [
+      "FPV"
+    ]
+  },
+  {
+    "match_prefixes": "BANTRON",
+    "equipment_title": "Bàn trộn hình",
+    "equipment_description": "Bàn trộn hình",
+    "sort_order": 6,
+    "is_active": true,
+    "internal_note": null,
+    "match_prefix_list": [
+      "BANTRON"
     ]
   }
 ]

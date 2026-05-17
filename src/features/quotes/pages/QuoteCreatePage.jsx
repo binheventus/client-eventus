@@ -28,11 +28,47 @@ const DEFAULT_QUOTE = {
 }
 
 const FIELD_LABELS = {
-  event_date: 'Ngày sự kiện',
-  event_name: 'Tên sự kiện',
   location: 'Địa điểm',
   duration_hours: 'Thời lượng',
   items: 'Hạng mục',
+  editing_service: 'Dựng',
+}
+
+const OPTIONAL_PARSE_FIELDS = new Set(['event_date', 'event_name'])
+
+function filterMissingFields(fields = []) {
+  return fields.filter(field => !OPTIONAL_PARSE_FIELDS.has(field) && field !== 'editing_service')
+}
+
+function filterAmbiguousFields(fields = []) {
+  return fields.filter(field => field !== 'editing_service')
+}
+
+function normalizeParseResult(result) {
+  const missingFields = filterMissingFields(result.missing_fields || [])
+  const ambiguousFields = filterAmbiguousFields(result.ambiguous_fields || [])
+
+  return { ...result, missing_fields: missingFields, ambiguous_fields: ambiguousFields }
+}
+
+function getAmbiguousFieldLabel(field) {
+  if (field === 'editing_service') return 'Dịch vụ dựng'
+  return String(field)
+}
+
+function getReasoningLines(value = '') {
+  const fallback = 'Đã phân tích brief.'
+  const text = String(value || fallback)
+    .replace(/\r\n?/g, '\n')
+    .replace(/:\s+(?=\d+\s)/g, ':\n')
+    .replace(/,\s+(?=\d+\s+(?:photographer|videographer|camera|cam|chụp|quay)\b)/gi, '\n')
+    .replace(/\.\s+(?=(?:Vì|Do|Không|Có|Đã|Mặc định|Tự|Sales)\b)/g, '.\n')
+
+  return text
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => !/^sales\s+nh[aậ]p\b/i.test(line))
+    .filter(Boolean)
 }
 
 function formatCurrency(value) {
@@ -44,7 +80,7 @@ function getServiceCode(service) {
 }
 
 function getServiceName(service) {
-  return service?.service_name || service?.name || getServiceCode(service)
+  return service?.quote_display_name || service?.service_name || service?.name || getServiceCode(service)
 }
 
 function makeLocalId() {
@@ -78,10 +114,11 @@ function normalizeParsedItem(item, quote, services) {
   }
 }
 
-function calculateDisplayItems(items, quote, services) {
+function calculateDisplayItems(items, quote, services, businessRules) {
   const result = calculateQuotePricing({
     items,
     services,
+    businessRules,
     location: quote.location,
     customer_tier: quote.tier_code,
     has_vat: quote.has_vat,
@@ -210,7 +247,7 @@ export default function QuoteCreatePage() {
       .then(({ data }) => setClients(data || []))
   }, [])
 
-  const displayItems = useMemo(() => calculateDisplayItems(items, quote, services), [items, quote, services])
+  const displayItems = useMemo(() => calculateDisplayItems(items, quote, services, rulesMap), [items, quote, services, rulesMap])
   const totals = useMemo(() => calculateQuotePricing({
     items: displayItems,
     services,
@@ -250,9 +287,10 @@ export default function QuoteCreatePage() {
         tier_code: parsed.tier_code || quote.tier_code,
       }
       const parsedItems = (parsed.items || []).map(item => normalizeParsedItem(item, nextQuote, services))
+      const normalizedResult = normalizeParseResult(result, inputText)
       setQuote(nextQuote)
       if (parsedItems.length) setItems(parsedItems)
-      setParseResult(result)
+      setParseResult(normalizedResult)
     } catch (error) {
       setParseError(error?.message || 'Không phân tích được nội dung.')
     } finally {
@@ -421,11 +459,10 @@ export default function QuoteCreatePage() {
   return (
     <div className="mx-auto w-full max-w-[1920px] space-y-5">
       <div>
-        <h1 className="text-[28px] font-semibold tracking-tight text-slate-950">Báo Giá Thông Minh</h1>
-        <p className="mt-1 max-w-3xl text-[13px] text-slate-500">Chỉ cần nhập ý tưởng, AI sẽ tự động hóa mọi con số. Bạn chỉ việc kiểm tra và chốt đơn trong tích tắc.</p>
+        <h1 className="text-[22px] font-semibold tracking-tight text-[#f8981d]">Trợ lý báo giá Eventus AI</h1>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,3fr)_minmax(420px,2fr)]">
+      <div className="grid gap-5 xl:grid-cols-2">
         <div className="space-y-5">
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <QuoteChatInput
@@ -439,7 +476,12 @@ export default function QuoteCreatePage() {
             {parseResult && (
               <div className="mt-4 space-y-3 rounded-2xl bg-slate-50 p-4">
                 <div className="text-[13px] text-slate-600">
-                  <span className="font-semibold text-slate-900">AI hiểu:</span> {parseResult.ai_reasoning || 'Đã phân tích brief.'}
+                  <div className="font-semibold text-slate-900">AI hiểu:</div>
+                  <div className="mt-1 space-y-1 leading-5">
+                    {getReasoningLines(parseResult.ai_reasoning).map((line, index) => (
+                      <div key={`${line}-${index}`}>{line}</div>
+                    ))}
+                  </div>
                 </div>
                 {parseResult.missing_fields?.length ? (
                   <div className="flex flex-wrap gap-2">
@@ -454,12 +496,24 @@ export default function QuoteCreatePage() {
                   <div className="space-y-2">
                     {parseResult.ambiguous_fields.map((field, index) => (
                       <label key={`${field}-${index}`} className="block">
-                        <span className="mb-1 block text-[12px] font-semibold text-slate-600">Cần làm rõ: {String(field)}</span>
+                        <span className="mb-1 block text-[12px] font-semibold text-slate-600">Cần làm rõ: {getAmbiguousFieldLabel(field)}</span>
                         <select className="w-full rounded-xl border border-slate-200 px-3 py-2 text-[13px] outline-none focus:border-[#f8981d]">
-                          <option>Chọn sau trong bảng hạng mục</option>
-                          <option>Highlight</option>
-                          <option>Full</option>
-                          <option>Live</option>
+                          {field === 'editing_service' ? (
+                            <>
+                              <option>Chọn sau trong bảng hạng mục</option>
+                              <option>Không dựng</option>
+                              <option>Dựng video highlight</option>
+                              <option>Dựng video full</option>
+                              <option>Dựng highlight tại chỗ</option>
+                            </>
+                          ) : (
+                            <>
+                              <option>Chọn sau trong bảng hạng mục</option>
+                              <option>Highlight</option>
+                              <option>Full</option>
+                              <option>Live</option>
+                            </>
+                          )}
                         </select>
                       </label>
                     ))}
@@ -471,11 +525,7 @@ export default function QuoteCreatePage() {
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="mb-4 text-[16px] font-semibold text-slate-900">Thông tin chi tiết</h2>
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className="block">
-                <span className="mb-1.5 block text-[12px] font-semibold text-slate-600">Thời lượng</span>
-                <input type="number" min="0" step="0.5" value={quote.duration_hours} onChange={event => setQuote(prev => ({ ...prev, duration_hours: event.target.value }))} className="w-full rounded-xl border border-slate-200 px-4 py-3 text-[13px] outline-none focus:border-[#f8981d] focus:ring-2 focus:ring-orange-100" />
-              </label>
+            <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_96px]">
               <label className="block">
                 <span className="mb-1.5 block text-[12px] font-semibold text-slate-600">Loại khách</span>
                 <select value={quote.tier_code} onChange={event => setQuote(prev => ({ ...prev, tier_code: event.target.value }))} className="w-full rounded-xl border border-slate-200 px-4 py-3 text-[13px] outline-none focus:border-[#f8981d] focus:ring-2 focus:ring-orange-100">
@@ -513,6 +563,10 @@ export default function QuoteCreatePage() {
                   </div>
                 ) : null}
               </label>
+              <label className="block">
+                <span className="mb-1.5 block text-[12px] font-semibold text-slate-600">Thời lượng</span>
+                <input type="number" min="0" step="0.5" value={quote.duration_hours} onChange={event => setQuote(prev => ({ ...prev, duration_hours: event.target.value }))} className="w-full rounded-xl border border-slate-200 px-3 py-3 text-right text-[13px] outline-none focus:border-[#f8981d] focus:ring-2 focus:ring-orange-100" />
+              </label>
             </div>
           </section>
 
@@ -525,8 +579,30 @@ export default function QuoteCreatePage() {
           />
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2 text-[14px]">
+            <div className="grid gap-4 md:grid-cols-[minmax(180px,0.75fr)_minmax(280px,1.25fr)]">
+              <div className="space-y-3">
+                <div className="flex max-w-[260px] gap-2">
+                  <label className="flex w-[92px] items-center justify-between rounded-lg border border-slate-200 px-2.5 py-2">
+                    <span className="text-[11px] font-semibold text-slate-700">VAT 8%</span>
+                    <input type="checkbox" checked={quote.has_vat} onChange={event => setQuote(prev => ({ ...prev, has_vat: event.target.checked }))} className="h-3.5 w-3.5 accent-[#f8981d]" />
+                  </label>
+                  <label className="block w-[130px]">
+                    <span className="sr-only">Hiệu lực báo giá</span>
+                    <select value={quote.validity_days} aria-label="Hiệu lực báo giá" onChange={event => setQuote(prev => ({ ...prev, validity_days: Number(event.target.value) }))} className="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-[11px] font-semibold text-slate-700 outline-none focus:border-[#f8981d] focus:ring-2 focus:ring-orange-100">
+                      <option value={7}>Hiệu lực 7 ngày</option>
+                      <option value={15}>Hiệu lực 15 ngày</option>
+                      <option value={30}>Hiệu lực 30 ngày</option>
+                    </select>
+                  </label>
+                </div>
+                <EntitySelector
+                  compact
+                  entities={legalEntities}
+                  value={quote.entity_code}
+                  onChange={entity_code => setQuote(prev => ({ ...prev, entity_code }))}
+                />
+              </div>
+              <div className="ml-auto w-full max-w-md space-y-2 text-[14px]">
                 <div className="flex justify-between text-slate-600"><span>Subtotal</span><span>{formatCurrency(totals.subtotal)}đ</span></div>
                 {Number(totals.travel_fee_total || 0) > 0 ? (
                   <div className="flex justify-between text-slate-600"><span>Phụ phí di chuyển</span><span>{formatCurrency(totals.travel_fee_total)}đ</span></div>
@@ -539,29 +615,10 @@ export default function QuoteCreatePage() {
                 ) : null}
                 <div className="flex justify-between border-t border-slate-200 pt-3 text-[20px] font-bold text-slate-950"><span>Total</span><span>{formatCurrency(totals.total_amount)}đ</span></div>
               </div>
-              <div className="space-y-4">
-                <label className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3">
-                  <span className="text-[13px] font-semibold text-slate-700">VAT 8%</span>
-                  <input type="checkbox" checked={quote.has_vat} onChange={event => setQuote(prev => ({ ...prev, has_vat: event.target.checked }))} className="h-4 w-4 accent-[#f8981d]" />
-                </label>
-                <label className="block">
-                  <span className="mb-1.5 block text-[12px] font-semibold text-slate-600">Hiệu lực báo giá</span>
-                  <select value={quote.validity_days} onChange={event => setQuote(prev => ({ ...prev, validity_days: Number(event.target.value) }))} className="w-full rounded-xl border border-slate-200 px-4 py-3 text-[13px] outline-none focus:border-[#f8981d] focus:ring-2 focus:ring-orange-100">
-                    <option value={7}>7 ngày</option>
-                    <option value={15}>15 ngày</option>
-                    <option value={30}>30 ngày</option>
-                  </select>
-                </label>
-              </div>
             </div>
 
             {validationError && <p className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-[13px] text-red-700">{validationError}</p>}
-            <div className="mt-5 flex flex-wrap items-end justify-between gap-3 border-t border-slate-100 pt-4">
-              <EntitySelector
-                entities={legalEntities}
-                value={quote.entity_code}
-                onChange={entity_code => setQuote(prev => ({ ...prev, entity_code }))}
-              />
+            <div className="mt-5 flex flex-wrap justify-end gap-3 border-t border-slate-100 pt-4">
               <div className="flex flex-wrap justify-end gap-3">
                 <button type="button" disabled={saveState !== 'idle'} onClick={() => saveQuote('draft')} className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-[13px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
                   {saveState === 'draft' ? 'Đang lưu...' : 'Lưu nháp'}

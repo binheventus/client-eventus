@@ -17,9 +17,12 @@ App không đọc Google Sheet trực tiếp khi mở trang báo giá. Google Sh
    - `02_travel_fees`
    - `03_customer_tiers`
    - `04_business_rules`
-   - `05_quote_template`
-   - `06_legal_entities`
-   - `07_owner_decisions`
+   - `05_legal_entities`
+   - `06_equipment_rules`
+
+Tab `05_quote_template` đã bỏ vì chỉ là cấu trúc/mẫu báo giá tham khảo, không còn là dữ liệu bắt buộc để app tính giá hoặc export bảng giá.
+
+Tab `07_owner_decisions` cũng đã bỏ vì chỉ là decision log nội bộ; các quyết định đang được dùng đã chuyển vào các sheet dữ liệu tương ứng như `04_business_rules`, `05_legal_entities`, hoặc các sheet bảng giá khác.
 
 Sau đó copy **Google Sheet ID** từ đường link của file Google Sheets mới.
 

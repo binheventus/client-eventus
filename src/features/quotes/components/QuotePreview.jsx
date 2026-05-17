@@ -26,7 +26,7 @@ function getLegalName(entity, entityCode) {
 }
 
 function getItemName(item) {
-  return item.service_name || item.service?.service_name || item.service?.name || item.service_name_raw || item.service_code || 'Hạng mục'
+  return item.service_name || item.service?.quote_display_name || item.service?.service_name || item.service?.name || item.service_name_raw || item.service_code || 'Hạng mục'
 }
 
 function getItemUnit(item) {
@@ -37,7 +37,7 @@ function SignatureBlock({ quote }) {
   const [imageFailed, setImageFailed] = useState(false)
 
   return (
-    <section className="flex justify-end">
+    <section className="flex justify-end pt-1">
       <div className="w-full max-w-[180px] text-right text-[12px] leading-5 text-slate-700">
         <p className="font-semibold text-slate-900">Ngày lập: {formatQuoteDate(quote?.created_at)}</p>
         <div className="mt-2 ml-auto flex aspect-[500/301] w-[120px] items-center justify-center text-center text-[10px] leading-4 text-slate-400">
@@ -73,11 +73,11 @@ function QuoteEndNotes({ quote = {}, items = [], validityDays = 15 }) {
   ]
 
   return (
-    <section className="space-y-4 rounded-xl bg-slate-50 px-4 py-4 text-[12px] leading-5 text-slate-600">
+    <section className="space-y-5 rounded-xl bg-slate-50 px-5 py-5 text-[12px] leading-5 text-slate-600">
       {equipmentRules.length ? (
         <div>
           <h3 className="text-[12px] font-bold uppercase tracking-[0.08em] text-slate-900">THIẾT BỊ SỬ DỤNG</h3>
-          <ul className="mt-2 list-disc space-y-1.5 pl-4">
+          <ul className="mt-2.5 list-disc space-y-1.5 pl-4">
             {equipmentRules.map(rule => (
               <li key={`${rule.equipment_title}-${rule.sort_order}`}>
                 <span className="font-semibold text-slate-800">{rule.equipment_title}:</span> {rule.equipment_description}
@@ -89,14 +89,14 @@ function QuoteEndNotes({ quote = {}, items = [], validityDays = 15 }) {
 
       <div>
         <h3 className="text-[12px] font-bold uppercase tracking-[0.08em] text-slate-900">ĐIỀU KHOẢN & ĐIỀU KIỆN</h3>
-        <ul className="mt-2 list-disc space-y-1.5 pl-4">
+        <ul className="mt-2.5 list-disc space-y-1.5 pl-4">
           {terms.map(term => <li key={term}>{term}</li>)}
         </ul>
       </div>
 
       <div>
         <h3 className="text-[12px] font-bold uppercase tracking-[0.08em] text-slate-900">ĐIỀU KHOẢN THANH TOÁN</h3>
-        <ul className="mt-2 list-disc space-y-1.5 pl-4">
+        <ul className="mt-2.5 list-disc space-y-1.5 pl-4">
           {paymentTerms.map(term => <li key={term}>{term}</li>)}
         </ul>
       </div>
@@ -130,16 +130,16 @@ export default function QuotePreview({
 
   return (
     <div className="sticky top-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="grid items-center gap-4 bg-slate-100 px-6 py-5 text-slate-900 sm:grid-cols-[minmax(0,0.9fr)_minmax(300px,1.1fr)]">
+      <div className="grid items-center gap-6 bg-slate-100 px-8 py-6 text-slate-900 sm:px-12 sm:grid-cols-[minmax(0,0.9fr)_minmax(300px,1.1fr)]">
         <div>
           {logoUrl ? (
             <img src={logoUrl} alt={entity?.display_name || entityName} className="h-14 w-auto object-contain" />
           ) : (
             <div className="flex h-7 w-24 items-center text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Logo</div>
           )}
-          <h2 className="mt-2 text-[22px] font-bold tracking-tight text-slate-950">{entityName}</h2>
+          <h2 className="mt-3 text-[22px] font-bold tracking-tight text-slate-950">{entityName}</h2>
         </div>
-        <div className="space-y-0.5 text-left text-[9px] leading-4 text-slate-500 sm:text-right">
+        <div className="space-y-1 text-left text-[10px] leading-4 text-slate-500 sm:text-right">
           {contactRows.map((row, index) => (
             <div key={`${row}-${index}`} className={`whitespace-nowrap ${index === 0 ? 'font-semibold uppercase tracking-[0.06em] text-slate-600' : ''}`}>
               {row}
@@ -148,33 +148,33 @@ export default function QuotePreview({
         </div>
       </div>
 
-      <div className="space-y-5 px-6 py-5">
+      <div className="space-y-6 px-8 py-6 sm:px-12 sm:py-7">
         <section className="space-y-3 text-[13px] leading-6 text-slate-700">
           <p className="font-semibold text-slate-900">Kính gửi: {clientName}</p>
           <p>Dựa trên thông tin trao đổi, chúng tôi xin gửi báo giá chi tiết dịch vụ như sau:</p>
         </section>
 
         <section className="overflow-hidden rounded-xl border border-slate-200">
-          <table className="w-full table-fixed text-left text-[10px]">
+          <table className="w-full table-fixed text-left text-[10.5px]">
             <thead className="bg-slate-50 text-[8px] uppercase tracking-[0.08em] text-slate-500">
               <tr>
-                <th className="w-[34%] px-2 py-2 font-semibold">Hạng mục</th>
-                <th className="w-[13%] px-1.5 py-2 font-semibold">Đơn vị tính</th>
-                <th className="w-[11%] px-1.5 py-2 text-right font-semibold">Số lượng</th>
-                <th className="w-[11%] px-1.5 py-2 text-right font-semibold">Số buổi</th>
-                <th className="w-[15%] px-1.5 py-2 text-right font-semibold">Đơn giá</th>
-                <th className="w-[16%] px-2 py-2 text-right font-semibold">Thành tiền</th>
+                <th className="w-[39%] px-3 py-2.5 font-semibold">Hạng mục</th>
+                <th className="w-[12%] whitespace-nowrap px-1 py-2.5 text-center font-semibold">Đơn vị tính</th>
+                <th className="w-[10%] whitespace-nowrap px-1 py-2.5 text-center font-semibold">Số lượng</th>
+                <th className="w-[8%] whitespace-nowrap px-1 py-2.5 text-center font-semibold">Số buổi</th>
+                <th className="w-[15%] px-1.5 py-2.5 text-right font-semibold">Đơn giá</th>
+                <th className="w-[17%] px-3 py-2.5 text-right font-semibold">Thành tiền</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {items.length ? items.map((item, index) => (
                 <tr key={item.local_id || index}>
-                  <td className="px-2 py-2 font-medium leading-4 text-slate-800">{getItemName(item)}</td>
-                  <td className="px-1.5 py-2 text-slate-600">{getItemUnit(item)}</td>
-                  <td className="px-1.5 py-2 text-right text-slate-600">{item.quantity}</td>
-                  <td className="px-1.5 py-2 text-right text-slate-600">{item.num_sessions || 1}</td>
-                  <td className="px-1.5 py-2 text-right text-slate-600">{formatCurrency(item.unit_price)}đ</td>
-                  <td className="px-2 py-2 text-right font-semibold text-slate-900">{formatCurrency(item.total_price)}đ</td>
+                  <td className="px-3 py-2.5 font-medium leading-4 text-slate-800">{getItemName(item)}</td>
+                  <td className="px-1 py-2.5 text-center text-slate-600">{getItemUnit(item)}</td>
+                  <td className="px-1 py-2.5 text-center text-slate-600">{item.quantity}</td>
+                  <td className="px-1 py-2.5 text-center text-slate-600">{item.num_sessions || 1}</td>
+                  <td className="px-1.5 py-2.5 text-right text-slate-600">{formatCurrency(item.unit_price)}đ</td>
+                  <td className="px-3 py-2.5 text-right font-semibold text-slate-900">{formatCurrency(item.total_price)}đ</td>
                 </tr>
               )) : (
                 <tr>
@@ -185,25 +185,25 @@ export default function QuotePreview({
           </table>
         </section>
 
-        <section className="space-y-2 text-[13px]">
-          <div className="flex justify-between text-slate-600">
+        <section className="ml-auto w-full max-w-[360px] space-y-2.5 text-[13px]">
+          <div className="flex justify-between gap-6 text-slate-600">
             <span>Subtotal</span>
             <span>{formatCurrency(totals.subtotal)}đ</span>
           </div>
           {showTravelFee ? (
-            <div className="flex justify-between text-slate-600">
+            <div className="flex justify-between gap-6 text-slate-600">
               <span>Phụ phí di chuyển</span>
               <span>{formatCurrency(totals.travel_fee_total)}đ</span>
             </div>
           ) : null}
           {showOvertimeFee ? (
-            <div className="flex justify-between text-slate-600">
+            <div className="flex justify-between gap-6 text-slate-600">
               <span>Phụ phí Over-time</span>
               <span>{formatCurrency(totals.overtime_fee_total)}đ</span>
             </div>
           ) : null}
           {showVat ? (
-            <div className="flex justify-between text-slate-600">
+            <div className="flex justify-between gap-6 text-slate-600">
               <span>VAT</span>
               <span>{formatCurrency(totals.vat_amount)}đ</span>
             </div>

@@ -12,9 +12,9 @@ const equipmentRules = [
 
 test('matches equipment rules by service code prefixes and keeps sort order', () => {
   const matched = getMatchedEquipmentRules([
-    { service_code: 'FLYCAM_OUT_FD' },
-    { resolved_service_code: 'VIDEO_IN_FD' },
-    { service: { service_code: 'PHOTO_IN_HD' } },
+    { service_code: 'FLYCAM_OUT_8H' },
+    { resolved_service_code: 'VIDEO_IN_8H' },
+    { service: { service_code: 'PHOTO_IN_4H' } },
   ], equipmentRules)
 
   assert.deepEqual(matched.map(rule => rule.equipment_title), [

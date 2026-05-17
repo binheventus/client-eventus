@@ -34,25 +34,13 @@ const SHEETS = [
     transform: transformBusinessRules,
   },
   {
-    name: '05_quote_template',
-    output: 'quote_template.json',
-    required: ['section', 'field_name', 'value'],
-    transform: rows => rows,
-  },
-  {
-    name: '06_legal_entities',
+    name: '05_legal_entities',
     output: 'legal_entities.json',
     required: ['entity_code', 'entity_name_full'],
     transform: transformLegalEntities,
   },
   {
-    name: '07_owner_decisions',
-    output: 'owner_decisions.json',
-    required: ['question_id', 'status', 'category'],
-    transform: rows => rows,
-  },
-  {
-    name: '08_equipment_rules',
+    name: '06_equipment_rules',
     output: 'equipment_rules.json',
     required: ['match_prefixes', 'equipment_title', 'equipment_description'],
     transform: transformEquipmentRules,

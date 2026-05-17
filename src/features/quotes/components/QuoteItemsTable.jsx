@@ -3,7 +3,7 @@ function formatCurrency(value) {
 }
 
 function getServiceName(item) {
-  return item.service_name || item.service?.service_name || item.service?.name || item.service_name_raw || item.service_code || 'Hạng mục'
+  return item.service_name || item.service?.quote_display_name || item.service?.service_name || item.service?.name || item.service_name_raw || item.service_code || 'Hạng mục'
 }
 
 export default function QuoteItemsTable({
@@ -39,15 +39,15 @@ export default function QuoteItemsTable({
       </div>
 
       <div className="overflow-x-auto">
-        <table className="min-w-[920px] w-full table-fixed text-left text-[13px]">
+        <table className="min-w-[820px] w-full table-fixed text-left text-[13px]">
           <thead className="bg-slate-50 text-[11px] uppercase tracking-[0.12em] text-slate-500">
             <tr>
-              <th className="w-[52%] px-4 py-3 font-semibold">Dịch vụ</th>
-              <th className="w-[7%] px-2 py-3 font-semibold">SL</th>
-              <th className="w-[9%] px-2 py-3 font-semibold">Buổi/ngày</th>
-              <th className="w-[13%] px-2 py-3 font-semibold">Đơn giá</th>
-              <th className="w-[14%] px-3 py-3 text-right font-semibold">Thành tiền</th>
-              <th className="w-[5%] px-2 py-3" />
+              <th className="w-[47%] px-3 py-3 font-semibold">Dịch vụ</th>
+              <th className="w-[6%] px-2 py-3 text-center font-semibold">SL</th>
+              <th className="w-[9%] px-2 py-3 text-center font-semibold">Buổi/ngày</th>
+              <th className="w-[14%] px-2 py-3 text-right font-semibold">Đơn giá</th>
+              <th className="w-[15%] px-3 py-3 text-right font-semibold">Thành tiền</th>
+              <th className="w-[9%] px-2 py-3" />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -59,7 +59,7 @@ export default function QuoteItemsTable({
               </tr>
             ) : items.map((item, index) => (
               <tr key={item.local_id || index} className="align-top">
-                <td className="px-4 py-3">
+                <td className="px-3 py-3">
                   <input
                     value={getServiceName(item)}
                     disabled={!item.is_custom}

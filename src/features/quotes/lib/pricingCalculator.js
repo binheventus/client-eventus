@@ -2,6 +2,8 @@ export const DEFAULT_HALF_DAY_THRESHOLD = 4.5
 export const DEFAULT_FULL_DAY_THRESHOLD = 8
 export const DEFAULT_OVERTIME_HOURLY_FEE = 500000
 export const DEFAULT_VAT_RATE = 0.08
+export const DEFAULT_DURATION_HOURS = 4
+export const DEFAULT_LOCATION = 'Hà Nội'
 
 function normalizeText(value = '') {
   return String(value || '')
@@ -18,9 +20,37 @@ function toNumber(value, fallback = 0) {
 
 function normalizeServiceBase(serviceCode = '') {
   return normalizeText(serviceCode)
-    .replace(/_(IN|OUT)_(HD|FD)$/, '')
+    .replace(/_(IN|OUT)_(4H|8H)$/, '')
     .replace(/_(IN|OUT)$/, '')
-    .replace(/_(HD|FD)$/, '')
+    .replace(/_(4H|8H)$/, '')
+}
+
+function normalizeServiceAlias(serviceCode = '') {
+  const normalized = normalizeServiceBase(serviceCode)
+  const aliases = {
+    PHOTO: 'CHUP',
+    VIDEO: 'QUAY_RECAP',
+    VIDEO_HL: 'QUAY_RECAP',
+    VIDEO_FULL: 'QUAY_FULL',
+  }
+  return aliases[normalized] || normalized
+}
+
+function inferServiceBaseFromItem(item = {}) {
+  const explicitCode = normalizeServiceAlias(item.service_code)
+  if (explicitCode) return explicitCode
+
+  const rawText = normalizeText([
+    item.service_name_raw,
+    item.service_name,
+    item.service?.service_name,
+    item.service?.name,
+  ].filter(Boolean).join(' '))
+
+  if (rawText.includes('CHUP') || rawText.includes('PHOTO') || rawText.includes('PHOTOGRAPHER')) return 'CHUP'
+  if (rawText.includes('QUAY FULL') || rawText.includes('VIDEO FULL') || rawText.includes('FULL KHONG CAT')) return 'QUAY_FULL'
+  if (rawText.includes('QUAY') || rawText.includes('VIDEO')) return 'QUAY_RECAP'
+  return ''
 }
 
 function isNoTravelLocation(location = '') {
@@ -33,7 +63,7 @@ function isNoTravelLocation(location = '') {
 
 function getDurationUnit(durationHours, rules = {}) {
   const halfDayThreshold = toNumber(rules.HALF_DAY_THRESHOLD, DEFAULT_HALF_DAY_THRESHOLD)
-  return toNumber(durationHours) <= halfDayThreshold ? 'HD' : 'FD'
+  return toNumber(durationHours) <= halfDayThreshold ? '4H' : '8H'
 }
 
 function getLocationUnit(location) {
@@ -51,7 +81,7 @@ function getServiceCode(row) {
 }
 
 export function findServiceForQuoteItem(services = [], item = {}, location, durationHours, businessRules = {}) {
-  const baseCode = normalizeServiceBase(item.service_code)
+  const baseCode = inferServiceBaseFromItem(item)
   const locationUnit = getLocationUnit(location)
   const durationUnit = getDurationUnit(durationHours, businessRules)
   const candidates = [
@@ -75,6 +105,14 @@ function getRuleValue(businessRules, code, fallback) {
   return row?.rule_value ?? row?.value ?? row?.config_value ?? fallback
 }
 
+function getDefaultDurationHours(businessRules) {
+  return toNumber(getRuleValue(businessRules, 'DEFAULT_DURATION_HOURS', DEFAULT_DURATION_HOURS), DEFAULT_DURATION_HOURS)
+}
+
+function getDefaultLocation(businessRules) {
+  return String(getRuleValue(businessRules, 'DEFAULT_LOCATION', DEFAULT_LOCATION) || DEFAULT_LOCATION)
+}
+
 function getTravelFeeRow(travelFees = [], location) {
   const normalizedLocation = normalizeText(location)
   return (travelFees || []).find(row => {
@@ -95,7 +133,7 @@ export function calculateQuotePricing(input = {}) {
     services = [],
     travelFees = [],
     businessRules = {},
-    location = '',
+    location,
     customer_tier,
     customerTier,
     has_vat = false,
@@ -105,7 +143,8 @@ export function calculateQuotePricing(input = {}) {
     eventDays,
   } = input
 
-  const duration = toNumber(duration_hours ?? durationHours)
+  const duration = toNumber(duration_hours ?? durationHours, getDefaultDurationHours(businessRules))
+  const effectiveLocation = location || getDefaultLocation(businessRules)
   const tier = customer_tier || customerTier || 'TIER_2'
   const priceColumn = getTierPriceColumn(tier)
   const overtimeHourlyFee = toNumber(getRuleValue(businessRules, 'OVERTIME_HOURLY_FEE', DEFAULT_OVERTIME_HOURLY_FEE), DEFAULT_OVERTIME_HOURLY_FEE)
@@ -113,7 +152,7 @@ export function calculateQuotePricing(input = {}) {
   const vatRate = toNumber(getRuleValue(businessRules, 'VAT_RATE', DEFAULT_VAT_RATE), DEFAULT_VAT_RATE)
 
   const itemsWithCalculatedPrice = items.map((item) => {
-    const service = findServiceForQuoteItem(services, item, location, duration, businessRules)
+    const service = findServiceForQuoteItem(services, item, effectiveLocation, duration, businessRules)
     const quantity = toNumber(item.quantity, 1)
     const numSessions = toNumber(item.num_sessions, 1)
     const unitPrice = toNumber(item.unit_price ?? service?.[priceColumn] ?? service?.price_tier_2)
@@ -132,7 +171,7 @@ export function calculateQuotePricing(input = {}) {
   const totalStaff = items.reduce((sum, item) => sum + toNumber(item.quantity, 1), 0)
   const totalDays = toNumber(event_days ?? eventDays, Math.max(1, ...items.map(item => toNumber(item.num_sessions, 1))))
 
-  const travelFeeRow = isNoTravelLocation(location) ? null : getTravelFeeRow(travelFees, location)
+  const travelFeeRow = isNoTravelLocation(effectiveLocation) ? null : getTravelFeeRow(travelFees, effectiveLocation)
   const feePerPersonPerDay = toNumber(travelFeeRow?.fee_per_person_per_day ?? travelFeeRow?.fee ?? travelFeeRow?.amount)
   const travelFeeTotal = feePerPersonPerDay * totalStaff * totalDays
 
