@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import equipmentRulesData from '../../../data/pricing/equipment_rules.json'
 import { getMatchedEquipmentRules } from '../lib/equipmentRules'
+import { normalizeQuoteValidityDays } from '../lib/quoteValidity'
 
 const SIGNATURE_IMAGE_SRC = '/signatures/nguyen-thu-huyen.png'
 
@@ -217,7 +218,7 @@ export default function QuotePreview({
           </div>
         </section>
 
-        <QuoteEndNotes quote={quote} items={items} validityDays={quote.validity_days || 15} />
+        <QuoteEndNotes quote={quote} items={items} validityDays={normalizeQuoteValidityDays(quote.validity_days)} />
       </div>
     </div>
   )

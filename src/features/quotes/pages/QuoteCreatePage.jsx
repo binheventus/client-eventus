@@ -12,6 +12,7 @@ import { useServices } from '../hooks/useServices'
 import { useTravelFees } from '../hooks/useTravelFees'
 import { parseQuoteInput } from '../lib/aiParser'
 import { calculateQuotePricing, findServiceForQuoteItem } from '../lib/pricingCalculator'
+import { normalizeQuoteValidityDays } from '../lib/quoteValidity'
 import { fromQuoteTable, hasSupabaseConfig } from '../../../lib/supabase'
 
 const DEFAULT_QUOTE = {
@@ -507,7 +508,7 @@ export default function QuoteCreatePage() {
         event_date: quote.event_date || null,
         location: quote.location,
         duration_hours: Number(quote.duration_hours),
-        validity_days: Number(quote.validity_days),
+        validity_days: normalizeQuoteValidityDays(quote.validity_days),
         has_vat: Boolean(quote.has_vat),
         status,
         sent_at: status === 'sent' ? now : null,

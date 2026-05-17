@@ -2,6 +2,7 @@ import { Document, Image, Page, StyleSheet, Text, View } from '@react-pdf/render
 import equipmentRulesData from '../../../data/pricing/equipment_rules.json'
 import legalEntitiesData from '../../../data/pricing/legal_entities.json'
 import { getMatchedEquipmentRules } from '../lib/equipmentRules'
+import { normalizeQuoteValidityDays } from '../lib/quoteValidity'
 
 const BRAND_COLOR = '#f8981d'
 const SIGNATURE_IMAGE_SRC = '/signatures/nguyen-thu-huyen.png'
@@ -424,7 +425,7 @@ function Totals({ quote }) {
 
 function Notes({ quote, items = [] }) {
   const equipmentRules = getMatchedEquipmentRules(items, equipmentRulesData)
-  const validityDays = quote?.validity_days || 15
+  const validityDays = normalizeQuoteValidityDays(quote?.validity_days)
   const terms = [
     `* Bao gia co hieu luc trong ${validityDays} ngay. Thoi gian lam viec tieu chuan toi da 04 tieng/buoi va 08 tieng/ngay. Thoi gian Overtime se duoc tinh phi theo thoa thuan rieng.`,
     ...(!quote?.has_vat ? ['* Bao gia tren chua bao gom VAT.'] : []),

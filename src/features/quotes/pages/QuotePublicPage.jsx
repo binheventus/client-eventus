@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import QuotePreview from '../components/QuotePreview'
 import { getPublicQuoteByToken, logQuoteView } from '../hooks/useQuotes'
+import { normalizeQuoteValidityDays } from '../lib/quoteValidity'
 
 const QuotePDFDownloadButton = lazy(() => import('../components/QuotePDFDownloadButton'))
 
@@ -9,7 +10,7 @@ function getValidUntil(quote) {
   if (!quote) return null
   if (quote.valid_until) return new Date(quote.valid_until)
   if (!quote.created_at) return null
-  const days = Number(quote.validity_days) || 15
+  const days = normalizeQuoteValidityDays(quote.validity_days)
   const date = new Date(quote.created_at)
   date.setDate(date.getDate() + days)
   return date

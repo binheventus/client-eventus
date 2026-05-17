@@ -44,6 +44,38 @@ function getMissingSchemaColumn(error) {
   return match?.[1] || ''
 }
 
+function getRecoverableInsertColumn(error, payload) {
+  const missingColumn = getMissingSchemaColumn(error)
+  if (missingColumn) return missingColumn
+
+  const message = String(error?.message || '').toLowerCase()
+  if (
+    'validity_days' in payload &&
+    (message.includes('quote_validity') ||
+      message.includes('validity_days') ||
+      (message.includes('cannot cast') && message.includes('integer')))
+  ) {
+    return 'validity_days'
+  }
+
+  if (
+    'client_id' in payload &&
+    (message.includes('client_id') ||
+      (message.includes('uuid') && message.includes('invalid input syntax')))
+  ) {
+    return 'client_id'
+  }
+
+  if (
+    'status' in payload &&
+    (message.includes('quote_status') || (message.includes('status') && message.includes('enum')))
+  ) {
+    return 'status'
+  }
+
+  return ''
+}
+
 async function insertWithSchemaCacheRetry(tableKey, payload) {
   let nextPayload = { ...payload }
   const removedColumns = new Set()
@@ -54,14 +86,14 @@ async function insertWithSchemaCacheRetry(tableKey, payload) {
       .select()
       .single()
 
-    const missingColumn = getMissingSchemaColumn(error)
-    if (!missingColumn || !(missingColumn in nextPayload) || removedColumns.has(missingColumn)) {
+    const recoverableColumn = getRecoverableInsertColumn(error, nextPayload)
+    if (!recoverableColumn || !(recoverableColumn in nextPayload) || removedColumns.has(recoverableColumn)) {
       if (error) throw error
       return data
     }
 
-    removedColumns.add(missingColumn)
-    const { [missingColumn]: _removed, ...payloadWithoutMissingColumn } = nextPayload
+    removedColumns.add(recoverableColumn)
+    const { [recoverableColumn]: _removed, ...payloadWithoutMissingColumn } = nextPayload
     nextPayload = payloadWithoutMissingColumn
   }
 
@@ -79,15 +111,15 @@ async function insertManyWithSchemaCacheRetry(tableKey, payloads) {
       .insert(nextPayloads)
       .select()
 
-    const missingColumn = getMissingSchemaColumn(error)
-    if (!missingColumn || removedColumns.has(missingColumn)) {
+    const recoverableColumn = getRecoverableInsertColumn(error, nextPayloads[0] || {})
+    if (!recoverableColumn || removedColumns.has(recoverableColumn)) {
       if (error) throw error
       return data || []
     }
 
-    removedColumns.add(missingColumn)
+    removedColumns.add(recoverableColumn)
     nextPayloads = nextPayloads.map(payload => {
-      const { [missingColumn]: _removed, ...payloadWithoutMissingColumn } = payload
+      const { [recoverableColumn]: _removed, ...payloadWithoutMissingColumn } = payload
       return payloadWithoutMissingColumn
     })
   }
