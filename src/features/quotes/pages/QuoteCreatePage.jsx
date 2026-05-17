@@ -327,6 +327,16 @@ export default function QuoteCreatePage() {
     setOverrideDraft(null)
   }
 
+  function moveItem(fromIndex, toIndex) {
+    setItems(prev => {
+      if (toIndex < 0 || toIndex >= prev.length || fromIndex === toIndex) return prev
+      const next = [...prev]
+      const [moved] = next.splice(fromIndex, 1)
+      next.splice(toIndex, 0, moved)
+      return next
+    })
+  }
+
   function addServiceItem(service) {
     const unitPrice = Number(service?.[getTierPriceColumn(quote.tier_code)] || service?.price_tier_2 || 0)
     setItems(prev => [...prev, {
@@ -573,6 +583,7 @@ export default function QuoteCreatePage() {
           <QuoteItemsTable
             items={displayItems}
             onChangeItem={updateItem}
+            onMoveItem={moveItem}
             onRemoveItem={index => setItems(prev => prev.filter((_, itemIndex) => itemIndex !== index))}
             onAddService={() => setShowServicePicker(true)}
             onAddCustomItem={addCustomItem}
