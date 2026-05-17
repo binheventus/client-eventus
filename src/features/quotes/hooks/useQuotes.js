@@ -37,6 +37,64 @@ function applyFilters(query, filters = {}) {
   return query
 }
 
+function getMissingSchemaColumn(error) {
+  if (!error) return ''
+  const message = String(error.message || '')
+  const match = message.match(/Could not find the '([^']+)' column/i)
+  return match?.[1] || ''
+}
+
+async function insertWithSchemaCacheRetry(tableKey, payload) {
+  let nextPayload = { ...payload }
+  const removedColumns = new Set()
+
+  for (let attempt = 0; attempt <= Object.keys(payload).length; attempt += 1) {
+    const { data, error } = await fromQuoteTable(tableKey)
+      .insert(nextPayload)
+      .select()
+      .single()
+
+    const missingColumn = getMissingSchemaColumn(error)
+    if (!missingColumn || !(missingColumn in nextPayload) || removedColumns.has(missingColumn)) {
+      if (error) throw error
+      return data
+    }
+
+    removedColumns.add(missingColumn)
+    const { [missingColumn]: _removed, ...payloadWithoutMissingColumn } = nextPayload
+    nextPayload = payloadWithoutMissingColumn
+  }
+
+  throw new Error('Schema bảng quotes đang thiếu nhiều cột. Hãy chạy script docs/quotes-schema-fix.sql trong Supabase.')
+}
+
+async function insertManyWithSchemaCacheRetry(tableKey, payloads) {
+  let nextPayloads = payloads.map(payload => ({ ...payload }))
+  const removedColumns = new Set()
+
+  const maxAttempts = Math.max(...payloads.map(payload => Object.keys(payload).length), 0)
+
+  for (let attempt = 0; attempt <= maxAttempts; attempt += 1) {
+    const { data, error } = await fromQuoteTable(tableKey)
+      .insert(nextPayloads)
+      .select()
+
+    const missingColumn = getMissingSchemaColumn(error)
+    if (!missingColumn || removedColumns.has(missingColumn)) {
+      if (error) throw error
+      return data || []
+    }
+
+    removedColumns.add(missingColumn)
+    nextPayloads = nextPayloads.map(payload => {
+      const { [missingColumn]: _removed, ...payloadWithoutMissingColumn } = payload
+      return payloadWithoutMissingColumn
+    })
+  }
+
+  throw new Error('Schema bảng quote_items đang thiếu nhiều cột. Hãy chạy script docs/quotes-schema-fix.sql trong Supabase.')
+}
+
 export async function listQuotes({ filters = {}, page = 1, pageSize = 20 } = {}) {
   const safePage = Math.max(Number(page) || 1, 1)
   const safePageSize = Math.max(Number(pageSize) || 20, 1)
@@ -123,12 +181,7 @@ export async function getQuoteAuditLogs(quoteId) {
 export async function createQuote(payload = {}) {
   const { items = [], ...quotePayload } = payload
 
-  const { data: quote, error: quoteError } = await fromQuoteTable('quotes')
-    .insert(quotePayload)
-    .select()
-    .single()
-
-  if (quoteError) throw quoteError
+  const quote = await insertWithSchemaCacheRetry('quotes', quotePayload)
 
   if (!items.length) return { ...quote, items: [] }
 
@@ -138,11 +191,7 @@ export async function createQuote(payload = {}) {
     sort_order: item.sort_order ?? index + 1,
   }))
 
-  const { data: insertedItems, error: itemsError } = await fromQuoteTable('quoteItems')
-    .insert(quoteItems)
-    .select()
-
-  if (itemsError) throw itemsError
+  const insertedItems = await insertManyWithSchemaCacheRetry('quoteItems', quoteItems)
   return { ...quote, items: insertedItems || [] }
 }
 
