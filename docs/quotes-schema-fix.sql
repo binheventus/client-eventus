@@ -208,6 +208,25 @@ alter table public.quote_views
   alter column viewed_at set default now(),
   alter column viewed_at set not null;
 
+do $$
+declare
+  policy_record record;
+begin
+  for policy_record in
+    select schemaname, tablename, policyname
+    from pg_policies
+    where schemaname = 'public'
+      and tablename in ('quotes', 'quote_items', 'quote_views', 'clients')
+  loop
+    execute format(
+      'drop policy if exists %I on %I.%I',
+      policy_record.policyname,
+      policy_record.schemaname,
+      policy_record.tablename
+    );
+  end loop;
+end $$;
+
 create or replace view public.active_quotes as
 select *
 from public.quotes
@@ -222,6 +241,11 @@ alter table public.quotes enable row level security;
 alter table public.quote_items enable row level security;
 alter table public.quote_views enable row level security;
 alter table public.clients enable row level security;
+
+alter table public.quotes no force row level security;
+alter table public.quote_items no force row level security;
+alter table public.quote_views no force row level security;
+alter table public.clients no force row level security;
 
 grant select, insert, update, delete on table public.quotes to anon, authenticated;
 grant select, insert, update, delete on table public.quote_items to anon, authenticated;
@@ -250,93 +274,81 @@ drop policy if exists "Allow quote app read quotes" on public.quotes;
 create policy "Allow quote app read quotes"
   on public.quotes
   for select
-  to anon, authenticated
+  to public
   using (true);
 
-drop policy if exists "Allow quote app insert quotes" on public.quotes;
 create policy "Allow quote app insert quotes"
   on public.quotes
   for insert
-  to anon, authenticated
+  to public
   with check (true);
 
-drop policy if exists "Allow quote app update quotes" on public.quotes;
 create policy "Allow quote app update quotes"
   on public.quotes
   for update
-  to anon, authenticated
+  to public
   using (true)
   with check (true);
 
-drop policy if exists "Allow quote app delete quotes" on public.quotes;
 create policy "Allow quote app delete quotes"
   on public.quotes
   for delete
-  to anon, authenticated
+  to public
   using (true);
 
-drop policy if exists "Allow quote app read quote items" on public.quote_items;
 create policy "Allow quote app read quote items"
   on public.quote_items
   for select
-  to anon, authenticated
+  to public
   using (true);
 
-drop policy if exists "Allow quote app insert quote items" on public.quote_items;
 create policy "Allow quote app insert quote items"
   on public.quote_items
   for insert
-  to anon, authenticated
+  to public
   with check (true);
 
-drop policy if exists "Allow quote app update quote items" on public.quote_items;
 create policy "Allow quote app update quote items"
   on public.quote_items
   for update
-  to anon, authenticated
+  to public
   using (true)
   with check (true);
 
-drop policy if exists "Allow quote app delete quote items" on public.quote_items;
 create policy "Allow quote app delete quote items"
   on public.quote_items
   for delete
-  to anon, authenticated
+  to public
   using (true);
 
-drop policy if exists "Allow quote app read quote views" on public.quote_views;
 create policy "Allow quote app read quote views"
   on public.quote_views
   for select
-  to anon, authenticated
+  to public
   using (true);
 
-drop policy if exists "Allow quote app insert quote views" on public.quote_views;
 create policy "Allow quote app insert quote views"
   on public.quote_views
   for insert
-  to anon, authenticated
+  to public
   with check (true);
 
-drop policy if exists "Allow quote app delete quote views" on public.quote_views;
 create policy "Allow quote app delete quote views"
   on public.quote_views
   for delete
-  to anon, authenticated
+  to public
   using (true);
 
-drop policy if exists "Allow quote app read clients" on public.clients;
 create policy "Allow quote app read clients"
   on public.clients
   for select
-  to anon, authenticated
+  to public
   using (true);
 
-drop policy if exists "Allow quote app insert clients" on public.clients;
 create policy "Allow quote app insert clients"
   on public.clients
   for insert
-  to anon, authenticated
+  to public
   with check (true);
 
 notify pgrst, 'reload schema';

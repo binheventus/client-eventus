@@ -84,6 +84,10 @@ function getServiceName(service) {
   return service?.quote_display_name || service?.service_name || service?.name || getServiceCode(service)
 }
 
+function getClientDisplayName(client = {}) {
+  return String(client.name || client.client_name || '').trim()
+}
+
 function makeLocalId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
@@ -300,6 +304,7 @@ export default function QuoteCreatePage() {
   const [saveState, setSaveState] = useState('idle')
   const [showServicePicker, setShowServicePicker] = useState(false)
   const [overrideDraft, setOverrideDraft] = useState(null)
+  const [clientInputFocused, setClientInputFocused] = useState(false)
 
   useEffect(() => {
     const defaultEntity = getDefaultEntity()
@@ -331,9 +336,12 @@ export default function QuoteCreatePage() {
   }), [displayItems, services, travelFees, rulesMap, quote.location, quote.tier_code, quote.has_vat, quote.duration_hours])
 
   const selectedClient = clients.find(client => client.id === quote.client_id) || null
+  const normalizedClientQuery = clientQuery.trim().toLowerCase()
   const filteredClients = clients.filter(client => {
-    const text = `${client.name || client.client_name || ''} ${client.phone || ''} ${client.email || ''}`.toLowerCase()
-    return text.includes(clientQuery.toLowerCase())
+    const displayName = getClientDisplayName(client)
+    if (!displayName || !normalizedClientQuery) return false
+    const text = `${displayName} ${client.phone || ''} ${client.email || ''}`.toLowerCase()
+    return text.includes(normalizedClientQuery)
   }).slice(0, 6)
 
   async function analyzeInput() {
@@ -628,32 +636,41 @@ export default function QuoteCreatePage() {
               </label>
               <label className="block">
                 <span className="mb-1.5 block text-[12px] font-semibold text-slate-600">Khách hàng</span>
-                <input
-                  value={selectedClient ? (selectedClient.name || selectedClient.client_name || '') : clientQuery}
-                  onChange={event => {
-                    setClientQuery(event.target.value)
-                    setQuote(prev => ({ ...prev, client_id: '', client_name: event.target.value }))
-                  }}
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-[13px] outline-none focus:border-[#f8981d] focus:ring-2 focus:ring-orange-100"
-                  placeholder="Tìm khách hoặc nhập tên mới..."
-                />
-                {!selectedClient && clientQuery && filteredClients.length ? (
-                  <div className="mt-2 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
-                    {filteredClients.map(client => (
-                      <button
-                        key={client.id}
-                        type="button"
-                        onClick={() => {
-                          setQuote(prev => ({ ...prev, client_id: client.id, client_name: client.name || client.client_name || '' }))
-                          setClientQuery('')
-                        }}
-                        className="block w-full rounded-lg px-3 py-2 text-left text-[13px] text-slate-700 hover:bg-orange-50"
-                      >
-                        {client.name || client.client_name}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
+                <div className="relative">
+                  <input
+                    value={selectedClient ? getClientDisplayName(selectedClient) : clientQuery}
+                    onFocus={() => setClientInputFocused(true)}
+                    onBlur={() => window.setTimeout(() => setClientInputFocused(false), 120)}
+                    onChange={event => {
+                      setClientQuery(event.target.value)
+                      setQuote(prev => ({ ...prev, client_id: '', client_name: event.target.value }))
+                    }}
+                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-[13px] outline-none focus:border-[#f8981d] focus:ring-2 focus:ring-orange-100"
+                    placeholder="Tìm khách hoặc nhập tên mới..."
+                  />
+                  {clientInputFocused && !selectedClient && normalizedClientQuery && filteredClients.length ? (
+                    <div className="absolute left-0 right-0 top-full z-30 mt-2 rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+                      {filteredClients.map(client => {
+                        const displayName = getClientDisplayName(client)
+                        return (
+                          <button
+                            key={client.id || displayName}
+                            type="button"
+                            onMouseDown={event => event.preventDefault()}
+                            onClick={() => {
+                              setQuote(prev => ({ ...prev, client_id: client.id, client_name: displayName }))
+                              setClientQuery('')
+                              setClientInputFocused(false)
+                            }}
+                            className="block w-full rounded-lg px-3 py-2 text-left text-[13px] text-slate-700 hover:bg-orange-50"
+                          >
+                            {displayName}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  ) : null}
+                </div>
               </label>
               <label className="block">
                 <span className="mb-1.5 block text-[12px] font-semibold text-slate-600">Thời lượng</span>
@@ -723,7 +740,7 @@ export default function QuoteCreatePage() {
           </section>
         </div>
 
-        <QuotePreview quote={quote} items={displayItems} totals={totals} entities={legalEntities} client={selectedClient} />
+        <QuotePreview quote={quote} items={displayItems} totals={totals} entities={legalEntities} client={selectedClient} sticky={false} />
       </div>
 
       {showServicePicker && (

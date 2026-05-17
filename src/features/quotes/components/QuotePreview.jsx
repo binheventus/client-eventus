@@ -114,6 +114,7 @@ export default function QuotePreview({
   totals = {},
   entities = [],
   client,
+  sticky = true,
 }) {
   const entity = getEntity(quote.entity_code, entities)
   const entityName = getEntityName(quote.entity_code, entities)
@@ -131,7 +132,7 @@ export default function QuotePreview({
   const clientName = client?.name || quote.client_name || 'Quý khách hàng'
 
   return (
-    <div className="sticky top-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div className={`${sticky ? 'sticky top-6' : ''} overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm`}>
       <div className="grid items-center gap-6 bg-slate-100 px-8 py-6 text-slate-900 sm:px-12 sm:grid-cols-[minmax(0,0.9fr)_minmax(300px,1.1fr)]">
         <div>
           {logoUrl ? (
