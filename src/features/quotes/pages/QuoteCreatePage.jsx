@@ -92,6 +92,71 @@ function getTierPriceColumn(tierCode = 'TIER_2') {
   return `price_tier_${tierNumber}`
 }
 
+function normalizeQuoteText(value = '') {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+}
+
+function getQuoteItemCode(item = {}) {
+  return normalizeQuoteText(item.resolved_service_code || item.service_code || item.service?.service_code || item.service?.code)
+}
+
+function getQuoteItemText(item = {}) {
+  return normalizeQuoteText([
+    item.service_name,
+    item.service_name_raw,
+    item.service?.quote_display_name,
+    item.service?.service_name,
+    item.service?.name,
+  ].filter(Boolean).join(' '))
+}
+
+function isEditingItem(code, text) {
+  if (/^RECAP(?:_|$)/.test(code)) return true
+  return /\b(DUNG|HAU KY|EDIT|SUB|CHEN SUB)\b/.test(text)
+}
+
+function getQuoteItemSortRank(item = {}) {
+  const code = getQuoteItemCode(item)
+  const text = getQuoteItemText(item)
+
+  if (isEditingItem(code, text)) return 7
+  if (/^CHUP(?:_|$)/.test(code) || /\b(CHUP|PHOTO|PHOTOGRAPHER)\b/.test(text)) return 0
+  if (/^QUAY_RECAP(?:_|$)/.test(code)) return 1
+  if (/^QUAY_FULL(?:_|$)/.test(code)) return 2
+  if (/^QUAY_LIVE(?:_|$)/.test(code) || code === 'LIVE_VIDEO' || (/\bQUAY\b/.test(text) && /\b(LIVE|LIVESTREAM)\b/.test(text))) return 3
+  if (/^FLYCAM(?:_|$)/.test(code) || /\b(FLYCAM|DRONE)\b/.test(text)) return 4
+  if (/^FPV(?:_|$)/.test(code) || /\bFPV\b/.test(text)) return 5
+  return 6
+}
+
+function sortQuoteItems(items = []) {
+  return [...items]
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => {
+      const rankDiff = getQuoteItemSortRank(a.item) - getQuoteItemSortRank(b.item)
+      return rankDiff || a.index - b.index
+    })
+    .map(entry => entry.item)
+}
+
+function toTitleCaseName(value = '') {
+  return String(value || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .split(' ')
+    .map(part => part ? `${part.charAt(0).toUpperCase()}${part.slice(1)}` : '')
+    .join(' ')
+}
+
+function extractClientNameFromBrief(inputText = '') {
+  const match = String(inputText || '').match(/(?:^|[\s,.;:])(?:[Mm][Rr]\.?|[Aa]|[Aa]nh)\s+([A-ZÀ-ỸĐ][A-Za-zÀ-ỹĐđ'.-]*(?:\s+[A-ZÀ-ỸĐ][A-Za-zÀ-ỹĐđ'.-]*){0,3})/u)
+  const name = toTitleCaseName(match?.[1] || '')
+  return name ? `Mr. ${name}` : ''
+}
+
 function normalizeParsedItem(item, quote, services) {
   const service = findServiceForQuoteItem(services, item, quote.location, Number(quote.duration_hours) || 0)
   const unitPrice = Number(service?.[getTierPriceColumn(quote.tier_code)] || service?.price_tier_2 || 0)
@@ -278,8 +343,11 @@ export default function QuoteCreatePage() {
         business_rules: businessRules,
       })
       const parsed = result.parsed || {}
+      const briefClientName = extractClientNameFromBrief(inputText)
       const nextQuote = {
         ...quote,
+        client_id: briefClientName ? '' : quote.client_id,
+        client_name: briefClientName || quote.client_name,
         event_name: parsed.event_name || quote.event_name,
         event_date: parsed.event_date || quote.event_date,
         location: parsed.location || quote.location,
@@ -289,7 +357,8 @@ export default function QuoteCreatePage() {
       const parsedItems = (parsed.items || []).map(item => normalizeParsedItem(item, nextQuote, services))
       const normalizedResult = normalizeParseResult(result, inputText)
       setQuote(nextQuote)
-      if (parsedItems.length) setItems(parsedItems)
+      if (briefClientName) setClientQuery(briefClientName)
+      if (parsedItems.length) setItems(sortQuoteItems(parsedItems))
       setParseResult(normalizedResult)
     } catch (error) {
       setParseError(error?.message || 'Không phân tích được nội dung.')
@@ -299,23 +368,28 @@ export default function QuoteCreatePage() {
   }
 
   function updateItem(index, patch, meta = {}) {
-    setItems(prev => prev.map((item, itemIndex) => {
-      if (itemIndex !== index) return item
-      const next = { ...item, ...patch }
-      next.total_price = (Number(next.quantity) || 0) * (Number(next.num_sessions) || 1) * (Number(next.unit_price) || 0)
+    setItems(prev => {
+      let shouldSort = false
+      const nextItems = prev.map((item, itemIndex) => {
+        if (itemIndex !== index) return item
+        const next = { ...item, ...patch }
+        next.total_price = (Number(next.quantity) || 0) * (Number(next.num_sessions) || 1) * (Number(next.unit_price) || 0)
 
-      if (meta.priceChanged && Number(patch.unit_price) !== Number(item.unit_price)) {
-        setOverrideDraft({ index, patch })
-        return item
-      }
+        if (meta.priceChanged && Number(patch.unit_price) !== Number(item.unit_price)) {
+          setOverrideDraft({ index, patch })
+          return item
+        }
 
-      return next
-    }))
+        shouldSort = Boolean(patch.service_name || patch.service_name_raw || patch.service_code)
+        return next
+      })
+      return shouldSort ? sortQuoteItems(nextItems) : nextItems
+    })
   }
 
   function confirmOverride(reason) {
     if (!overrideDraft) return
-    setItems(prev => prev.map((item, index) => {
+    setItems(prev => sortQuoteItems(prev.map((item, index) => {
       if (index !== overrideDraft.index) return item
       const next = { ...item, ...overrideDraft.patch }
       next.is_overridden = true
@@ -323,23 +397,13 @@ export default function QuoteCreatePage() {
       next.override_reason = reason
       next.total_price = (Number(next.quantity) || 0) * (Number(next.num_sessions) || 1) * (Number(next.unit_price) || 0)
       return next
-    }))
+    })))
     setOverrideDraft(null)
-  }
-
-  function moveItem(fromIndex, toIndex) {
-    setItems(prev => {
-      if (toIndex < 0 || toIndex >= prev.length || fromIndex === toIndex) return prev
-      const next = [...prev]
-      const [moved] = next.splice(fromIndex, 1)
-      next.splice(toIndex, 0, moved)
-      return next
-    })
   }
 
   function addServiceItem(service) {
     const unitPrice = Number(service?.[getTierPriceColumn(quote.tier_code)] || service?.price_tier_2 || 0)
-    setItems(prev => [...prev, {
+    setItems(prev => sortQuoteItems([...prev, {
       local_id: makeLocalId(),
       service_code: getServiceCode(service),
       service_name: getServiceName(service),
@@ -351,12 +415,12 @@ export default function QuoteCreatePage() {
       is_overridden: false,
       override_reason: '',
       service,
-    }])
+    }]))
     setShowServicePicker(false)
   }
 
   function addCustomItem() {
-    setItems(prev => [...prev, {
+    setItems(prev => sortQuoteItems([...prev, {
       local_id: makeLocalId(),
       service_code: null,
       service_name: 'Custom item',
@@ -368,7 +432,7 @@ export default function QuoteCreatePage() {
       is_custom: true,
       is_overridden: true,
       override_reason: 'Custom item',
-    }])
+    }]))
   }
 
   function validateBeforeSave() {
@@ -583,7 +647,6 @@ export default function QuoteCreatePage() {
           <QuoteItemsTable
             items={displayItems}
             onChangeItem={updateItem}
-            onMoveItem={moveItem}
             onRemoveItem={index => setItems(prev => prev.filter((_, itemIndex) => itemIndex !== index))}
             onAddService={() => setShowServicePicker(true)}
             onAddCustomItem={addCustomItem}

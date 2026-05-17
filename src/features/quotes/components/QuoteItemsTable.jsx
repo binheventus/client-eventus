@@ -1,7 +1,12 @@
-import { ArrowDown, ArrowUp } from 'lucide-react'
+import { Trash2 } from 'lucide-react'
 
 function formatCurrency(value) {
   return new Intl.NumberFormat('vi-VN').format(Number(value) || 0)
+}
+
+function parseCurrencyInput(value) {
+  const clean = String(value || '').replace(/[^\d]/g, '')
+  return clean ? Number(clean) : 0
 }
 
 function getServiceName(item) {
@@ -11,7 +16,6 @@ function getServiceName(item) {
 export default function QuoteItemsTable({
   items = [],
   onChangeItem,
-  onMoveItem,
   onRemoveItem,
   onAddService,
   onAddCustomItem,
@@ -45,49 +49,24 @@ export default function QuoteItemsTable({
         <table className="w-full table-fixed text-left text-[13px]">
           <thead className="bg-slate-50 text-[11px] uppercase tracking-[0.12em] text-slate-500">
             <tr>
-              <th className="w-[8%] px-2 py-3 text-center font-semibold">Thứ tự</th>
-              <th className="w-[35%] px-3 py-3 font-semibold">Dịch vụ</th>
+              <th className="w-[53%] py-3 pl-5 pr-3 font-semibold">Dịch vụ</th>
               <th className="w-[7%] px-1.5 py-3 text-center font-semibold">SL</th>
-              <th className="w-[10%] px-1.5 py-3 text-center font-semibold">Buổi/ngày</th>
+              <th className="w-[8%] px-1.5 py-3 text-center font-semibold">Số buổi</th>
               <th className="w-[15%] px-2 py-3 text-right font-semibold">Đơn giá</th>
-              <th className="w-[17%] py-3 pl-2 pr-5 text-right font-semibold">Thành tiền</th>
-              <th className="w-[8%] px-2 py-3" />
+              <th className="w-[12%] py-3 pl-0 pr-0 text-right font-semibold">Thành tiền</th>
+              <th className="w-[5%] py-3 pl-0 pr-1" />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {items.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-[13px] text-slate-400">
+                <td colSpan={6} className="px-4 py-8 text-center text-[13px] text-slate-400">
                   Chưa có hạng mục.
                 </td>
               </tr>
             ) : items.map((item, index) => (
               <tr key={item.local_id || index} className="align-top">
-                <td className="px-2 py-2">
-                  <div className="flex flex-wrap items-center justify-center gap-1">
-                    <button
-                      type="button"
-                      title="Đưa hạng mục lên"
-                      aria-label="Đưa hạng mục lên"
-                      disabled={index === 0}
-                      onClick={() => onMoveItem?.(index, index - 1)}
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-35"
-                    >
-                      <ArrowUp size={15} strokeWidth={2.2} />
-                    </button>
-                    <button
-                      type="button"
-                      title="Đưa hạng mục xuống"
-                      aria-label="Đưa hạng mục xuống"
-                      disabled={index === items.length - 1}
-                      onClick={() => onMoveItem?.(index, index + 1)}
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-35"
-                    >
-                      <ArrowDown size={15} strokeWidth={2.2} />
-                    </button>
-                  </div>
-                </td>
-                <td className="px-3 py-2">
+                <td className="py-2 pl-5 pr-3">
                   <div className="flex min-h-8 flex-wrap items-center gap-1.5">
                     {item.is_custom ? (
                       <textarea
@@ -101,7 +80,7 @@ export default function QuoteItemsTable({
                         {getServiceName(item)}
                       </span>
                     )}
-                    <span className="shrink-0 rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-semibold leading-4 text-slate-500">
+                    <span className="shrink-0 rounded-md bg-slate-50 px-2 py-0.5 text-[10px] font-semibold leading-4 text-slate-400">
                       {item.resolved_service_code || item.service_code || 'CUSTOM'}
                     </span>
                     {item.is_overridden ? (
@@ -131,23 +110,25 @@ export default function QuoteItemsTable({
                 </td>
                 <td className="px-2 py-2">
                   <input
-                    type="number"
-                    min="0"
-                    value={item.unit_price}
-                    onChange={event => onChangeItem?.(index, { unit_price: Number(event.target.value) }, { priceChanged: true })}
+                    type="text"
+                    inputMode="numeric"
+                    value={formatCurrency(item.unit_price)}
+                    onChange={event => onChangeItem?.(index, { unit_price: parseCurrencyInput(event.target.value) }, { priceChanged: true })}
                     className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-right outline-none focus:border-[#f8981d] focus:ring-2 focus:ring-orange-100"
                   />
                 </td>
-                <td className="py-3 pl-2 pr-5 text-right font-semibold text-slate-900">
+                <td className="py-3 pl-0 pr-0 text-right font-semibold text-slate-900">
                   {formatCurrency(item.total_price)}đ
                 </td>
-                <td className="px-2 py-2 text-right">
+                <td className="py-2 pl-0 pr-1 text-right">
                   <button
                     type="button"
+                    title="Xóa hạng mục"
+                    aria-label="Xóa hạng mục"
                     onClick={() => onRemoveItem?.(index)}
-                    className="rounded-lg px-2 py-1.5 text-[12px] font-semibold text-red-500 hover:bg-red-50"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-500 hover:bg-red-50"
                   >
-                    Xóa
+                    <Trash2 size={15} strokeWidth={2.2} />
                   </button>
                 </td>
               </tr>

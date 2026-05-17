@@ -35,13 +35,13 @@ export default function QuoteChatInput({
         }}
         rows={3}
         placeholder="VD: 2 chụp, 1 quay, 2 flycam, 5 tiếng, Hải Phòng, khách lạ..."
-        className="w-full resize-none overflow-hidden rounded-2xl border border-slate-200 bg-white px-4 py-3 text-[14px] leading-6 text-slate-800 shadow-sm outline-none transition focus:border-[#f8981d] focus:ring-4 focus:ring-orange-100 disabled:cursor-not-allowed disabled:bg-slate-50"
+        className="w-full resize-none overflow-hidden rounded-2xl border border-[#f8981d] bg-white px-4 py-3 text-[14px] leading-6 text-slate-800 shadow-sm outline-none transition focus:border-[#f8981d] focus:ring-4 focus:ring-orange-100 disabled:cursor-not-allowed disabled:bg-slate-50"
       />
       <button
         type="button"
         disabled={disabled || loading || !String(value || '').trim()}
         onClick={onAnalyze}
-        className="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-3 text-[14px] font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+        className="inline-flex w-full items-center justify-center rounded-xl bg-[#f8981d] px-4 py-3 text-[14px] font-semibold text-white shadow-sm transition hover:bg-orange-500 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {loading ? 'Đang phân tích...' : 'Phân tích'}
       </button>

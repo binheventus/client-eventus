@@ -63,13 +63,14 @@ function QuoteEndNotes({ quote = {}, items = [], validityDays = 15 }) {
   const equipmentRules = getMatchedEquipmentRules(items, equipmentRulesData)
   const terms = [
     `Báo giá có hiệu lực trong ${validityDays} ngày. Thời gian làm việc tiêu chuẩn tối đa 04 tiếng/buổi và 08 tiếng/ngày. Thời gian Overtime sẽ được tính phí theo thỏa thuận riêng.`,
+    ...(!quote.has_vat ? ['Báo giá trên chưa bao gồm VAT.'] : []),
     'Báo giá trên chưa bao gồm chi phí mua bản quyền âm nhạc, hình ảnh nếu có.',
     'Báo giá đã bao gồm tối đa 03 lần chỉnh sửa sản phẩm hậu kỳ dựa trên format đã thống nhất.',
     'Trong vòng 05 ngày làm việc kể từ ngày bàn giao bản Demo, nếu Khách hàng không có phản hồi hoặc yêu cầu chỉnh sửa bằng văn bản, sản phẩm được coi là đã hoàn thành & tự động được nghiệm thu.',
   ]
   const paymentTerms = [
-    'Đợt 1 (Tạm ứng): Quý khách vui lòng thanh toán 50% tổng giá trị báo giá ngay sau khi xác nhận hợp đồng/báo giá để giữ lịch nhân sự và chuẩn bị thiết bị.',
-    'Đợt 2 (Tất toán): Thanh toán 50% giá trị còn lại trong vòng 03 ngày làm việc sau khi bàn giao đầy đủ sản phẩm cuối cùng (đã nghiệm thu) và trước khi xuất hóa đơn VAT (nếu có).',
+    'Đợt 1 (Tạm ứng): Quý khách vui lòng thanh toán 50% tổng giá trị báo giá sau khi xác nhận báo giá để giữ lịch nhân sự và chuẩn bị thiết bị.',
+    'Đợt 2 (Tất toán): Thanh toán 50% giá trị còn lại trong vòng 03 ngày làm việc sau khi bàn giao đầy đủ sản phẩm cuối cùng.',
   ]
 
   return (

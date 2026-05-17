@@ -427,13 +427,14 @@ function Notes({ quote, items = [] }) {
   const validityDays = quote?.validity_days || 15
   const terms = [
     `* Bao gia co hieu luc trong ${validityDays} ngay. Thoi gian lam viec tieu chuan toi da 04 tieng/buoi va 08 tieng/ngay. Thoi gian Overtime se duoc tinh phi theo thoa thuan rieng.`,
+    ...(!quote?.has_vat ? ['* Bao gia tren chua bao gom VAT.'] : []),
     '* Bao gia tren chua bao gom chi phi mua ban quyen am nhac, hinh anh neu co.',
     '* Bao gia da bao gom toi da 03 lan chinh sua san pham hau ky dua tren format da thong nhat.',
     '* Trong vong 05 ngay lam viec ke tu ngay ban giao ban Demo, neu Khach hang khong co phan hoi hoac yeu cau chinh sua bang van ban, san pham duoc coi la da hoan thanh & tu dong duoc nghiem thu.',
   ]
   const paymentTerms = [
-    '* Dot 1 (Tam ung): Quy khach vui long thanh toan 50% tong gia tri bao gia ngay sau khi xac nhan hop dong/bao gia de giu lich nhan su va chuan bi thiet bi.',
-    '* Dot 2 (Tat toan): Thanh toan 50% gia tri con lai trong vong 03 ngay lam viec sau khi ban giao day du san pham cuoi cung (da nghiem thu) va truoc khi xuat hoa don VAT (neu co).',
+    '* Dot 1 (Tam ung): Quy khach vui long thanh toan 50% tong gia tri bao gia sau khi xac nhan bao gia de giu lich nhan su va chuan bi thiet bi.',
+    '* Dot 2 (Tat toan): Thanh toan 50% gia tri con lai trong vong 03 ngay lam viec sau khi ban giao day du san pham cuoi cung.',
   ]
 
   return (
