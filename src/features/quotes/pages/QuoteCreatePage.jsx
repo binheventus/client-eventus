@@ -157,6 +157,11 @@ function extractClientNameFromBrief(inputText = '') {
   return name ? `Mr. ${name}` : ''
 }
 
+function isClientInsertBlocked(error) {
+  const message = String(error?.message || '').toLowerCase()
+  return error?.code === '42501' || message.includes('row-level security') || message.includes('permission denied')
+}
+
 function normalizeParsedItem(item, quote, services) {
   const service = findServiceForQuoteItem(services, item, quote.location, Number(quote.duration_hours) || 0)
   const unitPrice = Number(service?.[getTierPriceColumn(quote.tier_code)] || service?.price_tier_2 || 0)
@@ -454,11 +459,21 @@ export default function QuoteCreatePage() {
       .select()
       .single()
 
+    if (isClientInsertBlocked(response.error)) {
+      setQuote(prev => ({ ...prev, client_name: name }))
+      return null
+    }
+
     if (response.error?.message?.includes('name')) {
       response = await fromQuoteTable('clients')
         .insert({ client_name: name })
         .select()
         .single()
+    }
+
+    if (isClientInsertBlocked(response.error)) {
+      setQuote(prev => ({ ...prev, client_name: name }))
+      return null
     }
 
     if (response.error) throw response.error
@@ -480,11 +495,13 @@ export default function QuoteCreatePage() {
 
     try {
       const now = new Date().toISOString()
+      const clientName = String(quote.client_name || clientQuery || '').trim()
       const clientId = await ensureClientId()
       const saved = await createQuote({
         ai_input: inputText,
         entity_code: quote.entity_code,
         client_id: clientId,
+        client_name: clientName || null,
         tier_code: quote.tier_code,
         event_name: quote.event_name,
         event_date: quote.event_date || null,

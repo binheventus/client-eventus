@@ -8,6 +8,7 @@ export default function QuoteChatInput({
   disabled = false,
 }) {
   const textareaRef = useRef(null)
+  const hasBrief = Boolean(String(value || '').trim())
 
   function resizeTextarea() {
     const node = textareaRef.current
@@ -39,9 +40,13 @@ export default function QuoteChatInput({
       />
       <button
         type="button"
-        disabled={disabled || loading || !String(value || '').trim()}
+        disabled={disabled || loading || !hasBrief}
         onClick={onAnalyze}
-        className="inline-flex w-full items-center justify-center rounded-xl bg-[#f8981d] px-4 py-3 text-[14px] font-semibold text-white shadow-sm transition hover:bg-orange-500 disabled:cursor-not-allowed disabled:opacity-50"
+        className={`inline-flex w-full items-center justify-center rounded-xl px-4 py-3 text-[14px] font-semibold text-white shadow-sm transition disabled:cursor-not-allowed ${
+          hasBrief && !disabled
+            ? 'bg-[#f8981d] hover:bg-orange-500 disabled:bg-orange-300'
+            : 'bg-slate-400'
+        }`}
       >
         {loading ? 'Đang phân tích...' : 'Phân tích'}
       </button>
