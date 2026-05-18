@@ -6,6 +6,24 @@ const LOCAL_QUOTES_KEY = 'eventus_local_quotes'
 const SHARE_TOKEN_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 const SHARE_TOKEN_LENGTH = 7
 const RECOVERABLE_FK_COLUMNS = new Set(['client_id'])
+const LIST_QUOTE_COLUMNS = [
+  'id',
+  'quote_number',
+  'client_name',
+  'event_name',
+  'total_amount',
+  'status',
+  'created_by',
+  'created_by_name',
+  'sales_name',
+  'created_at',
+  'deleted_at',
+  'tier_code',
+  'entity_code',
+  'share_token',
+  'sent_at',
+  'validity_days',
+].join(',')
 
 function isPrivilegedRole(role) {
   return PRIVILEGED_ROLES.has(String(role || '').toLowerCase())
@@ -387,7 +405,7 @@ async function listSupabaseQuotes({ filters = {}, page = 1, pageSize = 20, trash
   const orderColumn = trash ? 'deleted_at' : 'created_at'
 
   let query = fromQuoteTable(viewKey)
-    .select('*', { count: 'exact' })
+    .select(LIST_QUOTE_COLUMNS, { count: 'estimated' })
     .order(orderColumn, { ascending: false })
     .range(from, to)
 
@@ -396,7 +414,7 @@ async function listSupabaseQuotes({ filters = {}, page = 1, pageSize = 20, trash
 
   if (response.error && isMissingCachedRelation(response.error, viewName)) {
     let fallbackQuery = fromQuoteTable('quotes')
-      .select('*', { count: 'exact' })
+      .select(LIST_QUOTE_COLUMNS, { count: 'estimated' })
 
     fallbackQuery = trash
       ? fallbackQuery.not('deleted_at', 'is', null).order('deleted_at', { ascending: false })

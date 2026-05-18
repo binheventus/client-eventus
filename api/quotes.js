@@ -8,6 +8,24 @@ const DEFAULT_ENTITY_CODE = 'EVENTUS'
 const DEFAULT_TIER_CODE = 'TIER_2'
 const RECOVERABLE_FK_COLUMNS = new Set(['client_id'])
 const VALID_TIER_CODES = new Set(['TIER_1', 'TIER_2', 'TIER_3', 'TIER_4', 'TIER_5'])
+const LIST_QUOTE_COLUMNS = [
+  'id',
+  'quote_number',
+  'client_name',
+  'event_name',
+  'total_amount',
+  'status',
+  'created_by',
+  'created_by_name',
+  'sales_name',
+  'created_at',
+  'deleted_at',
+  'tier_code',
+  'entity_code',
+  'share_token',
+  'sent_at',
+  'validity_days',
+].join(',')
 
 function makeShareToken() {
   return Array.from(randomBytes(SHARE_TOKEN_LENGTH), value => (
@@ -320,7 +338,7 @@ async function listQuotes(supabase, queryParams = {}) {
 
   let query = supabase
     .from('quotes')
-    .select('*', { count: 'exact' })
+    .select(LIST_QUOTE_COLUMNS, { count: 'estimated' })
 
   query = trash
     ? query.not('deleted_at', 'is', null).order('deleted_at', { ascending: false })

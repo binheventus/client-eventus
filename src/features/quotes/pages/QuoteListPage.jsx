@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { FileSignature, ScrollText } from 'lucide-react'
 import QuoteBreadcrumb from '../components/QuoteBreadcrumb'
 import { listQuotes } from '../hooks/useQuotes'
-import { canCreateContractFromQuote } from '../lib/contractDefaults'
 import { canViewAllQuotes, getQuoteUserContext } from '../lib/quoteAuth'
 
 const PAGE_SIZE = 20
@@ -30,6 +29,10 @@ function StatusBadge({ status }) {
   }[status] || 'bg-slate-100 text-slate-700'
 
   return <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${tone}`}>{status || 'draft'}</span>
+}
+
+function canCreateContractFromQuote(quote = {}) {
+  return Boolean(quote?.id) && !quote.deleted_at && String(quote.status || 'draft').toLowerCase() !== 'draft'
 }
 
 export default function QuoteListPage() {

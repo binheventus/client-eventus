@@ -1,17 +1,16 @@
-import { useState, useEffect, useMemo } from 'react'
+import { lazy, Suspense, useState, useEffect, useMemo } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { hasSupabaseConfig, supabase } from '../lib/supabase'
 import { ADMIN_PASSWORD, VFX_BUILDER_PASSWORD } from '../config'
 import data from '../data/competency.json'
-import PositionPage from './PositionPage'
-import VFXPromptBuilderPage from './VFXPromptBuilderPage'
-import {
-  ContractTemplatesPage,
-  QuoteCreatePage,
-  QuoteDetailPage,
-  QuoteListPage,
-  QuoteTrashPage,
-} from '../features/quotes'
+
+const PositionPage = lazy(() => import('./PositionPage'))
+const VFXPromptBuilderPage = lazy(() => import('./VFXPromptBuilderPage'))
+const ContractTemplatesPage = lazy(() => import('../features/quotes/pages/ContractTemplatesPage'))
+const QuoteCreatePage = lazy(() => import('../features/quotes/pages/QuoteCreatePage'))
+const QuoteDetailPage = lazy(() => import('../features/quotes/pages/QuoteDetailPage'))
+const QuoteListPage = lazy(() => import('../features/quotes/pages/QuoteListPage'))
+const QuoteTrashPage = lazy(() => import('../features/quotes/pages/QuoteTrashPage'))
 
 /* ─── Danh muc sidebar ─── */
 const CATEGORIES = [
@@ -34,6 +33,10 @@ const CATEGORIES = [
 ]
 
 const LAB_CONTENT_TABLE = 'lab_pages'
+
+function PageLoading() {
+  return <div className="px-4 py-6 text-[13px] font-semibold text-slate-400">Đang tải...</div>
+}
 
 const CATEGORY_CARD_META = {
   quy_trinh: { accent: 'from-slate-50 to-blue-50/70', iconBg: 'bg-slate-100', iconText: 'text-slate-700', stroke: '#334155' },
@@ -1089,28 +1092,23 @@ function QuoteModulePage() {
   const location = useLocation()
   const quoteIdMatch = location.pathname.match(/^\/quotes\/([^/]+)$/)
   const searchParams = new URLSearchParams(location.search)
+  let page = <QuoteListPage />
 
   if (location.pathname === '/quotes/new') {
-    return <QuoteCreatePage />
-  }
-
-  if (location.pathname === '/quotes/trash') {
-    return <QuoteTrashPage />
-  }
-
-  if (location.pathname === '/quotes/contract-templates') {
-    return <ContractTemplatesPage />
-  }
-
-  if (quoteIdMatch) {
+    page = <QuoteCreatePage />
+  } else if (location.pathname === '/quotes/trash') {
+    page = <QuoteTrashPage />
+  } else if (location.pathname === '/quotes/contract-templates') {
+    page = <ContractTemplatesPage />
+  } else if (quoteIdMatch) {
     if (searchParams.get('mode') === 'edit') {
-      return <QuoteCreatePage mode="edit" quoteId={quoteIdMatch[1]} />
+      page = <QuoteCreatePage mode="edit" quoteId={quoteIdMatch[1]} />
+    } else {
+      page = <QuoteDetailPage />
     }
-
-    return <QuoteDetailPage />
   }
 
-  return <QuoteListPage />
+  return <Suspense fallback={<PageLoading />}>{page}</Suspense>
 }
 
 /* ─── Main Eventus AI Lab page ─── */
@@ -1140,6 +1138,17 @@ export default function EventusAILabPage() {
   const visibleCategories = useMemo(() => getVisibleCategories(), [])
 
   useEffect(() => {
+    if (
+      location.pathname === '/quotes' ||
+      location.pathname.startsWith('/quotes/') ||
+      location.pathname === '/competency' ||
+      location.pathname === '/vfx-builder' ||
+      location.pathname.startsWith('/position/')
+    ) {
+      setLoading(false)
+      return
+    }
+
     if (!hasSupabaseConfig) {
       setLoading(false)
       return
@@ -1149,7 +1158,7 @@ export default function EventusAILabPage() {
       if (!error && rows) setPages(rows)
       setLoading(false)
     })
-  }, [])
+  }, [location.pathname])
 
   const currentCat = CATEGORIES.find(c => c.id === activeCat)
   const visiblePages = useMemo(() => pages.filter(page => !isCategoryConfigRow(page)), [pages])
@@ -1485,12 +1494,22 @@ export default function EventusAILabPage() {
           {activeCat === 'home' && <HomeHub onOpenCategory={openHomeCategory} admin={admin} />}
 
           {/* Khung nang luc */}
-          {activeCat === 'khung_nang_luc' && (positionId ? <div className="flex-1 overflow-y-auto"><PositionPage embedded /></div> : <CompetencyGrid />)}
+          {activeCat === 'khung_nang_luc' && (positionId ? (
+            <div className="flex-1 overflow-y-auto">
+              <Suspense fallback={<PageLoading />}>
+                <PositionPage embedded />
+              </Suspense>
+            </div>
+          ) : <CompetencyGrid />)}
 
           {/* VFX Prompt Builder */}
           {activeCat === 'vfx_builder' && (
             vfxAccess.hasAccess
-              ? <VFXPromptBuilderPage />
+              ? (
+                <Suspense fallback={<PageLoading />}>
+                  <VFXPromptBuilderPage />
+                </Suspense>
+              )
               : <LockedVfxBuilderPage onRequestAccess={vfxAccess.requestAccess} />
           )}
 
