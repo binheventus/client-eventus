@@ -51,17 +51,17 @@
     "rule_code": "HALF_DAY_DEFINITION",
     "category": "Pricing",
     "rule_name": "Định nghĩa nửa ngày",
-    "value": "≤4.5h",
+    "value": "<7h",
     "description": "<=4.5h là gói 4H; >4.5h đến dưới full-day vẫn lấy gói 4H + giờ phát sinh.",
-    "rule_value": "≤4.5h"
+    "rule_value": "<7h"
   },
   {
     "rule_code": "FULL_DAY_DEFINITION",
     "category": "Pricing",
     "rule_name": "Định nghĩa cả ngày",
-    "value": "≤8h",
-    "description": ">=7h hoặc sales ghi rõ cả ngày/full-day/8H.",
-    "rule_value": "≤8h"
+    "value": ">=7h",
+    "description": "Sự kiện dưới 7h vẫn lấy gói 4H; nếu >4.5h thì cộng giờ phát sinh.",
+    "rule_value": ">=7h"
   },
   {
     "rule_code": "OVERTIME_HOURLY_FEE",
@@ -301,9 +301,9 @@
     "rule_code": "FULL_DAY_THRESHOLD",
     "category": "Pricing",
     "rule_name": "Full-day threshold normalized",
-    "value": 8,
+    "value": 7,
     "description": "Derived from FULL_DAY_DEFINITION for 8H service matching and full-day overtime",
-    "rule_value": 8,
+    "rule_value": 7,
     "derived": true
   }
 ]

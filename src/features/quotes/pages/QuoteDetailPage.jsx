@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { FileSignature } from 'lucide-react'
 import QuotePreview from '../components/QuotePreview'
 import {
   getQuote,
@@ -7,9 +8,11 @@ import {
   getQuoteViewStats,
 } from '../hooks/useQuotes'
 import { useLegalEntities } from '../hooks/useLegalEntities'
+import { canCreateContractFromQuote } from '../lib/contractDefaults'
 import { normalizeQuoteValidityDays } from '../lib/quoteValidity'
 
 const QuotePDFDownloadButton = lazy(() => import('../components/QuotePDFDownloadButton'))
+const ContractEditorModal = lazy(() => import('../components/ContractEditorModal'))
 
 function formatDateTime(value) {
   if (!value) return '-'
@@ -44,9 +47,11 @@ export default function QuoteDetailPage() {
   const [auditLogs, setAuditLogs] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [showContractModal, setShowContractModal] = useState(false)
 
   const validUntil = useMemo(() => getValidUntil(quote), [quote])
   const expired = validUntil ? validUntil.getTime() < Date.now() : false
+  const canCreateContract = canCreateContractFromQuote(quote)
 
   async function loadDetail() {
     setLoading(true)
@@ -88,6 +93,16 @@ export default function QuoteDetailPage() {
         </div>
         <div className="flex flex-wrap gap-2">
           <button onClick={() => navigate(`/quotes/${id}?mode=edit`)} className="rounded-xl border border-slate-200 px-4 py-2.5 text-[13px] font-semibold text-slate-700 hover:bg-slate-50">Sửa</button>
+          <button
+            type="button"
+            disabled={!canCreateContract}
+            onClick={() => setShowContractModal(true)}
+            title={canCreateContract ? 'Tạo hoặc sửa hợp đồng' : 'Báo giá nháp chưa tạo được hợp đồng'}
+            className="inline-flex items-center gap-2 rounded-xl border border-orange-200 bg-orange-50 px-4 py-2.5 text-[13px] font-semibold text-orange-700 hover:bg-orange-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-300"
+          >
+            <FileSignature className="h-4 w-4" />
+            Tạo hợp đồng
+          </button>
           <button onClick={copyShareLink} className="rounded-xl bg-[#f8981d] px-4 py-2.5 text-[13px] font-semibold text-white shadow-sm hover:bg-orange-500">Copy link gửi khách</button>
           <Suspense fallback={<span className="rounded-xl bg-[#f8981d] px-4 py-2.5 text-[13px] font-semibold text-white">Đang tải PDF...</span>}>
             <QuotePDFDownloadButton
@@ -155,6 +170,16 @@ export default function QuoteDetailPage() {
 
         <QuotePreview quote={quote} items={quote.items || []} totals={quote} entities={legalEntities} />
       </div>
+
+      {showContractModal ? (
+        <Suspense fallback={null}>
+          <ContractEditorModal
+            open={showContractModal}
+            quote={quote}
+            onClose={() => setShowContractModal(false)}
+          />
+        </Suspense>
+      ) : null}
     </div>
   )
 }

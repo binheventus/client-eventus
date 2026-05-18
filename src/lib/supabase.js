@@ -19,6 +19,8 @@ export const quoteTables = {
   activeQuotes: 'active_quotes',
   trashedQuotes: 'trashed_quotes',
   auditLogs: 'audit_logs',
+  contracts: 'contracts',
+  contractTemplates: 'contract_templates',
 }
 
 export function fromQuoteTable(tableKey) {

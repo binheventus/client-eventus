@@ -6,6 +6,7 @@ import data from '../data/competency.json'
 import PositionPage from './PositionPage'
 import VFXPromptBuilderPage from './VFXPromptBuilderPage'
 import {
+  ContractTemplatesPage,
   QuoteCreatePage,
   QuoteDetailPage,
   QuoteListPage,
@@ -1095,6 +1096,10 @@ function QuoteModulePage() {
 
   if (location.pathname === '/quotes/trash') {
     return <QuoteTrashPage />
+  }
+
+  if (location.pathname === '/quotes/contract-templates') {
+    return <ContractTemplatesPage />
   }
 
   if (quoteIdMatch) {

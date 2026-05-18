@@ -11,6 +11,7 @@ export default function App() {
         <Route path="/quotes" element={<EventusAILabPage />} />
         <Route path="/quotes/new" element={<EventusAILabPage />} />
         <Route path="/quotes/trash" element={<EventusAILabPage />} />
+        <Route path="/quotes/contract-templates" element={<EventusAILabPage />} />
         <Route path="/quotes/:id" element={<EventusAILabPage />} />
         <Route path="/q/:share_token" element={<QuotePublicPage />} />
         <Route path="/position/:positionId" element={<EventusAILabPage />} />
