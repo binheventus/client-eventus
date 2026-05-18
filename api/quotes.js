@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 
 const SHARE_TOKEN_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 const SHARE_TOKEN_LENGTH = 7
+const SYSTEM_ACTOR_ID = '00000000-0000-0000-0000-000000000000'
 
 function makeShareToken() {
   return Array.from(randomBytes(SHARE_TOKEN_LENGTH), value => (
@@ -317,15 +318,25 @@ async function getQuoteAuditLogs(supabase, quoteId) {
 }
 
 async function createQuote(supabase, body = {}) {
-  const { items = [], ...quotePayload } = body
-  const shouldGenerateShareToken = !quotePayload.share_token
+  const { items = [], user_id: userId, created_by_id: createdById, user_name: userName, ...quotePayload } = body
+  const createdBy = quotePayload.created_by || userId || createdById || SYSTEM_ACTOR_ID
+  const creatorName = quotePayload.created_by_name || quotePayload.sales_name || userName || (
+    createdBy === 'admin' ? 'Admin' : 'Eventus'
+  )
+  const normalizedQuotePayload = {
+    ...quotePayload,
+    created_by: createdBy,
+    created_by_name: creatorName,
+    sales_name: quotePayload.sales_name || creatorName,
+  }
+  const shouldGenerateShareToken = !normalizedQuotePayload.share_token
   let quote = null
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
-    const shareToken = quotePayload.share_token || makeShareToken()
+    const shareToken = normalizedQuotePayload.share_token || makeShareToken()
     try {
       quote = await insertWithSchemaRetry(supabase, 'quotes', {
-        ...quotePayload,
+        ...normalizedQuotePayload,
         share_token: shareToken,
       })
       break

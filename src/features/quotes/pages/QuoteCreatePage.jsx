@@ -13,6 +13,7 @@ import { useServices } from '../hooks/useServices'
 import { useTravelFees } from '../hooks/useTravelFees'
 import { parseQuoteInput } from '../lib/aiParser'
 import { calculateQuotePricing, findServiceForQuoteItem } from '../lib/pricingCalculator'
+import { getQuoteActorPayload, getQuoteUserContext } from '../lib/quoteAuth'
 import { normalizeQuoteValidityDays } from '../lib/quoteValidity'
 import { fromQuoteTable, hasSupabaseConfig } from '../../../lib/supabase'
 
@@ -591,6 +592,7 @@ function hydrateSavedQuoteItem(item = {}, index = 0) {
 export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
   const navigate = useNavigate()
   const isEditMode = mode === 'edit' && Boolean(quoteId)
+  const userContext = useMemo(() => getQuoteUserContext(), [])
   const { services, loading: servicesLoading } = useServices()
   const { travelFees } = useTravelFees()
   const { businessRules, rulesMap } = useBusinessRules()
@@ -895,6 +897,7 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
       const clientName = String(quote.client_name || clientQuery || '').trim()
       const clientId = await ensureClientId()
       const quotePayload = {
+        ...(!isEditMode ? getQuoteActorPayload(userContext) : {}),
         ai_input: inputText,
         entity_code: quote.entity_code,
         client_id: clientId,
