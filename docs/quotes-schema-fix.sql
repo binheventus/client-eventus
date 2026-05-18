@@ -2,6 +2,8 @@
 -- Chay trong Supabase SQL Editor. Script nay co the chay lai nhieu lan.
 --
 -- Script xu ly cac loi da gap:
+-- - Could not find the table 'public.active_quotes' in the schema cache
+-- - new row violates row-level security policy for table "quotes"
 -- - new row violates row-level security policy for table "clients"
 -- - Could not find the 'ai_input' column of 'quotes' in the schema cache
 -- - cannot cast type quote_validity to integer
