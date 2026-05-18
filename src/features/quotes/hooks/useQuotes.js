@@ -3,6 +3,8 @@ import { fromQuoteTable, hasSupabaseConfig } from '../../../lib/supabase'
 
 const PRIVILEGED_ROLES = new Set(['leader', 'admin'])
 const LOCAL_QUOTES_KEY = 'eventus_local_quotes'
+const SHARE_TOKEN_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+const SHARE_TOKEN_LENGTH = 7
 
 function isPrivilegedRole(role) {
   return PRIVILEGED_ROLES.has(String(role || '').toLowerCase())
@@ -102,6 +104,19 @@ function makeLocalId(prefix = 'quote') {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 }
 
+function makeShareToken() {
+  const values = new Uint8Array(SHARE_TOKEN_LENGTH)
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    crypto.getRandomValues(values)
+  } else {
+    for (let index = 0; index < values.length; index += 1) {
+      values[index] = Math.floor(Math.random() * 256)
+    }
+  }
+
+  return Array.from(values, value => SHARE_TOKEN_ALPHABET[value % SHARE_TOKEN_ALPHABET.length]).join('')
+}
+
 function getLocalQuoteText(quote = {}) {
   return [
     quote.quote_number,
@@ -156,11 +171,12 @@ function createLocalQuote(payload = {}) {
   const quotes = readLocalQuotes()
   const now = new Date().toISOString()
   const { items = [], ...quotePayload } = payload
+  const quoteCode = quotePayload.id || quotePayload.share_token || makeShareToken()
   const quote = {
     ...quotePayload,
-    id: makeLocalId(),
+    id: quoteCode,
     quote_number: makeLocalQuoteNumber(quotes),
-    share_token: makeLocalId('share'),
+    share_token: quotePayload.share_token || quoteCode,
     created_at: now,
     updated_at: now,
     items: items.map((item, index) => ({
@@ -190,8 +206,19 @@ function updateLocalQuote(id, patch = {}) {
 
 function duplicateLocalQuote(id) {
   const source = getLocalQuote(id)
+  const {
+    id: _id,
+    quote_number: _quoteNumber,
+    share_token: _shareToken,
+    created_at: _createdAt,
+    updated_at: _updatedAt,
+    deleted_at: _deletedAt,
+    sent_at: _sentAt,
+    ...quotePayload
+  } = source
+
   return createLocalQuote({
-    ...source,
+    ...quotePayload,
     status: 'draft',
     event_name: `${source.event_name || 'Báo giá'} (copy)`,
     items: source.items || [],
@@ -510,7 +537,13 @@ export async function createQuote(payload = {}) {
     }
   }
 
-  const { items = [], ...quotePayload } = payload
+  const quoteCode = payload.id || payload.share_token || makeShareToken()
+  const nextPayload = {
+    ...payload,
+    id: payload.id || quoteCode,
+    share_token: payload.share_token || quoteCode,
+  }
+  const { items = [], ...quotePayload } = nextPayload
 
   const quote = await insertWithSchemaCacheRetry('quotes', quotePayload)
 
@@ -542,14 +575,31 @@ export async function updateQuote(id, patch = {}) {
     }
   }
 
+  const { items, ...quotePatch } = patch
   const { data, error } = await fromQuoteTable('quotes')
-    .update({ ...patch, updated_at: new Date().toISOString() })
+    .update({ ...quotePatch, updated_at: new Date().toISOString() })
     .eq('id', id)
     .select()
     .single()
 
   if (error) throw error
-  return data
+
+  if (!Array.isArray(items)) return data
+
+  const { error: deleteError } = await fromQuoteTable('quoteItems')
+    .delete()
+    .eq('quote_id', id)
+
+  if (deleteError) throw deleteError
+
+  const quoteItems = items.map((item, index) => ({
+    ...item,
+    quote_id: id,
+    sort_order: item.sort_order ?? index + 1,
+  }))
+  const insertedItems = await insertManyWithSchemaCacheRetry('quoteItems', quoteItems)
+
+  return { ...data, items: insertedItems || [] }
 }
 
 export async function softDeleteQuote(id) {

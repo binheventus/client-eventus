@@ -2,12 +2,11 @@ import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import QuotePreview from '../components/QuotePreview'
 import {
-  duplicateQuote,
   getQuote,
   getQuoteAuditLogs,
   getQuoteViewStats,
-  softDeleteQuote,
 } from '../hooks/useQuotes'
+import { useLegalEntities } from '../hooks/useLegalEntities'
 import { normalizeQuoteValidityDays } from '../lib/quoteValidity'
 
 const QuotePDFDownloadButton = lazy(() => import('../components/QuotePDFDownloadButton'))
@@ -39,6 +38,7 @@ function getValidUntil(quote) {
 export default function QuoteDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { legalEntities } = useLegalEntities()
   const [quote, setQuote] = useState(null)
   const [viewStats, setViewStats] = useState({ count: 0, lastViewedAt: null })
   const [auditLogs, setAuditLogs] = useState([])
@@ -76,17 +76,6 @@ export default function QuoteDetailPage() {
     await navigator.clipboard?.writeText(`${window.location.origin}/q/${quote.share_token}`)
   }
 
-  async function handleDuplicate() {
-    const copied = await duplicateQuote(id)
-    navigate(`/quotes/${copied.id}`)
-  }
-
-  async function handleDelete() {
-    if (!window.confirm('Xóa mềm báo giá này?')) return
-    await softDeleteQuote(id)
-    navigate('/quotes')
-  }
-
   if (loading) return <div className="p-6 text-slate-500">Đang tải báo giá...</div>
   if (error) return <div className="rounded-xl bg-red-50 p-4 text-[13px] text-red-700">{error}</div>
   if (!quote) return <div className="p-6 text-slate-500">Không tìm thấy báo giá.</div>
@@ -96,14 +85,10 @@ export default function QuoteDetailPage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <button onClick={() => navigate('/quotes')} className="mb-2 text-[13px] font-semibold text-slate-500 hover:text-slate-900">← Danh sách báo giá</button>
-          <h1 className="text-[28px] font-semibold tracking-tight text-slate-950">{quote.quote_number || 'Báo giá'}</h1>
-          <p className="mt-1 text-[13px] text-slate-500">{quote.event_name || 'Chưa có tên sự kiện'}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button onClick={() => navigate(`/quotes/${id}?mode=edit`)} className="rounded-xl border border-slate-200 px-4 py-2.5 text-[13px] font-semibold text-slate-700 hover:bg-slate-50">Sửa</button>
-          <button onClick={handleDuplicate} className="rounded-xl border border-slate-200 px-4 py-2.5 text-[13px] font-semibold text-slate-700 hover:bg-slate-50">Nhân bản</button>
-          <button onClick={handleDelete} className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-[13px] font-semibold text-red-700 hover:bg-red-100">Xóa</button>
-          <button onClick={copyShareLink} className="rounded-xl bg-slate-900 px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-slate-800">Copy link share</button>
+          <button onClick={copyShareLink} className="rounded-xl bg-[#f8981d] px-4 py-2.5 text-[13px] font-semibold text-white shadow-sm hover:bg-orange-500">Copy link gửi khách</button>
           <Suspense fallback={<span className="rounded-xl bg-[#f8981d] px-4 py-2.5 text-[13px] font-semibold text-white">Đang tải PDF...</span>}>
             <QuotePDFDownloadButton
               quote={quote}
@@ -128,6 +113,8 @@ export default function QuoteDetailPage() {
             <h2 className="text-[16px] font-semibold text-slate-900">Thông tin báo giá</h2>
             <dl className="mt-4 grid gap-4 text-[13px] sm:grid-cols-2">
               {[
+                ['Mã báo giá', quote.quote_number || '-'],
+                ['Tên sự kiện', quote.event_name || 'Chưa có tên sự kiện'],
                 ['Khách hàng', quote.client_name || quote.customer_name || quote.client_id || '-'],
                 ['Pháp nhân', quote.entity_code || '-'],
                 ['Tier', quote.tier_code || '-'],
@@ -166,7 +153,7 @@ export default function QuoteDetailPage() {
           </section>
         </div>
 
-        <QuotePreview quote={quote} items={quote.items || []} totals={quote} />
+        <QuotePreview quote={quote} items={quote.items || []} totals={quote} entities={legalEntities} />
       </div>
     </div>
   )

@@ -1087,6 +1087,7 @@ function LockedVfxBuilderPage({ onRequestAccess }) {
 function QuoteModulePage() {
   const location = useLocation()
   const quoteIdMatch = location.pathname.match(/^\/quotes\/([^/]+)$/)
+  const searchParams = new URLSearchParams(location.search)
 
   if (location.pathname === '/quotes/new') {
     return <QuoteCreatePage />
@@ -1097,6 +1098,10 @@ function QuoteModulePage() {
   }
 
   if (quoteIdMatch) {
+    if (searchParams.get('mode') === 'edit') {
+      return <QuoteCreatePage mode="edit" quoteId={quoteIdMatch[1]} />
+    }
+
     return <QuoteDetailPage />
   }
 

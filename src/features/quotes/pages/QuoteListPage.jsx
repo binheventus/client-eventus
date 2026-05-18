@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { duplicateQuote, listQuotes, softDeleteQuote } from '../hooks/useQuotes'
+import { listQuotes } from '../hooks/useQuotes'
 import { canViewAllQuotes, getQuoteUserContext } from '../lib/quoteAuth'
 
 const PAGE_SIZE = 20
@@ -75,25 +75,6 @@ export default function QuoteListPage() {
   function updateFilter(key, value) {
     setPage(1)
     setFilters(prev => ({ ...prev, [key]: value }))
-  }
-
-  async function handleDuplicate(id) {
-    try {
-      const copied = await duplicateQuote(id)
-      navigate(`/quotes/${copied.id}`)
-    } catch (err) {
-      setError(err?.message || 'Không nhân bản được báo giá.')
-    }
-  }
-
-  async function handleDelete(id) {
-    if (!window.confirm('Xóa mềm báo giá này?')) return
-    try {
-      await softDeleteQuote(id)
-      await loadQuotes()
-    } catch (err) {
-      setError(err?.message || 'Không xóa được báo giá.')
-    }
   }
 
   return (
@@ -180,8 +161,6 @@ export default function QuoteListPage() {
                     <div className="flex justify-end gap-1">
                       <button onClick={() => navigate(`/quotes/${quote.id}`)} className="rounded-lg px-2.5 py-1.5 font-semibold text-blue-700 hover:bg-blue-50">Xem</button>
                       <button onClick={() => navigate(`/quotes/${quote.id}?mode=edit`)} className="rounded-lg px-2.5 py-1.5 font-semibold text-slate-600 hover:bg-slate-100">Sửa</button>
-                      <button onClick={() => handleDuplicate(quote.id)} className="rounded-lg px-2.5 py-1.5 font-semibold text-slate-600 hover:bg-slate-100">Nhân bản</button>
-                      <button onClick={() => handleDelete(quote.id)} className="rounded-lg px-2.5 py-1.5 font-semibold text-red-600 hover:bg-red-50">Xóa</button>
                     </div>
                   </td>
                 </tr>

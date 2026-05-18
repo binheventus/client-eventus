@@ -166,6 +166,55 @@ test('manual price override is treated as the final displayed unit price', () =>
   assert.equal(result.items_with_calculated_price[0].unit_price, 2500000)
 })
 
+test('non-overridden snapshot items reprice when customer tier changes', () => {
+  const result = calculateQuotePricing({
+    items: [{
+      service_code: 'CHUP_IN_4H',
+      quantity: 1,
+      num_sessions: 1,
+      unit_price: 1500000,
+      original_unit_price: 1500000,
+      is_overridden: false,
+    }],
+    services,
+    travelFees,
+    businessRules,
+    location: 'nội thành Hà Nội',
+    customer_tier: 'TIER_1',
+    has_vat: false,
+    duration_hours: 4,
+  })
+
+  assert.equal(result.subtotal, 1800000)
+  assert.equal(result.items_with_calculated_price[0].unit_price, 1800000)
+})
+
+test('custom items keep their manual unit price across tiers', () => {
+  const result = calculateQuotePricing({
+    items: [{
+      service_code: 'CUSTOM',
+      service_name: 'Chi phí phát sinh',
+      quantity: 2,
+      num_sessions: 1,
+      unit_price: 750000,
+      original_unit_price: 0,
+      is_custom: true,
+      is_overridden: true,
+    }],
+    services,
+    travelFees,
+    businessRules,
+    location: 'nội thành Hà Nội',
+    customer_tier: 'TIER_1',
+    has_vat: false,
+    duration_hours: 4,
+  })
+
+  assert.equal(result.subtotal, 1500000)
+  assert.equal(result.items_with_calculated_price[0].unit_price, 750000)
+  assert.equal(result.items_with_calculated_price[0].resolved_service_code, 'CUSTOM')
+})
+
 test('quay full raw text maps to full video', () => {
   const result = calculateQuotePricing({
     items: [{ service_code: null, service_name_raw: 'quay full', quantity: 1, num_sessions: 1 }],

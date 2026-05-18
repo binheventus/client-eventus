@@ -13,6 +13,14 @@ function getServiceName(item) {
   return item.service_name || item.service?.quote_display_name || item.service?.service_name || item.service?.name || item.service_name_raw || item.service_code || 'Hạng mục'
 }
 
+function getServiceCode(item) {
+  return item.resolved_service_code || item.service_code || 'CUSTOM'
+}
+
+function getServiceRawName(item) {
+  return item.service?.service_name || item.service_name_raw || ''
+}
+
 export default function QuoteItemsTable({
   items = [],
   onChangeItem,
@@ -49,11 +57,11 @@ export default function QuoteItemsTable({
         <table className="w-full table-fixed text-left text-[13px]">
           <thead className="bg-slate-50 text-[11px] uppercase tracking-[0.12em] text-slate-500">
             <tr>
-              <th className="w-[53%] py-3 pl-5 pr-3 font-semibold">Dịch vụ</th>
-              <th className="w-[7%] px-1.5 py-3 text-center font-semibold">SL</th>
-              <th className="w-[8%] px-1.5 py-3 text-center font-semibold">Số buổi</th>
-              <th className="w-[15%] px-2 py-3 text-right font-semibold">Đơn giá</th>
-              <th className="w-[12%] py-3 pl-0 pr-0 text-right font-semibold">Thành tiền</th>
+              <th className="w-[59%] py-3 pl-5 pr-3 font-semibold">Dịch vụ</th>
+              <th className="w-[6%] px-1.5 py-3 text-center font-semibold">SL</th>
+              <th className="w-[7%] px-1.5 py-3 text-center font-semibold">Số buổi</th>
+              <th className="w-[13%] px-2 py-3 text-right font-semibold">Đơn giá</th>
+              <th className="w-[10%] py-3 pl-0 pr-0 text-right font-semibold">Thành tiền</th>
               <th className="w-[5%] py-3 pl-0 pr-1" />
             </tr>
           </thead>
@@ -67,28 +75,39 @@ export default function QuoteItemsTable({
             ) : items.map((item, index) => (
               <tr key={item.local_id || index} className="align-top">
                 <td className="py-2 pl-5 pr-3">
-                  <div className="flex min-h-8 flex-wrap items-center gap-1.5">
-                    {item.is_custom ? (
-                      <textarea
-                        value={getServiceName(item)}
-                        rows={1}
-                        onChange={event => onChangeItem?.(index, { service_name: event.target.value })}
-                        className="min-w-[140px] flex-1 resize-none rounded-lg border border-transparent bg-transparent px-2 py-1.5 font-medium leading-5 text-slate-800 outline-none focus:border-slate-200 focus:bg-white"
-                      />
-                    ) : (
-                      <span className="min-w-[140px] flex-1 break-words px-2 py-1.5 font-medium leading-5 text-slate-800">
-                        {getServiceName(item)}
-                      </span>
-                    )}
-                    <span className="shrink-0 rounded-md bg-slate-50 px-2 py-0.5 text-[10px] font-semibold leading-4 text-slate-400">
-                      {item.resolved_service_code || item.service_code || 'CUSTOM'}
-                    </span>
-                    {item.is_overridden ? (
-                      <span className="shrink-0 rounded-md bg-orange-50 px-2 py-0.5 text-[10px] font-semibold leading-4 text-orange-600">
-                        Đã sửa giá
-                      </span>
-                    ) : null}
-                  </div>
+                  {item.is_custom ? (
+                    <textarea
+                      value={item.service_name || ''}
+                      rows={1}
+                      placeholder="Nhập tên hạng mục tùy chỉnh..."
+                      onChange={event => onChangeItem?.(index, { service_name: event.target.value })}
+                      className="min-h-8 w-full resize-none rounded-lg border border-transparent bg-transparent px-2 py-1 font-medium leading-5 text-black outline-none placeholder:text-slate-400 focus:border-slate-200 focus:bg-white"
+                    />
+                  ) : (
+                    <div className="grid min-h-8 grid-cols-[130px_minmax(0,1fr)] items-start gap-x-3 gap-y-1.5">
+                      <div className="min-w-[120px] basis-[130px] shrink grow-0">
+                        <span className="block break-words px-2 py-1 font-medium leading-5 text-black">
+                          {getServiceName(item)}
+                        </span>
+                        <span
+                          title="Mã dịch vụ"
+                          className="ml-2 mt-0.5 inline-flex w-fit rounded-full border border-orange-100/70 bg-orange-50/60 px-1.5 py-0 text-[9px] font-semibold leading-3 text-orange-300"
+                        >
+                          {getServiceCode(item)}
+                        </span>
+                      </div>
+                      {getServiceRawName(item) ? (
+                        <span className="min-w-0 break-words px-2 py-1 text-[12px] font-medium leading-5 text-slate-500">
+                          {getServiceRawName(item)}
+                        </span>
+                      ) : null}
+                      {item.is_overridden ? (
+                        <span className="col-start-2 w-fit rounded-md bg-orange-50 px-2 py-0.5 text-[10px] font-semibold leading-4 text-orange-600">
+                          Đã sửa giá
+                        </span>
+                      ) : null}
+                    </div>
+                  )}
                 </td>
                 <td className="px-1.5 py-2">
                   <input

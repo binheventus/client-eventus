@@ -1,4 +1,14 @@
+import { randomBytes } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
+
+const SHARE_TOKEN_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+const SHARE_TOKEN_LENGTH = 7
+
+function makeShareToken() {
+  return Array.from(randomBytes(SHARE_TOKEN_LENGTH), value => (
+    SHARE_TOKEN_ALPHABET[value % SHARE_TOKEN_ALPHABET.length]
+  )).join('')
+}
 
 function getSupabaseAdminClient() {
   const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
@@ -125,6 +135,15 @@ function getRecoverableInsertColumn(error, payload = {}) {
   }
 
   return ''
+}
+
+function isQuoteCodeCollision(error) {
+  const message = String(error?.message || '').toLowerCase()
+  return error?.code === '23505' && (
+    message.includes('share_token') ||
+    message.includes('quotes_pkey') ||
+    message.includes('quotes_id')
+  )
 }
 
 async function insertWithSchemaRetry(supabase, tableName, payload) {
@@ -290,7 +309,22 @@ async function getQuoteAuditLogs(supabase, quoteId) {
 
 async function createQuote(supabase, body = {}) {
   const { items = [], ...quotePayload } = body
-  const quote = await insertWithSchemaRetry(supabase, 'quotes', quotePayload)
+  const shouldGenerateQuoteCode = !quotePayload.id && !quotePayload.share_token
+  let quote = null
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const quoteCode = quotePayload.id || quotePayload.share_token || makeShareToken()
+    try {
+      quote = await insertWithSchemaRetry(supabase, 'quotes', {
+        ...quotePayload,
+        id: quotePayload.id || quoteCode,
+        share_token: quotePayload.share_token || quoteCode,
+      })
+      break
+    } catch (error) {
+      if (!shouldGenerateQuoteCode || !isQuoteCodeCollision(error) || attempt === 4) throw error
+    }
+  }
 
   if (!items.length) return { ...quote, items: [] }
 
@@ -305,15 +339,33 @@ async function createQuote(supabase, body = {}) {
 }
 
 async function updateQuote(supabase, id, patch = {}) {
+  const { items, ...quotePatch } = patch
   const { data, error } = await supabase
     .from('quotes')
-    .update({ ...patch, updated_at: new Date().toISOString() })
+    .update({ ...quotePatch, updated_at: new Date().toISOString() })
     .eq('id', id)
     .select()
     .single()
 
   if (error) throw error
-  return data
+
+  if (!Array.isArray(items)) return data
+
+  const { error: deleteError } = await supabase
+    .from('quote_items')
+    .delete()
+    .eq('quote_id', id)
+
+  if (deleteError) throw deleteError
+
+  const quoteItems = items.map((item, index) => ({
+    ...item,
+    quote_id: id,
+    sort_order: item.sort_order ?? index + 1,
+  }))
+  const insertedItems = await insertManyWithSchemaRetry(supabase, 'quote_items', quoteItems)
+
+  return { ...data, items: insertedItems || [] }
 }
 
 async function duplicateQuote(supabase, id) {

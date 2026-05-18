@@ -88,7 +88,7 @@ function itemHasOvertimePricing(item = {}, service = null) {
 
 function getBaseUnitPrice(item = {}, service = null, priceColumn = 'price_tier_2') {
   if (item.is_overridden) return toNumber(item.unit_price ?? service?.[priceColumn] ?? service?.price_tier_2)
-  return toNumber(item.original_unit_price ?? item.unit_price ?? service?.[priceColumn] ?? service?.price_tier_2)
+  return toNumber(service?.[priceColumn] ?? item.unit_price ?? item.original_unit_price ?? service?.price_tier_2)
 }
 
 export function findServiceForQuoteItem(services = [], item = {}, location, durationHours, businessRules = {}) {

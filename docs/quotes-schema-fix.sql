@@ -10,11 +10,29 @@
 
 create extension if not exists pgcrypto;
 
+create or replace function public.generate_quote_share_token(token_length integer default 7)
+returns text
+language plpgsql
+volatile
+as $$
+declare
+  alphabet constant text := 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  bytes bytea := gen_random_bytes(token_length);
+  token text := '';
+  byte_index integer;
+begin
+  for byte_index in 0..token_length - 1 loop
+    token := token || substr(alphabet, (get_byte(bytes, byte_index) % length(alphabet)) + 1, 1);
+  end loop;
+
+  return token;
+end $$;
+
 drop view if exists public.active_quotes;
 drop view if exists public.trashed_quotes;
 
 create table if not exists public.quotes (
-  id uuid primary key default gen_random_uuid()
+  id text primary key default public.generate_quote_share_token()
 );
 
 create table if not exists public.quote_items (
@@ -110,7 +128,7 @@ set
   overtime_fee_total = coalesce(overtime_fee_total, 0),
   vat_amount = coalesce(vat_amount, 0),
   total_amount = coalesce(total_amount, 0),
-  share_token = coalesce(nullif(share_token, ''), replace(gen_random_uuid()::text, '-', '')),
+  share_token = coalesce(nullif(share_token, ''), public.generate_quote_share_token()),
   created_at = coalesce(created_at, now()),
   updated_at = coalesce(updated_at, now());
 
@@ -122,7 +140,7 @@ with duplicate_tokens as (
   where share_token is not null and share_token <> ''
 )
 update public.quotes quote_row
-set share_token = replace(gen_random_uuid()::text, '-', '')
+set share_token = public.generate_quote_share_token()
 from duplicate_tokens
 where quote_row.ctid = duplicate_tokens.ctid
   and duplicate_tokens.duplicate_order > 1;
@@ -144,7 +162,7 @@ alter table public.quotes
   alter column vat_amount set not null,
   alter column total_amount set default 0,
   alter column total_amount set not null,
-  alter column share_token set default replace(gen_random_uuid()::text, '-', ''),
+  alter column share_token set default public.generate_quote_share_token(),
   alter column share_token set not null,
   alter column created_at set default now(),
   alter column created_at set not null,
