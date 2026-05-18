@@ -4,68 +4,10 @@ import { createClient } from '@supabase/supabase-js'
 const SHARE_TOKEN_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 const SHARE_TOKEN_LENGTH = 7
 const SYSTEM_ACTOR_ID = '00000000-0000-0000-0000-000000000000'
-const SYNTHETIC_ACTOR_IDS = new Set([
-  SYSTEM_ACTOR_ID,
-  '00000000-0000-0000-0000-000000000001',
-  '00000000-0000-0000-0000-000000000002',
-  '00000000-0000-0000-0000-000000000003',
-])
 const DEFAULT_ENTITY_CODE = 'EVENTUS'
 const DEFAULT_TIER_CODE = 'TIER_2'
 const RECOVERABLE_FK_COLUMNS = new Set(['client_id'])
-const LEGAL_ENTITY_SEEDS = [
-  {
-    entity_code: 'EVENTUS',
-    code: 'EVENTUS',
-    name: 'CONG TY TNHH EVENTUS VIET NAM',
-    entity_name_full: 'CONG TY TNHH EVENTUS VIET NAM',
-    legal_name: 'CONG TY TNHH EVENTUS VIET NAM',
-    display_name: 'Eventus',
-    tax_code: '0107929531',
-    address: 'So 3, ngo 280 duong Le Trong Tan, Phuong Phuong Liet, TP. Ha Noi',
-    representative: 'Ong Pham Thanh Binh',
-    position: 'Giam doc',
-    email: 'Account@eventusproduction.com',
-    hotline: '058.369.2222',
-    website: 'eventusproduction.com',
-    bank_account: '02612345678',
-    bank_name: 'Ngan Hang Thuong Mai Co Phan Tien Phong TP Bank',
-    logo_file: 'logo_eventus.png',
-    source_entity_code: 'EVT',
-    is_active: true,
-    is_default: true,
-    sort_order: 1,
-  },
-  {
-    entity_code: 'MEDIAMONSTER',
-    code: 'MEDIAMONSTER',
-    name: 'CONG TY TNHH MEDIAMONSTER',
-    entity_name_full: 'CONG TY TNHH MEDIAMONSTER',
-    legal_name: 'CONG TY TNHH MEDIAMONSTER',
-    display_name: 'Mediamonster',
-    tax_code: '1001255108',
-    address: 'Thon Le Loi, Xa Tien Hai, Tinh Hung Yen',
-    representative: 'Ong Pham Ngoc Bao',
-    position: 'Giam doc',
-    email: 'Account@eventusproduction.com',
-    hotline: '058.369.2222',
-    website: 'eventusproduction.com',
-    bank_account: '01212345678',
-    bank_name: 'Ngan Hang Thuong Mai Co Phan Tien Phong TP Bank',
-    logo_file: 'logo_mediamonster.png',
-    source_entity_code: 'MMS',
-    is_active: true,
-    is_default: false,
-    sort_order: 2,
-  },
-]
-const CUSTOMER_TIER_SEEDS = [
-  { tier_code: 'TIER_1', code: 'TIER_1', tier_name: 'Khach VinGroup / Agency dac biet', name: 'Khach VinGroup / Agency dac biet', sort_order: 1 },
-  { tier_code: 'TIER_2', code: 'TIER_2', tier_name: 'Khach moi / Khach thong thuong', name: 'Khach moi / Khach thong thuong', sort_order: 2 },
-  { tier_code: 'TIER_3', code: 'TIER_3', tier_name: 'Khach giam gia / Nguoi quen', name: 'Khach giam gia / Nguoi quen', sort_order: 3 },
-  { tier_code: 'TIER_4', code: 'TIER_4', tier_name: '2res', name: '2res', sort_order: 4 },
-  { tier_code: 'TIER_5', code: 'TIER_5', tier_name: 'Tier 5', name: 'Tier 5', sort_order: 5 },
-]
+const VALID_TIER_CODES = new Set(['TIER_1', 'TIER_2', 'TIER_3', 'TIER_4', 'TIER_5'])
 
 function makeShareToken() {
   return Array.from(randomBytes(SHARE_TOKEN_LENGTH), value => (
@@ -313,29 +255,6 @@ async function insertManyWithSchemaRetry(supabase, tableName, payloads) {
   throw new Error(`Schema bang ${tableName} dang thieu nhieu cot. Hay chay docs/quotes-schema-fix.sql trong Supabase.`)
 }
 
-async function upsertWithSchemaRetry(supabase, tableName, payload, onConflict) {
-  let nextPayload = { ...payload }
-  const removedColumns = new Set()
-
-  for (let attempt = 0; attempt <= Object.keys(payload).length; attempt += 1) {
-    const { error } = await supabase
-      .from(tableName)
-      .upsert(nextPayload, onConflict ? { onConflict } : undefined)
-
-    const recoverableColumn = getRecoverableInsertColumn(error, nextPayload)
-    if (!recoverableColumn || !(recoverableColumn in nextPayload) || recoverableColumn === onConflict || removedColumns.has(recoverableColumn)) {
-      if (error) throw error
-      return true
-    }
-
-    removedColumns.add(recoverableColumn)
-    const { [recoverableColumn]: _removed, ...payloadWithoutMissingColumn } = nextPayload
-    nextPayload = payloadWithoutMissingColumn
-  }
-
-  return false
-}
-
 function normalizeCode(value) {
   return String(value || '').trim().toUpperCase()
 }
@@ -349,90 +268,7 @@ function normalizeEntityCode(value) {
 
 function normalizeTierCode(value) {
   const code = normalizeCode(value || DEFAULT_TIER_CODE).replace(/^TIER(\d)$/i, 'TIER_$1')
-  return CUSTOMER_TIER_SEEDS.some(row => row.tier_code === code) ? code : DEFAULT_TIER_CODE
-}
-
-async function rowExists(supabase, tableName, column, value) {
-  const { data, error } = await supabase
-    .from(tableName)
-    .select(column)
-    .eq(column, value)
-    .maybeSingle()
-
-  if (error) return false
-  return Boolean(data)
-}
-
-async function ensureReferenceRow(supabase, tableName, column, row) {
-  const value = row?.[column]
-  if (!value) return false
-
-  try {
-    if (await rowExists(supabase, tableName, column, value)) return true
-    return await upsertWithSchemaRetry(supabase, tableName, row, column)
-  } catch {
-    return false
-  }
-}
-
-async function ensureQuoteReferences(supabase, quotePayload = {}, items = []) {
-  const normalizedEntityCode = normalizeEntityCode(quotePayload.entity_code)
-  const entitySeed = LEGAL_ENTITY_SEEDS.find(row => row.entity_code === normalizedEntityCode) || LEGAL_ENTITY_SEEDS[0]
-  const entityCode = entitySeed.entity_code
-  await ensureReferenceRow(supabase, 'legal_entities', 'entity_code', entitySeed)
-
-  const tierCode = normalizeTierCode(quotePayload.tier_code)
-  const tierSeed = CUSTOMER_TIER_SEEDS.find(row => row.tier_code === tierCode) || CUSTOMER_TIER_SEEDS[1]
-  await ensureReferenceRow(supabase, 'customer_tiers', 'tier_code', tierSeed)
-
-  await Promise.all(items
-    .map((item, index) => ({
-      service_code: item.service_code,
-      code: item.service_code,
-      service_name: item.service_name || item.service_name_raw || item.service_code,
-      quote_display_name: item.service_name || item.service_name_raw || item.service_code,
-      unit: item.unit || 'Goi',
-      is_active: true,
-      sort_order: item.sort_order ?? index + 1,
-    }))
-    .filter(row => row.service_code)
-    .map(row => ensureReferenceRow(supabase, 'services', 'service_code', row)))
-
-  return {
-    ...quotePayload,
-    entity_code: entityCode,
-    tier_code: tierCode,
-  }
-}
-
-async function getFallbackQuoteActor(supabase) {
-  try {
-    const { data, error } = await supabase
-      .from('quotes')
-      .select('created_by,created_by_name,sales_name')
-      .not('created_by', 'is', null)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
-    if (!error && data?.created_by) {
-      return {
-        created_by: data.created_by,
-        created_by_name: data.created_by_name || data.sales_name || 'Eventus',
-        sales_name: data.sales_name || data.created_by_name || 'Eventus',
-        is_existing: true,
-      }
-    }
-  } catch {
-    // Keep quote creation working even when older schemas cannot answer this lookup.
-  }
-
-  return {
-    created_by: SYSTEM_ACTOR_ID,
-    created_by_name: 'Eventus',
-    sales_name: 'Eventus',
-    is_existing: false,
-  }
+  return VALID_TIER_CODES.has(code) ? code : DEFAULT_TIER_CODE
 }
 
 async function getQuoteById(supabase, id) {
@@ -544,28 +380,15 @@ async function getQuoteAuditLogs(supabase, quoteId) {
 
 async function createQuote(supabase, body = {}) {
   const { items = [], user_id: userId, created_by_id: createdById, user_name: userName, ...quotePayload } = body
-  const preparedQuotePayload = await ensureQuoteReferences(supabase, quotePayload, items)
-  const requestedCreatedBy = preparedQuotePayload.created_by || userId || createdById
-  const canReplaceSyntheticActor = requestedCreatedBy && SYNTHETIC_ACTOR_IDS.has(String(requestedCreatedBy))
-  const fallbackActor = (!requestedCreatedBy || canReplaceSyntheticActor)
-    ? await getFallbackQuoteActor(supabase)
-    : null
-  const createdBy = fallbackActor?.is_existing ? fallbackActor.created_by : requestedCreatedBy || fallbackActor?.created_by || SYSTEM_ACTOR_ID
-  const creatorName = fallbackActor?.is_existing
-    ? fallbackActor.created_by_name
-    : preparedQuotePayload.created_by_name ||
-      preparedQuotePayload.sales_name ||
-      userName ||
-      fallbackActor?.created_by_name ||
-      (createdBy === 'admin' ? 'Admin' : 'Eventus')
-  const salesName = fallbackActor?.is_existing
-    ? fallbackActor.sales_name
-    : preparedQuotePayload.sales_name || creatorName
+  const createdBy = quotePayload.created_by || userId || createdById || SYSTEM_ACTOR_ID
+  const creatorName = quotePayload.created_by_name || quotePayload.sales_name || userName || 'Eventus'
   const normalizedQuotePayload = {
-    ...preparedQuotePayload,
+    ...quotePayload,
+    entity_code: normalizeEntityCode(quotePayload.entity_code),
+    tier_code: normalizeTierCode(quotePayload.tier_code),
     created_by: createdBy,
     created_by_name: creatorName,
-    sales_name: salesName,
+    sales_name: quotePayload.sales_name || creatorName,
   }
   const shouldGenerateShareToken = !normalizedQuotePayload.share_token
   let quote = null

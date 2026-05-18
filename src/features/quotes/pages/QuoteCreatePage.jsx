@@ -838,43 +838,6 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
     return ''
   }
 
-  async function ensureClientId() {
-    if (quote.client_id) return quote.client_id
-
-    const name = String(quote.client_name || clientQuery || '').trim()
-    if (!name) return null
-    if (!hasSupabaseConfig) {
-      setQuote(prev => ({ ...prev, client_name: name }))
-      return null
-    }
-
-    try {
-      let response = await fromQuoteTable('clients')
-        .insert({ name })
-        .select()
-        .single()
-
-      if (response.error?.message?.includes('name')) {
-        response = await fromQuoteTable('clients')
-          .insert({ client_name: name })
-          .select()
-          .single()
-      }
-
-      if (response.error || !response.data?.id) {
-        setQuote(prev => ({ ...prev, client_name: name }))
-        return null
-      }
-
-      setClients(prev => [response.data, ...prev])
-      setQuote(prev => ({ ...prev, client_id: response.data.id, client_name: name }))
-      return response.data.id
-    } catch {
-      setQuote(prev => ({ ...prev, client_name: name }))
-      return null
-    }
-  }
-
   async function saveQuote(status) {
     const error = validateBeforeSave()
     if (error) {
@@ -888,7 +851,7 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
     try {
       const now = new Date().toISOString()
       const clientName = String(quote.client_name || clientQuery || '').trim()
-      const clientId = await ensureClientId()
+      const clientId = quote.client_id || null
       const quotePayload = {
         ...(!isEditMode ? getQuoteActorPayload(userContext) : {}),
         ai_input: inputText,
@@ -935,7 +898,7 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
       if (status === 'sent') {
         const shareToken = saved.share_token
         if (shareToken) {
-          await navigator.clipboard?.writeText(`${window.location.origin}/q/${shareToken}`).catch(() => {})
+          navigator.clipboard?.writeText(`${window.location.origin}/q/${shareToken}`).catch(() => {})
           navigate(`/quotes/${saved.id}`)
           return
         }
