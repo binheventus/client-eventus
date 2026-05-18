@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { FileSignature } from 'lucide-react'
+import QuoteBreadcrumb from '../components/QuoteBreadcrumb'
 import QuotePreview from '../components/QuotePreview'
 import {
   getQuote,
@@ -40,6 +41,7 @@ function getValidUntil(quote) {
 
 export default function QuoteDetailPage() {
   const { id } = useParams()
+  const location = useLocation()
   const navigate = useNavigate()
   const { legalEntities } = useLegalEntities()
   const [quote, setQuote] = useState(null)
@@ -50,6 +52,7 @@ export default function QuoteDetailPage() {
   const [showContractModal, setShowContractModal] = useState(false)
 
   const validUntil = useMemo(() => getValidUntil(quote), [quote])
+  const contractRequested = useMemo(() => new URLSearchParams(location.search).get('contract') === '1', [location.search])
   const expired = validUntil ? validUntil.getTime() < Date.now() : false
   const canCreateContract = canCreateContractFromQuote(quote)
 
@@ -76,6 +79,26 @@ export default function QuoteDetailPage() {
     loadDetail()
   }, [id])
 
+  useEffect(() => {
+    if (!quote) return
+    setShowContractModal(contractRequested && canCreateContractFromQuote(quote))
+  }, [contractRequested, quote])
+
+  function openContractModal() {
+    if (!canCreateContract) return
+    const params = new URLSearchParams(location.search)
+    params.set('contract', '1')
+    navigate(`/quotes/${id}?${params.toString()}`)
+  }
+
+  function closeContractModal() {
+    const params = new URLSearchParams(location.search)
+    params.delete('contract')
+    const nextSearch = params.toString()
+    navigate(`/quotes/${id}${nextSearch ? `?${nextSearch}` : ''}`, { replace: true })
+    setShowContractModal(false)
+  }
+
   async function copyShareLink() {
     if (!quote?.share_token) return
     await navigator.clipboard?.writeText(`${window.location.origin}/q/${quote.share_token}`)
@@ -89,14 +112,14 @@ export default function QuoteDetailPage() {
     <div className="mx-auto max-w-[1500px] space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <button onClick={() => navigate('/quotes')} className="mb-2 text-[13px] font-semibold text-slate-500 hover:text-slate-900">← Danh sách báo giá</button>
+          <QuoteBreadcrumb items={[{ label: quote.quote_number || quote.event_name || 'Chi tiết báo giá' }]} />
         </div>
         <div className="flex flex-wrap gap-2">
           <button onClick={() => navigate(`/quotes/${id}?mode=edit`)} className="rounded-xl border border-slate-200 px-4 py-2.5 text-[13px] font-semibold text-slate-700 hover:bg-slate-50">Sửa</button>
           <button
             type="button"
             disabled={!canCreateContract}
-            onClick={() => setShowContractModal(true)}
+            onClick={openContractModal}
             title={canCreateContract ? 'Tạo hoặc sửa hợp đồng' : 'Báo giá nháp chưa tạo được hợp đồng'}
             className="inline-flex items-center gap-2 rounded-xl border border-orange-200 bg-orange-50 px-4 py-2.5 text-[13px] font-semibold text-orange-700 hover:bg-orange-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-300"
           >
@@ -176,7 +199,7 @@ export default function QuoteDetailPage() {
           <ContractEditorModal
             open={showContractModal}
             quote={quote}
-            onClose={() => setShowContractModal(false)}
+            onClose={closeContractModal}
           />
         </Suspense>
       ) : null}

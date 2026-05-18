@@ -240,7 +240,6 @@ export function getEntityProfile(entityCode = 'EVENTUS') {
     position: entity.position || '',
     bank_account: entity.bank_account || '',
     bank_name: entity.bank_name || '',
-    bank_account_holder: entity.bank_account_holder || entity.legal_name || entity.entity_name_full || '',
   }
 }
 

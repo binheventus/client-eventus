@@ -208,6 +208,10 @@ function getLocalContractByQuoteId(quoteId) {
   return getLocalContracts().find(contract => contract.quote_id === quoteId) || null
 }
 
+function getLocalContractByShareToken(shareToken) {
+  return getLocalContracts().find(contract => contract.quote_snapshot?.share_token === shareToken) || null
+}
+
 function saveLocalContract(payload = {}, { quote } = {}) {
   const existing = payload.id
     ? getLocalContracts().find(contract => contract.id === payload.id)
@@ -383,6 +387,22 @@ export async function getContractByQuoteId(quoteId) {
     if (!isSchemaMissing(error)) throw error
     return getLocalContractByQuoteId(quoteId)
   }
+}
+
+export async function getPublicContractByToken(shareToken) {
+  if (!shareToken) return null
+  if (!hasSupabaseConfig) return getLocalContractByShareToken(shareToken)
+
+  if (canUseContractApi()) {
+    try {
+      const result = await requestContractApi(`?resource=public_contract&token=${encodeURIComponent(shareToken)}`)
+      return result.contract || null
+    } catch (error) {
+      if (!shouldFallback(error) && !isSchemaMissing(error) && Number(error?.status) !== 404) throw error
+    }
+  }
+
+  return getLocalContractByShareToken(shareToken)
 }
 
 export async function saveContract(payload = {}, { quote } = {}) {

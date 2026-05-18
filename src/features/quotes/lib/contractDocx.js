@@ -222,7 +222,6 @@ function partyTable(contract = {}) {
 
     if (role === 'seller') {
       rows.push(tableRow([tableCell('Số tài khoản', 1600), tableCell(':', 300), tableCell([profile.bank_account, profile.bank_name].filter(Boolean).join(' '), 7100)]))
-      rows.push(tableRow([tableCell('Chủ tài khoản', 1600), tableCell(':', 300), tableCell(profile.bank_account_holder || getProfileName(profile), 7100)]))
     }
 
     return simpleTable(rows)
@@ -357,8 +356,8 @@ function documentXml(contract = {}) {
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
   <w:body>
-    ${paragraph('CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM', { align: 'center', bold: true })}
-    ${paragraph('Độc lập – Tự do – Hạnh phúc', { align: 'center', bold: true })}
+    ${paragraph('CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM', { align: 'center' })}
+    ${paragraph('Độc lập – Tự do – Hạnh phúc', { align: 'center' })}
     ${paragraph(contract.title || 'HỢP ĐỒNG CUNG CẤP DỊCH VỤ', { style: 'Title', align: 'center', bold: true })}
     ${paragraph(`Số: ${contract.contract_number || ''}`, { align: 'center', bold: true })}
     ${DEFAULT_CONTRACT_PREAMBLE.map(line => paragraph(line)).join('')}

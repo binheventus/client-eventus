@@ -62,6 +62,15 @@ function getRecoverableInsertColumn(error, payload) {
   }
 
   if (
+    'id' in payload &&
+    message.includes('invalid input syntax') &&
+    message.includes('uuid') &&
+    message.includes(String(payload.id).toLowerCase())
+  ) {
+    return 'id'
+  }
+
+  if (
     'client_id' in payload &&
     (message.includes('client_id') ||
       (message.includes('uuid') && message.includes('invalid input syntax')))
@@ -143,7 +152,7 @@ function applyLocalFilters(quotes = [], filters = {}) {
 
 function makeLocalQuoteNumber(quotes = []) {
   const nextNumber = quotes.length + 1
-  return `LOCAL-${String(nextNumber).padStart(4, '0')}`
+  return `BG-${String(nextNumber).padStart(4, '0')}`
 }
 
 function listLocalQuotes({ filters = {}, page = 1, pageSize = 20 } = {}) {
@@ -537,11 +546,9 @@ export async function createQuote(payload = {}) {
     }
   }
 
-  const quoteCode = payload.id || payload.share_token || makeShareToken()
   const nextPayload = {
     ...payload,
-    id: payload.id || quoteCode,
-    share_token: payload.share_token || quoteCode,
+    share_token: payload.share_token || makeShareToken(),
   }
   const { items = [], ...quotePayload } = nextPayload
 

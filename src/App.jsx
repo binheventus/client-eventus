@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import EventusAILabPage from './pages/EventusAILabPage'
-import { QuotePublicPage } from './features/quotes'
+import { ContractPublicPage, QuotePublicPage } from './features/quotes'
 
 export default function App() {
   return (
@@ -14,6 +14,7 @@ export default function App() {
         <Route path="/quotes/contract-templates" element={<EventusAILabPage />} />
         <Route path="/quotes/:id" element={<EventusAILabPage />} />
         <Route path="/q/:share_token" element={<QuotePublicPage />} />
+        <Route path="/c/:share_token" element={<ContractPublicPage />} />
         <Route path="/position/:positionId" element={<EventusAILabPage />} />
         <Route path="/position/:positionId/level/:levelIndex" element={<EventusAILabPage />} />
         <Route path="*" element={<EventusAILabPage />} />

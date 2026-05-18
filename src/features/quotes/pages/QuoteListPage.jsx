@@ -1,12 +1,12 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FileSignature, ScrollText } from 'lucide-react'
-import { getQuote, listQuotes } from '../hooks/useQuotes'
+import QuoteBreadcrumb from '../components/QuoteBreadcrumb'
+import { listQuotes } from '../hooks/useQuotes'
 import { canCreateContractFromQuote } from '../lib/contractDefaults'
 import { canViewAllQuotes, getQuoteUserContext } from '../lib/quoteAuth'
 
 const PAGE_SIZE = 20
-const ContractEditorModal = lazy(() => import('../components/ContractEditorModal'))
 
 function formatCurrency(value) {
   return new Intl.NumberFormat('vi-VN').format(Number(value) || 0)
@@ -40,8 +40,6 @@ export default function QuoteListPage() {
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [contractQuote, setContractQuote] = useState(null)
-  const [contractLoadingId, setContractLoadingId] = useState('')
   const [filters, setFilters] = useState({
     search: '',
     status: '',
@@ -82,26 +80,17 @@ export default function QuoteListPage() {
     setFilters(prev => ({ ...prev, [key]: value }))
   }
 
-  async function openContractModal(quote) {
+  function openContractPage(quote) {
     if (!canCreateContractFromQuote(quote)) return
-    setContractLoadingId(quote.id)
-    setError('')
-
-    try {
-      const fullQuote = await getQuote(quote.id)
-      setContractQuote(fullQuote)
-    } catch (err) {
-      setError(err?.message || 'Không tải được báo giá để tạo hợp đồng.')
-    } finally {
-      setContractLoadingId('')
-    }
+    navigate(`/quotes/${quote.id}?contract=1`)
   }
 
   return (
     <div className="mx-auto max-w-[1500px] space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-[28px] font-semibold tracking-tight text-slate-950">Báo giá</h1>
+          <QuoteBreadcrumb />
+          <h1 className="mt-2 text-[28px] font-semibold tracking-tight text-slate-950">Báo giá</h1>
           <p className="mt-1 text-[13px] text-slate-500">
             {canViewAllQuotes(userContext.role) ? 'Đang xem toàn bộ báo giá.' : 'Sales chỉ xem báo giá của chính mình khi có user id trong session.'}
           </p>
@@ -193,13 +182,13 @@ export default function QuoteListPage() {
                       <button onClick={() => navigate(`/quotes/${quote.id}?mode=edit`)} className="rounded-lg px-2.5 py-1.5 font-semibold text-slate-600 hover:bg-slate-100">Sửa</button>
                       <button
                         type="button"
-                        disabled={!canCreateContractFromQuote(quote) || contractLoadingId === quote.id}
-                        onClick={() => openContractModal(quote)}
+                        disabled={!canCreateContractFromQuote(quote)}
+                        onClick={() => openContractPage(quote)}
                         title={canCreateContractFromQuote(quote) ? 'Tạo hoặc sửa hợp đồng' : 'Báo giá nháp chưa tạo được hợp đồng'}
                         className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 font-semibold text-orange-700 hover:bg-orange-50 disabled:cursor-not-allowed disabled:text-slate-300 disabled:hover:bg-transparent"
                       >
                         <FileSignature className="h-3.5 w-3.5" />
-                        {contractLoadingId === quote.id ? 'Đang tải' : 'Hợp đồng'}
+                        Hợp đồng
                       </button>
                     </div>
                   </td>
@@ -219,16 +208,6 @@ export default function QuoteListPage() {
           </div>
         </div>
       </section>
-
-      {contractQuote ? (
-        <Suspense fallback={null}>
-          <ContractEditorModal
-            open={Boolean(contractQuote)}
-            quote={contractQuote}
-            onClose={() => setContractQuote(null)}
-          />
-        </Suspense>
-      ) : null}
     </div>
   )
 }

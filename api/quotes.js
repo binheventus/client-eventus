@@ -120,6 +120,15 @@ function getRecoverableInsertColumn(error, payload = {}) {
   }
 
   if (
+    'id' in payload &&
+    message.includes('invalid input syntax') &&
+    message.includes('uuid') &&
+    message.includes(String(payload.id).toLowerCase())
+  ) {
+    return 'id'
+  }
+
+  if (
     'client_id' in payload &&
     (message.includes('client_id') ||
       (message.includes('uuid') && message.includes('invalid input syntax')))
@@ -309,20 +318,19 @@ async function getQuoteAuditLogs(supabase, quoteId) {
 
 async function createQuote(supabase, body = {}) {
   const { items = [], ...quotePayload } = body
-  const shouldGenerateQuoteCode = !quotePayload.id && !quotePayload.share_token
+  const shouldGenerateShareToken = !quotePayload.share_token
   let quote = null
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
-    const quoteCode = quotePayload.id || quotePayload.share_token || makeShareToken()
+    const shareToken = quotePayload.share_token || makeShareToken()
     try {
       quote = await insertWithSchemaRetry(supabase, 'quotes', {
         ...quotePayload,
-        id: quotePayload.id || quoteCode,
-        share_token: quotePayload.share_token || quoteCode,
+        share_token: shareToken,
       })
       break
     } catch (error) {
-      if (!shouldGenerateQuoteCode || !isQuoteCodeCollision(error) || attempt === 4) throw error
+      if (!shouldGenerateShareToken || !isQuoteCodeCollision(error) || attempt === 4) throw error
     }
   }
 

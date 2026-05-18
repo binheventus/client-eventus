@@ -2,6 +2,7 @@ export { default as QuoteListPage } from './pages/QuoteListPage'
 export { default as QuoteCreatePage } from './pages/QuoteCreatePage'
 export { default as QuoteDetailPage } from './pages/QuoteDetailPage'
 export { default as QuotePublicPage } from './pages/QuotePublicPage'
+export { default as ContractPublicPage } from './pages/ContractPublicPage'
 export { default as QuoteTrashPage } from './pages/QuoteTrashPage'
 export { default as ContractTemplatesPage } from './pages/ContractTemplatesPage'
 
@@ -31,6 +32,7 @@ export {
   createContractDraftFromQuote,
   deleteContractTemplate,
   getContractByQuoteId,
+  getPublicContractByToken,
   listContractTemplates,
   saveContract,
   saveContractTemplate,

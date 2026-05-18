@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import QuoteBreadcrumb from '../components/QuoteBreadcrumb'
 import { listTrashed, permanentlyDeleteQuote, restoreQuote } from '../hooks/useQuotes'
 import { canUseQuoteTrash, getQuoteUserContext } from '../lib/quoteAuth'
 
@@ -22,7 +22,6 @@ function daysUntilPurge(deletedAt) {
 }
 
 export default function QuoteTrashPage() {
-  const navigate = useNavigate()
   const userContext = useMemo(() => getQuoteUserContext(), [])
   const [quotes, setQuotes] = useState([])
   const [count, setCount] = useState(0)
@@ -78,8 +77,8 @@ export default function QuoteTrashPage() {
     <div className="mx-auto max-w-[1400px] space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <button onClick={() => navigate('/quotes')} className="mb-2 text-[13px] font-semibold text-slate-500 hover:text-slate-900">← Danh sách báo giá</button>
-          <h1 className="text-[28px] font-semibold tracking-tight text-slate-950">Thùng rác báo giá</h1>
+          <QuoteBreadcrumb items={[{ label: 'Thùng rác' }]} />
+          <h1 className="mt-2 text-[28px] font-semibold tracking-tight text-slate-950">Thùng rác báo giá</h1>
           <p className="mt-1 text-[13px] text-slate-500">Báo giá đã xóa mềm. Auto-purge sau 90 ngày sẽ làm ở cron job sau.</p>
         </div>
       </div>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { CopyPlus, Eye, Plus, Save, Trash2, X } from 'lucide-react'
+import { CopyPlus, Eye, Plus, Save, Trash2 } from 'lucide-react'
+import QuoteBreadcrumb from '../components/QuoteBreadcrumb'
 import {
   deleteContractTemplate,
   listContractTemplates,
@@ -16,6 +16,7 @@ import {
   sectionsToTermsText,
   termsTextToSections,
 } from '../lib/contractDefaults'
+import ContractPreviewModal from '../components/ContractPreviewModal'
 
 const EMPTY_TEMPLATE = normalizeContractTemplate({
   id: '',
@@ -84,10 +85,6 @@ function formatLastEdited(template = {}) {
   }).format(date)}`
 }
 
-function hasText(value) {
-  return String(value ?? '').trim().length > 0
-}
-
 function getServiceScopeDetail(value = '') {
   return String(value || '').replace(/^cung cấp\s+/i, '').trim()
 }
@@ -95,178 +92,6 @@ function getServiceScopeDetail(value = '') {
 function composeServiceScope(detail = '') {
   const text = String(detail || '').trim()
   return text ? `cung cấp ${text}` : ''
-}
-
-function PreviewValue({ value, fallback, className = '' }) {
-  const missing = !hasText(value)
-  return (
-    <span className={missing ? 'font-semibold text-red-600' : className}>
-      {missing ? fallback : value}
-    </span>
-  )
-}
-
-function PreviewLine({ label, value, fallback = label }) {
-  return (
-    <p className="text-[13px] leading-6 text-slate-700">
-      <span className="font-semibold text-slate-900">{label}:</span>{' '}
-      <PreviewValue value={value} fallback={fallback} />
-    </p>
-  )
-}
-
-function ContractTemplatePreviewModal({ template, onClose }) {
-  const termsText = String(template.terms_text ?? sectionsToTermsText(template.content_sections) ?? '')
-  const contentSections = hasText(termsText) ? termsTextToSections(termsText) : []
-  const scheduleRows = Array.isArray(template.schedule_rows) ? template.schedule_rows : []
-  const paymentDocuments = Array.isArray(template.payment_config?.payment_documents)
-    ? template.payment_config.payment_documents
-    : []
-  const depositPercent = template.payment_config?.deposit_percent ?? DEFAULT_PAYMENT_CONFIG.deposit_percent
-  const finalDueDays = template.payment_config?.final_due_days ?? DEFAULT_PAYMENT_CONFIG.final_due_days
-  const serviceScopeDetail = getServiceScopeDetail(template.service_scope)
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6">
-      <section className="max-h-[90vh] w-full max-w-5xl overflow-hidden rounded-2xl bg-white shadow-2xl">
-        <header className="flex items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
-          <div>
-            <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-slate-400">Preview</p>
-            <h2 className="mt-1 text-[20px] font-semibold text-slate-950">Nháp mẫu hợp đồng</h2>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50"
-            aria-label="Đóng preview"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </header>
-
-        <div className="max-h-[calc(90vh-82px)] overflow-y-auto px-5 py-5">
-          <div className="mx-auto max-w-4xl space-y-5 rounded-2xl border border-slate-200 bg-slate-50 p-5">
-            <section className="rounded-xl bg-white p-4">
-              <div className="text-center">
-                <p className="text-[13px] font-bold uppercase text-slate-950">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
-                <p className="text-[13px] font-bold text-slate-950">Độc lập – Tự do – Hạnh phúc</p>
-              </div>
-              <h3 className="text-center text-[18px] font-bold uppercase tracking-wide text-slate-950">
-                <PreviewValue value={template.title} fallback="Tiêu đề hợp đồng" />
-              </h3>
-              <p className="mt-1 text-center text-[13px] font-semibold text-slate-700">
-                Số: <PreviewValue value="" fallback="Số hợp đồng" />
-              </p>
-              <div className="mt-4 space-y-1">
-                {DEFAULT_CONTRACT_PREAMBLE.map((line, index) => (
-                  <p key={`${line}-${index}`} className="text-[13px] leading-6 text-slate-700">{line}</p>
-                ))}
-                <p className="pt-2 text-[13px] leading-6 text-slate-700">
-                  Hợp đồng cung cấp dịch vụ (sau đây gọi tắt là “Hợp đồng”) được lập và ký kết ngày <PreviewValue value="" fallback="Ngày ký hợp đồng" /> giữa các bên gồm:
-                </p>
-              </div>
-            </section>
-
-            <section className="rounded-xl bg-white p-4">
-              <h3 className="text-[14px] font-semibold text-slate-900">Thông tin các bên</h3>
-              <div className="mt-3 grid gap-3 md:grid-cols-2">
-                <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-                  <p className="text-[13px] font-bold text-slate-950">BÊN A:</p>
-                  <PreviewLine label="Tên pháp nhân" value="" fallback="Tên khách hàng" />
-                  <PreviewLine label="Đại diện" value="" fallback="Người đại diện khách hàng" />
-                  <PreviewLine label="Địa chỉ" value="" fallback="Địa chỉ khách hàng" />
-                  <PreviewLine label="Mã số thuế" value="" fallback="Mã số thuế khách hàng" />
-                </div>
-                <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-                  <p className="text-[13px] font-bold text-slate-950">BÊN B:</p>
-                  <PreviewLine label="Tên pháp nhân" value="" fallback="Pháp nhân được chọn khi tạo hợp đồng" />
-                  <PreviewLine label="Đại diện" value="" fallback="Người đại diện Bên B" />
-                  <PreviewLine label="Địa chỉ" value="" fallback="Địa chỉ Bên B" />
-                  <PreviewLine label="Mã số thuế" value="" fallback="Mã số thuế Bên B" />
-                </div>
-              </div>
-            </section>
-
-            <section className="rounded-xl bg-white p-4">
-              <h3 className="text-[14px] font-semibold text-slate-900">ĐIỀU 1: NỘI DUNG HỢP ĐỒNG</h3>
-              <p className="mt-3 text-[13px] leading-6 text-slate-700">Sau khi thỏa thuận, Các Bên đồng ý ký kết Hợp Đồng này theo các điều khoản sau:</p>
-              <div className="mt-3 space-y-2">
-                <p className="text-[13px] leading-6 text-slate-700">
-                  Bên A đề nghị Bên B và Bên B đồng ý cung cấp <PreviewValue value={serviceScopeDetail} fallback="Nội dung dịch vụ" /> cho Bên A, chi tiết như sau:
-                </p>
-                {scheduleRows.length ? scheduleRows.map((row, index) => (
-                  <div key={`${row.date_text}-${index}`} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
-                    <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-slate-400">Lịch mẫu {index + 1}</p>
-                    <div className="mt-1 grid gap-1 md:grid-cols-3">
-                      <PreviewLine label="Giờ" value={row.time_range} />
-                      <PreviewLine label="Ngày" value={row.date_text} />
-                      <PreviewLine label="Địa điểm" value={row.location} />
-                    </div>
-                  </div>
-                )) : (
-                  <PreviewLine label="Lịch mẫu" value="" />
-                )}
-                <p className="text-[13px] font-semibold text-slate-900">Chi tiết hạng mục: Theo Phụ lục cuối hợp đồng.</p>
-              </div>
-            </section>
-
-            <section className="rounded-xl bg-white p-4">
-              <h3 className="text-[14px] font-semibold text-slate-900">ĐIỀU 2: GIÁ TRỊ HỢP ĐỒNG</h3>
-              <div className="mt-3 space-y-2">
-                <p className="text-[13px] leading-6 text-slate-700">Giá trị của hợp đồng là: <PreviewValue value="" fallback="Giá trị hợp đồng" /> VNĐ (Đã bao gồm VAT)</p>
-                <p className="text-[13px] leading-6 text-slate-700">(Bằng chữ: <PreviewValue value="" fallback="Số tiền bằng chữ" /> ./. )</p>
-                <p className="text-[13px] leading-6 text-slate-700">Phương thức thanh toán: Việc thanh toán Hợp đồng sẽ thực hiện thành 02 lần:</p>
-                <p className="text-[13px] leading-6 text-slate-700">
-                  Lần 1: Bên A đặt cọc {depositPercent}% giá trị hợp đồng tương ứng <PreviewValue value="" fallback="Số tiền tạm ứng" /> VNĐ cho Bên B sau khi ký hợp đồng và Bên B xuất hóa đơn cho Bên A sau khi nhận được thanh toán lần 1.
-                </p>
-                <p className="text-[13px] leading-6 text-slate-700">
-                  Lần 2: Bên A thanh toán nốt số tiền còn lại cho Bên B trong vòng {finalDueDays} ngày sau khi Bên B bàn giao cho Bên A đầy đủ sản phẩm & hóa đơn tài chính theo yêu cầu của Bên A.
-                </p>
-              </div>
-              <div className="mt-3">
-                <p className="text-[13px] font-semibold text-slate-900">Hồ sơ thanh toán:</p>
-                {paymentDocuments.length ? (
-                  <ul className="mt-1 list-disc space-y-1 pl-5 text-[13px] leading-6 text-slate-700">
-                    {paymentDocuments.map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}
-                  </ul>
-                ) : (
-                  <p className="mt-1 text-[13px] font-semibold text-red-600">Hồ sơ thanh toán</p>
-                )}
-              </div>
-            </section>
-
-            <section className="rounded-xl bg-white p-4">
-              {contentSections.length ? (
-                <div className="space-y-4">
-                  {contentSections.map((section, index) => (
-                    <div key={section.id || `${section.article_no}-${index}`}>
-                      <p className="text-[13px] font-bold uppercase text-slate-950">ĐIỀU {section.article_no || index + 3}: {section.title || 'ĐIỀU KHOẢN'}</p>
-                      <div className="mt-1 whitespace-pre-wrap text-[13px] leading-6 text-slate-700">{section.body}</div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="whitespace-pre-wrap text-[13px] font-semibold leading-6 text-red-600">Nội dung từ ĐIỀU 3 trở đi</p>
-              )}
-            </section>
-
-            <section className="rounded-xl bg-white p-4">
-              <div className="grid gap-3 text-center md:grid-cols-2">
-                <div>
-                  <p className="text-[13px] font-bold text-slate-950">ĐẠI DIỆN BÊN A</p>
-                  <p className="mt-12 text-[13px] font-semibold text-red-600">Người đại diện Bên A</p>
-                </div>
-                <div>
-                  <p className="text-[13px] font-bold text-slate-950">ĐẠI DIỆN BÊN B</p>
-                  <p className="mt-12 text-[13px] font-semibold text-red-600">Người đại diện Bên B</p>
-                </div>
-              </div>
-            </section>
-          </div>
-        </div>
-      </section>
-    </div>
-  )
 }
 
 function DeleteConfirmModal({ templateName, saving, onCancel, onConfirm }) {
@@ -302,7 +127,6 @@ function DeleteConfirmModal({ templateName, saving, onCancel, onConfirm }) {
 }
 
 export default function ContractTemplatesPage() {
-  const navigate = useNavigate()
   const [templates, setTemplates] = useState([])
   const [selectedId, setSelectedId] = useState('')
   const [draft, setDraft] = useState(EMPTY_TEMPLATE)
@@ -464,8 +288,8 @@ export default function ContractTemplatesPage() {
     <div className="mx-auto max-w-[1500px] space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <button onClick={() => navigate('/quotes')} className="mb-2 text-[13px] font-semibold text-slate-500 hover:text-slate-900">← Danh sách báo giá</button>
-          <h1 className="text-[28px] font-semibold tracking-tight text-slate-950">Mẫu hợp đồng</h1>
+          <QuoteBreadcrumb items={[{ label: 'Mẫu hợp đồng' }]} />
+          <h1 className="mt-2 text-[28px] font-semibold tracking-tight text-slate-950">Mẫu hợp đồng</h1>
           <p className="mt-1 text-[13px] text-slate-500">Quản lý cấu trúc hợp đồng: lịch triển khai, thanh toán và điều khoản.</p>
         </div>
         <button
@@ -483,7 +307,7 @@ export default function ContractTemplatesPage() {
 
       <div className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
         <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-          <div className="px-2 py-2 text-[12px] font-semibold uppercase tracking-[0.12em] text-slate-400">Danh sách mẫu</div>
+          <div className="px-2 py-2 text-[12px] font-semibold uppercase tracking-[0.12em] text-slate-400">Danh sách Form Hợp đồng</div>
           <div className="mt-2 space-y-2">
             {loading ? (
               <p className="px-2 py-6 text-center text-[13px] text-slate-400">Đang tải...</p>
@@ -498,11 +322,7 @@ export default function ContractTemplatesPage() {
                   <span className="text-[13px] font-semibold text-slate-900">{template.name}</span>
                   {template.is_default ? <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-emerald-700">Default</span> : null}
                 </div>
-                <p className="mt-1 line-clamp-2 text-[12px] leading-5 text-slate-500">{template.description || 'Không có mô tả.'}</p>
-                <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-slate-400">
-                  <span>Phụ lục cuối hợp đồng</span>
-                </div>
-                {template.is_system_default ? <p className="mt-2 text-[11px] font-semibold text-slate-400">Mẫu hệ thống</p> : null}
+                {template.title ? <p className="mt-1 line-clamp-2 text-[12px] leading-5 text-slate-500">{template.title}</p> : null}
               </button>
             )) : (
               <p className="px-2 py-6 text-center text-[13px] text-slate-400">Chưa có mẫu hợp đồng.</p>
@@ -512,16 +332,12 @@ export default function ContractTemplatesPage() {
 
         <div className="space-y-5">
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-[16px] font-semibold text-slate-900">Tổng quan</h2>
-            <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px]">
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px]">
               <Field label="Tên mẫu">
                 <Input value={draft.name} onChange={event => updateDraft({ name: event.target.value })} />
               </Field>
               <Field label="Thứ tự">
                 <Input type="number" value={draft.sort_order} onChange={event => updateDraft({ sort_order: Number(event.target.value) })} />
-              </Field>
-              <Field label="Mô tả" className="lg:col-span-2">
-                <Input value={draft.description || ''} onChange={event => updateDraft({ description: event.target.value })} />
               </Field>
               <Field label="Tiêu đề hợp đồng">
                 <Input value={draft.title || ''} onChange={event => updateDraft({ title: event.target.value })} />
@@ -542,8 +358,8 @@ export default function ContractTemplatesPage() {
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="text-[16px] font-semibold text-slate-900">Phần mở đầu</h2>
             <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-center">
-              <p className="text-[13px] font-bold uppercase text-slate-950">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
-              <p className="text-[13px] font-bold text-slate-950">Độc lập – Tự do – Hạnh phúc</p>
+              <p className="text-[13px] uppercase text-slate-950">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
+              <p className="text-[13px] text-slate-950">Độc lập – Tự do – Hạnh phúc</p>
             </div>
             <div className="mt-4 rounded-xl border border-slate-100 bg-white px-4 py-3">
               <p className="text-[12px] font-semibold uppercase tracking-[0.1em] text-slate-400">Căn cứ hợp đồng</p>
@@ -557,8 +373,8 @@ export default function ContractTemplatesPage() {
           </section>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-[16px] font-semibold text-slate-900">ĐIỀU 1: NỘI DUNG HỢP ĐỒNG</h2>
-            <p className="mt-3 text-[13px] leading-6 text-slate-700">Sau khi thỏa thuận, Các Bên đồng ý ký kết Hợp Đồng này theo các điều khoản sau:</p>
+            <p className="text-[13px] leading-6 text-slate-700">Sau khi thỏa thuận, Các Bên đồng ý ký kết Hợp Đồng này theo các điều khoản sau:</p>
+            <h2 className="mt-3 text-[16px] font-semibold text-slate-900">ĐIỀU 1: NỘI DUNG HỢP ĐỒNG</h2>
             <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-[13px] leading-6 text-slate-700">
               <span>Bên A đề nghị Bên B và Bên B đồng ý cung cấp </span>
               <span className="font-semibold text-slate-900">{getServiceScopeDetail(draft.service_scope) || 'Nội dung dịch vụ'}</span>
@@ -569,7 +385,7 @@ export default function ContractTemplatesPage() {
             </Field>
             <div className="mt-4 space-y-3">
               <div className="flex items-center justify-between gap-3">
-                <h3 className="text-[13px] font-semibold text-slate-700">Lịch mẫu</h3>
+                <h3 className="text-[13px] font-semibold text-slate-700">Thời gian / Địa điểm</h3>
                 <button type="button" onClick={addScheduleRow} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-[12px] font-semibold text-slate-700 hover:bg-slate-50">
                   <Plus className="h-3.5 w-3.5" />
                   Thêm lịch
@@ -583,7 +399,7 @@ export default function ContractTemplatesPage() {
                   <button type="button" onClick={() => removeScheduleRow(index)} className="rounded-lg px-2 text-[12px] font-semibold text-red-600 hover:bg-red-50">Xoá</button>
                 </div>
               )) : (
-                <p className="rounded-xl bg-slate-50 px-3 py-3 text-[12px] text-slate-400">Chưa có lịch mẫu. Khi tạo hợp đồng, hệ thống sẽ gợi ý từ ngày/địa điểm trong quote nếu có.</p>
+                <p className="rounded-xl bg-slate-50 px-3 py-3 text-[12px] text-slate-400">Chưa có thời gian / địa điểm. Khi tạo hợp đồng, hệ thống sẽ gợi ý từ ngày/địa điểm trong quote nếu có.</p>
               )}
             </div>
           </section>
@@ -658,7 +474,7 @@ export default function ContractTemplatesPage() {
           </section>
         </div>
       </div>
-      {previewOpen ? <ContractTemplatePreviewModal template={draft} onClose={() => setPreviewOpen(false)} /> : null}
+      {previewOpen ? <ContractPreviewModal contract={draft} onClose={() => setPreviewOpen(false)} /> : null}
       {deleteConfirmOpen ? (
         <DeleteConfirmModal
           templateName={draft.name}

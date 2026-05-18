@@ -74,7 +74,13 @@ const styles = StyleSheet.create({
   national: {
     textAlign: 'center',
     fontSize: 10,
-    fontWeight: 700,
+    fontWeight: 400,
+    marginBottom: 2,
+  },
+  nationalMotto: {
+    textAlign: 'center',
+    fontSize: 10,
+    fontWeight: 400,
     marginBottom: 2,
   },
   title: {
@@ -264,7 +270,6 @@ function PartyCard({ heading, profile = {}, role = 'customer' }) {
       <Text style={styles.partyLine}>Điện thoại: {profile.phone || '-'}</Text>
       <Text style={styles.partyLine}>Mã số thuế: {profile.tax_code || '-'}</Text>
       {role === 'seller' && profile.bank_account ? <Text style={styles.partyLine}>Số tài khoản: {profile.bank_account} - {profile.bank_name || '-'}</Text> : null}
-      {role === 'seller' && profile.bank_account_holder ? <Text style={styles.partyLine}>Chủ tài khoản: {profile.bank_account_holder}</Text> : null}
     </View>
   )
 }
@@ -452,7 +457,7 @@ export default function ContractPDFDocument({ contract = {} }) {
     <Document title={contract.contract_number || 'Hợp đồng'}>
       <Page size="A4" style={styles.page}>
         <Text style={styles.national}>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</Text>
-        <Text style={styles.national}>Độc lập – Tự do – Hạnh phúc</Text>
+        <Text style={styles.nationalMotto}>Độc lập – Tự do – Hạnh phúc</Text>
         <Text style={styles.title}>{contract.title || 'HỢP ĐỒNG CUNG CẤP DỊCH VỤ'}</Text>
         <Text style={styles.subtitle}>Số: {contract.contract_number || '-'}</Text>
         {DEFAULT_CONTRACT_PREAMBLE.map(line => <Text key={line} style={styles.paragraph}>{line}</Text>)}

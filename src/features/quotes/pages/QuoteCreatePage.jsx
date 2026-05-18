@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import EntitySelector from '../components/EntitySelector'
+import QuoteBreadcrumb from '../components/QuoteBreadcrumb'
 import QuoteChatInput from '../components/QuoteChatInput'
 import QuoteItemsTable from '../components/QuoteItemsTable'
 import QuotePreview from '../components/QuotePreview'
@@ -938,8 +939,8 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
       if (status === 'sent') {
         const shareToken = saved.share_token
         if (shareToken) {
-          await navigator.clipboard?.writeText(`${window.location.origin}/q/${shareToken}`)
-          navigate(`/q/${shareToken}`)
+          await navigator.clipboard?.writeText(`${window.location.origin}/q/${shareToken}`).catch(() => {})
+          navigate(`/quotes/${saved.id}`)
           return
         }
         navigate(`/quotes/${saved.id}`)
@@ -956,7 +957,8 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
   return (
     <div className="mx-auto w-full max-w-[1920px] space-y-5">
       <div>
-        <h1 className="text-[22px] font-semibold tracking-tight text-[#f8981d]">{isEditMode ? 'Sửa báo giá Eventus AI' : 'Trợ lý báo giá Eventus AI'}</h1>
+        <QuoteBreadcrumb items={[{ label: isEditMode ? 'Sửa báo giá' : 'Tạo báo giá mới' }]} />
+        <h1 className="mt-2 text-[22px] font-semibold tracking-tight text-[#f8981d]">{isEditMode ? 'Sửa báo giá Eventus AI' : 'Trợ lý báo giá Eventus AI'}</h1>
       </div>
 
       {initialLoading && <p className="rounded-xl bg-slate-50 px-4 py-3 text-[13px] text-slate-500">Đang tải báo giá để sửa...</p>}

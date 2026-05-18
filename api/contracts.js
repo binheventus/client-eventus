@@ -58,6 +58,18 @@ async function getQuoteById(supabase, id) {
   return data
 }
 
+async function getQuoteByShareToken(supabase, shareToken) {
+  const { data, error } = await supabase
+    .from('quotes')
+    .select('id, deleted_at')
+    .eq('share_token', shareToken)
+    .maybeSingle()
+
+  if (error) throw error
+  if (!data || data.deleted_at) return null
+  return data
+}
+
 async function listTemplates(supabase) {
   const { data, error } = await supabase
     .from('contract_templates')
@@ -151,6 +163,12 @@ async function getContractByQuoteId(supabase, quoteId) {
   return data || null
 }
 
+async function getPublicContractByToken(supabase, shareToken) {
+  const quote = await getQuoteByShareToken(supabase, shareToken)
+  if (!quote?.id) return null
+  return getContractByQuoteId(supabase, quote.id)
+}
+
 function cleanContractPayload(contract = {}) {
   return {
     quote_id: contract.quote_id,
@@ -240,6 +258,12 @@ export default async function handler(req, res) {
         const quoteId = getQueryValue(req.query?.quote_id, '')
         if (!quoteId) return res.status(400).json({ error: 'Thieu quote id.' })
         return res.status(200).json({ contract: await getContractByQuoteId(supabase, quoteId) })
+      }
+
+      if (resource === 'public_contract') {
+        const token = getQueryValue(req.query?.token || req.query?.share_token, '')
+        if (!token) return res.status(400).json({ error: 'Thieu share token.' })
+        return res.status(200).json({ contract: await getPublicContractByToken(supabase, token) })
       }
 
       return res.status(400).json({ error: 'Resource khong hop le.' })
