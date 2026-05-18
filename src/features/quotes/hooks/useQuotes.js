@@ -5,6 +5,7 @@ const PRIVILEGED_ROLES = new Set(['leader', 'admin'])
 const LOCAL_QUOTES_KEY = 'eventus_local_quotes'
 const SHARE_TOKEN_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 const SHARE_TOKEN_LENGTH = 7
+const RECOVERABLE_FK_COLUMNS = new Set(['entity_code', 'tier_code', 'client_id', 'service_code'])
 
 function isPrivilegedRole(role) {
   return PRIVILEGED_ROLES.has(String(role || '').toLowerCase())
@@ -51,6 +52,9 @@ function getRecoverableInsertColumn(error, payload) {
   const missingColumn = getMissingSchemaColumn(error)
   if (missingColumn) return missingColumn
 
+  const foreignKeyColumn = getRecoverableForeignKeyColumn(error, payload)
+  if (foreignKeyColumn) return foreignKeyColumn
+
   const message = String(error?.message || '').toLowerCase()
   if (
     'validity_days' in payload &&
@@ -83,6 +87,24 @@ function getRecoverableInsertColumn(error, payload) {
     (message.includes('quote_status') || (message.includes('status') && message.includes('enum')))
   ) {
     return 'status'
+  }
+
+  return ''
+}
+
+function getRecoverableForeignKeyColumn(error, payload = {}) {
+  if (error?.code !== '23503') return ''
+
+  const detail = String(error?.details || '')
+  const keyMatch = detail.match(/Key \(([^)]+)\)=/i)
+  const detailColumn = keyMatch?.[1]?.split(',')?.[0]?.trim()
+  if (detailColumn && RECOVERABLE_FK_COLUMNS.has(detailColumn) && detailColumn in payload) {
+    return detailColumn
+  }
+
+  const message = `${error?.message || ''} ${error?.details || ''}`.toLowerCase()
+  for (const column of RECOVERABLE_FK_COLUMNS) {
+    if (column in payload && message.includes(column)) return column
   }
 
   return ''

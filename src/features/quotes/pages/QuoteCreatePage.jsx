@@ -319,11 +319,6 @@ function extractClientNameFromBrief(inputText = '') {
   return name ? `Mr. ${name}` : ''
 }
 
-function isClientInsertBlocked(error) {
-  const message = String(error?.message || '').toLowerCase()
-  return error?.code === '42501' || message.includes('row-level security') || message.includes('permission denied')
-}
-
 function normalizeParsedItem(item, quote, services) {
   const service = findServiceForQuoteItem(services, item, quote.location, Number(quote.duration_hours) || 0)
   const unitPrice = Number(service?.[getTierPriceColumn(quote.tier_code)] || service?.price_tier_2 || 0)
@@ -853,33 +848,31 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
       return null
     }
 
-    let response = await fromQuoteTable('clients')
-      .insert({ name })
-      .select()
-      .single()
-
-    if (isClientInsertBlocked(response.error)) {
-      setQuote(prev => ({ ...prev, client_name: name }))
-      return null
-    }
-
-    if (response.error?.message?.includes('name')) {
-      response = await fromQuoteTable('clients')
-        .insert({ client_name: name })
+    try {
+      let response = await fromQuoteTable('clients')
+        .insert({ name })
         .select()
         .single()
-    }
 
-    if (isClientInsertBlocked(response.error)) {
+      if (response.error?.message?.includes('name')) {
+        response = await fromQuoteTable('clients')
+          .insert({ client_name: name })
+          .select()
+          .single()
+      }
+
+      if (response.error || !response.data?.id) {
+        setQuote(prev => ({ ...prev, client_name: name }))
+        return null
+      }
+
+      setClients(prev => [response.data, ...prev])
+      setQuote(prev => ({ ...prev, client_id: response.data.id, client_name: name }))
+      return response.data.id
+    } catch {
       setQuote(prev => ({ ...prev, client_name: name }))
       return null
     }
-
-    if (response.error) throw response.error
-
-    setClients(prev => [response.data, ...prev])
-    setQuote(prev => ({ ...prev, client_id: response.data.id, client_name: name }))
-    return response.data.id
   }
 
   async function saveQuote(status) {
