@@ -61,6 +61,7 @@ function getReasoningLines(value = '') {
   const fallback = 'Đã phân tích brief.'
   const text = String(value || fallback)
     .replace(/\r\n?/g, '\n')
+    .replace(/\bquantity\b/gi, 'số lượng')
     .replace(/:\s+(?=\d+\s)/g, ':\n')
     .replace(/,\s+(?=\d+\s+(?:photographer|videographer|camera|cam|chụp|quay)\b)/gi, '\n')
     .replace(/\.\s+(?=(?:Vì|Do|Không|Có|Đã|Mặc định|Tự|Sales)\b)/g, '.\n')
@@ -72,8 +73,96 @@ function getReasoningLines(value = '') {
     .filter(Boolean)
 }
 
+function getHighlightedReasoningTerms(services = [], customerTiers = []) {
+  const serviceTerms = (services || [])
+    .map(service => ({
+      code: getServiceCode(service),
+      label: service?.service_name || service?.quote_display_name || service?.name || getServiceCode(service),
+      type: 'service',
+    }))
+    .filter(term => term.code && term.label)
+
+  const tierTerms = (customerTiers || [])
+    .map(tier => ({
+      code: tier?.tier_code || tier?.code,
+      label: tier?.tier_name || tier?.name || tier?.tier_code || tier?.code,
+      type: 'tier',
+    }))
+    .filter(term => term.code && term.label)
+
+  return [...serviceTerms, ...tierTerms].sort((a, b) => String(b.code).length - String(a.code).length)
+}
+
+function renderReasoningLine(line = '', terms = []) {
+  const text = String(line || '')
+  const chunks = []
+  let cursor = 0
+
+  while (cursor < text.length) {
+    const matched = terms
+      .map(term => ({ ...term, index: text.indexOf(term.code, cursor) }))
+      .filter(term => term.index >= 0)
+      .sort((a, b) => a.index - b.index || String(b.code).length - String(a.code).length)[0]
+
+    if (!matched) {
+      chunks.push({ text: text.slice(cursor) })
+      break
+    }
+
+    if (matched.index > cursor) chunks.push({ text: text.slice(cursor, matched.index) })
+    chunks.push({ text: matched.label, highlight: true })
+    cursor = matched.index + String(matched.code).length
+  }
+
+  return chunks.map((chunk, index) => (
+    chunk.highlight ? (
+      <span key={`${chunk.text}-${index}`} className="font-semibold text-blue-700">{chunk.text}</span>
+    ) : (
+      <span key={`${chunk.text}-${index}`}>{chunk.text}</span>
+    )
+  ))
+}
+
 function formatCurrency(value) {
   return new Intl.NumberFormat('vi-VN').format(Number(value) || 0)
+}
+
+function toRuleNumber(value, fallback = 0) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : fallback
+  const match = String(value || '').replace(',', '.').match(/\d+(?:\.\d+)?/)
+  return match ? Number(match[0]) : fallback
+}
+
+function formatHours(value) {
+  const number = Number(value) || 0
+  return Number.isInteger(number) ? String(number) : String(number).replace(/\.0+$/, '')
+}
+
+function appendReasoningLine(reasoning = '', line = '') {
+  if (!line) return reasoning
+  return [reasoning, line].filter(Boolean).join('\n')
+}
+
+function getOvertimeItemRole(item = {}) {
+  const code = normalizeQuoteText(item.resolved_service_code || item.service_code || item.service?.service_code || item.service?.code)
+  if (code.startsWith('CHUP')) return 'chụp ảnh'
+  if (code.startsWith('QUAY')) return 'quay phim'
+  if (code.startsWith('FLYCAM')) return 'flycam'
+  if (code.startsWith('FPV')) return 'FPV'
+  return String(item.service_name || item.service?.quote_display_name || item.service?.service_name || 'dịch vụ').toLowerCase()
+}
+
+function buildOvertimeReasoningLine(items = [], businessRules = {}) {
+  const overtimeItems = items.filter(item => Number(item.overtime_unit_add_on || 0) > 0)
+  if (!overtimeItems.length) return ''
+
+  const overtimeHourlyFee = toRuleNumber(businessRules.OVERTIME_HOURLY_FEE, 0)
+  const overtimeUnitAddOn = Number(overtimeItems[0]?.overtime_unit_add_on || 0)
+  const overtimeHours = overtimeHourlyFee > 0 ? overtimeUnitAddOn / overtimeHourlyFee : 0
+  const roles = [...new Set(overtimeItems.map(getOvertimeItemRole).filter(Boolean))]
+  const roleText = roles.length ? roles.join(', ') : 'từng hạng mục'
+
+  return `Giờ phát sinh: ${formatHours(overtimeHours)} giờ x ${formatCurrency(overtimeHourlyFee)}đ = ${formatCurrency(overtimeUnitAddOn)}đ/nhân sự, đã cộng ${formatCurrency(overtimeUnitAddOn)}đ vào mỗi nhân sự ${roleText}.`
 }
 
 function getServiceCode(service) {
@@ -324,6 +413,7 @@ export default function QuoteCreatePage() {
   }, [])
 
   const displayItems = useMemo(() => calculateDisplayItems(items, quote, services, rulesMap), [items, quote, services, rulesMap])
+  const highlightedReasoningTerms = useMemo(() => getHighlightedReasoningTerms(services, customerTiers), [services, customerTiers])
   const totals = useMemo(() => calculateQuotePricing({
     items: displayItems,
     services,
@@ -369,7 +459,12 @@ export default function QuoteCreatePage() {
         tier_code: parsed.tier_code || quote.tier_code,
       }
       const parsedItems = (parsed.items || []).map(item => normalizeParsedItem(item, nextQuote, services))
-      const normalizedResult = normalizeParseResult(result, inputText)
+      const pricedParsedItems = calculateDisplayItems(parsedItems, nextQuote, services, rulesMap)
+      const overtimeReasoning = buildOvertimeReasoningLine(pricedParsedItems, rulesMap)
+      const normalizedResult = normalizeParseResult({
+        ...result,
+        ai_reasoning: appendReasoningLine(result.ai_reasoning, overtimeReasoning),
+      })
       setQuote(nextQuote)
       if (briefClientName) setClientQuery(briefClientName)
       if (parsedItems.length) setItems(sortQuoteItems(parsedItems))
@@ -462,6 +557,10 @@ export default function QuoteCreatePage() {
 
     const name = String(quote.client_name || clientQuery || '').trim()
     if (!name) return null
+    if (!hasSupabaseConfig) {
+      setQuote(prev => ({ ...prev, client_name: name }))
+      return null
+    }
 
     let response = await fromQuoteTable('clients')
       .insert({ name })
@@ -579,7 +678,7 @@ export default function QuoteCreatePage() {
                   <div className="font-semibold text-slate-900">AI hiểu:</div>
                   <div className="mt-1 space-y-1 leading-5">
                     {getReasoningLines(parseResult.ai_reasoning).map((line, index) => (
-                      <div key={`${line}-${index}`}>{line}</div>
+                      <div key={`${line}-${index}`}>{renderReasoningLine(line, highlightedReasoningTerms)}</div>
                     ))}
                   </div>
                 </div>

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { applyBriefBusinessRules, deterministicParseQuoteInput } from './parse-quote.js'
+import handler, { applyBriefBusinessRules, deterministicParseQuoteInput } from './parse-quote.js'
 
 const recapServices = [
   { service_code: 'QUAY_RECAP_IN_4H' },
@@ -59,4 +59,48 @@ test('highest recap edit bracket supports the previous 7-8 cam service code', ()
   const result = deterministicParseQuoteInput('9 quay', { services: legacyServices })
 
   assert.deepEqual(result.parsed.items.map(item => item.service_code), ['QUAY_RECAP_IN_4H', 'RECAP_7_8_CAM'])
+})
+
+test('handler falls back to deterministic parser when AI keys are missing', async () => {
+  const originalOpenAiKey = process.env.OPENAI_API_KEY
+  const originalAnthropicKey = process.env.ANTHROPIC_API_KEY
+  delete process.env.OPENAI_API_KEY
+  delete process.env.ANTHROPIC_API_KEY
+
+  try {
+    const response = {
+      statusCode: 200,
+      payload: null,
+      headers: {},
+      setHeader(key, value) {
+        this.headers[key] = value
+      },
+      status(code) {
+        this.statusCode = code
+        return this
+      },
+      json(payload) {
+        this.payload = payload
+        return this
+      },
+    }
+
+    await handler({
+      method: 'POST',
+      body: {
+        input_text: '4 quay',
+        context: { services: recapServices },
+      },
+    }, response)
+
+    assert.equal(response.statusCode, 200)
+    assert.deepEqual(response.payload.parsed.items.map(item => item.service_code), ['QUAY_RECAP_IN_4H', 'RECAP_3_4_CAM'])
+    assert.match(response.payload.ai_reasoning, /Thiếu OPENAI_API_KEY hoặc ANTHROPIC_API_KEY/)
+  } finally {
+    if (originalOpenAiKey === undefined) delete process.env.OPENAI_API_KEY
+    else process.env.OPENAI_API_KEY = originalOpenAiKey
+
+    if (originalAnthropicKey === undefined) delete process.env.ANTHROPIC_API_KEY
+    else process.env.ANTHROPIC_API_KEY = originalAnthropicKey
+  }
 })

@@ -11,7 +11,7 @@
   {
     "tier_code": "TIER_2",
     "tier_name": "Khách mới / Khách thông thường",
-    "description": "Khách lần đầu làm việc; Khách thường xuyên nhưng không có thỏa thuận đặc biệt",
+    "description": "Khách lần đầu làm việc; Khách thường xuyên nhưng không có thỏa thuận đặc biệt, hoặc các khách như: FPT, ...",
     "price_column_used": "price_tier_2",
     "payment_terms": "Tạm ứng 50% xác nhận lịch, 50% còn lại sau khi giao sản phẩm",
     "default_discount": 0,
@@ -20,10 +20,28 @@
   {
     "tier_code": "TIER_3",
     "tier_name": "Khách giảm giá / Người quen",
-    "description": "Khách quen / Người quen / Agency chiến lược có thỏa thuận giảm giá",
+    "description": "Khách quen / Người quen / Agency chiến lược có thỏa thuận giảm giá : A Dương Foucs ....",
     "price_column_used": "price_tier_3",
     "payment_terms": "Tạm ứng 50% + 50% sau giao, hoặc 100% sau hoàn thành (tùy khách)",
     "default_discount": 0,
+    "special_note": null
+  },
+  {
+    "tier_code": "TIER_4",
+    "tier_name": "2res",
+    "description": null,
+    "price_column_used": null,
+    "payment_terms": null,
+    "default_discount": null,
+    "special_note": null
+  },
+  {
+    "tier_code": "TIER_5",
+    "tier_name": null,
+    "description": null,
+    "price_column_used": null,
+    "payment_terms": null,
+    "default_discount": null,
     "special_note": null
   }
 ]

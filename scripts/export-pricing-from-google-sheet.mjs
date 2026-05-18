@@ -227,14 +227,14 @@ function transformBusinessRules(rows) {
       category: 'Pricing',
       rule_name: 'Half-day threshold normalized',
       value: toNumber(ruleMap.OT_THRESHOLD) || toNumber(ruleMap.HALF_DAY_DEFINITION) || 4.5,
-      description: 'Derived from OT_THRESHOLD for app service matching',
+      description: 'Derived from OT_THRESHOLD for half-day overtime trigger',
     },
     {
       rule_code: 'FULL_DAY_THRESHOLD',
       category: 'Pricing',
       rule_name: 'Full-day threshold normalized',
       value: toNumber(ruleMap.FULL_DAY_DEFINITION) || 8,
-      description: 'Derived from FULL_DAY_DEFINITION for overtime calculation',
+      description: 'Derived from FULL_DAY_DEFINITION for 8H service matching and full-day overtime',
     },
   ].map(row => ({ ...row, rule_value: row.value, derived: true }))
 

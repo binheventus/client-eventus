@@ -1,7 +1,8 @@
 import { useCallback, useState } from 'react'
-import { fromQuoteTable } from '../../../lib/supabase'
+import { fromQuoteTable, hasSupabaseConfig } from '../../../lib/supabase'
 
 const PRIVILEGED_ROLES = new Set(['leader', 'admin'])
+const LOCAL_QUOTES_KEY = 'eventus_local_quotes'
 
 function isPrivilegedRole(role) {
   return PRIVILEGED_ROLES.has(String(role || '').toLowerCase())
@@ -76,6 +77,127 @@ function getRecoverableInsertColumn(error, payload) {
   return ''
 }
 
+function canUseLocalStorage() {
+  return typeof window !== 'undefined' && Boolean(window.localStorage)
+}
+
+function readLocalQuotes() {
+  if (!canUseLocalStorage()) return []
+
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(LOCAL_QUOTES_KEY) || '[]')
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function writeLocalQuotes(quotes = []) {
+  if (!canUseLocalStorage()) return
+  window.localStorage.setItem(LOCAL_QUOTES_KEY, JSON.stringify(quotes))
+}
+
+function makeLocalId(prefix = 'quote') {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+}
+
+function getLocalQuoteText(quote = {}) {
+  return [
+    quote.quote_number,
+    quote.client_name,
+    quote.event_name,
+  ].filter(Boolean).join(' ').toLowerCase()
+}
+
+function applyLocalFilters(quotes = [], filters = {}) {
+  return quotes.filter(quote => {
+    if (quote.deleted_at) return false
+    if (filters.search && !getLocalQuoteText(quote).includes(String(filters.search).toLowerCase())) return false
+    if (filters.date_from && String(quote.created_at || '') < filters.date_from) return false
+    if (filters.date_to && String(quote.created_at || '') > filters.date_to) return false
+
+    return Object.entries(filters || {}).every(([key, value]) => {
+      if (['search', 'date_from', 'date_to'].includes(key)) return true
+      if (value === undefined || value === null || value === '') return true
+      if (Array.isArray(value)) return value.includes(quote[key])
+      return quote[key] === value
+    })
+  })
+}
+
+function makeLocalQuoteNumber(quotes = []) {
+  const nextNumber = quotes.length + 1
+  return `LOCAL-${String(nextNumber).padStart(4, '0')}`
+}
+
+function listLocalQuotes({ filters = {}, page = 1, pageSize = 20 } = {}) {
+  const safePage = Math.max(Number(page) || 1, 1)
+  const safePageSize = Math.max(Number(pageSize) || 20, 1)
+  const from = (safePage - 1) * safePageSize
+  const rows = applyLocalFilters(readLocalQuotes(), filters)
+    .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
+
+  return {
+    quotes: rows.slice(from, from + safePageSize),
+    count: rows.length,
+    page: safePage,
+    pageSize: safePageSize,
+  }
+}
+
+function getLocalQuote(id) {
+  const quote = readLocalQuotes().find(row => row.id === id)
+  if (!quote) throw new Error('Không tìm thấy báo giá local.')
+  return quote
+}
+
+function createLocalQuote(payload = {}) {
+  const quotes = readLocalQuotes()
+  const now = new Date().toISOString()
+  const { items = [], ...quotePayload } = payload
+  const quote = {
+    ...quotePayload,
+    id: makeLocalId(),
+    quote_number: makeLocalQuoteNumber(quotes),
+    share_token: makeLocalId('share'),
+    created_at: now,
+    updated_at: now,
+    items: items.map((item, index) => ({
+      ...item,
+      id: makeLocalId('item'),
+      sort_order: item.sort_order ?? index + 1,
+    })),
+    is_local_only: true,
+  }
+
+  writeLocalQuotes([quote, ...quotes])
+  return quote
+}
+
+function updateLocalQuote(id, patch = {}) {
+  let updated = null
+  const quotes = readLocalQuotes().map(quote => {
+    if (quote.id !== id) return quote
+    updated = { ...quote, ...patch, updated_at: new Date().toISOString() }
+    return updated
+  })
+
+  if (!updated) throw new Error('Không tìm thấy báo giá local.')
+  writeLocalQuotes(quotes)
+  return updated
+}
+
+function duplicateLocalQuote(id) {
+  const source = getLocalQuote(id)
+  return createLocalQuote({
+    ...source,
+    status: 'draft',
+    event_name: `${source.event_name || 'Báo giá'} (copy)`,
+    items: source.items || [],
+  })
+}
+
 async function insertWithSchemaCacheRetry(tableKey, payload) {
   let nextPayload = { ...payload }
   const removedColumns = new Set()
@@ -128,6 +250,8 @@ async function insertManyWithSchemaCacheRetry(tableKey, payloads) {
 }
 
 export async function listQuotes({ filters = {}, page = 1, pageSize = 20 } = {}) {
+  if (!hasSupabaseConfig) return listLocalQuotes({ filters, page, pageSize })
+
   const safePage = Math.max(Number(page) || 1, 1)
   const safePageSize = Math.max(Number(pageSize) || 20, 1)
   const from = (safePage - 1) * safePageSize
@@ -153,6 +277,7 @@ export async function listQuotes({ filters = {}, page = 1, pageSize = 20 } = {})
 
 export async function getQuote(id) {
   if (!id) throw new Error('Thiếu quote id.')
+  if (!hasSupabaseConfig) return getLocalQuote(id)
 
   const { data: quote, error: quoteError } = await fromQuoteTable('quotes')
     .select('*')
@@ -172,6 +297,7 @@ export async function getQuote(id) {
 
 export async function getQuoteViewStats(quoteId) {
   if (!quoteId) return { count: 0, lastViewedAt: null, views: [] }
+  if (!hasSupabaseConfig) return { count: 0, lastViewedAt: null, views: [] }
 
   const { data, error, count } = await fromQuoteTable('quoteViews')
     .select('*', { count: 'exact' })
@@ -189,6 +315,7 @@ export async function getQuoteViewStats(quoteId) {
 
 export async function getQuoteAuditLogs(quoteId) {
   if (!quoteId) return []
+  if (!hasSupabaseConfig) return []
 
   const auditResult = await fromQuoteTable('auditLogs')
     .select('*')
@@ -211,6 +338,8 @@ export async function getQuoteAuditLogs(quoteId) {
 }
 
 export async function createQuote(payload = {}) {
+  if (!hasSupabaseConfig) return createLocalQuote(payload)
+
   const { items = [], ...quotePayload } = payload
 
   const quote = await insertWithSchemaCacheRetry('quotes', quotePayload)
@@ -229,6 +358,7 @@ export async function createQuote(payload = {}) {
 
 export async function updateQuote(id, patch = {}) {
   if (!id) throw new Error('Thiếu quote id.')
+  if (!hasSupabaseConfig) return updateLocalQuote(id, patch)
 
   const { data, error } = await fromQuoteTable('quotes')
     .update({ ...patch, updated_at: new Date().toISOString() })
@@ -245,6 +375,8 @@ export async function softDeleteQuote(id) {
 }
 
 export async function duplicateQuote(id) {
+  if (!hasSupabaseConfig) return duplicateLocalQuote(id)
+
   const quote = await getQuote(id)
   const {
     id: _id,
@@ -282,6 +414,21 @@ export async function restoreQuote(id, { role } = {}) {
 
 export async function listTrashed({ role, page = 1, pageSize = 20 } = {}) {
   if (!isPrivilegedRole(role)) throw new Error('Bạn cần quyền leader/admin để xem thùng rác báo giá.')
+  if (!hasSupabaseConfig) {
+    const safePage = Math.max(Number(page) || 1, 1)
+    const safePageSize = Math.max(Number(pageSize) || 20, 1)
+    const from = (safePage - 1) * safePageSize
+    const rows = readLocalQuotes()
+      .filter(quote => quote.deleted_at)
+      .sort((a, b) => String(b.deleted_at || '').localeCompare(String(a.deleted_at || '')))
+
+    return {
+      quotes: rows.slice(from, from + safePageSize),
+      count: rows.length,
+      page: safePage,
+      pageSize: safePageSize,
+    }
+  }
 
   const safePage = Math.max(Number(page) || 1, 1)
   const safePageSize = Math.max(Number(pageSize) || 20, 1)
@@ -313,6 +460,10 @@ export async function listTrashed({ role, page = 1, pageSize = 20 } = {}) {
 
 export async function permanentlyDeleteQuote(id, { role } = {}) {
   if (!isPrivilegedRole(role)) throw new Error('Bạn cần quyền leader/admin để xóa vĩnh viễn báo giá.')
+  if (!hasSupabaseConfig) {
+    writeLocalQuotes(readLocalQuotes().filter(quote => quote.id !== id))
+    return
+  }
 
   await fromQuoteTable('quoteViews').delete().eq('quote_id', id)
   const { error: itemsError } = await fromQuoteTable('quoteItems').delete().eq('quote_id', id)
@@ -324,6 +475,11 @@ export async function permanentlyDeleteQuote(id, { role } = {}) {
 
 export async function getPublicQuoteByToken(shareToken) {
   if (!shareToken) throw new Error('Thiếu share token.')
+  if (!hasSupabaseConfig) {
+    const quote = readLocalQuotes().find(row => row.share_token === shareToken && !row.deleted_at)
+    if (!quote) throw new Error('Không tìm thấy báo giá local.')
+    return quote
+  }
 
   const { data: quote, error } = await fromQuoteTable('quotes')
     .select('*')
@@ -344,6 +500,7 @@ export async function getPublicQuoteByToken(shareToken) {
 
 export async function logQuoteView(quoteId) {
   if (!quoteId) return
+  if (!hasSupabaseConfig) return
 
   await fromQuoteTable('quoteViews')
     .insert({

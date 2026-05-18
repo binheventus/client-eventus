@@ -26,9 +26,9 @@ Bối cảnh Eventus:
 - Sales thường viết tắt: "chụp" = photographer/chụp ảnh, "quay" = videographer/quay phim, "flycam" = flycam, "live" = quay live, "highlight" = video highlight, "full" = quay full không cắt.
 - Nếu sales không nói thời gian, mặc định là 4 tiếng/gói 4H.
 - Nếu sales không nói địa điểm, mặc định là nội thành Hà Nội.
-- "nửa ngày", "4H" hoặc thời lượng <= 4.5 tiếng là gói 4H.
-- "cả ngày", "8H" hoặc thời lượng > 4.5 tiếng và <= 8 tiếng là gói 8H.
-- Thời lượng > 8 tiếng vẫn là full-day và cần giữ duration_hours để hệ thống tính giờ vượt.
+- "nửa ngày", "4H" hoặc thời lượng dưới 8 tiếng là gói 4H; nếu thời lượng > 4.5 tiếng và < 8 tiếng thì vẫn chọn service_code 4H và giữ duration_hours thực tế để hệ thống tính giờ phát sinh. Ví dụ 5 tiếng = gói 4H + 1 giờ phát sinh, không phải gói 8H.
+- "cả ngày", "8H" hoặc thời lượng >= 8 tiếng là gói 8H.
+- Thời lượng > 8 tiếng vẫn là full-day/gói 8H và cần giữ duration_hours để hệ thống tính giờ vượt.
 - Nội thành Hà Nội hoặc ngoại thành Hà Nội dưới 30km là local/in-city. Các tỉnh/thành khác là out-city/đi tỉnh.
 - Tier khách: "khách lạ", "khách mới", "khách thường", "thông thường" = TIER_2. "khách quen", "giảm giá" = TIER_3. "VinGroup", "Vingroup", "VinHomes", "Vinhomes", "VinPearl", "Vinpearl", "JMB" = TIER_1.
 
@@ -41,7 +41,7 @@ Quy tắc bắt buộc:
 - Chỉ chọn service_code nhóm QUAY_FULL khi sales ghi rõ "quay full", "full video", "full không cắt" hoặc ý tương đương.
 - Nếu brief có hạng mục quay/quay phim/video nhưng sales không nói dựng gì, mặc định vẫn thêm hạng mục dựng recap, nhưng phải chọn theo tổng số máy quay: 1-2 máy = RECAP_1_2_CAM, 3-4 máy = RECAP_3_4_CAM, 5-6 máy = RECAP_5_6_CAM, từ 7 máy trở lên = RECAP_7_CAM nếu có trong context.services, nếu không thì dùng RECAP_7_8_CAM. Ví dụ "4 quay" phải thêm RECAP_3_4_CAM, không được dùng RECAP_1_2_CAM.
 - Khi đã tự thêm dựng recap theo quy tắc mặc định, KHÔNG thêm editing_service vào missing_fields hoặc ambiguous_fields.
-- Nếu một dịch vụ có thể map chắc chắn theo từ khóa rõ ràng thì chọn service_code phù hợp nhất từ context.services, có xét location IN/OUT và 4H/8H theo duration_hours.
+- Nếu một dịch vụ có thể map chắc chắn theo từ khóa rõ ràng thì chọn service_code phù hợp nhất từ context.services, có xét location IN/OUT và 4H/8H theo duration_hours. Với duration_hours > 4.5 và < 8, vẫn chọn service_code 4H.
 - Nếu không có service_code phù hợp trong context.services thì vẫn giữ service_name_raw và KHÔNG điền service_code bịa; có thể để service_code null và thêm ambiguous_fields.
 - event_date trả null nếu không thấy ngày.
 - event_name trả null nếu không thấy tên event rõ ràng.
@@ -710,10 +710,15 @@ export default async function handler(req, res) {
   const inputText = String(req.body?.input_text || '').trim()
   if (!inputText) return res.status(400).json({ error: 'Thiếu input_text.' })
 
+  const context = req.body?.context || {}
   const openAiKey = normalizeApiKey(process.env.OPENAI_API_KEY)
   const anthropicKey = normalizeApiKey(process.env.ANTHROPIC_API_KEY)
   if (!openAiKey && !anthropicKey) {
-    return res.status(500).json({ error: 'Thiếu OPENAI_API_KEY hoặc ANTHROPIC_API_KEY trên môi trường backend/Vercel.' })
+    return res.status(200).json(deterministicParseQuoteInput(
+      inputText,
+      context,
+      'Thiếu OPENAI_API_KEY hoặc ANTHROPIC_API_KEY trên môi trường backend/Vercel.'
+    ))
   }
 
   try {
@@ -725,7 +730,7 @@ export default async function handler(req, res) {
         result = await callOpenAI({
           apiKey: openAiKey,
           inputText,
-          context: req.body?.context || {},
+          context,
         })
       } catch (error) {
         aiError = error
@@ -737,16 +742,16 @@ export default async function handler(req, res) {
         result = await callAnthropic({
           apiKey: anthropicKey,
           inputText,
-          context: req.body?.context || {},
+          context,
         })
       } catch (error) {
         aiError = error
       }
     }
 
-    result ||= deterministicParseQuoteInput(inputText, req.body?.context || {}, aiError?.message || 'AI provider không khả dụng')
+    result ||= deterministicParseQuoteInput(inputText, context, aiError?.message || 'AI provider không khả dụng')
 
-    return res.status(200).json(applyBriefBusinessRules(result, inputText, req.body?.context || {}))
+    return res.status(200).json(applyBriefBusinessRules(result, inputText, context))
   } catch (error) {
     return res.status(500).json({ error: error?.message || 'Không parse được input báo giá.' })
   }

@@ -4,11 +4,15 @@ import { calculateQuotePricing } from './pricingCalculator.js'
 
 const services = [
   { service_code: 'CHUP_IN_4H', price_tier_1: 1800000, price_tier_2: 1500000, price_tier_3: 1300000 },
+  { service_code: 'CHUP_OUT_4H', price_tier_1: 2500000, price_tier_2: 2500000, price_tier_3: 2250000 },
   { service_code: 'CHUP_OUT_8H', price_tier_1: 3000000, price_tier_2: 2500000, price_tier_3: 2200000 },
   { service_code: 'QUAY_RECAP_IN_4H', price_tier_1: 2600000, price_tier_2: 2200000, price_tier_3: 2000000 },
+  { service_code: 'QUAY_RECAP_OUT_4H', price_tier_1: 3000000, price_tier_2: 3000000, price_tier_3: 2700000 },
   { service_code: 'QUAY_RECAP_IN_8H', price_tier_1: 3600000, price_tier_2: 3000000, price_tier_3: 2700000 },
   { service_code: 'QUAY_RECAP_OUT_8H', price_tier_1: 4200000, price_tier_2: 3500000, price_tier_3: 3200000 },
+  { service_code: 'QUAY_FULL_IN_4H', price_tier_1: 3000000, price_tier_2: 2500000, price_tier_3: 2250000 },
   { service_code: 'QUAY_FULL_IN_8H', price_tier_1: 5000000, price_tier_2: 4500000, price_tier_3: 4000000 },
+  { service_code: 'FLYCAM_OUT_4H', price_tier_1: 3000000, price_tier_2: 3000000, price_tier_3: 2700000 },
   { service_code: 'FLYCAM_OUT_8H', price_tier_1: 2400000, price_tier_2: 2000000, price_tier_3: 1800000 },
 ]
 
@@ -59,11 +63,17 @@ test('case 2: 2 chụp 1 quay 2 flycam, 5 tiếng, Hải Phòng, tier_2, có VAT
     duration_hours: 5,
   })
 
-  assert.equal(result.subtotal, 12500000)
+  assert.equal(result.subtotal, 16500000)
   assert.equal(result.travel_fee_total, 2500000)
   assert.equal(result.overtime_fee_total, 0)
-  assert.equal(result.vat_amount, 1200000)
-  assert.equal(result.total_amount, 16200000)
+  assert.equal(result.vat_amount, 1520000)
+  assert.equal(result.total_amount, 20520000)
+  assert.equal(result.items_with_calculated_price[0].resolved_service_code, 'CHUP_OUT_4H')
+  assert.equal(result.items_with_calculated_price[0].unit_price, 3000000)
+  assert.equal(result.items_with_calculated_price[1].resolved_service_code, 'QUAY_RECAP_OUT_4H')
+  assert.equal(result.items_with_calculated_price[1].unit_price, 3500000)
+  assert.equal(result.items_with_calculated_price[2].resolved_service_code, 'FLYCAM_OUT_4H')
+  assert.equal(result.items_with_calculated_price[2].unit_price, 3500000)
 })
 
 test('case 3: 1 quay, 10 tiếng nội thành, tier_2, có VAT', () => {
@@ -78,12 +88,13 @@ test('case 3: 1 quay, 10 tiếng nội thành, tier_2, có VAT', () => {
     duration_hours: 10,
   })
 
-  assert.equal(result.subtotal, 3000000)
+  assert.equal(result.subtotal, 4000000)
   assert.equal(result.travel_fee_total, 0)
-  assert.equal(result.overtime_fee_total, 1000000)
+  assert.equal(result.overtime_fee_total, 0)
   assert.equal(result.vat_amount, 320000)
   assert.equal(result.total_amount, 4320000)
   assert.equal(result.items_with_calculated_price[0].resolved_service_code, 'QUAY_RECAP_IN_8H')
+  assert.equal(result.items_with_calculated_price[0].unit_price, 4000000)
 })
 
 test('quay raw text defaults to recap/highlight', () => {
@@ -98,8 +109,61 @@ test('quay raw text defaults to recap/highlight', () => {
     duration_hours: 5,
   })
 
-  assert.equal(result.subtotal, 3000000)
-  assert.equal(result.items_with_calculated_price[0].resolved_service_code, 'QUAY_RECAP_IN_8H')
+  assert.equal(result.subtotal, 2700000)
+  assert.equal(result.overtime_fee_total, 0)
+  assert.equal(result.items_with_calculated_price[0].resolved_service_code, 'QUAY_RECAP_IN_4H')
+  assert.equal(result.items_with_calculated_price[0].unit_price, 2700000)
+})
+
+test('embedded overtime is not added twice when calculated items are reused', () => {
+  const firstPass = calculateQuotePricing({
+    items: [{ service_code: 'VIDEO', quantity: 1, num_sessions: 1 }],
+    services,
+    travelFees,
+    businessRules,
+    location: 'nội thành Hà Nội',
+    customer_tier: 'TIER_2',
+    has_vat: false,
+    duration_hours: 5,
+  })
+
+  const secondPass = calculateQuotePricing({
+    items: firstPass.items_with_calculated_price,
+    services,
+    travelFees,
+    businessRules,
+    location: 'nội thành Hà Nội',
+    customer_tier: 'TIER_2',
+    has_vat: false,
+    duration_hours: 5,
+  })
+
+  assert.equal(secondPass.subtotal, firstPass.subtotal)
+  assert.equal(secondPass.items_with_calculated_price[0].unit_price, 2700000)
+})
+
+test('manual price override is treated as the final displayed unit price', () => {
+  const result = calculateQuotePricing({
+    items: [{
+      service_code: 'VIDEO',
+      quantity: 1,
+      num_sessions: 1,
+      unit_price: 2500000,
+      original_unit_price: 2200000,
+      is_overridden: true,
+    }],
+    services,
+    travelFees,
+    businessRules,
+    location: 'nội thành Hà Nội',
+    customer_tier: 'TIER_2',
+    has_vat: false,
+    duration_hours: 5,
+  })
+
+  assert.equal(result.subtotal, 2500000)
+  assert.equal(result.overtime_fee_total, 0)
+  assert.equal(result.items_with_calculated_price[0].unit_price, 2500000)
 })
 
 test('quay full raw text maps to full video', () => {
@@ -114,8 +178,10 @@ test('quay full raw text maps to full video', () => {
     duration_hours: 5,
   })
 
-  assert.equal(result.subtotal, 4500000)
-  assert.equal(result.items_with_calculated_price[0].resolved_service_code, 'QUAY_FULL_IN_8H')
+  assert.equal(result.subtotal, 3000000)
+  assert.equal(result.overtime_fee_total, 0)
+  assert.equal(result.items_with_calculated_price[0].resolved_service_code, 'QUAY_FULL_IN_4H')
+  assert.equal(result.items_with_calculated_price[0].unit_price, 3000000)
 })
 
 test('missing location and duration default to local 4H', () => {
