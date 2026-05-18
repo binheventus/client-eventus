@@ -892,10 +892,10 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
       const quotePayload = {
         ...(!isEditMode ? getQuoteActorPayload(userContext) : {}),
         ai_input: inputText,
-        entity_code: quote.entity_code,
+        entity_code: quote.entity_code || DEFAULT_QUOTE.entity_code,
         client_id: clientId,
         client_name: clientName || null,
-        tier_code: quote.tier_code,
+        tier_code: quote.tier_code || DEFAULT_QUOTE.tier_code,
         event_name: quote.event_name,
         event_date: quote.event_date || null,
         location: quote.location,

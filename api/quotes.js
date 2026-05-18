@@ -12,15 +12,26 @@ const SYNTHETIC_ACTOR_IDS = new Set([
 ])
 const DEFAULT_ENTITY_CODE = 'EVENTUS'
 const DEFAULT_TIER_CODE = 'TIER_2'
-const RECOVERABLE_FK_COLUMNS = new Set(['entity_code', 'tier_code', 'client_id', 'service_code'])
+const RECOVERABLE_FK_COLUMNS = new Set(['client_id'])
 const LEGAL_ENTITY_SEEDS = [
   {
     entity_code: 'EVENTUS',
     code: 'EVENTUS',
     name: 'CONG TY TNHH EVENTUS VIET NAM',
+    entity_name_full: 'CONG TY TNHH EVENTUS VIET NAM',
     legal_name: 'CONG TY TNHH EVENTUS VIET NAM',
     display_name: 'Eventus',
     tax_code: '0107929531',
+    address: 'So 3, ngo 280 duong Le Trong Tan, Phuong Phuong Liet, TP. Ha Noi',
+    representative: 'Ong Pham Thanh Binh',
+    position: 'Giam doc',
+    email: 'Account@eventusproduction.com',
+    hotline: '058.369.2222',
+    website: 'eventusproduction.com',
+    bank_account: '02612345678',
+    bank_name: 'Ngan Hang Thuong Mai Co Phan Tien Phong TP Bank',
+    logo_file: 'logo_eventus.png',
+    source_entity_code: 'EVT',
     is_active: true,
     is_default: true,
     sort_order: 1,
@@ -29,9 +40,20 @@ const LEGAL_ENTITY_SEEDS = [
     entity_code: 'MEDIAMONSTER',
     code: 'MEDIAMONSTER',
     name: 'CONG TY TNHH MEDIAMONSTER',
+    entity_name_full: 'CONG TY TNHH MEDIAMONSTER',
     legal_name: 'CONG TY TNHH MEDIAMONSTER',
     display_name: 'Mediamonster',
     tax_code: '1001255108',
+    address: 'Thon Le Loi, Xa Tien Hai, Tinh Hung Yen',
+    representative: 'Ong Pham Ngoc Bao',
+    position: 'Giam doc',
+    email: 'Account@eventusproduction.com',
+    hotline: '058.369.2222',
+    website: 'eventusproduction.com',
+    bank_account: '01212345678',
+    bank_name: 'Ngan Hang Thuong Mai Co Phan Tien Phong TP Bank',
+    logo_file: 'logo_mediamonster.png',
+    source_entity_code: 'MMS',
     is_active: true,
     is_default: false,
     sort_order: 2,
@@ -215,6 +237,26 @@ function isQuoteCodeCollision(error) {
     message.includes('quotes_pkey') ||
     message.includes('quotes_id')
   )
+}
+
+function getRequiredReferenceColumn(error) {
+  if (error?.code !== '23503') return ''
+
+  const message = `${error?.message || ''} ${error?.details || ''}`.toLowerCase()
+  return ['entity_code', 'tier_code', 'service_code', 'created_by']
+    .find(column => message.includes(column)) || ''
+}
+
+function makeReferenceSetupError(error) {
+  const column = getRequiredReferenceColumn(error)
+  if (!column) return error
+
+  const setupError = new Error(
+    `Production DB dang ep foreign key cho ${column}. Hay chay docs/quotes-production-simplify.sql de don gian hoa schema quote.`
+  )
+  setupError.code = error?.code
+  setupError.statusCode = 500
+  return setupError
 }
 
 async function insertWithSchemaRetry(supabase, tableName, payload) {
@@ -537,6 +579,7 @@ async function createQuote(supabase, body = {}) {
       })
       break
     } catch (error) {
+      if (getRequiredReferenceColumn(error)) throw makeReferenceSetupError(error)
       if (!shouldGenerateShareToken || !isQuoteCodeCollision(error) || attempt === 4) throw error
     }
   }
@@ -549,7 +592,13 @@ async function createQuote(supabase, body = {}) {
     sort_order: item.sort_order ?? index + 1,
   }))
 
-  const insertedItems = await insertManyWithSchemaRetry(supabase, 'quote_items', quoteItems)
+  let insertedItems = []
+  try {
+    insertedItems = await insertManyWithSchemaRetry(supabase, 'quote_items', quoteItems)
+  } catch (error) {
+    if (getRequiredReferenceColumn(error)) throw makeReferenceSetupError(error)
+    throw error
+  }
   return { ...quote, items: insertedItems || [] }
 }
 

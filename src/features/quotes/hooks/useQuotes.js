@@ -5,7 +5,7 @@ const PRIVILEGED_ROLES = new Set(['leader', 'admin'])
 const LOCAL_QUOTES_KEY = 'eventus_local_quotes'
 const SHARE_TOKEN_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 const SHARE_TOKEN_LENGTH = 7
-const RECOVERABLE_FK_COLUMNS = new Set(['entity_code', 'tier_code', 'client_id', 'service_code'])
+const RECOVERABLE_FK_COLUMNS = new Set(['client_id'])
 
 function isPrivilegedRole(role) {
   return PRIVILEGED_ROLES.has(String(role || '').toLowerCase())
