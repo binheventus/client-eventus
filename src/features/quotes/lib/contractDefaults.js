@@ -2,6 +2,9 @@ import legalEntitiesData from '../../../data/pricing/legal_entities.json'
 
 export const MEDIAMONSTER_SAMPLE_TEMPLATE_ID = 'system-mediamonster-service-contract'
 export const DEFAULT_CONTRACT_TEMPLATE_ID = MEDIAMONSTER_SAMPLE_TEMPLATE_ID
+export const DEFAULT_CONTRACT_TITLE = 'HỢP ĐỒNG CUNG CẤP DỊCH VỤ MEDIA'
+export const CONTRACT_APPENDIX_DETAIL_TEXT = 'Chi tiết hạng mục: Theo Phụ lục đính kèm hợp đồng'
+export const CONTRACT_TEMPLATE_SNAPSHOT_RULE = 'Mẫu hợp đồng chỉ áp dụng cho hợp đồng tạo mới; hợp đồng đã lưu sẽ không bị cập nhật theo mẫu.'
 const LEGACY_DEFAULT_CONTRACT_TEMPLATE_IDS = new Set(['system-default-service-contract'])
 
 export const CONTRACT_TABLE_PLACEMENTS = {
@@ -36,6 +39,16 @@ export const DEFAULT_CONTRACT_PREAMBLE = [
   'Căn cứ theo Luật Thương mại số 36/2005/QH11 ngày 14 tháng 6 năm 2005;',
   'Căn cứ theo nhu cầu hợp tác và khả năng của hai bên.',
 ]
+
+function normalizeTextArray(value, fallback = []) {
+  if (!Array.isArray(value)) return fallback
+  const rows = value.map(item => String(item || '').trim()).filter(Boolean)
+  return rows.length ? rows : fallback
+}
+
+export function getContractPreamble(contract = {}) {
+  return normalizeTextArray(contract.preamble, DEFAULT_CONTRACT_PREAMBLE)
+}
 
 const DEFAULT_SECTIONS = [
   {
@@ -144,7 +157,7 @@ export const DEFAULT_CONTRACT_TEMPLATES = [
     id: MEDIAMONSTER_SAMPLE_TEMPLATE_ID,
     name: 'Mẫu Mediamonster theo form 18.05.2026',
     description: 'Mẫu cấu trúc lại từ file Form hợp đồng Mediamonster_18.05.2026.',
-    title: 'HỢP ĐỒNG CUNG CẤP DỊCH VỤ',
+    title: DEFAULT_CONTRACT_TITLE,
     seller_entity_code: 'MEDIAMONSTER',
     party_role_config: DEFAULT_PARTY_ROLE_CONFIG,
     contract_number_pattern: '{{dd}}{{mm}}/HDMMT-{{customer_short_code}}/{{yyyy}}',
@@ -302,20 +315,63 @@ export function sectionsToTermsText(sections = []) {
     .join('\n\n')
 }
 
+function formatHourValue(value) {
+  const number = Number(String(value ?? '').replace(',', '.'))
+  if (!Number.isFinite(number) || number <= 0) return ''
+  return new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 }).format(number)
+}
+
+export function getContractWorkDurationText(contract = {}) {
+  const durationHours = contract.quote_snapshot?.duration_hours ?? contract.duration_hours
+  const hourText = formatHourValue(durationHours)
+  if (!hourText) return '[Số giờ/buổi hoặc Số giờ/ngày]'
+
+  const durationNumber = Number(String(durationHours).replace(',', '.'))
+  const unit = durationNumber >= 8 ? 'ngày' : 'buổi'
+  return `${hourText} giờ/${unit}`
+}
+
+export function getContractWorkProgressNotes(contract = {}) {
+  const workDurationText = getContractWorkDurationText(contract)
+
+  return [
+    `Thời gian làm việc của ekip Bên B là tối đa ${workDurationText} theo mốc đã thống nhất. Trường hợp phát sinh ngoài giờ theo yêu cầu của Bên A, Bên A thanh toán thêm phí overtime là 500.000 đồng/giờ/nhân sự. Số giờ làm thêm phải được Bên A xác nhận bằng văn bản hoặc email/Zalo trước khi thực hiện.`,
+    'Tiến độ bàn giao video highlight và reels được tính theo ngày làm việc kể từ khi Bên A cung cấp đầy đủ brief dựng, logo, font, nhạc và các yêu cầu liên quan. Trường hợp Bên A chậm cung cấp tài liệu, deadline được gia hạn tương ứng.',
+  ]
+}
+
+export function numberToVietnameseCardinal(value) {
+  const number = Math.round(Number(value) || 0)
+  if (number === 0) return 'không'
+  return readTriple(number, false).replace(/\s+/g, ' ').trim()
+}
+
+export function getContractPaymentNotes(paymentConfig = {}) {
+  const finalDueDays = Math.max(0, Math.round(Number(paymentConfig.final_due_days ?? DEFAULT_PAYMENT_CONFIG.final_due_days) || DEFAULT_PAYMENT_CONFIG.final_due_days))
+  const finalDueDaysText = `${String(finalDueDays).padStart(2, '0')} (${numberToVietnameseCardinal(finalDueDays)})`
+
+  return [
+    `Thời hạn thanh toán Lần 2 được hiểu là ${finalDueDaysText} ngày làm việc kể từ ngày Bên B bàn giao đầy đủ sản phẩm và xuất hóa đơn.`,
+    'Trường hợp Bên A có khiếu nại về tính hợp lệ của hóa đơn, phải thông báo bằng văn bản cho Bên B trong vòng 02 ngày làm việc kể từ ngày nhận hóa đơn, nêu rõ lý do. Quá thời hạn này, hóa đơn được coi là đã được Bên A chấp nhận và nghĩa vụ thanh toán được kích hoạt theo điều khoản nêu trên.',
+  ]
+}
+
 export function normalizeContractTemplate(template = {}) {
   const contentSections = normalizeArray(template.content_sections, null) || termsTextToSections(template.terms_text)
   const quoteTableConfig = {
     ...DEFAULT_QUOTE_TABLE_CONFIG,
     ...(template.quote_table_config || {}),
-    placement: CONTRACT_TABLE_PLACEMENTS.APPENDIX,
   }
 
   return {
     ...template,
     seller_entity_code: template.seller_entity_code || template.entity_code || 'EVENTUS',
-    party_role_config: DEFAULT_PARTY_ROLE_CONFIG,
+    party_role_config: {
+      ...DEFAULT_PARTY_ROLE_CONFIG,
+      ...(template.party_role_config || {}),
+    },
     contract_number_pattern: template.contract_number_pattern || 'HD-{{quote_code}}',
-    preamble: DEFAULT_CONTRACT_PREAMBLE,
+    preamble: getContractPreamble(template),
     service_scope: template.service_scope || 'cung cấp dịch vụ theo nội dung báo giá đính kèm',
     schedule_rows: normalizeArray(template.schedule_rows, []),
     quote_table_config: quoteTableConfig,
@@ -408,19 +464,19 @@ export function buildInitialContractDraft(quote = {}, templateInput = DEFAULT_CO
     contract_number: getContractNumber(quote, template),
     status: 'draft',
     template_id: template.id || DEFAULT_CONTRACT_TEMPLATE_ID,
-    title: template.title || 'HỢP ĐỒNG CUNG CẤP DỊCH VỤ',
+    title: template.title || DEFAULT_CONTRACT_TITLE,
     seller_entity_code: sellerEntityCode,
     seller_snapshot: getEntityProfile(sellerEntityCode),
     customer_snapshot: getCustomerProfileFromQuote(quote),
     party_role_config: template.party_role_config,
     contract_number_pattern: template.contract_number_pattern,
-    preamble: DEFAULT_CONTRACT_PREAMBLE,
+    preamble: template.preamble,
     service_scope: inferServiceScope(quote, template),
     schedule_rows: buildScheduleRows(quote, template),
     quote_table_config: template.quote_table_config,
     payment_config: template.payment_config,
     content_sections: template.content_sections,
-    terms_text: sectionsToTermsText(template.content_sections),
+    terms_text: template.terms_text || sectionsToTermsText(template.content_sections),
     quote_snapshot: buildQuoteSnapshot(quote),
   }
 }

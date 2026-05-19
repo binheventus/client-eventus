@@ -1,10 +1,14 @@
 import { Document, Font, Page, StyleSheet, Text, View } from '@react-pdf/renderer'
 import {
+  CONTRACT_APPENDIX_DETAIL_TEXT,
   CONTRACT_TABLE_PLACEMENTS,
-  DEFAULT_CONTRACT_PREAMBLE,
+  getContractPreamble,
+  getContractPaymentNotes,
+  getContractWorkProgressNotes,
   numberToVietnameseWords,
   sanitizeFilenamePart,
 } from '../lib/contractDefaults'
+import { QuotePDFPage } from './QuotePDFDocument'
 
 const PDF_FONT_FAMILY = 'BeVietnamProContract'
 const FONT_PATH = '/fonts/be-vietnam-pro'
@@ -43,7 +47,29 @@ function getQuote(contract = {}) {
 }
 
 function getItemName(item = {}) {
-  return item.service_name || item.service_code || 'Hạng mục'
+  return item.service_name || item.service?.quote_display_name || item.service?.service_name || item.service?.name || item.service_name_raw || item.service_code || 'Hạng mục'
+}
+
+function getItemUnit(item = {}) {
+  return item.unit || item.service?.unit || item.pricing_unit || 'Người'
+}
+
+function getItemGroupLabel(item = {}) {
+  const rawLabel = item.group_label || item.event_day || item.day_index || item.day || ''
+  if (!rawLabel) return 'Hạng mục'
+  const label = String(rawLabel).trim()
+  if (!label) return 'Hạng mục'
+  return /^ngày\b/i.test(label) ? label : `Ngày ${label}`
+}
+
+function groupItemsByDay(items = []) {
+  const groups = new Map()
+  items.forEach(item => {
+    const key = getItemGroupLabel(item)
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key).push(item)
+  })
+  return Array.from(groups.entries())
 }
 
 function getPartyRole(contract = {}, partyKey = 'party_a') {
@@ -155,7 +181,7 @@ const styles = StyleSheet.create({
   },
   signatureHeading: {
     fontWeight: 700,
-    marginBottom: 32,
+    marginBottom: 48,
   },
   signatureName: {
     fontWeight: 700,
@@ -197,23 +223,19 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     fontSize: 7.2,
   },
-  stt: {
-    width: '7%',
-    textAlign: 'center',
-  },
   itemName: {
-    width: '34%',
+    width: '37%',
   },
   unit: {
-    width: '10%',
+    width: '12%',
     textAlign: 'center',
   },
   qty: {
-    width: '8%',
+    width: '10%',
     textAlign: 'center',
   },
   sessions: {
-    width: '9%',
+    width: '8%',
     textAlign: 'center',
   },
   price: {
@@ -307,26 +329,31 @@ function ScheduleRows({ rows = [] }) {
 }
 
 function QuoteItemsTable({ items = [] }) {
+  const groups = groupItemsByDay(items)
+
   return (
     <View style={styles.table}>
       <View style={styles.headerRow} fixed>
-        <Text style={[styles.cell, styles.headerCell, styles.stt]}>STT</Text>
         <Text style={[styles.cell, styles.headerCell, styles.itemName]}>Hạng mục</Text>
-        <Text style={[styles.cell, styles.headerCell, styles.unit]}>ĐVT</Text>
-        <Text style={[styles.cell, styles.headerCell, styles.qty]}>SL</Text>
-        <Text style={[styles.cell, styles.headerCell, styles.sessions]}>Số ngày</Text>
+        <Text style={[styles.cell, styles.headerCell, styles.unit]}>Đơn vị tính</Text>
+        <Text style={[styles.cell, styles.headerCell, styles.qty]}>Số lượng</Text>
+        <Text style={[styles.cell, styles.headerCell, styles.sessions]}>Số buổi</Text>
         <Text style={[styles.cell, styles.headerCell, styles.price]}>Đơn giá</Text>
         <Text style={[styles.cell, styles.headerCell, styles.amount]}>Thành tiền</Text>
       </View>
-      {items.map((item, index) => (
-        <View key={`${item.service_code || item.service_name}-${index}`} style={styles.row} wrap={false}>
-          <Text style={[styles.cell, styles.stt]}>{index + 1}</Text>
-          <Text style={[styles.cell, styles.itemName]}>{getItemName(item)}</Text>
-          <Text style={[styles.cell, styles.unit]}>{item.unit || 'Người'}</Text>
-          <Text style={[styles.cell, styles.qty]}>{item.quantity || 0}</Text>
-          <Text style={[styles.cell, styles.sessions]}>{item.num_sessions || 1}</Text>
-          <Text style={[styles.cell, styles.price]}>{formatCurrency(item.unit_price)}</Text>
-          <Text style={[styles.cell, styles.amount]}>{formatCurrency(item.total_price)}</Text>
+      {groups.map(([groupName, groupItems]) => (
+        <View key={groupName} wrap={false}>
+          {groups.length > 1 ? <Text style={styles.groupRow}>{groupName}</Text> : null}
+          {groupItems.map((item, index) => (
+            <View key={`${groupName}-${item.service_code || item.service_name || 'item'}-${index}`} style={styles.row} wrap={false}>
+              <Text style={[styles.cell, styles.itemName]}>{getItemName(item)}</Text>
+              <Text style={[styles.cell, styles.unit]}>{getItemUnit(item)}</Text>
+              <Text style={[styles.cell, styles.qty]}>{item.quantity || 1}</Text>
+              <Text style={[styles.cell, styles.sessions]}>{item.num_sessions || 1}</Text>
+              <Text style={[styles.cell, styles.price]}>{formatCurrency(item.unit_price)}</Text>
+              <Text style={[styles.cell, styles.amount]}>{formatCurrency(item.total_price)}</Text>
+            </View>
+          ))}
         </View>
       ))}
     </View>
@@ -335,7 +362,7 @@ function QuoteItemsTable({ items = [] }) {
 
 function Totals({ quote = {} }) {
   const rows = [
-    ['Cộng', quote.subtotal],
+    ['Subtotal', quote.subtotal],
     Number(quote.travel_fee_total || 0) > 0 ? ['Phụ phí di chuyển', quote.travel_fee_total] : null,
     Number(quote.overtime_fee_total || 0) > 0 ? ['Phụ phí Over-time', quote.overtime_fee_total] : null,
     quote.has_vat !== false ? ['VAT', quote.vat_amount] : null,
@@ -358,6 +385,8 @@ function Totals({ quote = {} }) {
 }
 
 function ServiceArticle({ contract = {}, quote = {}, items = [], includeQuoteTable = false }) {
+  const workProgressNotes = getContractWorkProgressNotes(contract)
+
   return (
     <View>
       <Text style={styles.sectionTitle}>ĐIỀU 1: NỘI DUNG HỢP ĐỒNG</Text>
@@ -371,7 +400,9 @@ function ServiceArticle({ contract = {}, quote = {}, items = [], includeQuoteTab
           <QuoteItemsTable items={items} />
           <Totals quote={quote} />
         </>
-      ) : <Text style={styles.paragraphStrong}>Chi tiết hạng mục: Theo Phụ lục cuối hợp đồng.</Text>}
+      ) : <Text style={styles.paragraphStrong}>{CONTRACT_APPENDIX_DETAIL_TEXT}</Text>}
+      <Text style={styles.paragraphStrong}>Lưu ý về thời gian làm việc và tiến độ bàn giao:</Text>
+      {workProgressNotes.map(item => <Text key={item} style={styles.paragraph}>- {item}</Text>)}
     </View>
   )
 }
@@ -381,6 +412,7 @@ function PaymentArticle({ contract = {}, quote = {} }) {
   const depositPercent = Number(payment.deposit_percent || 50)
   const depositAmount = Number(quote.total_amount || 0) * depositPercent / 100
   const docs = Array.isArray(payment.payment_documents) ? payment.payment_documents : []
+  const paymentNotes = getContractPaymentNotes(payment)
 
   return (
     <View>
@@ -396,6 +428,8 @@ function PaymentArticle({ contract = {}, quote = {} }) {
           {docs.map(item => <Text key={item} style={styles.paragraph}>- {item}</Text>)}
         </>
       ) : null}
+      <Text style={styles.paragraphStrong}>Lưu ý về thanh toán:</Text>
+      {paymentNotes.map(item => <Text key={item} style={styles.paragraph}>- {item}</Text>)}
     </View>
   )
 }
@@ -415,7 +449,6 @@ function ContentSections({ sections = [] }) {
 
 function Signature({ contract = {} }) {
   const partyA = getPartyProfile(contract, 'party_a')
-  const partyB = getPartyProfile(contract, 'party_b')
   return (
     <View style={styles.signatureWrap}>
       <View style={styles.signature}>
@@ -424,25 +457,19 @@ function Signature({ contract = {} }) {
       </View>
       <View style={styles.signature}>
         <Text style={styles.signatureHeading}>ĐẠI DIỆN BÊN B</Text>
-        <Text style={styles.signatureName}>{partyB.representative || ''}</Text>
+        <Text style={styles.signatureName} />
       </View>
     </View>
   )
 }
 
 function AppendixPage({ contract = {}, quote = {}, items = [] }) {
-  return (
-    <Page size="A4" style={styles.page}>
-      <Text style={styles.title}>PHỤ LỤC: BÁO GIÁ ĐÍNH KÈM</Text>
-      <Text style={styles.subtitle}>Mã báo giá: {quote.quote_number || contract.quote_number || '-'}</Text>
-      <Text style={styles.paragraphStrong}>Sự kiện/Dự án: {quote.event_name || '-'}</Text>
-      <Text style={styles.paragraph}>Khách hàng: {quote.client_name || getCustomer(contract).legal_name || '-'}</Text>
-      <Text style={styles.paragraph}>Địa điểm: {quote.location || '-'}</Text>
-      <QuoteItemsTable items={items} />
-      <Totals quote={quote} />
-      <Text style={styles.pageNumber} render={({ pageNumber, totalPages }) => `Trang ${pageNumber}/${totalPages}`} fixed />
-    </Page>
-  )
+  const quoteForAppendix = {
+    ...quote,
+    created_at: quote.created_at || contract.created_at || contract.updated_at,
+  }
+
+  return <QuotePDFPage quote={quoteForAppendix} items={items} />
 }
 
 export default function ContractPDFDocument({ contract = {} }) {
@@ -452,6 +479,7 @@ export default function ContractPDFDocument({ contract = {} }) {
   const tableInArticle = quoteTablePlacement === CONTRACT_TABLE_PLACEMENTS.ARTICLE_1
   const partyA = getPartyProfile(contract, 'party_a')
   const partyB = getPartyProfile(contract, 'party_b')
+  const preambleLines = getContractPreamble(contract)
 
   return (
     <Document title={contract.contract_number || 'Hợp đồng'}>
@@ -460,7 +488,7 @@ export default function ContractPDFDocument({ contract = {} }) {
         <Text style={styles.nationalMotto}>Độc lập – Tự do – Hạnh phúc</Text>
         <Text style={styles.title}>{contract.title || 'HỢP ĐỒNG CUNG CẤP DỊCH VỤ'}</Text>
         <Text style={styles.subtitle}>Số: {contract.contract_number || '-'}</Text>
-        {DEFAULT_CONTRACT_PREAMBLE.map(line => <Text key={line} style={styles.paragraph}>{line}</Text>)}
+        {preambleLines.map(line => <Text key={line} style={styles.paragraph}>{line}</Text>)}
         <Text style={styles.paragraph}>Hợp đồng cung cấp dịch vụ (sau đây gọi tắt là “Hợp đồng”) được lập và ký kết ngày {formatDate(contract.updated_at || contract.created_at)} giữa các bên gồm:</Text>
 
         <View style={styles.parties}>

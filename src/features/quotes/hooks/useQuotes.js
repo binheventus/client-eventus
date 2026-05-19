@@ -1,5 +1,10 @@
 import { useCallback, useState } from 'react'
 import { fromQuoteTable, hasSupabaseConfig } from '../../../lib/supabase'
+import {
+  applyLocalQuoteFilters,
+  applySupabaseQuoteFilters,
+  buildQuoteApiPath,
+} from '../lib/quoteQueryFilters'
 
 const PRIVILEGED_ROLES = new Set(['leader', 'admin'])
 const LOCAL_QUOTES_KEY = 'eventus_local_quotes'
@@ -27,36 +32,6 @@ const LIST_QUOTE_COLUMNS = [
 
 function isPrivilegedRole(role) {
   return PRIVILEGED_ROLES.has(String(role || '').toLowerCase())
-}
-
-function applyFilters(query, filters = {}) {
-  Object.entries(filters || {}).forEach(([key, value]) => {
-    if (value === undefined || value === null || value === '') return
-
-    if (key === 'search') {
-      query = query.or(`quote_number.ilike.%${value}%,client_name.ilike.%${value}%,event_name.ilike.%${value}%`)
-      return
-    }
-
-    if (key === 'date_from') {
-      query = query.gte('created_at', value)
-      return
-    }
-
-    if (key === 'date_to') {
-      query = query.lte('created_at', value)
-      return
-    }
-
-    if (Array.isArray(value)) {
-      query = query.in(key, value)
-      return
-    }
-
-    query = query.eq(key, value)
-  })
-
-  return query
 }
 
 function getMissingSchemaColumn(error) {
@@ -166,30 +141,6 @@ function makeShareToken() {
   return Array.from(values, value => SHARE_TOKEN_ALPHABET[value % SHARE_TOKEN_ALPHABET.length]).join('')
 }
 
-function getLocalQuoteText(quote = {}) {
-  return [
-    quote.quote_number,
-    quote.client_name,
-    quote.event_name,
-  ].filter(Boolean).join(' ').toLowerCase()
-}
-
-function applyLocalFilters(quotes = [], filters = {}) {
-  return quotes.filter(quote => {
-    if (quote.deleted_at) return false
-    if (filters.search && !getLocalQuoteText(quote).includes(String(filters.search).toLowerCase())) return false
-    if (filters.date_from && String(quote.created_at || '') < filters.date_from) return false
-    if (filters.date_to && String(quote.created_at || '') > filters.date_to) return false
-
-    return Object.entries(filters || {}).every(([key, value]) => {
-      if (['search', 'date_from', 'date_to'].includes(key)) return true
-      if (value === undefined || value === null || value === '') return true
-      if (Array.isArray(value)) return value.includes(quote[key])
-      return quote[key] === value
-    })
-  })
-}
-
 function makeLocalQuoteNumber(quotes = []) {
   const nextNumber = quotes.length + 1
   return `BG-${String(nextNumber).padStart(4, '0')}`
@@ -199,7 +150,7 @@ function listLocalQuotes({ filters = {}, page = 1, pageSize = 20 } = {}) {
   const safePage = Math.max(Number(page) || 1, 1)
   const safePageSize = Math.max(Number(pageSize) || 20, 1)
   const from = (safePage - 1) * safePageSize
-  const rows = applyLocalFilters(readLocalQuotes(), filters)
+  const rows = applyLocalQuoteFilters(readLocalQuotes(), filters)
     .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
 
   return {
@@ -364,31 +315,6 @@ async function requestQuoteApi(path = '', { method = 'GET', body } = {}) {
   return payload
 }
 
-function getQuoteApiPath(params = {}) {
-  const searchParams = new URLSearchParams()
-
-  Object.entries(params).forEach(([key, value]) => {
-    if (value === undefined || value === null || value === '') return
-
-    if (key === 'filters') {
-      Object.entries(value || {}).forEach(([filterKey, filterValue]) => {
-        if (filterValue === undefined || filterValue === null || filterValue === '') return
-        if (Array.isArray(filterValue)) {
-          if (filterValue.length) searchParams.set(filterKey, filterValue.join(','))
-          return
-        }
-        searchParams.set(filterKey, String(filterValue))
-      })
-      return
-    }
-
-    searchParams.set(key, String(value))
-  })
-
-  const queryString = searchParams.toString()
-  return queryString ? `?${queryString}` : ''
-}
-
 function isMissingCachedRelation(error, relationName) {
   const message = String(error?.message || '').toLowerCase()
   return message.includes(relationName.toLowerCase()) &&
@@ -409,7 +335,7 @@ async function listSupabaseQuotes({ filters = {}, page = 1, pageSize = 20, trash
     .order(orderColumn, { ascending: false })
     .range(from, to)
 
-  query = applyFilters(query, filters)
+  query = applySupabaseQuoteFilters(query, filters)
   let response = await query
 
   if (response.error && isMissingCachedRelation(response.error, viewName)) {
@@ -420,7 +346,7 @@ async function listSupabaseQuotes({ filters = {}, page = 1, pageSize = 20, trash
       ? fallbackQuery.not('deleted_at', 'is', null).order('deleted_at', { ascending: false })
       : fallbackQuery.is('deleted_at', null).order('created_at', { ascending: false })
 
-    fallbackQuery = applyFilters(fallbackQuery, filters).range(from, to)
+    fallbackQuery = applySupabaseQuoteFilters(fallbackQuery, filters).range(from, to)
     response = await fallbackQuery
   }
 
@@ -490,7 +416,7 @@ export async function listQuotes({ filters = {}, page = 1, pageSize = 20 } = {})
 
   if (canUseQuoteApi()) {
     try {
-      return await requestQuoteApi(getQuoteApiPath({ filters, page, pageSize }))
+      return await requestQuoteApi(buildQuoteApiPath({ filters, page, pageSize }))
     } catch (error) {
       if (!shouldFallbackToSupabase(error)) throw error
     }
@@ -505,7 +431,7 @@ export async function getQuote(id) {
 
   if (canUseQuoteApi()) {
     try {
-      const result = await requestQuoteApi(getQuoteApiPath({ id }))
+      const result = await requestQuoteApi(buildQuoteApiPath({ id }))
       return result.quote
     } catch (error) {
       if (!shouldFallbackToSupabase(error)) throw error
@@ -521,7 +447,7 @@ export async function getQuoteViewStats(quoteId) {
 
   if (canUseQuoteApi()) {
     try {
-      return await requestQuoteApi(getQuoteApiPath({ stats_id: quoteId }))
+      return await requestQuoteApi(buildQuoteApiPath({ stats_id: quoteId }))
     } catch (error) {
       if (!shouldFallbackToSupabase(error)) throw error
     }
@@ -547,7 +473,7 @@ export async function getQuoteAuditLogs(quoteId) {
 
   if (canUseQuoteApi()) {
     try {
-      const result = await requestQuoteApi(getQuoteApiPath({ audit_id: quoteId }))
+      const result = await requestQuoteApi(buildQuoteApiPath({ audit_id: quoteId }))
       return result.logs || []
     } catch (error) {
       if (!shouldFallbackToSupabase(error)) throw error
@@ -709,7 +635,7 @@ export async function listTrashed({ role, page = 1, pageSize = 20 } = {}) {
 
   if (canUseQuoteApi()) {
     try {
-      return await requestQuoteApi(getQuoteApiPath({ page, pageSize, trash: 1 }))
+      return await requestQuoteApi(buildQuoteApiPath({ page, pageSize, trash: 1 }))
     } catch (error) {
       if (!shouldFallbackToSupabase(error)) throw error
     }
@@ -727,7 +653,7 @@ export async function permanentlyDeleteQuote(id, { role } = {}) {
 
   if (canUseQuoteApi()) {
     try {
-      await requestQuoteApi(getQuoteApiPath({ id, hard: 1 }), { method: 'DELETE' })
+      await requestQuoteApi(buildQuoteApiPath({ id, hard: 1 }), { method: 'DELETE' })
       return
     } catch (error) {
       if (!shouldFallbackToSupabase(error)) throw error
@@ -752,7 +678,7 @@ export async function getPublicQuoteByToken(shareToken) {
 
   if (canUseQuoteApi()) {
     try {
-      const result = await requestQuoteApi(getQuoteApiPath({ share_token: shareToken }))
+      const result = await requestQuoteApi(buildQuoteApiPath({ share_token: shareToken }))
       return result.quote
     } catch (error) {
       if (!shouldFallbackToSupabase(error)) throw error

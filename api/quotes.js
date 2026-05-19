@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
+import { applySupabaseQuoteFilters } from '../src/features/quotes/lib/quoteQueryFilters.js'
 
 const SHARE_TOKEN_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 const SHARE_TOKEN_LENGTH = 7
@@ -95,31 +96,6 @@ function getFilters(query = {}) {
     if (value !== '') filters[key] = value
     return filters
   }, {})
-}
-
-function applyFilters(query, filters = {}) {
-  Object.entries(filters).forEach(([key, value]) => {
-    if (value === undefined || value === null || value === '') return
-
-    if (key === 'search') {
-      query = query.or(`quote_number.ilike.%${value}%,client_name.ilike.%${value}%,event_name.ilike.%${value}%`)
-      return
-    }
-
-    if (key === 'date_from') {
-      query = query.gte('created_at', value)
-      return
-    }
-
-    if (key === 'date_to') {
-      query = query.lte('created_at', value)
-      return
-    }
-
-    query = query.eq(key, value)
-  })
-
-  return query
 }
 
 function getMissingSchemaColumn(error) {
@@ -344,7 +320,7 @@ async function listQuotes(supabase, queryParams = {}) {
     ? query.not('deleted_at', 'is', null).order('deleted_at', { ascending: false })
     : query.is('deleted_at', null).order('created_at', { ascending: false })
 
-  query = applyFilters(query, filters).range(from, to)
+  query = applySupabaseQuoteFilters(query, filters).range(from, to)
 
   const { data, error, count } = await query
   if (error) throw error

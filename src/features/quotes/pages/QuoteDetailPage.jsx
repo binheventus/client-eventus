@@ -15,6 +15,11 @@ import { normalizeQuoteValidityDays } from '../lib/quoteValidity'
 const QuotePDFDownloadButton = lazy(() => import('../components/QuotePDFDownloadButton'))
 const ContractEditorModal = lazy(() => import('../components/ContractEditorModal'))
 
+const DETAIL_ACTION_BUTTON_BASE = 'inline-flex h-10 items-center justify-center gap-2 rounded-xl px-4 text-center text-[13px] font-semibold shadow-sm transition focus-visible:outline-none focus-visible:ring-2 disabled:cursor-not-allowed'
+const DETAIL_SECONDARY_ACTION_BUTTON = `${DETAIL_ACTION_BUTTON_BASE} w-[156px] border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 focus-visible:ring-slate-200`
+const DETAIL_CONTRACT_ACTION_BUTTON = `${DETAIL_ACTION_BUTTON_BASE} w-[156px] border border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100 focus-visible:ring-orange-200 disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-300 disabled:shadow-none`
+const DETAIL_PRIMARY_ACTION_BUTTON = `${DETAIL_ACTION_BUTTON_BASE} min-w-[184px] whitespace-nowrap bg-[#f8981d] text-white hover:bg-orange-500 focus-visible:ring-orange-200`
+
 function formatDateTime(value) {
   if (!value) return '-'
   return new Date(value).toLocaleString('vi-VN')
@@ -115,23 +120,35 @@ export default function QuoteDetailPage() {
           <QuoteBreadcrumb items={[{ label: quote.quote_number || quote.event_name || 'Chi tiết báo giá' }]} />
         </div>
         <div className="flex flex-wrap gap-2">
-          <button onClick={() => navigate(`/quotes/${id}?mode=edit`)} className="rounded-xl border border-slate-200 px-4 py-2.5 text-[13px] font-semibold text-slate-700 hover:bg-slate-50">Sửa</button>
+          <button
+            type="button"
+            onClick={() => navigate(`/quotes/${id}?mode=edit`)}
+            className={DETAIL_SECONDARY_ACTION_BUTTON}
+          >
+            Sửa báo giá
+          </button>
           <button
             type="button"
             disabled={!canCreateContract}
             onClick={openContractModal}
             title={canCreateContract ? 'Tạo hoặc sửa hợp đồng' : 'Báo giá nháp chưa tạo được hợp đồng'}
-            className="inline-flex items-center gap-2 rounded-xl border border-orange-200 bg-orange-50 px-4 py-2.5 text-[13px] font-semibold text-orange-700 hover:bg-orange-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-300"
+            className={DETAIL_CONTRACT_ACTION_BUTTON}
           >
             <FileSignature className="h-4 w-4" />
             Tạo hợp đồng
           </button>
-          <button onClick={copyShareLink} className="rounded-xl bg-[#f8981d] px-4 py-2.5 text-[13px] font-semibold text-white shadow-sm hover:bg-orange-500">Copy link gửi khách</button>
-          <Suspense fallback={<span className="rounded-xl bg-[#f8981d] px-4 py-2.5 text-[13px] font-semibold text-white">Đang tải PDF...</span>}>
+          <button
+            type="button"
+            onClick={copyShareLink}
+            className={DETAIL_PRIMARY_ACTION_BUTTON}
+          >
+            Copy link gửi khách
+          </button>
+          <Suspense fallback={<span className={DETAIL_SECONDARY_ACTION_BUTTON}>Đang tải PDF...</span>}>
             <QuotePDFDownloadButton
               quote={quote}
               items={quote.items || []}
-              className="rounded-xl bg-[#f8981d] px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-orange-500"
+              className={DETAIL_SECONDARY_ACTION_BUTTON}
             >
               Download PDF
             </QuotePDFDownloadButton>

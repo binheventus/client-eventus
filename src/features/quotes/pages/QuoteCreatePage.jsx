@@ -865,8 +865,10 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
         duration_hours: Number(quote.duration_hours),
         validity_days: normalizeQuoteValidityDays(quote.validity_days),
         has_vat: Boolean(quote.has_vat),
-        status,
-        sent_at: status === 'sent' ? now : null,
+        ...(!isEditMode ? {
+          status,
+          sent_at: status === 'sent' ? now : null,
+        } : {}),
         subtotal: totals.subtotal,
         travel_fee_total: totals.travel_fee_total,
         overtime_fee_total: totals.overtime_fee_total,

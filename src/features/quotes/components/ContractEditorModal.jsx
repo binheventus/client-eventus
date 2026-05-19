@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CalendarDays, FileSignature, Landmark, Plus, Save, Trash2, X } from 'lucide-react'
+import { AlertTriangle, CalendarDays, FileSignature, Plus, Save, Trash2, X } from 'lucide-react'
 import { useLegalEntities } from '../hooks/useLegalEntities'
 import {
   createContractDraftFromQuote,
+  deleteContract,
   getContractByQuoteId,
   listContractTemplates,
   saveContract,
@@ -10,8 +11,12 @@ import {
 import {
   buildQuoteSnapshot,
   canCreateContractFromQuote,
-  DEFAULT_CONTRACT_PREAMBLE,
+  CONTRACT_TEMPLATE_SNAPSHOT_RULE,
+  DEFAULT_CONTRACT_TITLE,
+  DEFAULT_PAYMENT_CONFIG,
   generateContractNumber,
+  getContractPreamble,
+  getContractPaymentNotes,
   getDefaultTemplate,
   getEntityProfile,
   normalizeContractTemplate,
@@ -20,6 +25,7 @@ import {
 } from '../lib/contractDefaults'
 import ContractDocumentDownloads from './ContractDocumentDownloads'
 import QuoteBreadcrumb from './QuoteBreadcrumb'
+import QuotePreview from './QuotePreview'
 
 function Field({ label, children, className = '' }) {
   return (
@@ -76,13 +82,6 @@ function SectionCard({ icon: Icon, title, children, action }) {
   )
 }
 
-function splitLines(value = '') {
-  return String(value || '')
-    .split('\n')
-    .map(line => line.trim())
-    .filter(Boolean)
-}
-
 function hasText(value) {
   return String(value ?? '').trim().length > 0
 }
@@ -107,10 +106,6 @@ function formatDate(value) {
   return new Intl.DateTimeFormat('vi-VN').format(date)
 }
 
-function getQuoteItemName(item = {}) {
-  return item.service_name || item.service_name_raw || item.service?.quote_display_name || item.service?.service_name || item.service_code || 'Hạng mục'
-}
-
 function SummaryRow({ label, value, strong = false }) {
   return (
     <div className="border-b border-slate-100 py-2 last:border-b-0">
@@ -118,6 +113,17 @@ function SummaryRow({ label, value, strong = false }) {
       <dd className={`mt-1 text-[13px] leading-5 ${strong ? 'font-semibold text-slate-950' : 'text-slate-700'}`}>
         {hasText(value) ? value : '-'}
       </dd>
+    </div>
+  )
+}
+
+function LegalNoteList({ title, items = [] }) {
+  return (
+    <div className="mt-4 border-t border-slate-100 pt-4">
+      <p className="text-[13px] font-semibold text-slate-900">{title}</p>
+      <ul className="mt-1 list-disc space-y-1 pl-5 text-[13px] leading-6 text-slate-700">
+        {items.map(item => <li key={item}>{item}</li>)}
+      </ul>
     </div>
   )
 }
@@ -189,56 +195,6 @@ function ProfileFields({ title, eyebrow, value = {}, onChange, companyLabel = 'T
   )
 }
 
-function QuoteItemsTable({ quoteSnapshot = {} }) {
-  const items = Array.isArray(quoteSnapshot.items) ? quoteSnapshot.items : []
-
-  return (
-    <SectionCard icon={FileSignature} title="Phụ lục báo giá">
-      <div className="overflow-hidden rounded-2xl border border-slate-200">
-        <div className="max-h-[320px] overflow-auto">
-          <table className="w-full min-w-[820px] text-left text-[13px]">
-            <thead className="sticky top-0 z-[1] bg-slate-50 text-[11px] uppercase tracking-[0.12em] text-slate-500">
-              <tr>
-                <th className="w-12 px-4 py-3">#</th>
-                <th className="px-4 py-3">Hạng mục</th>
-                <th className="px-4 py-3 text-right">SL</th>
-                <th className="px-4 py-3 text-right">Buổi</th>
-                <th className="px-4 py-3 text-right">Đơn giá</th>
-                <th className="px-4 py-3 text-right">Thành tiền</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 bg-white">
-              {items.length ? items.map((item, index) => (
-                <tr key={`${item.service_code || 'item'}-${index}`} className="hover:bg-orange-50/40">
-                  <td className="px-4 py-3 font-semibold text-slate-400">{index + 1}</td>
-                  <td className="px-4 py-3">
-                    <div className="font-semibold text-slate-900">{getQuoteItemName(item)}</div>
-                    {item.service_code ? <div className="mt-0.5 text-[11px] text-slate-400">{item.service_code}</div> : null}
-                  </td>
-                  <td className="px-4 py-3 text-right text-slate-700">{item.quantity || 0}</td>
-                  <td className="px-4 py-3 text-right text-slate-700">{item.num_sessions || 1}</td>
-                  <td className="px-4 py-3 text-right text-slate-700">{formatCurrency(item.unit_price)}đ</td>
-                  <td className="px-4 py-3 text-right font-semibold text-slate-950">{formatCurrency(item.total_price)}đ</td>
-                </tr>
-              )) : (
-                <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-slate-400">Chưa có hạng mục báo giá.</td>
-                </tr>
-              )}
-            </tbody>
-            <tfoot className="bg-slate-50">
-              <tr>
-                <td colSpan={5} className="px-4 py-3 text-right font-semibold text-slate-600">Tổng hợp đồng</td>
-                <td className="px-4 py-3 text-right text-[15px] font-bold text-slate-950">{formatCurrency(quoteSnapshot.total_amount)}đ</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      </div>
-    </SectionCard>
-  )
-}
-
 function hydrateContract(contract, quote) {
   const normalized = normalizeContractTemplate(contract)
   return {
@@ -252,6 +208,46 @@ function hydrateContract(contract, quote) {
   }
 }
 
+function DeleteContractConfirmModal({ contractNumber, deleting, onCancel, onConfirm }) {
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/50 px-4 py-6">
+      <section className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl">
+        <div className="flex items-start gap-3">
+          <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-600">
+            <AlertTriangle className="h-5 w-5" />
+          </span>
+          <div>
+            <h2 className="text-[18px] font-semibold text-slate-950">Xoá hợp đồng đã lưu</h2>
+            <p className="mt-2 text-[13px] leading-6 text-slate-600">
+              Hợp đồng <span className="font-semibold text-slate-950">{contractNumber || 'này'}</span> sẽ bị xoá khỏi báo giá. Báo giá vẫn được giữ nguyên để tạo lại hợp đồng mới.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={deleting}
+            className="rounded-xl border border-slate-200 px-4 py-2.5 text-[13px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          >
+            Huỷ
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={deleting}
+            className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-[13px] font-semibold text-white shadow-sm hover:bg-red-700 disabled:opacity-50"
+          >
+            <Trash2 className="h-4 w-4" />
+            {deleting ? 'Đang xoá...' : 'Xoá hợp đồng'}
+          </button>
+        </div>
+      </section>
+    </div>
+  )
+}
+
 export default function ContractEditorModal({
   open,
   quote,
@@ -263,9 +259,11 @@ export default function ContractEditorModal({
   const [savedContract, setSavedContract] = useState(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [dirty, setDirty] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
 
   const quoteIsReady = canCreateContractFromQuote(quote)
   const quoteSnapshot = useMemo(() => buildQuoteSnapshot(quote || {}), [quote])
@@ -278,6 +276,7 @@ export default function ContractEditorModal({
       setLoading(true)
       setError('')
       setNotice('')
+      setDeleteConfirmOpen(false)
 
       try {
         const [templateRows, existingContract] = await Promise.all([
@@ -431,6 +430,31 @@ export default function ContractEditorModal({
     }
   }
 
+  async function handleDeleteContract() {
+    if (!savedContract && !draft?.id) return
+
+    setDeleting(true)
+    setError('')
+    setNotice('')
+
+    try {
+      await deleteContract({
+        id: savedContract?.id || draft?.id,
+        quoteId: quote?.id,
+      })
+      const nextDraft = createContractDraftFromQuote(quote, getDefaultTemplate(templates))
+      setDraft(nextDraft)
+      setSavedContract(null)
+      setDirty(false)
+      setDeleteConfirmOpen(false)
+      setNotice('Đã xoá hợp đồng. Bạn có thể tạo lại hợp đồng mới từ báo giá này.')
+    } catch (err) {
+      setError(err?.message || 'Không xoá được hợp đồng.')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   if (!open) return null
 
   const savedQuoteSnapshot = savedContract?.quote_snapshot || {}
@@ -449,6 +473,20 @@ export default function ContractEditorModal({
   } : null
   const serviceScopeDetail = getServiceScopeDetail(draft?.service_scope)
   const termsText = draft?.terms_text ?? sectionsToTermsText(draft?.content_sections || [])
+  const preambleLines = getContractPreamble(draft || {})
+  const paymentDocuments = Array.isArray(draft?.payment_config?.payment_documents)
+    ? draft.payment_config.payment_documents
+    : DEFAULT_PAYMENT_CONFIG.payment_documents
+  const paymentNotes = getContractPaymentNotes(draft?.payment_config)
+  const quotePreviewQuote = { ...(quote || {}), ...quoteSnapshot }
+  const quotePreviewItems = Array.isArray(quoteSnapshot.items) ? quoteSnapshot.items : []
+  const quotePreviewTotals = {
+    subtotal: quoteSnapshot.subtotal,
+    travel_fee_total: quoteSnapshot.travel_fee_total,
+    overtime_fee_total: quoteSnapshot.overtime_fee_total,
+    vat_amount: quoteSnapshot.vat_amount,
+    total_amount: quoteSnapshot.total_amount,
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45">
@@ -534,12 +572,9 @@ export default function ContractEditorModal({
                   </section>
 
                   <SectionCard icon={FileSignature} title="Tổng quan hợp đồng">
-                    <div className="grid gap-3 lg:grid-cols-[minmax(180px,0.8fr)_minmax(150px,0.65fr)_minmax(260px,1.15fr)]">
+                    <div className="grid gap-3 lg:grid-cols-[minmax(180px,0.75fr)_minmax(260px,1.25fr)_minmax(260px,1fr)]">
                       <Field label="Số hợp đồng">
                         <TextInput value={draft.contract_number || ''} onChange={event => updateDraft({ contract_number: event.target.value })} />
-                      </Field>
-                      <Field label="Trạng thái">
-                        <TextInput value={savedContract ? 'Đã lưu hợp đồng' : 'Hợp đồng mới'} readOnly className="bg-slate-50 text-slate-500" />
                       </Field>
                       <Field label="Format số hợp đồng">
                         <TextInput value={draft.contract_number_pattern || ''} onChange={event => updateDraft({ contract_number_pattern: event.target.value })} />
@@ -550,25 +585,25 @@ export default function ContractEditorModal({
                             <option key={template.id} value={template.id}>{template.name}</option>
                           ))}
                         </Select>
-                      </Field>
-                      <Field label="Tiêu đề hợp đồng" className="lg:col-span-2">
-                        <TextInput value={draft.title || ''} onChange={event => updateDraft({ title: event.target.value })} />
+                        <span className="mt-1.5 block text-[11px] leading-4 text-slate-500">
+                          {CONTRACT_TEMPLATE_SNAPSHOT_RULE}
+                        </span>
                       </Field>
                     </div>
                   </SectionCard>
 
-                  <SectionCard icon={Landmark} title="Phần mở đầu">
-                    <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-center">
-                      <p className="text-[13px] uppercase text-slate-950">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
-                      <p className="text-[13px] text-slate-950">Độc lập - Tự do - Hạnh phúc</p>
-                    </div>
-                    <div className="mt-4 rounded-xl border border-slate-100 bg-white px-4 py-3">
-                      <p className="text-[12px] font-semibold uppercase tracking-[0.1em] text-slate-400">Căn cứ hợp đồng</p>
-                      <div className="mt-2 space-y-1 text-[13px] leading-6 text-slate-700">
-                        {DEFAULT_CONTRACT_PREAMBLE.map(line => <p key={line}>{line}</p>)}
+                  <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                      <p className="text-center text-[13px] uppercase text-slate-950">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
+                      <p className="text-center text-[13px] text-slate-950">Độc lập – Tự do – Hạnh phúc</p>
+                      <p className="mt-3 text-center text-[18px] font-bold uppercase tracking-wide text-slate-950">{draft.title || DEFAULT_CONTRACT_TITLE}</p>
+                      <p className="mt-1 text-center text-[13px] font-semibold text-slate-700">Số: {draft.contract_number || 'Số hợp đồng'}</p>
+                      <div className="mt-3 space-y-1 text-[13px] leading-6 text-slate-700">
+                        {preambleLines.map(line => <p key={line}>{line}</p>)}
+                        <p className="pt-1">Hợp đồng cung cấp dịch vụ (sau đây gọi tắt là “Hợp đồng”) được lập và ký kết ngày <span className="font-semibold text-red-600">Ngày ký hợp đồng</span> giữa các bên gồm:</p>
                       </div>
                     </div>
-                  </SectionCard>
+                  </section>
 
                   <div className="grid gap-5 xl:grid-cols-2">
                     <ProfileFields
@@ -659,8 +694,9 @@ export default function ContractEditorModal({
                     </div>
                   </SectionCard>
 
-                  <SectionCard icon={Landmark} title="Thanh toán">
-                    <div className="grid gap-3 md:grid-cols-3">
+                  <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <div className="grid items-end gap-3 lg:grid-cols-[110px_repeat(3,minmax(0,1fr))]">
+                      <h2 className="pb-2.5 text-[16px] font-semibold text-slate-900">Thanh toán</h2>
                       <Field label="Tạm ứng (%)">
                         <TextInput type="number" min="0" max="100" value={draft.payment_config?.deposit_percent ?? 50} onChange={event => updatePaymentConfig({ deposit_percent: Number(event.target.value) })} />
                       </Field>
@@ -674,16 +710,14 @@ export default function ContractEditorModal({
                         </Select>
                       </Field>
                     </div>
-                    <Field label="Hồ sơ thanh toán, mỗi dòng một mục" className="mt-4">
-                      <Textarea
-                        rows={4}
-                        value={(draft.payment_config?.payment_documents || []).join('\n')}
-                        onChange={event => updatePaymentConfig({ payment_documents: splitLines(event.target.value) })}
-                      />
-                    </Field>
-                  </SectionCard>
-
-                  <QuoteItemsTable quoteSnapshot={quoteSnapshot} />
+                    <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                      <p className="text-[13px] font-semibold text-slate-900">Hồ sơ thanh toán:</p>
+                      <ul className="mt-1 list-disc space-y-1 pl-5 text-[13px] leading-6 text-slate-700">
+                        {paymentDocuments.map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}
+                      </ul>
+                      <LegalNoteList title="Lưu ý về thanh toán:" items={paymentNotes} />
+                    </div>
+                  </section>
 
                   <SectionCard title="Nội dung từ ĐIỀU 3 trở đi">
                     <Textarea
@@ -692,6 +726,17 @@ export default function ContractEditorModal({
                       onChange={event => updateTermsText(event.target.value)}
                     />
                   </SectionCard>
+
+                  <section className="space-y-3">
+                    <h2 className="text-[16px] font-semibold text-slate-900">Phụ lục báo giá</h2>
+                    <QuotePreview
+                      quote={quotePreviewQuote}
+                      items={quotePreviewItems}
+                      totals={quotePreviewTotals}
+                      entities={legalEntities}
+                      sticky={false}
+                    />
+                  </section>
                 </>
               )}
             </div>
@@ -699,13 +744,26 @@ export default function ContractEditorModal({
         </div>
 
         <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-5 py-3">
-          <p className="text-[12px] text-slate-500">
-            {dirty || !savedContract ? 'Lưu hợp đồng trước khi tải file mới.' : 'Bản PDF và DOCX dùng dữ liệu hợp đồng đã lưu.'}
-          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="text-[12px] text-slate-500">
+              {dirty || !savedContract ? 'Lưu hợp đồng trước khi tải file mới.' : 'Bản PDF và DOCX dùng dữ liệu hợp đồng đã lưu.'}
+            </p>
+            {savedContract ? (
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmOpen(true)}
+                disabled={saving || loading || deleting}
+                className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-white px-3 py-2 text-[12px] font-semibold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Xoá hợp đồng
+              </button>
+            ) : null}
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              disabled={saving || loading || !draft || (!quoteIsReady && !savedContract)}
+              disabled={saving || loading || deleting || !draft || (!quoteIsReady && !savedContract)}
               onClick={handleSave}
               className="inline-flex items-center gap-2 rounded-xl bg-[#f8981d] px-4 py-2.5 text-[13px] font-semibold text-white shadow-sm hover:bg-orange-500 disabled:opacity-50"
             >
@@ -716,6 +774,14 @@ export default function ContractEditorModal({
           </div>
         </footer>
       </section>
+      {deleteConfirmOpen ? (
+        <DeleteContractConfirmModal
+          contractNumber={savedContract?.contract_number || draft?.contract_number}
+          deleting={deleting}
+          onCancel={() => setDeleteConfirmOpen(false)}
+          onConfirm={handleDeleteContract}
+        />
+      ) : null}
     </div>
   )
 }

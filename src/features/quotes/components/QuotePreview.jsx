@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import equipmentRulesData from '../../../data/pricing/equipment_rules.json'
+import legalEntitiesData from '../../../data/pricing/legal_entities.json'
 import { getMatchedEquipmentRules } from '../lib/equipmentRules'
 import { normalizeQuoteValidityDays } from '../lib/quoteValidity'
 
@@ -126,7 +127,8 @@ export default function QuotePreview({
   client,
   sticky = true,
 }) {
-  const entity = getEntity(quote.entity_code, entities)
+  const entityRows = entities.length ? entities : legalEntitiesData
+  const entity = getEntity(quote.entity_code, entityRows)
   const entityName = getEntityName(quote.entity_code, entities)
   const logoUrl = entity?.logo_file ? `/logos/${entity.logo_file}` : null
   const contactRows = getEntityContactRows(entity, quote.entity_code)

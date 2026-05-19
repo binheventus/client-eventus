@@ -748,26 +748,32 @@ function Notes({ quote, items = [], dense = false, spacious = false }) {
   )
 }
 
-export default function QuotePDFDocument({ quote = {}, items = [] }) {
+export function QuotePDFPage({ quote = {}, items = [] }) {
   const pdfItems = items.length ? items : quote.items || []
   const dense = isDensePdf(pdfItems)
   const spacious = isSpaciousPdf(pdfItems)
 
   return (
+    <Page size="A4" style={[styles.page, dense ? styles.pageDense : null, spacious ? styles.pageSpacious : null]}>
+      <Header quote={quote} dense={dense} spacious={spacious} />
+      <InfoSection quote={quote} dense={dense} spacious={spacious} />
+      <ItemsTable items={pdfItems} dense={dense} spacious={spacious} />
+      <Totals quote={quote} dense={dense} spacious={spacious} />
+      <Text style={[styles.sectionTitle, styles.notesTitle, dense ? styles.notesTitleDense : null, spacious ? styles.notesTitleSpacious : null]}>Ghi chú</Text>
+      <Notes quote={quote} items={pdfItems} dense={dense} spacious={spacious} />
+      <Text
+        style={styles.pageNumber}
+        render={({ pageNumber, totalPages }) => `Trang ${pageNumber}/${totalPages}`}
+        fixed
+      />
+    </Page>
+  )
+}
+
+export default function QuotePDFDocument({ quote = {}, items = [] }) {
+  return (
     <Document title={quote.quote_number || 'Báo giá'}>
-      <Page size="A4" style={[styles.page, dense ? styles.pageDense : null, spacious ? styles.pageSpacious : null]}>
-        <Header quote={quote} dense={dense} spacious={spacious} />
-        <InfoSection quote={quote} dense={dense} spacious={spacious} />
-        <ItemsTable items={pdfItems} dense={dense} spacious={spacious} />
-        <Totals quote={quote} dense={dense} spacious={spacious} />
-        <Text style={[styles.sectionTitle, styles.notesTitle, dense ? styles.notesTitleDense : null, spacious ? styles.notesTitleSpacious : null]}>Ghi chú</Text>
-        <Notes quote={quote} items={pdfItems} dense={dense} spacious={spacious} />
-        <Text
-          style={styles.pageNumber}
-          render={({ pageNumber, totalPages }) => `Trang ${pageNumber}/${totalPages}`}
-          fixed
-        />
-      </Page>
+      <QuotePDFPage quote={quote} items={items} />
     </Document>
   )
 }

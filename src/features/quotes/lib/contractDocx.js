@@ -1,6 +1,9 @@
 import {
+  CONTRACT_APPENDIX_DETAIL_TEXT,
   CONTRACT_TABLE_PLACEMENTS,
-  DEFAULT_CONTRACT_PREAMBLE,
+  getContractPreamble,
+  getContractPaymentNotes,
+  getContractWorkProgressNotes,
   numberToVietnameseWords,
   sanitizeFilenamePart,
 } from './contractDefaults'
@@ -38,7 +41,29 @@ function getQuote(contract = {}) {
 }
 
 function getItemName(item = {}) {
-  return item.service_name || item.service_code || 'Hạng mục'
+  return item.service_name || item.service?.quote_display_name || item.service?.service_name || item.service?.name || item.service_name_raw || item.service_code || 'Hạng mục'
+}
+
+function getItemUnit(item = {}) {
+  return item.unit || item.service?.unit || item.pricing_unit || 'Người'
+}
+
+function getItemGroupLabel(item = {}) {
+  const rawLabel = item.group_label || item.event_day || item.day_index || item.day || ''
+  if (!rawLabel) return 'Hạng mục'
+  const label = String(rawLabel).trim()
+  if (!label) return 'Hạng mục'
+  return /^ngày\b/i.test(label) ? label : `Ngày ${label}`
+}
+
+function groupItemsByDay(items = []) {
+  const groups = new Map()
+  items.forEach(item => {
+    const key = getItemGroupLabel(item)
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key).push(item)
+  })
+  return Array.from(groups.entries())
 }
 
 function getPartyRole(contract = {}, partyKey = 'party_a') {
@@ -184,15 +209,21 @@ function multilineParagraphs(text = '') {
 
 function tableCell(content = '', width = 2400, options = {}) {
   const shading = options.shading ? `<w:shd w:fill="${options.shading}"/>` : ''
-  return `<w:tc><w:tcPr><w:tcW w:w="${width}" w:type="dxa"/>${shading}</w:tcPr>${paragraph(content, { bold: options.bold, spacing: false })}</w:tc>`
+  const gridSpan = options.colSpan ? `<w:gridSpan w:val="${options.colSpan}"/>` : ''
+  return `<w:tc><w:tcPr><w:tcW w:w="${width}" w:type="dxa"/>${gridSpan}${shading}</w:tcPr>${paragraph(content, { bold: options.bold, spacing: false, align: options.align })}</w:tc>`
 }
 
-function tableRow(cells = []) {
-  return `<w:tr>${cells.join('')}</w:tr>`
+function tableRow(cells = [], options = {}) {
+  const height = options.minHeight ? `<w:trPr><w:trHeight w:val="${options.minHeight}" w:hRule="atLeast"/></w:trPr>` : ''
+  return `<w:tr>${height}${cells.join('')}</w:tr>`
 }
 
-function simpleTable(rows = []) {
-  return `<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/><w:tblBorders><w:top w:val="single" w:sz="4" w:color="D7DEE8"/><w:left w:val="single" w:sz="4" w:color="D7DEE8"/><w:bottom w:val="single" w:sz="4" w:color="D7DEE8"/><w:right w:val="single" w:sz="4" w:color="D7DEE8"/><w:insideH w:val="single" w:sz="4" w:color="E5EAF1"/><w:insideV w:val="single" w:sz="4" w:color="E5EAF1"/></w:tblBorders></w:tblPr>${rows.join('')}</w:tbl>`
+function simpleTable(rows = [], options = {}) {
+  const width = options.width || 0
+  const widthType = options.width ? 'dxa' : 'auto'
+  const layout = options.fixed ? '<w:tblLayout w:type="fixed"/>' : ''
+  const align = options.align ? `<w:jc w:val="${options.align}"/>` : ''
+  return `<w:tbl><w:tblPr><w:tblW w:w="${width}" w:type="${widthType}"/>${layout}${align}<w:tblBorders><w:top w:val="single" w:sz="4" w:color="D7DEE8"/><w:left w:val="single" w:sz="4" w:color="D7DEE8"/><w:bottom w:val="single" w:sz="4" w:color="D7DEE8"/><w:right w:val="single" w:sz="4" w:color="D7DEE8"/><w:insideH w:val="single" w:sz="4" w:color="E5EAF1"/><w:insideV w:val="single" w:sz="4" w:color="E5EAF1"/></w:tblBorders></w:tblPr>${rows.join('')}</w:tbl>`
 }
 
 function partyTable(contract = {}) {
@@ -210,21 +241,20 @@ function partyTable(contract = {}) {
 
     const rows = [
       tableRow([
-        tableCell(heading, 1600, { bold: true, shading: 'F8FAFC' }),
-        tableCell(':', 300, { bold: true, shading: 'F8FAFC' }),
-        tableCell(getProfileName(profile), 7100, { bold: true, shading: 'F8FAFC' }),
+        tableCell(heading, 1800, { bold: true, shading: 'F8FAFC' }),
+        tableCell(getProfileName(profile), 7200, { bold: true, shading: 'F8FAFC' }),
       ]),
-      tableRow([tableCell('Đại diện', 1600), tableCell(':', 300), tableCell(representative, 7100)]),
-      tableRow([tableCell('Địa chỉ', 1600), tableCell(':', 300), tableCell(profile.address || '', 7100)]),
-      tableRow([tableCell('Điện thoại', 1600), tableCell(':', 300), tableCell(profile.phone || '', 7100)]),
-      tableRow([tableCell('Mã số thuế', 1600), tableCell(':', 300), tableCell(profile.tax_code || '', 7100)]),
+      tableRow([tableCell('Đại diện', 1800), tableCell(representative, 7200)]),
+      tableRow([tableCell('Địa chỉ', 1800), tableCell(profile.address || '', 7200)]),
+      tableRow([tableCell('Điện thoại', 1800), tableCell(profile.phone || '', 7200)]),
+      tableRow([tableCell('Mã số thuế', 1800), tableCell(profile.tax_code || '', 7200)]),
     ]
 
     if (role === 'seller') {
-      rows.push(tableRow([tableCell('Số tài khoản', 1600), tableCell(':', 300), tableCell([profile.bank_account, profile.bank_name].filter(Boolean).join(' '), 7100)]))
+      rows.push(tableRow([tableCell('Số tài khoản', 1800), tableCell([profile.bank_account, profile.bank_name].filter(Boolean).join(' '), 7200)]))
     }
 
-    return simpleTable(rows)
+    return simpleTable(rows, { width: 9000, fixed: true })
   }
 
   return [
@@ -237,28 +267,30 @@ function partyTable(contract = {}) {
 function quoteTable(contract = {}) {
   const quote = getQuote(contract)
   const items = Array.isArray(quote.items) ? quote.items : []
+  const groups = groupItemsByDay(items)
   const rows = [
     tableRow([
-      tableCell('STT', 600, { bold: true, shading: 'F8FAFC' }),
-      tableCell('Hạng mục', 3000, { bold: true, shading: 'F8FAFC' }),
-      tableCell('ĐVT', 900, { bold: true, shading: 'F8FAFC' }),
-      tableCell('SL', 700, { bold: true, shading: 'F8FAFC' }),
-      tableCell('Số ngày', 800, { bold: true, shading: 'F8FAFC' }),
-      tableCell('Đơn giá', 1500, { bold: true, shading: 'F8FAFC' }),
-      tableCell('Thành tiền', 1700, { bold: true, shading: 'F8FAFC' }),
+      tableCell('Hạng mục', 3300, { bold: true, shading: 'F8FAFC' }),
+      tableCell('Đơn vị tính', 1100, { bold: true, shading: 'F8FAFC', align: 'center' }),
+      tableCell('Số lượng', 900, { bold: true, shading: 'F8FAFC', align: 'center' }),
+      tableCell('Số buổi', 800, { bold: true, shading: 'F8FAFC', align: 'center' }),
+      tableCell('Đơn giá', 1400, { bold: true, shading: 'F8FAFC', align: 'right' }),
+      tableCell('Thành tiền', 1500, { bold: true, shading: 'F8FAFC', align: 'right' }),
     ]),
-    ...items.map((item, index) => tableRow([
-      tableCell(String(index + 1), 600),
-      tableCell(getItemName(item), 3000),
-      tableCell(item.unit || 'Người', 900),
-      tableCell(String(item.quantity || 0), 700),
-      tableCell(String(item.num_sessions || 1), 800),
-      tableCell(formatCurrency(item.unit_price), 1500),
-      tableCell(formatCurrency(item.total_price), 1700),
-    ])),
+    ...groups.flatMap(([groupName, groupItems]) => [
+      groups.length > 1 ? tableRow([tableCell(groupName, 9000, { bold: true, shading: 'F8FAFC', colSpan: 6 })]) : '',
+      ...groupItems.map(item => tableRow([
+        tableCell(getItemName(item), 3300),
+        tableCell(getItemUnit(item), 1100, { align: 'center' }),
+        tableCell(String(item.quantity || 1), 900, { align: 'center' }),
+        tableCell(String(item.num_sessions || 1), 800, { align: 'center' }),
+        tableCell(formatCurrency(item.unit_price), 1400, { align: 'right' }),
+        tableCell(formatCurrency(item.total_price), 1500, { align: 'right' }),
+      ])),
+    ].filter(Boolean)),
   ]
 
-  return simpleTable(rows)
+  return simpleTable(rows, { width: 9000, fixed: true })
 }
 
 function totalsTable(contract = {}) {
@@ -273,8 +305,8 @@ function totalsTable(contract = {}) {
 
   return simpleTable(rows.map(([label, value], index) => tableRow([
     tableCell(label, 4200, { bold: index === rows.length - 1 }),
-    tableCell(formatCurrency(value), 2400, { bold: index === rows.length - 1 }),
-  ])))
+    tableCell(formatCurrency(value), 2400, { bold: index === rows.length - 1, align: 'right' }),
+  ])), { width: 6600, fixed: true })
 }
 
 function scheduleXml(rows = []) {
@@ -285,13 +317,17 @@ function scheduleXml(rows = []) {
 }
 
 function serviceArticleXml(contract = {}, includeQuoteTable = false) {
+  const workProgressNotes = getContractWorkProgressNotes(contract)
+
   return [
     paragraph('ĐIỀU 1: NỘI DUNG HỢP ĐỒNG', { style: 'Heading1', bold: true }),
     paragraph(`Bên A đề nghị Bên B và Bên B đồng ý ${contract.service_scope || 'cung cấp dịch vụ theo báo giá'} cho Bên A, chi tiết như sau:`),
     scheduleXml(contract.schedule_rows || []),
-    includeQuoteTable ? paragraph('Chi tiết hạng mục:', { bold: true }) : paragraph('Chi tiết hạng mục: Theo Phụ lục cuối hợp đồng.', { bold: true }),
+    includeQuoteTable ? paragraph('Chi tiết hạng mục:', { bold: true }) : paragraph(CONTRACT_APPENDIX_DETAIL_TEXT, { bold: true }),
     includeQuoteTable ? quoteTable(contract) : '',
     includeQuoteTable ? totalsTable(contract) : '',
+    paragraph('Lưu ý về thời gian làm việc và tiến độ bàn giao:', { bold: true }),
+    workProgressNotes.map(item => paragraph(`- ${item}`)).join(''),
   ].join('')
 }
 
@@ -301,6 +337,7 @@ function paymentArticleXml(contract = {}) {
   const depositPercent = Number(payment.deposit_percent || 50)
   const depositAmount = Number(quote.total_amount || 0) * depositPercent / 100
   const docs = Array.isArray(payment.payment_documents) ? payment.payment_documents : []
+  const paymentNotes = getContractPaymentNotes(payment)
 
   return [
     paragraph('ĐIỀU 2: GIÁ TRỊ HỢP ĐỒNG', { style: 'Heading1', bold: true }),
@@ -311,6 +348,8 @@ function paymentArticleXml(contract = {}) {
     paragraph(`Lần 2: Bên A thanh toán nốt số tiền còn lại cho Bên B trong vòng ${Number(payment.final_due_days || 7)} ngày sau khi Bên B bàn giao cho Bên A đầy đủ sản phẩm & hóa đơn tài chính theo yêu cầu của Bên A.`),
     docs.length ? paragraph('Hồ sơ thanh toán bao gồm:', { bold: true }) : '',
     docs.map(item => paragraph(`- ${item}`)).join(''),
+    paragraph('Lưu ý về thanh toán:', { bold: true }),
+    paymentNotes.map(item => paragraph(`- ${item}`)).join(''),
   ].join('')
 }
 
@@ -323,19 +362,18 @@ function contentSectionsXml(sections = []) {
 
 function signatureXml(contract = {}) {
   const partyA = getPartyProfile(contract, 'party_a')
-  const partyB = getPartyProfile(contract, 'party_b')
   return [
     paragraph('ĐẠI DIỆN CÁC BÊN', { style: 'Heading1', align: 'center', bold: true }),
     simpleTable([
       tableRow([
-        tableCell('ĐẠI DIỆN BÊN A', 4500, { bold: true, shading: 'F8FAFC' }),
-        tableCell('ĐẠI DIỆN BÊN B', 4500, { bold: true, shading: 'F8FAFC' }),
+        tableCell('ĐẠI DIỆN BÊN A', 4500, { bold: true, shading: 'F8FAFC', align: 'center' }),
+        tableCell('ĐẠI DIỆN BÊN B', 4500, { bold: true, shading: 'F8FAFC', align: 'center' }),
       ]),
       tableRow([
-        tableCell(partyA.representative || '', 4500),
-        tableCell(partyB.representative || '', 4500),
-      ]),
-    ]),
+        tableCell(partyA.representative || '', 4500, { align: 'center' }),
+        tableCell('', 4500, { align: 'center' }),
+      ], { minHeight: 1400 }),
+    ], { width: 9000, fixed: true, align: 'center' }),
   ].join('')
 }
 
@@ -353,6 +391,8 @@ function appendixXml(contract = {}) {
 
 function documentXml(contract = {}) {
   const tableInArticle = (contract.quote_table_config?.placement || CONTRACT_TABLE_PLACEMENTS.APPENDIX) === CONTRACT_TABLE_PLACEMENTS.ARTICLE_1
+  const preambleLines = getContractPreamble(contract)
+
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
   <w:body>
@@ -360,7 +400,7 @@ function documentXml(contract = {}) {
     ${paragraph('Độc lập – Tự do – Hạnh phúc', { align: 'center' })}
     ${paragraph(contract.title || 'HỢP ĐỒNG CUNG CẤP DỊCH VỤ', { style: 'Title', align: 'center', bold: true })}
     ${paragraph(`Số: ${contract.contract_number || ''}`, { align: 'center', bold: true })}
-    ${DEFAULT_CONTRACT_PREAMBLE.map(line => paragraph(line)).join('')}
+    ${preambleLines.map(line => paragraph(line)).join('')}
     ${paragraph(`Hợp đồng cung cấp dịch vụ (sau đây gọi tắt là “Hợp đồng”) được lập và ký kết ngày ${formatDate(contract.updated_at || contract.created_at)} giữa các bên gồm:`)}
     ${partyTable(contract)}
     ${paragraph('Sau khi thỏa thuận, Các Bên đồng ý ký kết Hợp Đồng này theo các điều khoản sau:')}

@@ -2,10 +2,14 @@ import { useMemo, useState } from 'react'
 import { PDFDownloadLink } from '@react-pdf/renderer'
 import { Check, Copy, Download, FileText, X } from 'lucide-react'
 import ContractPDFDocument, { getContractPdfFilename } from './ContractPDFDocument'
+import QuotePreview from './QuotePreview'
 import { downloadContractDocx } from '../lib/contractDocx'
 import {
-  DEFAULT_CONTRACT_PREAMBLE,
+  CONTRACT_APPENDIX_DETAIL_TEXT,
   DEFAULT_PAYMENT_CONFIG,
+  getContractPreamble,
+  getContractPaymentNotes,
+  getContractWorkProgressNotes,
   numberToVietnameseWords,
   sectionsToTermsText,
   termsTextToSections,
@@ -159,9 +163,20 @@ export function ContractPreviewDocument({ contract = {} }) {
   const depositPercent = paymentConfig.deposit_percent ?? DEFAULT_PAYMENT_CONFIG.deposit_percent
   const finalDueDays = paymentConfig.final_due_days ?? DEFAULT_PAYMENT_CONFIG.final_due_days
   const quote = contract.quote_snapshot || {}
+  const quoteItems = Array.isArray(quote.items) ? quote.items : []
+  const quoteTotals = {
+    subtotal: quote.subtotal,
+    travel_fee_total: quote.travel_fee_total,
+    overtime_fee_total: quote.overtime_fee_total,
+    vat_amount: quote.vat_amount,
+    total_amount: quote.total_amount,
+  }
   const totalAmount = Number(quote.total_amount || 0)
   const depositAmount = totalAmount * Number(depositPercent || 0) / 100
   const serviceScopeDetail = getServiceScopeDetail(contract.service_scope)
+  const workProgressNotes = getContractWorkProgressNotes(contract)
+  const paymentNotes = getContractPaymentNotes(paymentConfig)
+  const preambleLines = getContractPreamble(contract)
   const partyA = getPartyProfile(contract, 'party_a')
   const partyB = getPartyProfile(contract, 'party_b')
   const signingDate = formatContractDate(contract.updated_at || contract.created_at)
@@ -181,7 +196,7 @@ export function ContractPreviewDocument({ contract = {} }) {
           Số: <PreviewValue value={contract.contract_number} fallback="Số hợp đồng" />
         </p>
         <div className="mt-4 space-y-1">
-          {DEFAULT_CONTRACT_PREAMBLE.map((line, index) => (
+          {preambleLines.map((line, index) => (
             <p key={`${line}-${index}`} className="text-[13px] leading-6 text-slate-700">{line}</p>
           ))}
           <p className="pt-2 text-[13px] leading-6 text-slate-700">
@@ -210,7 +225,13 @@ export function ContractPreviewDocument({ contract = {} }) {
           ) : (
             <PreviewLine label="Thời gian / Địa điểm" value="" />
           )}
-          <p className="text-[13px] font-semibold text-slate-900">Chi tiết hạng mục: Theo Phụ lục cuối hợp đồng.</p>
+          <p className="text-[13px] font-semibold text-slate-900">{CONTRACT_APPENDIX_DETAIL_TEXT}</p>
+          <div className="space-y-1 pt-1">
+            <p className="text-[13px] font-semibold text-slate-900">Lưu ý về thời gian làm việc và tiến độ bàn giao:</p>
+            <ul className="list-disc space-y-1 pl-5 text-[13px] leading-6 text-slate-700">
+              {workProgressNotes.map(item => <li key={item}>{item}</li>)}
+            </ul>
+          </div>
         </div>
       </section>
 
@@ -241,6 +262,12 @@ export function ContractPreviewDocument({ contract = {} }) {
           ) : (
             <p className="mt-1 text-[13px] font-semibold text-red-600">Hồ sơ thanh toán</p>
           )}
+          <div className="mt-3 space-y-1">
+            <p className="text-[13px] font-semibold text-slate-900">Lưu ý về thanh toán:</p>
+            <ul className="list-disc space-y-1 pl-5 text-[13px] leading-6 text-slate-700">
+              {paymentNotes.map(item => <li key={item}>{item}</li>)}
+            </ul>
+          </div>
         </div>
       </section>
 
@@ -263,13 +290,23 @@ export function ContractPreviewDocument({ contract = {} }) {
         <div className="grid gap-3 text-center md:grid-cols-2">
           <div>
             <p className="text-[13px] font-bold text-slate-950">ĐẠI DIỆN BÊN A</p>
-            <div className="h-16" aria-hidden="true" />
+            <div className="h-24" aria-hidden="true" />
           </div>
           <div>
             <p className="text-[13px] font-bold text-slate-950">ĐẠI DIỆN BÊN B</p>
-            <div className="h-16" aria-hidden="true" />
+            <div className="h-24" aria-hidden="true" />
           </div>
         </div>
+      </section>
+
+      <section className="space-y-3">
+        <h3 className="text-[14px] font-semibold text-slate-900">Phụ lục báo giá</h3>
+        <QuotePreview
+          quote={{ ...quote, created_at: quote.created_at || contract.created_at }}
+          items={quoteItems}
+          totals={quoteTotals}
+          sticky={false}
+        />
       </section>
     </div>
   )

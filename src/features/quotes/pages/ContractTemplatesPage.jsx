@@ -7,11 +7,16 @@ import {
   saveContractTemplate,
 } from '../hooks/useContracts'
 import {
-  DEFAULT_CONTRACT_PREAMBLE,
+  CONTRACT_APPENDIX_DETAIL_TEXT,
+  CONTRACT_TEMPLATE_SNAPSHOT_RULE,
   DEFAULT_PARTY_ROLE_CONFIG,
   DEFAULT_CONTRACT_TEMPLATES,
+  DEFAULT_CONTRACT_TITLE,
   DEFAULT_PAYMENT_CONFIG,
   DEFAULT_QUOTE_TABLE_CONFIG,
+  getContractPreamble,
+  getContractPaymentNotes,
+  getContractWorkProgressNotes,
   normalizeContractTemplate,
   sectionsToTermsText,
   termsTextToSections,
@@ -22,7 +27,7 @@ const EMPTY_TEMPLATE = normalizeContractTemplate({
   id: '',
   name: '',
   description: '',
-  title: 'HỢP ĐỒNG CUNG CẤP DỊCH VỤ',
+  title: DEFAULT_CONTRACT_TITLE,
   seller_entity_code: 'EVENTUS',
   is_default: false,
   is_active: true,
@@ -65,13 +70,6 @@ function Select(props) {
   )
 }
 
-function splitLines(value = '') {
-  return String(value || '')
-    .split('\n')
-    .map(line => line.trim())
-    .filter(Boolean)
-}
-
 function formatLastEdited(template = {}) {
   const rawDate = template.updated_at || template.created_at
   if (!rawDate) return 'Chỉnh sửa lần cuối lúc chưa có dữ liệu'
@@ -92,6 +90,24 @@ function getServiceScopeDetail(value = '') {
 function composeServiceScope(detail = '') {
   const text = String(detail || '').trim()
   return text ? `cung cấp ${text}` : ''
+}
+
+function withFixedContractTitle(template = {}) {
+  return {
+    ...template,
+    title: DEFAULT_CONTRACT_TITLE,
+  }
+}
+
+function LegalNoteList({ title, items = [] }) {
+  return (
+    <div className="mt-4 border-t border-slate-100 pt-4">
+      <p className="text-[13px] font-semibold text-slate-900">{title}</p>
+      <ul className="mt-1 list-disc space-y-1 pl-5 text-[13px] leading-6 text-slate-700">
+        {items.map(item => <li key={item}>{item}</li>)}
+      </ul>
+    </div>
+  )
 }
 
 function DeleteConfirmModal({ templateName, saving, onCancel, onConfirm }) {
@@ -143,6 +159,12 @@ export default function ContractTemplatesPage() {
   )
   const systemTemplateIds = useMemo(() => new Set(DEFAULT_CONTRACT_TEMPLATES.map(template => template.id)), [])
   const isSystemDefault = systemTemplateIds.has(draft.id) || draft.is_system_default
+  const workProgressNotes = useMemo(() => getContractWorkProgressNotes(draft), [draft])
+  const paymentNotes = useMemo(() => getContractPaymentNotes(draft.payment_config), [draft.payment_config])
+  const paymentDocuments = Array.isArray(draft.payment_config?.payment_documents)
+    ? draft.payment_config.payment_documents
+    : DEFAULT_PAYMENT_CONFIG.payment_documents
+  const preambleLines = useMemo(() => getContractPreamble(draft), [draft])
 
   async function loadTemplates(nextSelectedId = '') {
     setLoading(true)
@@ -152,7 +174,7 @@ export default function ContractTemplatesPage() {
       setTemplates(rows)
       const selected = rows.find(row => row.id === nextSelectedId) || rows[0] || EMPTY_TEMPLATE
       setSelectedId(selected.id || '')
-      setDraft(normalizeContractTemplate({ ...EMPTY_TEMPLATE, ...selected }))
+      setDraft(normalizeContractTemplate(withFixedContractTitle({ ...EMPTY_TEMPLATE, ...selected })))
     } catch (err) {
       setError(err?.message || 'Không tải được mẫu hợp đồng.')
     } finally {
@@ -166,7 +188,7 @@ export default function ContractTemplatesPage() {
 
   function selectTemplate(template) {
     setSelectedId(template.id)
-    setDraft(normalizeContractTemplate({ ...EMPTY_TEMPLATE, ...template }))
+    setDraft(normalizeContractTemplate(withFixedContractTitle({ ...EMPTY_TEMPLATE, ...template })))
     setNotice('')
     setError('')
     setPreviewOpen(false)
@@ -174,7 +196,7 @@ export default function ContractTemplatesPage() {
   }
 
   function updateDraft(patch) {
-    setDraft(prev => normalizeContractTemplate({ ...prev, ...patch }))
+    setDraft(prev => normalizeContractTemplate(withFixedContractTitle({ ...prev, ...patch })))
     setNotice('')
   }
 
@@ -217,12 +239,12 @@ export default function ContractTemplatesPage() {
 
   function createNew() {
     setSelectedId('')
-    setDraft(normalizeContractTemplate({
+    setDraft(normalizeContractTemplate(withFixedContractTitle({
       ...EMPTY_TEMPLATE,
       name: 'Mẫu hợp đồng mới',
       is_default: false,
       sort_order: templates.length + 10,
-    }))
+    })))
     setNotice('')
     setError('')
     setPreviewOpen(false)
@@ -247,13 +269,13 @@ export default function ContractTemplatesPage() {
     try {
       const payload = {
         ...draft,
-        party_role_config: DEFAULT_PARTY_ROLE_CONFIG,
+        title: DEFAULT_CONTRACT_TITLE,
+        party_role_config: draft.party_role_config || DEFAULT_PARTY_ROLE_CONFIG,
         quote_table_config: {
           ...DEFAULT_QUOTE_TABLE_CONFIG,
           ...(draft.quote_table_config || {}),
-          placement: DEFAULT_QUOTE_TABLE_CONFIG.placement,
         },
-        preamble: DEFAULT_CONTRACT_PREAMBLE,
+        preamble: getContractPreamble(draft),
         terms_text: termsText,
         content_sections: termsTextToSections(termsText),
       }
@@ -291,6 +313,9 @@ export default function ContractTemplatesPage() {
           <QuoteBreadcrumb items={[{ label: 'Mẫu hợp đồng' }]} />
           <h1 className="mt-2 text-[28px] font-semibold tracking-tight text-slate-950">Mẫu hợp đồng</h1>
           <p className="mt-1 text-[13px] text-slate-500">Quản lý cấu trúc hợp đồng: lịch triển khai, thanh toán và điều khoản.</p>
+          <p className="mt-2 inline-flex rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-[12px] font-medium text-amber-800">
+            {CONTRACT_TEMPLATE_SNAPSHOT_RULE}
+          </p>
         </div>
         <button
           type="button"
@@ -322,7 +347,7 @@ export default function ContractTemplatesPage() {
                   <span className="text-[13px] font-semibold text-slate-900">{template.name}</span>
                   {template.is_default ? <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-emerald-700">Default</span> : null}
                 </div>
-                {template.title ? <p className="mt-1 line-clamp-2 text-[12px] leading-5 text-slate-500">{template.title}</p> : null}
+                <p className="mt-1 line-clamp-2 text-[12px] leading-5 text-slate-500">{DEFAULT_CONTRACT_TITLE}</p>
               </button>
             )) : (
               <p className="px-2 py-6 text-center text-[13px] text-slate-400">Chưa có mẫu hợp đồng.</p>
@@ -332,43 +357,34 @@ export default function ContractTemplatesPage() {
 
         <div className="space-y-5">
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px]">
+            <div className="grid gap-3 xl:grid-cols-[minmax(324px,1.3fr)_72px_minmax(320px,1.28fr)_88px]">
               <Field label="Tên mẫu">
                 <Input value={draft.name} onChange={event => updateDraft({ name: event.target.value })} />
               </Field>
               <Field label="Thứ tự">
-                <Input type="number" value={draft.sort_order} onChange={event => updateDraft({ sort_order: Number(event.target.value) })} />
-              </Field>
-              <Field label="Tiêu đề hợp đồng">
-                <Input value={draft.title || ''} onChange={event => updateDraft({ title: event.target.value })} />
+                <Input type="number" value={draft.sort_order} onChange={event => updateDraft({ sort_order: Number(event.target.value) })} className="text-center" />
               </Field>
               <Field label="Format số hợp đồng">
                 <Input value={draft.contract_number_pattern || ''} onChange={event => updateDraft({ contract_number_pattern: event.target.value })} />
               </Field>
-            </div>
-
-            <div className="mt-4 flex flex-wrap gap-4">
-              <label className="inline-flex items-center gap-2 text-[13px] font-semibold text-slate-700">
-                <input type="checkbox" checked={Boolean(draft.is_default)} onChange={event => updateDraft({ is_default: event.target.checked })} className="h-4 w-4 accent-[#f8981d]" />
-                Đặt làm mẫu mặc định
+              <label className="block">
+                <span className="mb-1.5 block text-center text-[12px] font-semibold text-slate-600">Set Defaut</span>
+                <span className="flex min-h-[42px] items-center justify-center rounded-xl border border-slate-200 hover:bg-slate-50">
+                  <input type="checkbox" checked={Boolean(draft.is_default)} onChange={event => updateDraft({ is_default: event.target.checked })} className="h-4 w-4 accent-[#f8981d]" />
+                </span>
               </label>
             </div>
           </section>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-[16px] font-semibold text-slate-900">Phần mở đầu</h2>
-            <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-center">
-              <p className="text-[13px] uppercase text-slate-950">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
-              <p className="text-[13px] text-slate-950">Độc lập – Tự do – Hạnh phúc</p>
-            </div>
-            <div className="mt-4 rounded-xl border border-slate-100 bg-white px-4 py-3">
-              <p className="text-[12px] font-semibold uppercase tracking-[0.1em] text-slate-400">Căn cứ hợp đồng</p>
-              <div className="mt-2 space-y-1 text-[13px] leading-6 text-slate-700">
-                {DEFAULT_CONTRACT_PREAMBLE.map(line => <p key={line}>{line}</p>)}
+            <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+              <p className="text-center text-[13px] uppercase text-slate-950">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
+              <p className="text-center text-[13px] text-slate-950">Độc lập – Tự do – Hạnh phúc</p>
+              <p className="mt-3 text-center text-[18px] font-bold uppercase tracking-wide text-slate-950">{DEFAULT_CONTRACT_TITLE}</p>
+              <div className="mt-3 space-y-1 text-[13px] leading-6 text-slate-700">
+                {preambleLines.map(line => <p key={line}>{line}</p>)}
+                <p className="pt-1">Hợp đồng cung cấp dịch vụ (sau đây gọi tắt là “Hợp đồng”) được lập và ký kết ngày <span className="font-semibold text-red-600">Ngày ký hợp đồng</span> giữa các bên gồm:</p>
               </div>
-            </div>
-            <div className="mt-4 rounded-xl border border-slate-100 bg-white px-4 py-3 text-[13px] leading-6 text-slate-700">
-              <p>Hợp đồng cung cấp dịch vụ (sau đây gọi tắt là “Hợp đồng”) được lập và ký kết ngày <span className="font-semibold text-red-600">Ngày ký hợp đồng</span> giữa các bên gồm:</p>
             </div>
           </section>
 
@@ -402,11 +418,13 @@ export default function ContractTemplatesPage() {
                 <p className="rounded-xl bg-slate-50 px-3 py-3 text-[12px] text-slate-400">Chưa có thời gian / địa điểm. Khi tạo hợp đồng, hệ thống sẽ gợi ý từ ngày/địa điểm trong quote nếu có.</p>
               )}
             </div>
+            <p className="mt-4 text-[13px] font-semibold text-slate-900">{CONTRACT_APPENDIX_DETAIL_TEXT}</p>
+            <LegalNoteList title="Lưu ý về thời gian làm việc và tiến độ bàn giao:" items={workProgressNotes} />
           </section>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-[16px] font-semibold text-slate-900">Thanh toán</h2>
-            <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <div className="grid items-end gap-3 lg:grid-cols-[110px_repeat(3,minmax(0,1fr))]">
+              <h2 className="pb-2.5 text-[16px] font-semibold text-slate-900">Thanh toán</h2>
               <Field label="Tạm ứng (%)">
                 <Input type="number" min="0" max="100" value={draft.payment_config?.deposit_percent ?? DEFAULT_PAYMENT_CONFIG.deposit_percent} onChange={event => updatePaymentConfig({ deposit_percent: Number(event.target.value) })} />
               </Field>
@@ -420,13 +438,13 @@ export default function ContractTemplatesPage() {
                 </Select>
               </Field>
             </div>
-            <Field label="Hồ sơ thanh toán, mỗi dòng một mục" className="mt-4">
-              <Textarea
-                rows={4}
-                value={(draft.payment_config?.payment_documents || []).join('\n')}
-                onChange={event => updatePaymentConfig({ payment_documents: splitLines(event.target.value) })}
-              />
-            </Field>
+            <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+              <p className="text-[13px] font-semibold text-slate-900">Hồ sơ thanh toán:</p>
+              <ul className="mt-1 list-disc space-y-1 pl-5 text-[13px] leading-6 text-slate-700">
+                {paymentDocuments.map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}
+              </ul>
+              <LegalNoteList title="Lưu ý về thanh toán:" items={paymentNotes} />
+            </div>
           </section>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -446,17 +464,8 @@ export default function ContractTemplatesPage() {
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={() => setDeleteConfirmOpen(true)}
-                disabled={!draft.id || isSystemDefault || saving}
-                className="inline-flex items-center gap-2 rounded-xl border border-red-100 px-4 py-2.5 text-[13px] font-semibold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <Trash2 className="h-4 w-4" />
-                Xoá
-              </button>
-              <button
-                type="button"
                 onClick={() => setPreviewOpen(true)}
-                className="inline-flex items-center gap-2 rounded-xl border border-orange-200 px-4 py-2.5 text-[13px] font-semibold text-[#d97706] hover:bg-orange-50"
+                className="inline-flex items-center gap-2 rounded-xl bg-[#f8981d] px-4 py-2.5 text-[13px] font-semibold text-white shadow-sm hover:bg-orange-500"
               >
                 <Eye className="h-4 w-4" />
                 Preview
@@ -465,16 +474,31 @@ export default function ContractTemplatesPage() {
                 type="button"
                 onClick={saveDraft}
                 disabled={saving}
-                className="inline-flex items-center gap-2 rounded-xl bg-[#f8981d] px-4 py-2.5 text-[13px] font-semibold text-white shadow-sm hover:bg-orange-500 disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-xl border border-orange-200 px-4 py-2.5 text-[13px] font-semibold text-[#d97706] hover:bg-orange-50 disabled:opacity-50"
               >
                 <Save className="h-4 w-4" />
                 {saving ? 'Đang lưu...' : (isSystemDefault ? 'Lưu thành mẫu mới' : 'Lưu mẫu')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmOpen(true)}
+                disabled={!draft.id || isSystemDefault || saving}
+                className="inline-flex items-center gap-2 rounded-xl bg-slate-600 px-4 py-2.5 text-[13px] font-semibold text-white shadow-sm hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Trash2 className="h-4 w-4" />
+                Xoá
               </button>
             </div>
           </section>
         </div>
       </div>
-      {previewOpen ? <ContractPreviewModal contract={draft} onClose={() => setPreviewOpen(false)} /> : null}
+      {previewOpen ? (
+        <ContractPreviewModal
+          contract={draft}
+          title={`Preview${draft.name ? ` - ${draft.name}` : ''}`}
+          onClose={() => setPreviewOpen(false)}
+        />
+      ) : null}
       {deleteConfirmOpen ? (
         <DeleteConfirmModal
           templateName={draft.name}

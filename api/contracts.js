@@ -152,6 +152,21 @@ async function deleteTemplate(supabase, id) {
   return { ok: true }
 }
 
+async function deleteContract(supabase, { id, quoteId } = {}) {
+  if (!id && !quoteId) {
+    const error = new Error('Thieu contract id hoac quote id.')
+    error.statusCode = 400
+    throw error
+  }
+
+  let query = supabase.from('contracts').delete()
+  query = id ? query.eq('id', id) : query.eq('quote_id', quoteId)
+
+  const { error } = await query
+  if (error) throw error
+  return { ok: true }
+}
+
 async function getContractByQuoteId(supabase, quoteId) {
   const { data, error } = await supabase
     .from('contracts')
@@ -285,8 +300,17 @@ export default async function handler(req, res) {
     if (req.method === 'DELETE') {
       const resource = getQueryValue(req.query?.resource, '')
       const id = getQueryValue(req.query?.id, '')
-      if (resource !== 'template' || !id) return res.status(400).json({ error: 'Thieu template id.' })
-      return res.status(200).json(await deleteTemplate(supabase, id))
+      if (resource === 'template') {
+        if (!id) return res.status(400).json({ error: 'Thieu template id.' })
+        return res.status(200).json(await deleteTemplate(supabase, id))
+      }
+
+      if (resource === 'contract') {
+        const quoteId = getQueryValue(req.query?.quote_id, '')
+        return res.status(200).json(await deleteContract(supabase, { id, quoteId }))
+      }
+
+      return res.status(400).json({ error: 'Resource khong hop le.' })
     }
 
     res.setHeader('Allow', 'GET, POST, DELETE')

@@ -243,6 +243,16 @@ function saveLocalContract(payload = {}, { quote } = {}) {
   return contract
 }
 
+function deleteLocalContract({ id, quoteId } = {}) {
+  if (!id && !quoteId) return
+
+  saveLocalContracts(getLocalContracts().filter(contract => {
+    if (id && contract.id === id) return false
+    if (quoteId && contract.quote_id === quoteId) return false
+    return true
+  }))
+}
+
 export async function listContractTemplates() {
   if (!hasSupabaseConfig) return getLocalTemplates()
 
@@ -464,6 +474,38 @@ export async function saveContract(payload = {}, { quote } = {}) {
   } catch (error) {
     if (!isSchemaMissing(error)) throw error
     return saveLocalContract({ ...payload, ...cleanPayload }, { quote })
+  }
+}
+
+export async function deleteContract({ id, quoteId } = {}) {
+  if (!id && !quoteId) throw new Error('Thiếu hợp đồng để xoá.')
+
+  if (!hasSupabaseConfig) {
+    deleteLocalContract({ id, quoteId })
+    return
+  }
+
+  const queryParams = new URLSearchParams({ resource: 'contract' })
+  if (id) queryParams.set('id', id)
+  if (quoteId) queryParams.set('quote_id', quoteId)
+
+  if (canUseContractApi()) {
+    try {
+      await requestContractApi(`?${queryParams.toString()}`, { method: 'DELETE' })
+      return
+    } catch (error) {
+      if (!shouldFallback(error) && !isSchemaMissing(error)) throw error
+    }
+  }
+
+  try {
+    let query = fromQuoteTable('contracts').delete()
+    query = id ? query.eq('id', id) : query.eq('quote_id', quoteId)
+    const { error } = await query
+    if (error) throw error
+  } catch (error) {
+    if (!isSchemaMissing(error)) throw error
+    deleteLocalContract({ id, quoteId })
   }
 }
 
