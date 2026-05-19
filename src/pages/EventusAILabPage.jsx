@@ -1,12 +1,11 @@
 import { lazy, Suspense, useState, useEffect, useMemo } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { hasSupabaseConfig, supabase } from '../lib/supabase'
-import { ADMIN_PASSWORD, VFX_BUILDER_PASSWORD } from '../config'
+import { ADMIN_PASSWORD } from '../config'
 import { useEscapeToClose } from '../hooks/useEscapeToClose'
 import data from '../data/competency.json'
 
 const PositionPage = lazy(() => import('./PositionPage'))
-const VFXPromptBuilderPage = lazy(() => import('./VFXPromptBuilderPage'))
 const ContractTemplatesPage = lazy(() => import('../features/quotes/pages/ContractTemplatesPage'))
 const QuoteCreatePage = lazy(() => import('../features/quotes/pages/QuoteCreatePage'))
 const QuoteDetailPage = lazy(() => import('../features/quotes/pages/QuoteDetailPage'))
@@ -15,14 +14,6 @@ const QuoteTrashPage = lazy(() => import('../features/quotes/pages/QuoteTrashPag
 
 /* ─── Danh muc sidebar ─── */
 const CATEGORIES = [
-  {
-    id: 'vfx_builder',
-    label: 'VFX Prompt Builder',
-    icon: '✨',
-    shortDesc: 'Tạo prompt VFX chuẩn cho Veo / Kling',
-    banner: 'VFX Prompt Builder',
-    desc: 'Form chọn tham số transition và gọi Claude để tạo prompt tiếng Anh cho video AI.',
-  },
   {
     id: 'quotes',
     label: 'Báo giá',
@@ -62,11 +53,6 @@ const CATEGORY_BANNER_STYLES = {
     desc: 'text-cyan-100/90',
   },
   khung_nang_luc: {
-    bg: 'from-slate-900 via-blue-900 to-teal-700',
-    label: 'text-blue-100',
-    desc: 'text-blue-100/90',
-  },
-  vfx_builder: {
     bg: 'from-slate-900 via-blue-900 to-teal-700',
     label: 'text-blue-100',
     desc: 'text-blue-100/90',
@@ -355,7 +341,6 @@ const PLACEHOLDER_POSITION = {
 
 function getCategoryHref(id) {
   if (id === 'khung_nang_luc') return '/competency'
-  if (id === 'vfx_builder') return '/vfx-builder'
   if (id === 'quotes') return '/quotes'
   return '/'
 }
@@ -984,7 +969,6 @@ function ArticleDocument({ title, category, page }) {
 
 /* ─── Admin gate — persist qua localStorage ─── */
 const ADMIN_KEY = 'eventus_admin'
-const VFX_BUILDER_ACCESS_KEY = 'eventus_vfx_builder_access'
 
 function readStoredFlag(key) {
   try {
@@ -1033,62 +1017,6 @@ function useAdmin() {
   return { isAdmin, showGate, setShowGate, input, setInput, error, tryLogin, logout }
 }
 
-function useVfxBuilderAccess() {
-  const [hasAccess, setHasAccess] = useState(() => readStoredFlag(VFX_BUILDER_ACCESS_KEY))
-  const [showGate, setShowGate] = useState(false)
-  const [input, setInput] = useState('')
-  const [error, setError] = useState('')
-
-  const requestAccess = () => {
-    setError('')
-    setShowGate(true)
-  }
-
-  const tryUnlock = (onSuccess) => {
-    if (input === VFX_BUILDER_PASSWORD) {
-      writeStoredFlag(VFX_BUILDER_ACCESS_KEY)
-      setHasAccess(true)
-      setShowGate(false)
-      setError('')
-      setInput('')
-      if (typeof onSuccess === 'function') onSuccess()
-    } else {
-      setError('Sai pass, vui lòng nhập lại.')
-    }
-  }
-
-  const cancel = () => {
-    setShowGate(false)
-    setInput('')
-    setError('')
-  }
-
-  return { hasAccess, showGate, input, setInput, error, requestAccess, tryUnlock, cancel }
-}
-
-function LockedVfxBuilderPage({ onRequestAccess }) {
-  return (
-    <div className="flex flex-1 items-center justify-center bg-slate-50 px-6 py-10 text-slate-900">
-      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-7 text-center shadow-sm">
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-[22px]">
-          ✨
-        </div>
-        <h1 className="text-[22px] font-bold tracking-tight text-slate-900">VFX Prompt Builder</h1>
-        <p className="mt-2 text-[13px] leading-6 text-slate-500">
-          Nhập pass wifi văn phòng để tiếp tục:
-        </p>
-        <button
-          type="button"
-          onClick={onRequestAccess}
-          className="mt-5 rounded-xl bg-blue-600 px-5 py-3 text-[13px] font-semibold text-white transition hover:bg-blue-700"
-        >
-          Nhập pass
-        </button>
-      </div>
-    </div>
-  )
-}
-
 function QuoteModulePage() {
   const location = useLocation()
   const quoteIdMatch = location.pathname.match(/^\/quotes\/([^/]+)$/)
@@ -1135,11 +1063,9 @@ export default function EventusAILabPage() {
   const [itemActionLoading, setItemActionLoading] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const admin = useAdmin()
-  const vfxAccess = useVfxBuilderAccess()
   const visibleCategories = useMemo(() => getVisibleCategories(), [])
 
   useEscapeToClose(() => admin.setShowGate(false), admin.showGate)
-  useEscapeToClose(vfxAccess.cancel, vfxAccess.showGate)
   useEscapeToClose(() => setShowPromptGuide(false), showPromptGuide)
   useEscapeToClose(() => {
     if (!itemActionLoading) {
@@ -1156,7 +1082,6 @@ export default function EventusAILabPage() {
       location.pathname === '/quotes' ||
       location.pathname.startsWith('/quotes/') ||
       location.pathname === '/competency' ||
-      location.pathname === '/vfx-builder' ||
       location.pathname.startsWith('/position/')
     ) {
       setLoading(false)
@@ -1292,16 +1217,6 @@ export default function EventusAILabPage() {
       return
     }
 
-    if (location.pathname === '/vfx-builder') {
-      setActiveCat('vfx_builder')
-      setSelectedTitle(null)
-      setEditing(false)
-      if (!vfxAccess.hasAccess) {
-        vfxAccess.requestAccess()
-      }
-      return
-    }
-
     if (location.pathname === '/quotes' || location.pathname.startsWith('/quotes/')) {
       setActiveCat('quotes')
       setSelectedTitle(null)
@@ -1322,13 +1237,11 @@ export default function EventusAILabPage() {
       const matchedTitle = currentCategoryItems.find(title => slugify(title) === articleSlug)
       setSelectedTitle(matchedTitle || null)
     }
-  }, [location.pathname, positionId, articleSlug, currentCategoryItems, admin.isAdmin, vfxAccess.hasAccess, navigate])
+  }, [location.pathname, positionId, articleSlug, currentCategoryItems, admin.isAdmin, navigate])
 
   function selectCat(id) {
     if (id === 'khung_nang_luc') {
       navigate('/competency')
-    } else if (id === 'vfx_builder') {
-      navigate('/vfx-builder')
     } else if (id === 'quotes') {
       navigate('/quotes')
     } else if (CATEGORY_ROUTE_SEGMENTS[id]) {
@@ -1342,7 +1255,7 @@ export default function EventusAILabPage() {
   }
 
   function openHomeCategory(id) {
-    if (id === 'khung_nang_luc' || id === 'vfx_builder' || id === 'quotes') {
+    if (id === 'khung_nang_luc' || id === 'quotes') {
       selectCat(id)
       return
     }
@@ -1516,17 +1429,6 @@ export default function EventusAILabPage() {
             </div>
           ) : <CompetencyGrid />)}
 
-          {/* VFX Prompt Builder */}
-          {activeCat === 'vfx_builder' && (
-            vfxAccess.hasAccess
-              ? (
-                <Suspense fallback={<PageLoading />}>
-                  <VFXPromptBuilderPage />
-                </Suspense>
-              )
-              : <LockedVfxBuilderPage onRequestAccess={vfxAccess.requestAccess} />
-          )}
-
           {/* Quote Generator */}
           {activeCat === 'quotes' && (
             <div className="flex-1 overflow-y-auto px-5 py-5 lg:px-7">
@@ -1535,7 +1437,7 @@ export default function EventusAILabPage() {
           )}
 
           {/* Card grid cac danh muc khac */}
-          {activeCat !== 'home' && activeCat !== 'khung_nang_luc' && activeCat !== 'vfx_builder' && activeCat !== 'quotes' && !selectedTitle && (
+          {activeCat !== 'home' && activeCat !== 'khung_nang_luc' && activeCat !== 'quotes' && !selectedTitle && (
             <div className="flex-1 overflow-y-auto p-6">
               <CategoryBanner cat={currentCat} />
               {admin.isAdmin && (
@@ -1600,7 +1502,7 @@ export default function EventusAILabPage() {
           )}
 
           {/* Content view */}
-          {activeCat !== 'home' && activeCat !== 'khung_nang_luc' && activeCat !== 'vfx_builder' && activeCat !== 'quotes' && selectedTitle && !editing && (
+          {activeCat !== 'home' && activeCat !== 'khung_nang_luc' && activeCat !== 'quotes' && selectedTitle && !editing && (
             <div className="flex-1 overflow-y-auto">
               <div className="px-6 pt-0 pb-5">
                 {currentPage ? (
@@ -1647,7 +1549,7 @@ export default function EventusAILabPage() {
           )}
 
           {/* Editor */}
-          {activeCat !== 'home' && activeCat !== 'khung_nang_luc' && activeCat !== 'vfx_builder' && activeCat !== 'quotes' && selectedTitle && editing && (
+          {activeCat !== 'home' && activeCat !== 'khung_nang_luc' && activeCat !== 'quotes' && selectedTitle && editing && (
             <div className="flex-1 flex flex-col p-6">
               <div className="flex items-center justify-between mb-3">
                 <div />
@@ -1733,50 +1635,6 @@ export default function EventusAILabPage() {
               <button onClick={admin.tryLogin}
                 className="flex-1 text-[13px] py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700">
                 Đăng nhập
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* VFX Prompt Builder gate */}
-      {vfxAccess.showGate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-5 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-7 shadow-2xl shadow-slate-950/20">
-            <h3 className="mb-1 text-[16px] font-bold text-slate-900">VFX Prompt Builder</h3>
-            <p className="mb-4 text-[13px] leading-6 text-slate-500">
-              Nhập pass wifi văn phòng để tiếp tục:
-            </p>
-            <input
-              type="password"
-              value={vfxAccess.input}
-              onChange={e => vfxAccess.setInput(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter') {
-                  vfxAccess.tryUnlock()
-                }
-              }}
-              placeholder="Nhập pass"
-              className="mb-2 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-300"
-              autoFocus
-            />
-            {vfxAccess.error && <p className="mb-2 text-[12px] text-red-500">{vfxAccess.error}</p>}
-            <div className="mt-3 flex gap-2">
-              <button
-                onClick={() => {
-                  vfxAccess.cancel()
-                }}
-                className="flex-1 rounded-lg border border-slate-200 py-2 text-[13px] text-slate-500 hover:bg-slate-50"
-              >
-                Huỷ
-              </button>
-              <button
-                onClick={() => {
-                  vfxAccess.tryUnlock()
-                }}
-                className="flex-1 rounded-lg bg-blue-600 py-2 text-[13px] font-semibold text-white hover:bg-blue-700"
-              >
-                Tiếp tục
               </button>
             </div>
           </div>

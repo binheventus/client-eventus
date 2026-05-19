@@ -15,7 +15,6 @@ export default function App() {
       <Suspense fallback={<AppLoading />}>
         <Routes>
           <Route path="/" element={<EventusAILabPage />} />
-          <Route path="/vfx-builder" element={<EventusAILabPage />} />
           <Route path="/quotes" element={<EventusAILabPage />} />
           <Route path="/quotes/new" element={<EventusAILabPage />} />
           <Route path="/quotes/trash" element={<EventusAILabPage />} />
