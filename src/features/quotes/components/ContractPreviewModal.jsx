@@ -111,7 +111,7 @@ export function PreviewDownloadActions({ contract = {}, showShareButton = false 
     if (!shareUrl) return
     await navigator.clipboard?.writeText(shareUrl)
     setCopied(true)
-    window.setTimeout(() => setCopied(false), 1600)
+    window.setTimeout(() => setCopied(false), 2400)
   }
 
   return (
@@ -124,7 +124,7 @@ export function PreviewDownloadActions({ contract = {}, showShareButton = false 
             className={`${actionClass} bg-[#f8981d] text-white shadow-sm hover:bg-orange-500`}
           >
             {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-            {copied ? 'Đã copy link' : 'Copy link hợp đồng'}
+            Lấy link hợp đồng gửi khách
           </button>
         ) : null}
         <PDFDownloadLink
@@ -148,6 +148,11 @@ export function PreviewDownloadActions({ contract = {}, showShareButton = false 
           Tải DOCX
         </button>
       </div>
+      {copied ? (
+        <p className="mt-3 rounded-xl bg-emerald-50 px-4 py-2 text-[13px] font-semibold text-emerald-700" role="status">
+          Đã copy link hợp đồng gửi khách
+        </p>
+      ) : null}
     </div>
   )
 }

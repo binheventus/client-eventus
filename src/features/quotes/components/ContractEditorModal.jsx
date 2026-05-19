@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, CalendarDays, FileSignature, Plus, Save, Trash2, X } from 'lucide-react'
+import { AlertTriangle, CalendarDays, FileSignature, Plus, Trash2, X } from 'lucide-react'
 import { useLegalEntities } from '../hooks/useLegalEntities'
 import {
   createContractDraftFromQuote,
@@ -402,7 +402,7 @@ export default function ContractEditorModal({
     const validationError = validate()
     if (validationError) {
       setError(validationError)
-      return
+      return null
     }
 
     setSaving(true)
@@ -423,8 +423,10 @@ export default function ContractEditorModal({
       setSavedContract(hydrated)
       setDirty(false)
       setNotice('Đã lưu hợp đồng. Bạn có thể tải PDF hoặc DOCX.')
+      return hydrated
     } catch (err) {
       setError(err?.message || 'Không lưu được hợp đồng.')
+      return null
     } finally {
       setSaving(false)
     }
@@ -469,7 +471,7 @@ export default function ContractEditorModal({
   } : null
   const previewContract = draft ? {
     ...draft,
-    quote_snapshot: quoteSnapshot,
+    quote_snapshot: savedContract ? currentQuoteSnapshot : quoteSnapshot,
   } : null
   const serviceScopeDetail = getServiceScopeDetail(draft?.service_scope)
   const termsText = draft?.terms_text ?? sectionsToTermsText(draft?.content_sections || [])
@@ -746,7 +748,7 @@ export default function ContractEditorModal({
         <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-5 py-3">
           <div className="flex flex-wrap items-center gap-3">
             <p className="text-[12px] text-slate-500">
-              {dirty || !savedContract ? 'Lưu hợp đồng trước khi tải file mới.' : 'Bản PDF và DOCX dùng dữ liệu hợp đồng đã lưu.'}
+              Bấm Lưu & Preview để cập nhật bản gửi khách trước khi lấy link hoặc tải file.
             </p>
             {savedContract ? (
               <button
@@ -761,16 +763,15 @@ export default function ContractEditorModal({
             ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
+            <ContractDocumentDownloads
+              contract={downloadableContract}
+              previewContract={previewContract}
               disabled={saving || loading || deleting || !draft || (!quoteIsReady && !savedContract)}
-              onClick={handleSave}
-              className="inline-flex items-center gap-2 rounded-xl bg-[#f8981d] px-4 py-2.5 text-[13px] font-semibold text-white shadow-sm hover:bg-orange-500 disabled:opacity-50"
-            >
-              <Save className="h-4 w-4" />
-              {saving ? 'Đang lưu...' : 'Lưu hợp đồng'}
-            </button>
-            <ContractDocumentDownloads contract={downloadableContract} previewContract={previewContract} disabled={!downloadableContract} />
+              showShareButton
+              onBeforePreview={handleSave}
+              buttonLabel="Lưu & Preview"
+              loadingLabel="Đang lưu..."
+            />
           </div>
         </footer>
       </section>
