@@ -322,9 +322,9 @@ function totalsTable(contract = {}) {
   ].filter(Boolean)
 
   return simpleTable(rows.map(([label, value], index) => tableRow([
-    tableCell(label, 4200, { bold: index === rows.length - 1, align: 'right' }),
-    tableCell(formatCurrencyAmount(value), 2400, { bold: index === rows.length - 1, align: 'right' }),
-  ])), { width: 6600, fixed: true, align: 'right' })
+    tableCell(label, 7500, { bold: index === rows.length - 1, align: 'right' }),
+    tableCell(formatCurrencyAmount(value), 1500, { bold: index === rows.length - 1, align: 'right' }),
+  ])), { width: 9000, fixed: true })
 }
 
 function scheduleXml(rows = []) {
