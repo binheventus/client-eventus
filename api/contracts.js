@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 
+const PROTECTED_CONTRACT_TEMPLATE_IDS = new Set(['system-mediamonster-service-contract'])
+
 function getSupabaseAdminClient() {
   const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -82,6 +84,7 @@ async function listTemplates(supabase) {
 }
 
 async function saveTemplate(supabase, template = {}) {
+  const isProtectedTemplate = PROTECTED_CONTRACT_TEMPLATE_IDS.has(template.id)
   const payload = {
     name: String(template.name || '').trim(),
     description: String(template.description || '').trim() || null,
@@ -96,7 +99,7 @@ async function saveTemplate(supabase, template = {}) {
     payment_config: template.payment_config || {},
     content_sections: Array.isArray(template.content_sections) ? template.content_sections : [],
     terms_text: String(template.terms_text || '').trim(),
-    is_default: Boolean(template.is_default),
+    is_default: isProtectedTemplate ? false : Boolean(template.is_default),
     is_active: template.is_active !== false,
     sort_order: Number(template.sort_order || 100),
   }
@@ -126,8 +129,7 @@ async function saveTemplate(supabase, template = {}) {
   if (template.id) {
     const { data, error } = await supabase
       .from('contract_templates')
-      .update({ ...payload, updated_at: nowIso() })
-      .eq('id', template.id)
+      .upsert({ id: template.id, ...payload, updated_at: nowIso() }, { onConflict: 'id' })
       .select()
       .single()
 

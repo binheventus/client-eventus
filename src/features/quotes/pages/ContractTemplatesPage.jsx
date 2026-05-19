@@ -161,8 +161,17 @@ export default function ContractTemplatesPage() {
     () => templates.find(template => template.id === selectedId) || null,
     [templates, selectedId],
   )
-  const systemTemplateIds = useMemo(() => new Set(DEFAULT_CONTRACT_TEMPLATES.map(template => template.id)), [])
-  const isSystemDefault = systemTemplateIds.has(draft.id) || draft.is_system_default
+  const protectedTemplateIds = useMemo(() => new Set(DEFAULT_CONTRACT_TEMPLATES.map(template => template.id)), [])
+  const isProtectedTemplate = protectedTemplateIds.has(draft.id) || draft.is_system_default
+  const sidebarTemplates = useMemo(() => templates
+    .map((template, index) => ({ template, index }))
+    .sort((left, right) => {
+      const leftProtected = protectedTemplateIds.has(left.template.id) || left.template.is_system_default
+      const rightProtected = protectedTemplateIds.has(right.template.id) || right.template.is_system_default
+      if (leftProtected !== rightProtected) return leftProtected ? 1 : -1
+      return left.index - right.index
+    })
+    .map(row => row.template), [templates, protectedTemplateIds])
   const workProgressNotes = useMemo(() => getContractWorkProgressNotes(draft), [draft])
   const paymentNotes = useMemo(() => getContractPaymentNotes(draft.payment_config), [draft.payment_config])
   const paymentDocuments = Array.isArray(draft.payment_config?.payment_documents)
@@ -284,7 +293,7 @@ export default function ContractTemplatesPage() {
         content_sections: termsTextToSections(termsText),
       }
       const saved = await saveContractTemplate(payload)
-      setNotice(isSystemDefault ? 'Đã lưu thành mẫu hợp đồng mới.' : 'Đã lưu mẫu hợp đồng.')
+      setNotice('Đã lưu mẫu hợp đồng.')
       await loadTemplates(saved.id)
     } catch (err) {
       setError(err?.message || 'Không lưu được mẫu hợp đồng.')
@@ -294,7 +303,7 @@ export default function ContractTemplatesPage() {
   }
 
   async function deleteSelected() {
-    if (!draft.id || isSystemDefault) return
+    if (!draft.id || isProtectedTemplate) return
     setSaving(true)
     setError('')
     setNotice('')
@@ -340,20 +349,32 @@ export default function ContractTemplatesPage() {
           <div className="mt-2 space-y-2">
             {loading ? (
               <p className="px-2 py-6 text-center text-[13px] text-slate-400">Đang tải...</p>
-            ) : templates.length ? templates.map(template => (
-              <button
-                key={template.id}
-                type="button"
-                onClick={() => selectTemplate(template)}
-                className={`w-full rounded-xl border px-3 py-3 text-left transition ${selectedTemplate?.id === template.id ? 'border-orange-200 bg-orange-50' : 'border-slate-100 bg-white hover:bg-slate-50'}`}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[13px] font-semibold text-slate-900">{template.name}</span>
-                  {template.is_default ? <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-emerald-700">Default</span> : null}
-                </div>
-                <p className="mt-1 line-clamp-2 text-[12px] leading-5 text-slate-500">{DEFAULT_CONTRACT_TITLE}</p>
-              </button>
-            )) : (
+            ) : sidebarTemplates.length ? sidebarTemplates.map(template => {
+              const isSelected = selectedTemplate?.id === template.id
+              const isSystemTemplate = protectedTemplateIds.has(template.id) || template.is_system_default
+
+              return (
+                <button
+                  key={template.id}
+                  type="button"
+                  onClick={() => selectTemplate(template)}
+                  className={`w-full rounded-xl border px-3 py-3 text-left transition ${
+                    isSystemTemplate
+                      ? `${isSelected ? 'border-slate-300 bg-slate-100' : 'border-slate-200 bg-slate-50 hover:bg-slate-100'}`
+                      : `${isSelected ? 'border-orange-200 bg-orange-50' : 'border-slate-100 bg-white hover:bg-slate-50'}`
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-[13px] font-semibold text-slate-900">{template.name}</span>
+                    <span className="flex shrink-0 flex-wrap justify-end gap-1">
+                      {template.is_default ? <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-emerald-700">Default</span> : null}
+                      {isSystemTemplate ? <span className="rounded-full bg-slate-200 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-600">Mẫu hệ thống</span> : null}
+                    </span>
+                  </div>
+                  <p className="mt-1 line-clamp-2 text-[12px] leading-5 text-slate-500">{DEFAULT_CONTRACT_TITLE}</p>
+                </button>
+              )
+            }) : (
               <p className="px-2 py-6 text-center text-[13px] text-slate-400">Chưa có mẫu hợp đồng.</p>
             )}
           </div>
@@ -373,8 +394,14 @@ export default function ContractTemplatesPage() {
               </Field>
               <label className="block">
                 <span className="mb-1.5 block text-center text-[12px] font-semibold text-slate-600">Set Defaut</span>
-                <span className="flex min-h-[42px] items-center justify-center rounded-xl border border-slate-200 hover:bg-slate-50">
-                  <input type="checkbox" checked={Boolean(draft.is_default)} onChange={event => updateDraft({ is_default: event.target.checked })} className="h-4 w-4 accent-[#f8981d]" />
+                <span className={`flex min-h-[42px] items-center justify-center rounded-xl border ${isProtectedTemplate ? 'border-slate-200 bg-slate-100' : 'border-slate-200 hover:bg-slate-50'}`}>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(draft.is_default) && !isProtectedTemplate}
+                    disabled={isProtectedTemplate}
+                    onChange={event => updateDraft({ is_default: event.target.checked })}
+                    className="h-4 w-4 accent-[#f8981d] disabled:cursor-not-allowed disabled:opacity-40"
+                  />
                 </span>
               </label>
             </div>
@@ -481,12 +508,12 @@ export default function ContractTemplatesPage() {
                 className="inline-flex items-center gap-2 rounded-xl border border-orange-200 px-4 py-2.5 text-[13px] font-semibold text-[#d97706] hover:bg-orange-50 disabled:opacity-50"
               >
                 <Save className="h-4 w-4" />
-                {saving ? 'Đang lưu...' : (isSystemDefault ? 'Lưu thành mẫu mới' : 'Lưu mẫu')}
+                {saving ? 'Đang lưu...' : 'Lưu mẫu'}
               </button>
               <button
                 type="button"
                 onClick={() => setDeleteConfirmOpen(true)}
-                disabled={!draft.id || isSystemDefault || saving}
+                disabled={!draft.id || isProtectedTemplate || saving}
                 className="inline-flex items-center gap-2 rounded-xl bg-slate-600 px-4 py-2.5 text-[13px] font-semibold text-white shadow-sm hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <Trash2 className="h-4 w-4" />

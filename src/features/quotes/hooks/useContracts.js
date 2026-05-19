@@ -4,7 +4,6 @@ import {
   buildInitialContractDraft,
   buildQuoteSnapshot,
   canCreateContractFromQuote,
-  DEFAULT_CONTRACT_TEMPLATE_ID,
   DEFAULT_CONTRACT_TEMPLATES,
   mergeDefaultContractTemplates,
   normalizeContractTemplate,
@@ -56,7 +55,7 @@ function saveLocalContracts(rows = []) {
 }
 
 function saveLocalTemplates(rows = []) {
-  writeLocalJson(LOCAL_CONTRACT_TEMPLATES_KEY, rows.filter(template => !template.is_system_default))
+  writeLocalJson(LOCAL_CONTRACT_TEMPLATES_KEY, rows)
 }
 
 function isSchemaMissing(error) {
@@ -167,7 +166,7 @@ function createLocalTemplate(payload = {}) {
   const now = nowIso()
   const template = {
     ...cleanPayload,
-    id: makeLocalId('template'),
+    id: payload.id || makeLocalId('template'),
     created_at: now,
     updated_at: now,
   }
@@ -199,7 +198,7 @@ function updateLocalTemplate(id, payload = {}) {
     return updated
   })
 
-  if (!updated) return createLocalTemplate(payload)
+  if (!updated) return createLocalTemplate({ ...cleanPayload, id })
   saveLocalTemplates(nextTemplates)
   return updated
 }
@@ -285,14 +284,16 @@ export async function listContractTemplates() {
 }
 
 export async function saveContractTemplate(payload = {}) {
-  const systemTemplateIds = new Set(DEFAULT_CONTRACT_TEMPLATES.map(template => template.id))
-  const isSystemDefault = systemTemplateIds.has(payload.id) || payload.id === DEFAULT_CONTRACT_TEMPLATE_ID || payload.is_system_default
   const cleanPayload = cleanTemplatePayload(payload)
+  const protectedTemplateIds = new Set(DEFAULT_CONTRACT_TEMPLATES.map(template => template.id))
+  const isProtectedTemplate = protectedTemplateIds.has(payload.id) || payload.is_system_default
+  if (isProtectedTemplate) cleanPayload.is_default = false
+
   if (!cleanPayload.name) throw new Error('Tên mẫu hợp đồng là bắt buộc.')
   if (!cleanPayload.terms_text) throw new Error('Nội dung từ ĐIỀU 3 trở đi là bắt buộc.')
 
   if (!hasSupabaseConfig) {
-    return payload.id && !isSystemDefault
+    return payload.id
       ? updateLocalTemplate(payload.id, cleanPayload)
       : createLocalTemplate(cleanPayload)
   }
@@ -305,7 +306,7 @@ export async function saveContractTemplate(payload = {}) {
           resource: 'template',
           template: {
             ...cleanPayload,
-            id: !isSystemDefault ? payload.id : undefined,
+            id: payload.id || undefined,
           },
         },
       })
@@ -323,10 +324,9 @@ export async function saveContractTemplate(payload = {}) {
         .neq('id', payload.id || '')
     }
 
-    if (payload.id && !isSystemDefault) {
+    if (payload.id) {
       const { data, error } = await fromQuoteTable('contractTemplates')
-        .update({ ...cleanPayload, updated_at: nowIso() })
-        .eq('id', payload.id)
+        .upsert({ id: payload.id, ...cleanPayload, updated_at: nowIso() }, { onConflict: 'id' })
         .select()
         .single()
 
@@ -343,7 +343,7 @@ export async function saveContractTemplate(payload = {}) {
     return data
   } catch (error) {
     if (!isSchemaMissing(error)) throw error
-    return payload.id && !isSystemDefault
+    return payload.id
       ? updateLocalTemplate(payload.id, cleanPayload)
       : createLocalTemplate(cleanPayload)
   }

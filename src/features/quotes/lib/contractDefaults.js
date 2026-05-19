@@ -269,7 +269,11 @@ export function getCustomerProfileFromQuote(quote = {}) {
 }
 
 export function getDefaultTemplate(templates = []) {
-  return templates.find(template => template.is_default && template.is_active !== false) ||
+  const systemIds = new Set(DEFAULT_CONTRACT_TEMPLATES.map(template => template.id))
+  const isUsableCustomTemplate = template => template.is_active !== false && !systemIds.has(template.id) && !template.is_system_default
+
+  return templates.find(template => template.is_default && isUsableCustomTemplate(template)) ||
+    templates.find(isUsableCustomTemplate) ||
     templates.find(template => template.is_active !== false) ||
     DEFAULT_CONTRACT_TEMPLATES[0]
 }
@@ -387,11 +391,15 @@ export function mergeDefaultContractTemplates(templates = []) {
   const rows = Array.isArray(templates) ? templates.map(normalizeContractTemplate) : []
   const systemIds = new Set(DEFAULT_CONTRACT_TEMPLATES.map(template => template.id))
   const withoutSystem = rows.filter(template => !systemIds.has(template.id) && !LEGACY_DEFAULT_CONTRACT_TEMPLATE_IDS.has(template.id))
-  const hasCustomDefault = withoutSystem.some(template => template.is_default)
-  const systemTemplates = DEFAULT_CONTRACT_TEMPLATES.map(template => normalizeContractTemplate({
-    ...template,
-    is_default: hasCustomDefault ? false : template.is_default,
-  }))
+  const systemTemplates = DEFAULT_CONTRACT_TEMPLATES.map(template => {
+    const override = rows.find(row => row.id === template.id)
+    return normalizeContractTemplate({
+      ...template,
+      ...(override || {}),
+      is_system_default: true,
+      is_default: false,
+    })
+  })
 
   return [...systemTemplates, ...withoutSystem]
     .filter(template => template.is_active !== false)
