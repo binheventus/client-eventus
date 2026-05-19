@@ -2,6 +2,7 @@ import { lazy, Suspense, useState, useEffect, useMemo } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { hasSupabaseConfig, supabase } from '../lib/supabase'
 import { ADMIN_PASSWORD, VFX_BUILDER_PASSWORD } from '../config'
+import { useEscapeToClose } from '../hooks/useEscapeToClose'
 import data from '../data/competency.json'
 
 const PositionPage = lazy(() => import('./PositionPage'))
@@ -1136,6 +1137,19 @@ export default function EventusAILabPage() {
   const admin = useAdmin()
   const vfxAccess = useVfxBuilderAccess()
   const visibleCategories = useMemo(() => getVisibleCategories(), [])
+
+  useEscapeToClose(() => admin.setShowGate(false), admin.showGate)
+  useEscapeToClose(vfxAccess.cancel, vfxAccess.showGate)
+  useEscapeToClose(() => setShowPromptGuide(false), showPromptGuide)
+  useEscapeToClose(() => {
+    if (!itemActionLoading) {
+      setShowAddItemModal(false)
+      setItemActionError('')
+    }
+  }, showAddItemModal)
+  useEscapeToClose(() => {
+    if (!itemActionLoading) setShowDeleteConfirm(false)
+  }, showDeleteConfirm)
 
   useEffect(() => {
     if (

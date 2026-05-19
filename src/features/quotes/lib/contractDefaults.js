@@ -246,8 +246,6 @@ export function getEntityProfile(entityCode = 'EVENTUS') {
     company_name: entity.legal_name || entity.entity_name_full || entity.name || '',
     tax_code: entity.tax_code || '',
     address: entity.address || '',
-    email: entity.email || '',
-    phone: entity.hotline || '',
     website: entity.website || '',
     representative: entity.representative || '',
     position: entity.position || '',

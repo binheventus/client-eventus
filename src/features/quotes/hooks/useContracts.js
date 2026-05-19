@@ -131,6 +131,11 @@ function cleanTemplatePayload(payload = {}) {
   }
 }
 
+function cleanSellerSnapshot(snapshot = {}) {
+  const { email, phone, ...sellerSnapshot } = snapshot || {}
+  return sellerSnapshot
+}
+
 function cleanContractPayload(payload = {}) {
   const normalized = normalizeContractTemplate(payload)
   return {
@@ -141,7 +146,7 @@ function cleanContractPayload(payload = {}) {
     template_id: payload.template_id || null,
     title: payload.title || 'HỢP ĐỒNG CUNG CẤP DỊCH VỤ',
     seller_entity_code: payload.seller_entity_code || normalized.seller_entity_code || null,
-    seller_snapshot: payload.seller_snapshot || {},
+    seller_snapshot: cleanSellerSnapshot(payload.seller_snapshot),
     customer_snapshot: payload.customer_snapshot || {},
     party_role_config: normalized.party_role_config,
     contract_number_pattern: payload.contract_number_pattern || normalized.contract_number_pattern,

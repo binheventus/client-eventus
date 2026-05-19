@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, CalendarDays, FileSignature, Plus, Trash2, X } from 'lucide-react'
+import { AlertTriangle, Plus, Trash2, X } from 'lucide-react'
+import { useEscapeToClose } from '../../../hooks/useEscapeToClose'
 import { useLegalEntities } from '../hooks/useLegalEntities'
 import {
   createContractDraftFromQuote,
@@ -11,12 +12,12 @@ import {
 import {
   buildQuoteSnapshot,
   canCreateContractFromQuote,
-  CONTRACT_TEMPLATE_SNAPSHOT_RULE,
   DEFAULT_CONTRACT_TITLE,
   DEFAULT_PAYMENT_CONFIG,
   generateContractNumber,
   getContractPreamble,
   getContractPaymentNotes,
+  getContractWorkProgressNotes,
   getDefaultTemplate,
   getEntityProfile,
   normalizeContractTemplate,
@@ -24,6 +25,7 @@ import {
   termsTextToSections,
 } from '../lib/contractDefaults'
 import ContractDocumentDownloads from './ContractDocumentDownloads'
+import ContractPaymentSummary from './ContractPaymentSummary'
 import QuoteBreadcrumb from './QuoteBreadcrumb'
 import QuotePreview from './QuotePreview'
 
@@ -119,7 +121,7 @@ function SummaryRow({ label, value, strong = false }) {
 
 function LegalNoteList({ title, items = [] }) {
   return (
-    <div className="mt-4 border-t border-slate-100 pt-4">
+    <div className="mt-4">
       <p className="text-[13px] font-semibold text-slate-900">{title}</p>
       <ul className="mt-1 list-disc space-y-1 pl-5 text-[13px] leading-6 text-slate-700">
         {items.map(item => <li key={item}>{item}</li>)}
@@ -162,12 +164,16 @@ function ProfileFields({ title, eyebrow, value = {}, onChange, companyLabel = 'T
         <Field label="Chức vụ" className={halfClass}>
           <TextInput value={value.position || ''} readOnly={fieldsLocked} className={lockedInputClass} onChange={event => update('position', event.target.value)} />
         </Field>
-        <Field label="Email" className={halfClass}>
-          <TextInput value={value.email || ''} readOnly={fieldsLocked} className={lockedInputClass} onChange={event => update('email', event.target.value)} />
-        </Field>
-        <Field label={type === 'seller' ? 'Hotline' : 'Số điện thoại'} className={halfClass}>
-          <TextInput value={value.phone || ''} readOnly={fieldsLocked} className={lockedInputClass} onChange={event => update('phone', event.target.value)} />
-        </Field>
+        {type === 'customer' ? (
+          <>
+            <Field label="Email" className={halfClass}>
+              <TextInput value={value.email || ''} readOnly={fieldsLocked} className={lockedInputClass} onChange={event => update('email', event.target.value)} />
+            </Field>
+            <Field label="Số điện thoại" className={halfClass}>
+              <TextInput value={value.phone || ''} readOnly={fieldsLocked} className={lockedInputClass} onChange={event => update('phone', event.target.value)} />
+            </Field>
+          </>
+        ) : null}
         {type === 'customer' ? (
           <>
             <Field label="Giấy uỷ quyền số">
@@ -209,6 +215,10 @@ function hydrateContract(contract, quote) {
 }
 
 function DeleteContractConfirmModal({ contractNumber, deleting, onCancel, onConfirm }) {
+  useEscapeToClose(() => {
+    if (!deleting) onCancel?.()
+  })
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/50 px-4 py-6">
       <section className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl">
@@ -253,6 +263,8 @@ export default function ContractEditorModal({
   quote,
   onClose,
 }) {
+  useEscapeToClose(onClose, open)
+
   const { legalEntities } = useLegalEntities()
   const [templates, setTemplates] = useState([])
   const [draft, setDraft] = useState(null)
@@ -480,6 +492,7 @@ export default function ContractEditorModal({
     ? draft.payment_config.payment_documents
     : DEFAULT_PAYMENT_CONFIG.payment_documents
   const paymentNotes = getContractPaymentNotes(draft?.payment_config)
+  const workProgressNotes = getContractWorkProgressNotes(draft || {})
   const quotePreviewQuote = { ...(quote || {}), ...quoteSnapshot }
   const quotePreviewItems = Array.isArray(quoteSnapshot.items) ? quoteSnapshot.items : []
   const quotePreviewTotals = {
@@ -489,6 +502,7 @@ export default function ContractEditorModal({
     vat_amount: quoteSnapshot.vat_amount,
     total_amount: quoteSnapshot.total_amount,
   }
+  const paymentConfig = draft?.payment_config || {}
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45">
@@ -573,7 +587,7 @@ export default function ContractEditorModal({
                     </div>
                   </section>
 
-                  <SectionCard icon={FileSignature} title="Tổng quan hợp đồng">
+                  <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                     <div className="grid gap-3 lg:grid-cols-[minmax(180px,0.75fr)_minmax(260px,1.25fr)_minmax(260px,1fr)]">
                       <Field label="Số hợp đồng">
                         <TextInput value={draft.contract_number || ''} onChange={event => updateDraft({ contract_number: event.target.value })} />
@@ -587,12 +601,9 @@ export default function ContractEditorModal({
                             <option key={template.id} value={template.id}>{template.name}</option>
                           ))}
                         </Select>
-                        <span className="mt-1.5 block text-[11px] leading-4 text-slate-500">
-                          {CONTRACT_TEMPLATE_SNAPSHOT_RULE}
-                        </span>
                       </Field>
                     </div>
-                  </SectionCard>
+                  </section>
 
                   <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                     <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
@@ -637,16 +648,7 @@ export default function ContractEditorModal({
                     />
                   </div>
 
-                  <SectionCard
-                    icon={CalendarDays}
-                    title="ĐIỀU 1: Nội dung hợp đồng"
-                    action={(
-                      <button type="button" onClick={addScheduleRow} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-[12px] font-semibold text-slate-700 hover:bg-slate-50">
-                        <Plus className="h-3.5 w-3.5" />
-                        Thêm lịch
-                      </button>
-                    )}
-                  >
+                  <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                     <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-[13px] leading-6 text-slate-700">
                       <span>Bên A đề nghị Bên B và Bên B đồng ý cung cấp </span>
                       <span className="font-semibold text-slate-950">{serviceScopeDetail || 'Nội dung dịch vụ'}</span>
@@ -664,7 +666,7 @@ export default function ContractEditorModal({
                               <th className="w-[180px] px-4 py-3">Giờ</th>
                               <th className="w-[220px] px-4 py-3">Ngày</th>
                               <th className="px-4 py-3">Địa điểm</th>
-                              <th className="w-16 px-4 py-3 text-right">Xoá</th>
+                              <th className="w-[170px] px-4 py-3 text-right">Thao tác</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 bg-white">
@@ -680,21 +682,52 @@ export default function ContractEditorModal({
                                   <TextInput placeholder="Địa điểm triển khai" value={row.location || ''} onChange={event => updateScheduleRow(index, { location: event.target.value })} />
                                 </td>
                                 <td className="px-3 py-3 text-right">
-                                  <button type="button" onClick={() => removeScheduleRow(index)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-red-600 hover:bg-red-50" aria-label="Xoá lịch">
-                                    <Trash2 className="h-4 w-4" />
-                                  </button>
+                                  <div className="flex justify-end gap-1.5">
+                                    <button type="button" onClick={addScheduleRow} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 text-[12px] font-semibold text-slate-700 hover:bg-slate-50">
+                                      <Plus className="h-3.5 w-3.5" />
+                                      Thêm lịch
+                                    </button>
+                                    <button type="button" onClick={() => removeScheduleRow(index)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-red-600 hover:bg-red-50" aria-label="Xoá lịch">
+                                      <Trash2 className="h-4 w-4" />
+                                    </button>
+                                  </div>
                                 </td>
                               </tr>
                             )) : (
                               <tr>
-                                <td colSpan={4} className="px-4 py-8 text-center text-slate-400">Chưa có lịch triển khai.</td>
+                                <td colSpan={4} className="px-4 py-8 text-center text-slate-400">
+                                  <div className="flex flex-col items-center gap-3">
+                                    <span>Chưa có lịch triển khai.</span>
+                                    <button type="button" onClick={addScheduleRow} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 px-3 text-[12px] font-semibold text-slate-700 hover:bg-slate-50">
+                                      <Plus className="h-3.5 w-3.5" />
+                                      Thêm lịch
+                                    </button>
+                                  </div>
+                                </td>
                               </tr>
                             )}
                           </tbody>
                         </table>
                       </div>
                     </div>
-                  </SectionCard>
+                    <p className="mt-4 text-[13px] font-semibold text-slate-900">Chi tiết hạng mục</p>
+                    <div className="mt-3">
+                      <QuotePreview
+                        quote={quotePreviewQuote}
+                        items={quotePreviewItems}
+                        totals={quotePreviewTotals}
+                        entities={legalEntities}
+                        sticky={false}
+                        tableOnly
+                      />
+                    </div>
+                    <div className="mt-3 space-y-1">
+                      <p className="text-[13px] font-semibold text-slate-900">Lưu ý về thời gian làm việc và tiến độ bàn giao:</p>
+                      <ul className="list-disc space-y-1 pl-5 text-[13px] leading-6 text-slate-700">
+                        {workProgressNotes.map(item => <li key={item}>{item}</li>)}
+                      </ul>
+                    </div>
+                  </section>
 
                   <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                     <div className="grid items-end gap-3 lg:grid-cols-[110px_repeat(3,minmax(0,1fr))]">
@@ -713,7 +746,11 @@ export default function ContractEditorModal({
                       </Field>
                     </div>
                     <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
-                      <p className="text-[13px] font-semibold text-slate-900">Hồ sơ thanh toán:</p>
+                      <ContractPaymentSummary
+                        quote={quoteSnapshot}
+                        paymentConfig={paymentConfig}
+                      />
+                      <p className="mt-4 text-[13px] font-semibold text-slate-900">Hồ sơ thanh toán:</p>
                       <ul className="mt-1 list-disc space-y-1 pl-5 text-[13px] leading-6 text-slate-700">
                         {paymentDocuments.map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}
                       </ul>
@@ -729,16 +766,6 @@ export default function ContractEditorModal({
                     />
                   </SectionCard>
 
-                  <section className="space-y-3">
-                    <h2 className="text-[16px] font-semibold text-slate-900">Phụ lục báo giá</h2>
-                    <QuotePreview
-                      quote={quotePreviewQuote}
-                      items={quotePreviewItems}
-                      totals={quotePreviewTotals}
-                      entities={legalEntities}
-                      sticky={false}
-                    />
-                  </section>
                 </>
               )}
             </div>

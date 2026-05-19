@@ -126,6 +126,7 @@ export default function QuotePreview({
   entities = [],
   client,
   sticky = true,
+  tableOnly = false,
 }) {
   const entityRows = entities.length ? entities : legalEntitiesData
   const entity = getEntity(quote.entity_code, entityRows)
@@ -141,32 +142,36 @@ export default function QuotePreview({
 
   return (
     <div className={`${sticky ? 'sticky top-6' : ''} overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm`}>
-      <div className="grid items-center gap-5 bg-slate-100 px-10 py-6 text-slate-900 sm:px-14 sm:grid-cols-[minmax(0,0.65fr)_minmax(0,1.35fr)]">
-        <div className="min-w-0">
-          {logoUrl ? (
-            <img src={logoUrl} alt={entity?.display_name || entityName} className="h-14 w-auto object-contain" />
-          ) : (
-            <div className="flex h-7 w-24 items-center text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Logo</div>
-          )}
-          <h2 className="mt-3 text-[22px] font-bold tracking-tight text-slate-950">{entityName}</h2>
+      {!tableOnly ? (
+        <div className="grid items-center gap-5 bg-slate-100 px-10 py-6 text-slate-900 sm:px-14 sm:grid-cols-[minmax(0,0.65fr)_minmax(0,1.35fr)]">
+          <div className="min-w-0">
+            {logoUrl ? (
+              <img src={logoUrl} alt={entity?.display_name || entityName} className="h-14 w-auto object-contain" />
+            ) : (
+              <div className="flex h-7 w-24 items-center text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Logo</div>
+            )}
+            <h2 className="mt-3 text-[22px] font-bold tracking-tight text-slate-950">{entityName}</h2>
+          </div>
+          <div className="min-w-0 space-y-1 text-left text-[10px] leading-4 text-slate-500 sm:text-right">
+            {contactRows.map((row, index) => (
+              <div key={`${row}-${index}`} className={`whitespace-nowrap ${index === 0 ? 'font-semibold uppercase tracking-[0.06em] text-slate-600' : ''}`}>
+                {row}
+              </div>
+            ))}
+            {displayedQuoteCode ? (
+              <div className="pt-0.5 text-[10px] font-medium leading-4 text-slate-400">{displayedQuoteCode}</div>
+            ) : null}
+          </div>
         </div>
-        <div className="min-w-0 space-y-1 text-left text-[10px] leading-4 text-slate-500 sm:text-right">
-          {contactRows.map((row, index) => (
-            <div key={`${row}-${index}`} className={`whitespace-nowrap ${index === 0 ? 'font-semibold uppercase tracking-[0.06em] text-slate-600' : ''}`}>
-              {row}
-            </div>
-          ))}
-          {displayedQuoteCode ? (
-            <div className="pt-0.5 text-[10px] font-medium leading-4 text-slate-400">{displayedQuoteCode}</div>
-          ) : null}
-        </div>
-      </div>
+      ) : null}
 
-      <div className="space-y-6 px-10 py-6 sm:px-14 sm:py-7">
-        <section className="space-y-3 text-[13px] leading-6 text-slate-700">
-          <p className="font-semibold text-slate-900">Kính gửi: {clientName}</p>
-          <p>Dựa trên thông tin trao đổi, chúng tôi xin gửi báo giá chi tiết dịch vụ như sau:</p>
-        </section>
+      <div className={`${tableOnly ? 'space-y-4 px-4 py-4 sm:px-5' : 'space-y-6 px-10 py-6 sm:px-14 sm:py-7'}`}>
+        {!tableOnly ? (
+          <section className="space-y-3 text-[13px] leading-6 text-slate-700">
+            <p className="font-semibold text-slate-900">Kính gửi: {clientName}</p>
+            <p>Dựa trên thông tin trao đổi, chúng tôi xin gửi báo giá chi tiết dịch vụ như sau:</p>
+          </section>
+        ) : null}
 
         <section className="overflow-hidden rounded-xl border border-slate-200">
           <table className="w-full table-fixed text-left text-[10.5px]">
@@ -199,18 +204,18 @@ export default function QuotePreview({
           </table>
         </section>
 
-        <section className="-mt-6 ml-auto w-full max-w-[360px] space-y-1.5 text-[13px]">
+        <section className={`${tableOnly ? 'ml-auto' : '-mt-6 ml-auto'} w-full max-w-[360px] space-y-1.5 text-[13px]`}>
           <div className="flex justify-between gap-6 text-slate-600">
             <span>Subtotal</span>
             <span>{formatCurrency(totals.subtotal)}đ</span>
           </div>
-          {showTravelFee ? (
+          {!tableOnly && showTravelFee ? (
             <div className="flex justify-between gap-6 text-slate-600">
               <span>Phụ phí di chuyển</span>
               <span>{formatCurrency(totals.travel_fee_total)}đ</span>
             </div>
           ) : null}
-          {showOvertimeFee ? (
+          {!tableOnly && showOvertimeFee ? (
             <div className="flex justify-between gap-6 text-slate-600">
               <span>Phụ phí Over-time</span>
               <span>{formatCurrency(totals.overtime_fee_total)}đ</span>
@@ -223,14 +228,14 @@ export default function QuotePreview({
             </div>
           ) : null}
           <div className="border-t border-slate-200 pt-2">
-            <div className="flex justify-between text-[16px] font-bold text-slate-950">
+            <div className={`flex justify-between font-bold text-slate-950 ${tableOnly ? 'text-[15px]' : 'text-[16px]'}`}>
               <span>Tổng cộng</span>
               <span>{formatCurrency(totals.total_amount)}đ</span>
             </div>
           </div>
         </section>
 
-        <QuoteEndNotes quote={quote} items={items} validityDays={normalizeQuoteValidityDays(quote.validity_days)} />
+        {!tableOnly ? <QuoteEndNotes quote={quote} items={items} validityDays={normalizeQuoteValidityDays(quote.validity_days)} /> : null}
       </div>
     </div>
   )

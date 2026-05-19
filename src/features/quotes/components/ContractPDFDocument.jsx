@@ -1,14 +1,11 @@
 import { Document, Font, Page, StyleSheet, Text, View } from '@react-pdf/renderer'
 import {
-  CONTRACT_APPENDIX_DETAIL_TEXT,
-  CONTRACT_TABLE_PLACEMENTS,
   getContractPreamble,
   getContractPaymentNotes,
   getContractWorkProgressNotes,
   numberToVietnameseWords,
   sanitizeFilenamePart,
 } from '../lib/contractDefaults'
-import { QuotePDFPage } from './QuotePDFDocument'
 
 const PDF_FONT_FAMILY = 'BeVietnamProContract'
 const FONT_PATH = '/fonts/be-vietnam-pro'
@@ -289,7 +286,7 @@ function PartyCard({ heading, profile = {}, role = 'customer' }) {
         <Text style={styles.partyLine}>Theo giấy uỷ quyền số: {profile.authorization_number}{profile.authorization_date ? ` ký ngày ${profile.authorization_date}` : ''}</Text>
       ) : null}
       <Text style={styles.partyLine}>Địa chỉ: {profile.address || '-'}</Text>
-      <Text style={styles.partyLine}>Điện thoại: {profile.phone || '-'}</Text>
+      {role === 'customer' ? <Text style={styles.partyLine}>Điện thoại: {profile.phone || '-'}</Text> : null}
       <Text style={styles.partyLine}>Mã số thuế: {profile.tax_code || '-'}</Text>
       {role === 'seller' && profile.bank_account ? <Text style={styles.partyLine}>Số tài khoản: {profile.bank_account} - {profile.bank_name || '-'}</Text> : null}
     </View>
@@ -363,8 +360,6 @@ function QuoteItemsTable({ items = [] }) {
 function Totals({ quote = {} }) {
   const rows = [
     ['Subtotal', quote.subtotal],
-    Number(quote.travel_fee_total || 0) > 0 ? ['Phụ phí di chuyển', quote.travel_fee_total] : null,
-    Number(quote.overtime_fee_total || 0) > 0 ? ['Phụ phí Over-time', quote.overtime_fee_total] : null,
     quote.has_vat !== false ? ['VAT', quote.vat_amount] : null,
   ].filter(Boolean)
 
@@ -377,30 +372,25 @@ function Totals({ quote = {} }) {
         </View>
       ))}
       <View style={styles.grandTotal}>
-        <Text>Tổng chi phí</Text>
+        <Text>Tổng cộng</Text>
         <Text>{formatCurrency(quote.total_amount)}</Text>
       </View>
     </View>
   )
 }
 
-function ServiceArticle({ contract = {}, quote = {}, items = [], includeQuoteTable = false }) {
+function ServiceArticle({ contract = {}, quote = {}, items = [] }) {
   const workProgressNotes = getContractWorkProgressNotes(contract)
 
   return (
     <View>
-      <Text style={styles.sectionTitle}>ĐIỀU 1: NỘI DUNG HỢP ĐỒNG</Text>
       <Text style={styles.paragraph}>
         Bên A đề nghị Bên B và Bên B đồng ý {contract.service_scope || 'cung cấp dịch vụ theo báo giá'} cho Bên A, chi tiết như sau:
       </Text>
       <ScheduleRows rows={contract.schedule_rows || []} />
-      {includeQuoteTable ? (
-        <>
-          <Text style={styles.paragraphStrong}>Chi tiết hạng mục:</Text>
-          <QuoteItemsTable items={items} />
-          <Totals quote={quote} />
-        </>
-      ) : <Text style={styles.paragraphStrong}>{CONTRACT_APPENDIX_DETAIL_TEXT}</Text>}
+      <Text style={styles.paragraphStrong}>Chi tiết hạng mục</Text>
+      <QuoteItemsTable items={items} />
+      <Totals quote={quote} />
       <Text style={styles.paragraphStrong}>Lưu ý về thời gian làm việc và tiến độ bàn giao:</Text>
       {workProgressNotes.map(item => <Text key={item} style={styles.paragraph}>- {item}</Text>)}
     </View>
@@ -463,20 +453,9 @@ function Signature({ contract = {} }) {
   )
 }
 
-function AppendixPage({ contract = {}, quote = {}, items = [] }) {
-  const quoteForAppendix = {
-    ...quote,
-    created_at: quote.created_at || contract.created_at || contract.updated_at,
-  }
-
-  return <QuotePDFPage quote={quoteForAppendix} items={items} />
-}
-
 export default function ContractPDFDocument({ contract = {} }) {
   const quote = getQuote(contract)
   const items = Array.isArray(quote.items) ? quote.items : []
-  const quoteTablePlacement = contract.quote_table_config?.placement || CONTRACT_TABLE_PLACEMENTS.APPENDIX
-  const tableInArticle = quoteTablePlacement === CONTRACT_TABLE_PLACEMENTS.ARTICLE_1
   const partyA = getPartyProfile(contract, 'party_a')
   const partyB = getPartyProfile(contract, 'party_b')
   const preambleLines = getContractPreamble(contract)
@@ -498,14 +477,12 @@ export default function ContractPDFDocument({ contract = {} }) {
         </View>
 
         <Text style={styles.paragraph}>Sau khi thỏa thuận, Các Bên đồng ý ký kết Hợp Đồng này theo các điều khoản sau:</Text>
-        <ServiceArticle contract={contract} quote={quote} items={items} includeQuoteTable={tableInArticle} />
+        <ServiceArticle contract={contract} quote={quote} items={items} />
         <PaymentArticle contract={contract} quote={quote} />
         <ContentSections sections={contract.content_sections || []} />
         <Signature contract={contract} />
         <Text style={styles.pageNumber} render={({ pageNumber, totalPages }) => `Trang ${pageNumber}/${totalPages}`} fixed />
       </Page>
-
-      {!tableInArticle ? <AppendixPage contract={contract} quote={quote} items={items} /> : null}
     </Document>
   )
 }

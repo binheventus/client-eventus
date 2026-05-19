@@ -185,6 +185,8 @@ async function getPublicContractByToken(supabase, shareToken) {
 }
 
 function cleanContractPayload(contract = {}) {
+  const { email, phone, ...sellerSnapshot } = contract.seller_snapshot || {}
+
   return {
     quote_id: contract.quote_id,
     quote_number: contract.quote_number || null,
@@ -193,7 +195,7 @@ function cleanContractPayload(contract = {}) {
     template_id: contract.template_id || null,
     title: contract.title || 'HOP DONG CUNG CAP DICH VU',
     seller_entity_code: contract.seller_entity_code || null,
-    seller_snapshot: contract.seller_snapshot || {},
+    seller_snapshot: sellerSnapshot,
     customer_snapshot: contract.customer_snapshot || {},
     party_role_config: contract.party_role_config || {},
     contract_number_pattern: contract.contract_number_pattern || 'HD-{{quote_code}}',

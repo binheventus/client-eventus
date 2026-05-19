@@ -1,16 +1,15 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { PDFDownloadLink } from '@react-pdf/renderer'
 import { Check, Copy, Download, FileText, X } from 'lucide-react'
 import ContractPDFDocument, { getContractPdfFilename } from './ContractPDFDocument'
+import ContractPaymentSummary from './ContractPaymentSummary'
 import QuotePreview from './QuotePreview'
+import { useEscapeToClose } from '../../../hooks/useEscapeToClose'
 import { downloadContractDocx } from '../lib/contractDocx'
 import {
-  CONTRACT_APPENDIX_DETAIL_TEXT,
-  DEFAULT_PAYMENT_CONFIG,
   getContractPreamble,
   getContractPaymentNotes,
   getContractWorkProgressNotes,
-  numberToVietnameseWords,
   sectionsToTermsText,
   termsTextToSections,
 } from '../lib/contractDefaults'
@@ -21,11 +20,6 @@ function hasText(value) {
 
 function getServiceScopeDetail(value = '') {
   return String(value || '').replace(/^cung cấp\s+/i, '').trim()
-}
-
-function formatCurrency(value) {
-  const number = Number(value || 0)
-  return number > 0 ? new Intl.NumberFormat('vi-VN').format(number) : ''
 }
 
 function formatContractDate(value) {
@@ -65,7 +59,7 @@ function PreviewLine({ label, value, fallback = label }) {
   )
 }
 
-function PartyPreview({ heading, profile = {}, fallbackPrefix }) {
+function PartyPreview({ heading, profile = {}, fallbackPrefix, role = 'customer' }) {
   return (
     <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
       <p className="text-[13px] leading-6 text-slate-950">
@@ -75,7 +69,7 @@ function PartyPreview({ heading, profile = {}, fallbackPrefix }) {
       <PreviewLine label="Đại diện" value={profile.representative} fallback={`Người đại diện ${fallbackPrefix}`} />
       {profile.position ? <PreviewLine label="Chức vụ" value={profile.position} /> : null}
       <PreviewLine label="Địa chỉ" value={profile.address} fallback={`Địa chỉ ${fallbackPrefix}`} />
-      {profile.phone ? <PreviewLine label="Điện thoại" value={profile.phone} /> : null}
+      {role === 'customer' && profile.phone ? <PreviewLine label="Điện thoại" value={profile.phone} /> : null}
       <PreviewLine label="Mã số thuế" value={profile.tax_code} fallback={`Mã số thuế ${fallbackPrefix}`} />
       {profile.bank_account ? <PreviewLine label="Số tài khoản" value={`${profile.bank_account}${profile.bank_name ? ` - ${profile.bank_name}` : ''}`} /> : null}
     </div>
@@ -104,14 +98,23 @@ function getContractPreviewShareUrl(contract = {}) {
 
 export function PreviewDownloadActions({ contract = {}, showShareButton = false }) {
   const [copied, setCopied] = useState(false)
+  const copiedTimerRef = useRef(null)
   const shareUrl = useMemo(() => getContractPreviewShareUrl(contract), [contract])
   const actionClass = 'inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl px-5 py-3 text-[13px] font-bold transition'
+
+  useEffect(() => () => {
+    if (copiedTimerRef.current) window.clearTimeout(copiedTimerRef.current)
+  }, [])
 
   async function copyShareLink() {
     if (!shareUrl) return
     await navigator.clipboard?.writeText(shareUrl)
     setCopied(true)
-    window.setTimeout(() => setCopied(false), 2400)
+    if (copiedTimerRef.current) window.clearTimeout(copiedTimerRef.current)
+    copiedTimerRef.current = window.setTimeout(() => {
+      setCopied(false)
+      copiedTimerRef.current = null
+    }, 2400)
   }
 
   return (
@@ -121,10 +124,10 @@ export function PreviewDownloadActions({ contract = {}, showShareButton = false 
           <button
             type="button"
             onClick={copyShareLink}
-            className={`${actionClass} bg-[#f8981d] text-white shadow-sm hover:bg-orange-500`}
+            className={`${actionClass} text-white shadow-sm ${copied ? 'bg-slate-500 hover:bg-slate-500' : 'bg-[#f8981d] hover:bg-orange-500'}`}
           >
             {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-            Lấy link hợp đồng gửi khách
+            {copied ? 'Đã copy link' : 'Lấy link hợp đồng gửi khách'}
           </button>
         ) : null}
         <PDFDownloadLink
@@ -165,8 +168,6 @@ export function ContractPreviewDocument({ contract = {} }) {
   const paymentDocuments = Array.isArray(paymentConfig.payment_documents)
     ? paymentConfig.payment_documents
     : []
-  const depositPercent = paymentConfig.deposit_percent ?? DEFAULT_PAYMENT_CONFIG.deposit_percent
-  const finalDueDays = paymentConfig.final_due_days ?? DEFAULT_PAYMENT_CONFIG.final_due_days
   const quote = contract.quote_snapshot || {}
   const quoteItems = Array.isArray(quote.items) ? quote.items : []
   const quoteTotals = {
@@ -176,8 +177,6 @@ export function ContractPreviewDocument({ contract = {} }) {
     vat_amount: quote.vat_amount,
     total_amount: quote.total_amount,
   }
-  const totalAmount = Number(quote.total_amount || 0)
-  const depositAmount = totalAmount * Number(depositPercent || 0) / 100
   const serviceScopeDetail = getServiceScopeDetail(contract.service_scope)
   const workProgressNotes = getContractWorkProgressNotes(contract)
   const paymentNotes = getContractPaymentNotes(paymentConfig)
@@ -185,7 +184,6 @@ export function ContractPreviewDocument({ contract = {} }) {
   const partyA = getPartyProfile(contract, 'party_a')
   const partyB = getPartyProfile(contract, 'party_b')
   const signingDate = formatContractDate(contract.updated_at || contract.created_at)
-  const totalWords = totalAmount > 0 ? numberToVietnameseWords(totalAmount) : ''
 
   return (
     <div className="mx-auto max-w-4xl space-y-5 rounded-2xl border border-slate-200 bg-slate-50 p-5 pb-7">
@@ -209,14 +207,13 @@ export function ContractPreviewDocument({ contract = {} }) {
           </p>
         </div>
         <div className="mt-4 space-y-3">
-          <PartyPreview heading="BÊN A:" profile={partyA} fallbackPrefix="khách hàng" />
-          <PartyPreview heading="BÊN B:" profile={partyB} fallbackPrefix="Bên B" />
+          <PartyPreview heading="BÊN A:" profile={partyA} fallbackPrefix="khách hàng" role={getPartyRole(contract, 'party_a')} />
+          <PartyPreview heading="BÊN B:" profile={partyB} fallbackPrefix="Bên B" role={getPartyRole(contract, 'party_b')} />
         </div>
       </section>
 
       <section className="rounded-xl bg-white p-5 pb-6">
         <p className="text-[13px] leading-6 text-slate-700">Sau khi thỏa thuận, Các Bên đồng ý ký kết Hợp Đồng này theo các điều khoản sau:</p>
-        <h3 className="mt-3 text-[14px] font-semibold text-slate-900">ĐIỀU 1: NỘI DUNG HỢP ĐỒNG</h3>
         <div className="mt-3 space-y-2">
           <p className="text-[13px] leading-6 text-slate-700">
             Bên A đề nghị Bên B và Bên B đồng ý cung cấp <PreviewValue value={serviceScopeDetail} fallback="Nội dung dịch vụ" /> cho Bên A, chi tiết như sau:
@@ -230,7 +227,14 @@ export function ContractPreviewDocument({ contract = {} }) {
           ) : (
             <PreviewLine label="Thời gian / Địa điểm" value="" />
           )}
-          <p className="text-[13px] font-semibold text-slate-900">{CONTRACT_APPENDIX_DETAIL_TEXT}</p>
+          <p className="text-[13px] font-semibold text-slate-900">Chi tiết hạng mục</p>
+          <QuotePreview
+            quote={{ ...quote, created_at: quote.created_at || contract.created_at }}
+            items={quoteItems}
+            totals={quoteTotals}
+            sticky={false}
+            tableOnly
+          />
           <div className="space-y-1 pt-1">
             <p className="text-[13px] font-semibold text-slate-900">Lưu ý về thời gian làm việc và tiến độ bàn giao:</p>
             <ul className="list-disc space-y-1 pl-5 text-[13px] leading-6 text-slate-700">
@@ -241,23 +245,7 @@ export function ContractPreviewDocument({ contract = {} }) {
       </section>
 
       <section className="rounded-xl bg-white p-5 pb-6">
-        <h3 className="text-[14px] font-semibold text-slate-900">ĐIỀU 2: GIÁ TRỊ HỢP ĐỒNG</h3>
-        <div className="mt-3 space-y-2">
-          <p className="text-[13px] leading-6 text-slate-700">
-            Giá trị của hợp đồng là:{' '}
-            <span className="font-bold text-slate-950">
-              <PreviewValue value={formatCurrency(totalAmount)} fallback="Giá trị hợp đồng" /> VNĐ {quote.has_vat === false ? '(Chưa bao gồm VAT)' : '(Đã bao gồm VAT)'}
-            </span>
-          </p>
-          <p className="text-[13px] leading-6 text-slate-700">(Bằng chữ: <PreviewValue value={totalWords} fallback="Số tiền bằng chữ" /> ./. )</p>
-          <p className="text-[13px] leading-6 text-slate-700">Phương thức thanh toán: Việc thanh toán Hợp đồng sẽ thực hiện thành 02 lần:</p>
-          <p className="text-[13px] leading-6 text-slate-700">
-            Lần 1: Bên A đặt cọc {depositPercent}% giá trị hợp đồng tương ứng <PreviewValue value={formatCurrency(depositAmount)} fallback="Số tiền tạm ứng" /> VNĐ cho Bên B sau khi ký hợp đồng{paymentConfig.issue_invoice_on_deposit === false ? '.' : ' và Bên B xuất hóa đơn cho Bên A sau khi nhận được thanh toán lần 1.'}
-          </p>
-          <p className="text-[13px] leading-6 text-slate-700">
-            Lần 2: Bên A thanh toán nốt số tiền còn lại cho Bên B trong vòng {finalDueDays} ngày sau khi Bên B bàn giao cho Bên A đầy đủ sản phẩm & hóa đơn tài chính theo yêu cầu của Bên A.
-          </p>
-        </div>
+        <ContractPaymentSummary quote={quote} paymentConfig={paymentConfig} />
         <div className="mt-3">
           <p className="text-[13px] font-semibold text-slate-900">Hồ sơ thanh toán:</p>
           {paymentDocuments.length ? (
@@ -304,20 +292,13 @@ export function ContractPreviewDocument({ contract = {} }) {
         </div>
       </section>
 
-      <section className="space-y-3">
-        <h3 className="text-[14px] font-semibold text-slate-900">Phụ lục báo giá</h3>
-        <QuotePreview
-          quote={{ ...quote, created_at: quote.created_at || contract.created_at }}
-          items={quoteItems}
-          totals={quoteTotals}
-          sticky={false}
-        />
-      </section>
     </div>
   )
 }
 
 export default function ContractPreviewModal({ contract, title = 'Preview', showShareButton = false, onClose }) {
+  useEscapeToClose(onClose)
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/45 px-4 py-3">
       <section className="max-h-[90vh] w-full max-w-5xl overflow-hidden rounded-2xl bg-white shadow-2xl">

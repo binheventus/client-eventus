@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Copy, FileText, ImagePlus, RefreshCcw, Sparkles, Wand2, X } from 'lucide-react'
+import { useEscapeToClose } from '../hooks/useEscapeToClose'
 import { VFX_TECHNIQUE_LIBRARY } from '../lib/vfxTechniqueLibrary'
 
 const FIELD_KEYS = ['platform', 'context', 'director', 'preserve', 'exclude', 'avoid']
@@ -733,6 +734,8 @@ export default function VFXPromptBuilderPage() {
  const [error, setError] = useState('')
  const [loading, setLoading] = useState(false)
  const [toast, setToast] = useState('')
+
+ useEscapeToClose(() => setModalOpen(false), modalOpen)
 
  const activeBrief = useMemo(
  () => (mode === 'standalone' ? buildStandalone({ fields, directions, intensity, images }) : buildQuick({ fields, directions, intensity, images })),

@@ -1,6 +1,4 @@
 import {
-  CONTRACT_APPENDIX_DETAIL_TEXT,
-  CONTRACT_TABLE_PLACEMENTS,
   getContractPreamble,
   getContractPaymentNotes,
   getContractWorkProgressNotes,
@@ -9,6 +7,10 @@ import {
 } from './contractDefaults'
 
 const encoder = new TextEncoder()
+const DOCX_FONT_FAMILY = 'Times New Roman'
+const DOCX_FONT_XML = `<w:rFonts w:ascii="${DOCX_FONT_FAMILY}" w:hAnsi="${DOCX_FONT_FAMILY}" w:eastAsia="${DOCX_FONT_FAMILY}" w:cs="${DOCX_FONT_FAMILY}"/>`
+const TABLE_BORDERS_XML = '<w:tblBorders><w:top w:val="single" w:sz="4" w:color="D7DEE8"/><w:left w:val="single" w:sz="4" w:color="D7DEE8"/><w:bottom w:val="single" w:sz="4" w:color="D7DEE8"/><w:right w:val="single" w:sz="4" w:color="D7DEE8"/><w:insideH w:val="single" w:sz="4" w:color="E5EAF1"/><w:insideV w:val="single" w:sz="4" w:color="E5EAF1"/></w:tblBorders>'
+const TABLE_NO_BORDERS_XML = '<w:tblBorders><w:top w:val="nil"/><w:left w:val="nil"/><w:bottom w:val="nil"/><w:right w:val="nil"/><w:insideH w:val="nil"/><w:insideV w:val="nil"/></w:tblBorders>'
 
 function escapeXml(value = '') {
   return String(value ?? '')
@@ -185,7 +187,7 @@ function makeZip(files = []) {
 }
 
 function textRun(text = '', { bold = false } = {}) {
-  const props = bold ? '<w:rPr><w:b/></w:rPr>' : ''
+  const props = `<w:rPr>${DOCX_FONT_XML}${bold ? '<w:b/>' : ''}</w:rPr>`
   return `<w:r>${props}<w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r>`
 }
 
@@ -223,7 +225,8 @@ function simpleTable(rows = [], options = {}) {
   const widthType = options.width ? 'dxa' : 'auto'
   const layout = options.fixed ? '<w:tblLayout w:type="fixed"/>' : ''
   const align = options.align ? `<w:jc w:val="${options.align}"/>` : ''
-  return `<w:tbl><w:tblPr><w:tblW w:w="${width}" w:type="${widthType}"/>${layout}${align}<w:tblBorders><w:top w:val="single" w:sz="4" w:color="D7DEE8"/><w:left w:val="single" w:sz="4" w:color="D7DEE8"/><w:bottom w:val="single" w:sz="4" w:color="D7DEE8"/><w:right w:val="single" w:sz="4" w:color="D7DEE8"/><w:insideH w:val="single" w:sz="4" w:color="E5EAF1"/><w:insideV w:val="single" w:sz="4" w:color="E5EAF1"/></w:tblBorders></w:tblPr>${rows.join('')}</w:tbl>`
+  const borders = options.borders === false ? TABLE_NO_BORDERS_XML : TABLE_BORDERS_XML
+  return `<w:tbl><w:tblPr><w:tblW w:w="${width}" w:type="${widthType}"/>${layout}${align}${borders}</w:tblPr>${rows.join('')}</w:tbl>`
 }
 
 function partyTable(contract = {}) {
@@ -241,12 +244,12 @@ function partyTable(contract = {}) {
 
     const rows = [
       tableRow([
-        tableCell(heading, 1800, { bold: true, shading: 'F8FAFC' }),
-        tableCell(getProfileName(profile), 7200, { bold: true, shading: 'F8FAFC' }),
+        tableCell(heading, 1800, { bold: true }),
+        tableCell(getProfileName(profile), 7200, { bold: true }),
       ]),
       tableRow([tableCell('Đại diện', 1800), tableCell(representative, 7200)]),
       tableRow([tableCell('Địa chỉ', 1800), tableCell(profile.address || '', 7200)]),
-      tableRow([tableCell('Điện thoại', 1800), tableCell(profile.phone || '', 7200)]),
+      role === 'customer' ? tableRow([tableCell('Điện thoại', 1800), tableCell(profile.phone || '', 7200)]) : '',
       tableRow([tableCell('Mã số thuế', 1800), tableCell(profile.tax_code || '', 7200)]),
     ]
 
@@ -254,7 +257,7 @@ function partyTable(contract = {}) {
       rows.push(tableRow([tableCell('Số tài khoản', 1800), tableCell([profile.bank_account, profile.bank_name].filter(Boolean).join(' '), 7200)]))
     }
 
-    return simpleTable(rows, { width: 9000, fixed: true })
+    return simpleTable(rows, { width: 9000, fixed: true, borders: false })
   }
 
   return [
@@ -297,8 +300,6 @@ function totalsTable(contract = {}) {
   const quote = getQuote(contract)
   const rows = [
     ['Subtotal', quote.subtotal],
-    Number(quote.travel_fee_total || 0) > 0 ? ['Phụ phí di chuyển', quote.travel_fee_total] : null,
-    Number(quote.overtime_fee_total || 0) > 0 ? ['Phụ phí Over-time', quote.overtime_fee_total] : null,
     quote.has_vat !== false ? ['VAT', quote.vat_amount] : null,
     ['Tổng cộng', quote.total_amount],
   ].filter(Boolean)
@@ -316,16 +317,15 @@ function scheduleXml(rows = []) {
   ].join('')).join('')
 }
 
-function serviceArticleXml(contract = {}, includeQuoteTable = false) {
+function serviceArticleXml(contract = {}) {
   const workProgressNotes = getContractWorkProgressNotes(contract)
 
   return [
-    paragraph('ĐIỀU 1: NỘI DUNG HỢP ĐỒNG', { style: 'Heading1', bold: true }),
     paragraph(`Bên A đề nghị Bên B và Bên B đồng ý ${contract.service_scope || 'cung cấp dịch vụ theo báo giá'} cho Bên A, chi tiết như sau:`),
     scheduleXml(contract.schedule_rows || []),
-    includeQuoteTable ? paragraph('Chi tiết hạng mục:', { bold: true }) : paragraph(CONTRACT_APPENDIX_DETAIL_TEXT, { bold: true }),
-    includeQuoteTable ? quoteTable(contract) : '',
-    includeQuoteTable ? totalsTable(contract) : '',
+    paragraph('Chi tiết hạng mục', { bold: true }),
+    quoteTable(contract),
+    totalsTable(contract),
     paragraph('Lưu ý về thời gian làm việc và tiến độ bàn giao:', { bold: true }),
     workProgressNotes.map(item => paragraph(`- ${item}`)).join(''),
   ].join('')
@@ -363,34 +363,20 @@ function contentSectionsXml(sections = []) {
 function signatureXml(contract = {}) {
   const partyA = getPartyProfile(contract, 'party_a')
   return [
-    paragraph('ĐẠI DIỆN CÁC BÊN', { style: 'Heading1', align: 'center', bold: true }),
     simpleTable([
       tableRow([
-        tableCell('ĐẠI DIỆN BÊN A', 4500, { bold: true, shading: 'F8FAFC', align: 'center' }),
-        tableCell('ĐẠI DIỆN BÊN B', 4500, { bold: true, shading: 'F8FAFC', align: 'center' }),
+        tableCell('ĐẠI DIỆN BÊN A', 4500, { bold: true, align: 'center' }),
+        tableCell('ĐẠI DIỆN BÊN B', 4500, { bold: true, align: 'center' }),
       ]),
       tableRow([
         tableCell(partyA.representative || '', 4500, { align: 'center' }),
         tableCell('', 4500, { align: 'center' }),
       ], { minHeight: 1400 }),
-    ], { width: 9000, fixed: true, align: 'center' }),
-  ].join('')
-}
-
-function appendixXml(contract = {}) {
-  const quote = getQuote(contract)
-  return [
-    paragraph('PHỤ LỤC: BÁO GIÁ ĐÍNH KÈM', { style: 'Heading1', align: 'center', bold: true, pageBreakBefore: true }),
-    paragraph(`Mã báo giá: ${quote.quote_number || contract.quote_number || ''}`),
-    paragraph(`Sự kiện/Dự án: ${quote.event_name || ''}`),
-    paragraph(`Địa điểm: ${quote.location || ''}`),
-    quoteTable(contract),
-    totalsTable(contract),
+    ], { width: 9000, fixed: true, align: 'center', borders: false }),
   ].join('')
 }
 
 function documentXml(contract = {}) {
-  const tableInArticle = (contract.quote_table_config?.placement || CONTRACT_TABLE_PLACEMENTS.APPENDIX) === CONTRACT_TABLE_PLACEMENTS.ARTICLE_1
   const preambleLines = getContractPreamble(contract)
 
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -404,11 +390,10 @@ function documentXml(contract = {}) {
     ${paragraph(`Hợp đồng cung cấp dịch vụ (sau đây gọi tắt là “Hợp đồng”) được lập và ký kết ngày ${formatDate(contract.updated_at || contract.created_at)} giữa các bên gồm:`)}
     ${partyTable(contract)}
     ${paragraph('Sau khi thỏa thuận, Các Bên đồng ý ký kết Hợp Đồng này theo các điều khoản sau:')}
-    ${serviceArticleXml(contract, tableInArticle)}
+    ${serviceArticleXml(contract)}
     ${paymentArticleXml(contract)}
     ${contentSectionsXml(contract.content_sections || [])}
     ${signatureXml(contract)}
-    ${!tableInArticle ? appendixXml(contract) : ''}
     <w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr>
   </w:body>
 </w:document>`
@@ -438,15 +423,15 @@ const stylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:style w:type="paragraph" w:default="1" w:styleId="Normal">
     <w:name w:val="Normal"/>
-    <w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:eastAsia="Arial"/><w:sz w:val="22"/></w:rPr>
+    <w:rPr>${DOCX_FONT_XML}<w:sz w:val="22"/></w:rPr>
   </w:style>
   <w:style w:type="paragraph" w:styleId="Title">
     <w:name w:val="Title"/>
-    <w:rPr><w:b/><w:sz w:val="32"/></w:rPr>
+    <w:rPr>${DOCX_FONT_XML}<w:b/><w:sz w:val="32"/></w:rPr>
   </w:style>
   <w:style w:type="paragraph" w:styleId="Heading1">
     <w:name w:val="heading 1"/>
-    <w:rPr><w:b/><w:sz w:val="26"/></w:rPr>
+    <w:rPr>${DOCX_FONT_XML}<w:b/><w:sz w:val="26"/></w:rPr>
   </w:style>
 </w:styles>`
 

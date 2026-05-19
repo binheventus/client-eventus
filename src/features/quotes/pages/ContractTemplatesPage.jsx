@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CopyPlus, Eye, Plus, Save, Trash2 } from 'lucide-react'
+import { useEscapeToClose } from '../../../hooks/useEscapeToClose'
 import QuoteBreadcrumb from '../components/QuoteBreadcrumb'
 import {
   deleteContractTemplate,
@@ -7,7 +8,6 @@ import {
   saveContractTemplate,
 } from '../hooks/useContracts'
 import {
-  CONTRACT_APPENDIX_DETAIL_TEXT,
   CONTRACT_TEMPLATE_SNAPSHOT_RULE,
   DEFAULT_PARTY_ROLE_CONFIG,
   DEFAULT_CONTRACT_TEMPLATES,
@@ -111,6 +111,10 @@ function LegalNoteList({ title, items = [] }) {
 }
 
 function DeleteConfirmModal({ templateName, saving, onCancel, onConfirm }) {
+  useEscapeToClose(() => {
+    if (!saving) onCancel?.()
+  })
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6">
       <section className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl">
@@ -418,7 +422,7 @@ export default function ContractTemplatesPage() {
                 <p className="rounded-xl bg-slate-50 px-3 py-3 text-[12px] text-slate-400">Chưa có thời gian / địa điểm. Khi tạo hợp đồng, hệ thống sẽ gợi ý từ ngày/địa điểm trong quote nếu có.</p>
               )}
             </div>
-            <p className="mt-4 text-[13px] font-semibold text-slate-900">{CONTRACT_APPENDIX_DETAIL_TEXT}</p>
+            <p className="mt-4 text-[13px] font-semibold text-slate-900">Chi tiết hạng mục</p>
             <LegalNoteList title="Lưu ý về thời gian làm việc và tiến độ bàn giao:" items={workProgressNotes} />
           </section>
 
