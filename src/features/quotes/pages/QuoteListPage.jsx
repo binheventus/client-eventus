@@ -48,7 +48,6 @@ export default function QuoteListPage() {
     status: '',
     tier_code: '',
     entity_code: '',
-    created_by: '',
     date_from: '',
     date_to: '',
   })
@@ -76,7 +75,7 @@ export default function QuoteListPage() {
 
   useEffect(() => {
     loadQuotes()
-  }, [page, filters.status, filters.tier_code, filters.entity_code, filters.created_by, filters.date_from, filters.date_to])
+  }, [page, filters.status, filters.tier_code, filters.entity_code, filters.date_from, filters.date_to])
 
   function updateFilter(key, value) {
     setPage(1)
@@ -87,6 +86,8 @@ export default function QuoteListPage() {
     if (!canCreateContractFromQuote(quote)) return
     navigate(`/quotes/${quote.id}?contract=1`)
   }
+
+  const filterControlClass = 'min-w-0 rounded-xl border border-slate-200 px-3 py-2.5 text-[13px] outline-none focus:border-[#f8981d]'
 
   return (
     <div className="mx-auto max-w-[1500px] space-y-5">
@@ -118,35 +119,34 @@ export default function QuoteListPage() {
       </div>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(260px,1fr)_145px_120px_150px_145px_145px]">
           <input
             value={filters.search}
             onChange={event => updateFilter('search', event.target.value)}
             onKeyDown={event => event.key === 'Enter' && loadQuotes()}
             placeholder="Tìm mã BG, khách, sự kiện..."
-            className="rounded-xl border border-slate-200 px-3 py-2.5 text-[13px] outline-none focus:border-[#f8981d] xl:col-span-2"
+            className={filterControlClass}
           />
-          <select value={filters.status} onChange={event => updateFilter('status', event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2.5 text-[13px] outline-none focus:border-[#f8981d]">
+          <select value={filters.status} onChange={event => updateFilter('status', event.target.value)} className={filterControlClass}>
             <option value="">Tất cả trạng thái</option>
             <option value="draft">Draft</option>
             <option value="sent">Sent</option>
             <option value="accepted">Accepted</option>
             <option value="rejected">Rejected</option>
           </select>
-          <select value={filters.tier_code} onChange={event => updateFilter('tier_code', event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2.5 text-[13px] outline-none focus:border-[#f8981d]">
+          <select value={filters.tier_code} onChange={event => updateFilter('tier_code', event.target.value)} className={filterControlClass}>
             <option value="">Tất cả tier</option>
             <option value="TIER_1">TIER_1</option>
             <option value="TIER_2">TIER_2</option>
             <option value="TIER_3">TIER_3</option>
           </select>
-          <select value={filters.entity_code} onChange={event => updateFilter('entity_code', event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2.5 text-[13px] outline-none focus:border-[#f8981d]">
+          <select value={filters.entity_code} onChange={event => updateFilter('entity_code', event.target.value)} className={filterControlClass}>
             <option value="">Tất cả pháp nhân</option>
             <option value="EVENTUS">Eventus</option>
             <option value="MEDIAMONSTER">Mediamonster</option>
           </select>
-          <input value={filters.created_by} onChange={event => updateFilter('created_by', event.target.value)} placeholder="Sales/user id" className="rounded-xl border border-slate-200 px-3 py-2.5 text-[13px] outline-none focus:border-[#f8981d]" />
-          <input type="date" value={filters.date_from} onChange={event => updateFilter('date_from', event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2.5 text-[13px] outline-none focus:border-[#f8981d]" />
-          <input type="date" value={filters.date_to} onChange={event => updateFilter('date_to', event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2.5 text-[13px] outline-none focus:border-[#f8981d]" />
+          <input type="date" value={filters.date_from} onChange={event => updateFilter('date_from', event.target.value)} className={filterControlClass} />
+          <input type="date" value={filters.date_to} onChange={event => updateFilter('date_to', event.target.value)} className={filterControlClass} />
         </div>
       </section>
 

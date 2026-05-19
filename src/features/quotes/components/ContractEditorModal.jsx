@@ -433,9 +433,15 @@ export default function ContractEditorModal({
 
   if (!open) return null
 
+  const savedQuoteSnapshot = savedContract?.quote_snapshot || {}
+  const currentQuoteSnapshot = {
+    ...quoteSnapshot,
+    ...savedQuoteSnapshot,
+    share_token: savedQuoteSnapshot.share_token || quoteSnapshot.share_token,
+  }
   const downloadableContract = savedContract && !dirty ? {
     ...draft,
-    quote_snapshot: savedContract.quote_snapshot || quoteSnapshot,
+    quote_snapshot: currentQuoteSnapshot,
   } : null
   const previewContract = draft ? {
     ...draft,
