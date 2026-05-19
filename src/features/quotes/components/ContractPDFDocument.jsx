@@ -31,6 +31,10 @@ function formatDate(value) {
   return date.toLocaleDateString('vi-VN')
 }
 
+function hasText(value) {
+  return String(value ?? '').trim().length > 0
+}
+
 function getSeller(contract = {}) {
   return contract.seller_snapshot || {}
 }
@@ -282,11 +286,11 @@ function PartyCard({ heading, profile = {}, role = 'customer' }) {
       <Text style={styles.partyName}>{getProfileName(profile)}</Text>
       <Text style={styles.partyLine}>Đại diện: {profile.representative || '-'}</Text>
       <Text style={styles.partyLine}>Chức vụ: {profile.position || '-'}</Text>
-      {role === 'customer' && profile.authorization_number ? (
-        <Text style={styles.partyLine}>Theo giấy uỷ quyền số: {profile.authorization_number}{profile.authorization_date ? ` ký ngày ${profile.authorization_date}` : ''}</Text>
-      ) : null}
+      {role === 'customer' && hasText(profile.authorization_number) ? <Text style={styles.partyLine}>Giấy ủy quyền số: {profile.authorization_number}</Text> : null}
+      {role === 'customer' && hasText(profile.authorization_date) ? <Text style={styles.partyLine}>Ngày giấy ủy quyền: {profile.authorization_date}</Text> : null}
       <Text style={styles.partyLine}>Địa chỉ: {profile.address || '-'}</Text>
-      {role === 'customer' ? <Text style={styles.partyLine}>Điện thoại: {profile.phone || '-'}</Text> : null}
+      {role === 'customer' && hasText(profile.email) ? <Text style={styles.partyLine}>Email: {profile.email}</Text> : null}
+      {role === 'customer' && hasText(profile.phone) ? <Text style={styles.partyLine}>Số điện thoại: {profile.phone}</Text> : null}
       <Text style={styles.partyLine}>Mã số thuế: {profile.tax_code || '-'}</Text>
       {role === 'seller' && profile.bank_account ? <Text style={styles.partyLine}>Số tài khoản: {profile.bank_account} - {profile.bank_name || '-'}</Text> : null}
     </View>
@@ -360,7 +364,7 @@ function QuoteItemsTable({ items = [] }) {
 function Totals({ quote = {} }) {
   const rows = [
     ['Subtotal', quote.subtotal],
-    quote.has_vat !== false ? ['VAT', quote.vat_amount] : null,
+    quote.has_vat !== false ? ['Thuế GTGT 8%', quote.vat_amount] : null,
   ].filter(Boolean)
 
   return (

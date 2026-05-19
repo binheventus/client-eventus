@@ -25,9 +25,17 @@ function formatCurrency(value) {
   return `${new Intl.NumberFormat('vi-VN').format(Number(value) || 0)} VNĐ`
 }
 
+function formatCurrencyAmount(value) {
+  return new Intl.NumberFormat('vi-VN').format(Number(value) || 0)
+}
+
 function formatDate(value) {
   const date = value ? new Date(value) : new Date()
   return date.toLocaleDateString('vi-VN')
+}
+
+function hasText(value) {
+  return String(value ?? '').trim().length > 0
 }
 
 function getCustomer(contract = {}) {
@@ -186,17 +194,25 @@ function makeZip(files = []) {
   })
 }
 
-function textRun(text = '', { bold = false } = {}) {
-  const props = `<w:rPr>${DOCX_FONT_XML}${bold ? '<w:b/>' : ''}</w:rPr>`
+function textRun(text = '', { bold = false, italic = false } = {}) {
+  const props = `<w:rPr>${DOCX_FONT_XML}${bold ? '<w:b/>' : ''}${italic ? '<w:i/>' : ''}</w:rPr>`
   return `<w:r>${props}<w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r>`
 }
 
-function paragraph(text = '', options = {}) {
+function paragraphProps(options = {}) {
   const style = options.style ? `<w:pStyle w:val="${options.style}"/>` : ''
   const alignment = options.align ? `<w:jc w:val="${options.align}"/>` : ''
   const spacing = options.spacing === false ? '' : '<w:spacing w:after="120"/>'
   const pageBreak = options.pageBreakBefore ? '<w:pageBreakBefore/>' : ''
-  return `<w:p><w:pPr>${style}${alignment}${spacing}${pageBreak}</w:pPr>${textRun(text, { bold: options.bold })}</w:p>`
+  return `<w:pPr>${style}${alignment}${spacing}${pageBreak}</w:pPr>`
+}
+
+function paragraph(text = '', options = {}) {
+  return `<w:p>${paragraphProps(options)}${textRun(text, { bold: options.bold, italic: options.italic })}</w:p>`
+}
+
+function richParagraph(runs = [], options = {}) {
+  return `<w:p>${paragraphProps(options)}${runs.map(run => textRun(run.text, run)).join('')}</w:p>`
 }
 
 function multilineParagraphs(text = '') {
@@ -234,13 +250,11 @@ function partyTable(contract = {}) {
   const partyB = getPartyProfile(contract, 'party_b')
   const roleA = getPartyRole(contract, 'party_a')
   const roleB = getPartyRole(contract, 'party_b')
-  const authLine = profile => profile.authorization_number ? `Theo giấy ủy quyền số: ${profile.authorization_number}${profile.authorization_date ? ` ký ngày ${profile.authorization_date}` : ''}` : ''
   const rowsFor = (heading, profile, role) => {
     const representative = [
       profile.representative || '',
       profile.position ? `Chức vụ: ${profile.position}` : '',
-      role === 'customer' ? authLine(profile) : '',
-    ].filter(Boolean).join(' - ')
+    ].filter(hasText).join(' - ')
 
     const rows = [
       tableRow([
@@ -248,8 +262,11 @@ function partyTable(contract = {}) {
         tableCell(getProfileName(profile), 7200, { bold: true }),
       ]),
       tableRow([tableCell('Đại diện', 1800), tableCell(representative, 7200)]),
+      role === 'customer' && hasText(profile.authorization_number) ? tableRow([tableCell('Giấy ủy quyền số', 1800), tableCell(profile.authorization_number, 7200)]) : '',
+      role === 'customer' && hasText(profile.authorization_date) ? tableRow([tableCell('Ngày giấy ủy quyền', 1800), tableCell(profile.authorization_date, 7200)]) : '',
       tableRow([tableCell('Địa chỉ', 1800), tableCell(profile.address || '', 7200)]),
-      role === 'customer' ? tableRow([tableCell('Điện thoại', 1800), tableCell(profile.phone || '', 7200)]) : '',
+      role === 'customer' && hasText(profile.email) ? tableRow([tableCell('Email', 1800), tableCell(profile.email, 7200)]) : '',
+      role === 'customer' && hasText(profile.phone) ? tableRow([tableCell('Số điện thoại', 1800), tableCell(profile.phone, 7200)]) : '',
       tableRow([tableCell('Mã số thuế', 1800), tableCell(profile.tax_code || '', 7200)]),
     ]
 
@@ -287,8 +304,8 @@ function quoteTable(contract = {}) {
         tableCell(getItemUnit(item), 1100, { align: 'center' }),
         tableCell(String(item.quantity || 1), 900, { align: 'center' }),
         tableCell(String(item.num_sessions || 1), 800, { align: 'center' }),
-        tableCell(formatCurrency(item.unit_price), 1400, { align: 'right' }),
-        tableCell(formatCurrency(item.total_price), 1500, { align: 'right' }),
+        tableCell(formatCurrencyAmount(item.unit_price), 1400, { align: 'right' }),
+        tableCell(formatCurrencyAmount(item.total_price), 1500, { align: 'right' }),
       ])),
     ].filter(Boolean)),
   ]
@@ -300,14 +317,14 @@ function totalsTable(contract = {}) {
   const quote = getQuote(contract)
   const rows = [
     ['Subtotal', quote.subtotal],
-    quote.has_vat !== false ? ['VAT', quote.vat_amount] : null,
+    quote.has_vat !== false ? ['Thuế GTGT 8%', quote.vat_amount] : null,
     ['Tổng cộng', quote.total_amount],
   ].filter(Boolean)
 
   return simpleTable(rows.map(([label, value], index) => tableRow([
-    tableCell(label, 4200, { bold: index === rows.length - 1 }),
-    tableCell(formatCurrency(value), 2400, { bold: index === rows.length - 1, align: 'right' }),
-  ])), { width: 6600, fixed: true })
+    tableCell(label, 4200, { bold: index === rows.length - 1, align: 'right' }),
+    tableCell(formatCurrencyAmount(value), 2400, { bold: index === rows.length - 1, align: 'right' }),
+  ])), { width: 6600, fixed: true, align: 'right' })
 }
 
 function scheduleXml(rows = []) {
@@ -338,13 +355,22 @@ function paymentArticleXml(contract = {}) {
   const depositAmount = Number(quote.total_amount || 0) * depositPercent / 100
   const docs = Array.isArray(payment.payment_documents) ? payment.payment_documents : []
   const paymentNotes = getContractPaymentNotes(payment)
+  const contractValue = `${formatCurrency(quote.total_amount)} ${quote.has_vat !== false ? '(Đã bao gồm VAT)' : '(Chưa bao gồm VAT)'}`
+  const depositValue = formatCurrency(depositAmount)
 
   return [
     paragraph('ĐIỀU 2: GIÁ TRỊ HỢP ĐỒNG', { style: 'Heading1', bold: true }),
-    paragraph(`Giá trị của hợp đồng là: ${formatCurrency(quote.total_amount)} ${quote.has_vat !== false ? '(Đã bao gồm VAT)' : '(Chưa bao gồm VAT)'}`),
-    paragraph(`(Bằng chữ: ${numberToVietnameseWords(quote.total_amount)}./.)`),
+    richParagraph([
+      { text: 'Giá trị của hợp đồng là: ' },
+      { text: contractValue, bold: true },
+    ]),
+    paragraph(`(Bằng chữ: ${numberToVietnameseWords(quote.total_amount)} ./.)`, { italic: true }),
     paragraph('Phương thức thanh toán: Việc thanh toán Hợp đồng sẽ thực hiện thành 02 lần:'),
-    paragraph(`Lần 1: Bên A đặt cọc ${depositPercent}% giá trị hợp đồng tương ứng ${formatCurrency(depositAmount)} cho Bên B sau khi ký hợp đồng${payment.issue_invoice_on_deposit ? ' và Bên B xuất hóa đơn cho Bên A sau khi nhận được thanh toán lần 1' : ''}.`),
+    richParagraph([
+      { text: `Lần 1: Bên A đặt cọc ${depositPercent}% giá trị hợp đồng tương ứng ` },
+      { text: depositValue, bold: true },
+      { text: ` cho Bên B sau khi ký hợp đồng${payment.issue_invoice_on_deposit ? ' và Bên B xuất hóa đơn cho Bên A sau khi nhận được thanh toán lần 1' : ''}.` },
+    ]),
     paragraph(`Lần 2: Bên A thanh toán nốt số tiền còn lại cho Bên B trong vòng ${Number(payment.final_due_days || 7)} ngày sau khi Bên B bàn giao cho Bên A đầy đủ sản phẩm & hóa đơn tài chính theo yêu cầu của Bên A.`),
     docs.length ? paragraph('Hồ sơ thanh toán bao gồm:', { bold: true }) : '',
     docs.map(item => paragraph(`- ${item}`)).join(''),
@@ -360,8 +386,7 @@ function contentSectionsXml(sections = []) {
   ].join('')).join('')
 }
 
-function signatureXml(contract = {}) {
-  const partyA = getPartyProfile(contract, 'party_a')
+function signatureXml() {
   return [
     simpleTable([
       tableRow([
@@ -369,7 +394,7 @@ function signatureXml(contract = {}) {
         tableCell('ĐẠI DIỆN BÊN B', 4500, { bold: true, align: 'center' }),
       ]),
       tableRow([
-        tableCell(partyA.representative || '', 4500, { align: 'center' }),
+        tableCell('', 4500, { align: 'center' }),
         tableCell('', 4500, { align: 'center' }),
       ], { minHeight: 1400 }),
     ], { width: 9000, fixed: true, align: 'center', borders: false }),
@@ -385,7 +410,7 @@ function documentXml(contract = {}) {
     ${paragraph('CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM', { align: 'center' })}
     ${paragraph('Độc lập – Tự do – Hạnh phúc', { align: 'center' })}
     ${paragraph(contract.title || 'HỢP ĐỒNG CUNG CẤP DỊCH VỤ', { style: 'Title', align: 'center', bold: true })}
-    ${paragraph(`Số: ${contract.contract_number || ''}`, { align: 'center', bold: true })}
+    ${paragraph(`Số: ${contract.contract_number || ''}`, { align: 'center', bold: true, italic: true })}
     ${preambleLines.map(line => paragraph(line)).join('')}
     ${paragraph(`Hợp đồng cung cấp dịch vụ (sau đây gọi tắt là “Hợp đồng”) được lập và ký kết ngày ${formatDate(contract.updated_at || contract.created_at)} giữa các bên gồm:`)}
     ${partyTable(contract)}
@@ -393,7 +418,7 @@ function documentXml(contract = {}) {
     ${serviceArticleXml(contract)}
     ${paymentArticleXml(contract)}
     ${contentSectionsXml(contract.content_sections || [])}
-    ${signatureXml(contract)}
+    ${signatureXml()}
     <w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr>
   </w:body>
 </w:document>`

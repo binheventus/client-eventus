@@ -75,7 +75,7 @@ function QuoteEndNotes({ quote = {}, items = [], validityDays = 15 }) {
   const equipmentRules = getMatchedEquipmentRules(items, equipmentRulesData)
   const terms = [
     `Báo giá có hiệu lực trong ${validityDays} ngày. Thời gian làm việc tiêu chuẩn tối đa 04 tiếng/buổi và 08 tiếng/ngày. Thời gian Overtime sẽ được tính phí theo thỏa thuận riêng.`,
-    ...(!quote.has_vat ? ['Báo giá trên chưa bao gồm VAT.'] : []),
+    ...(!quote.has_vat ? ['Báo giá trên chưa bao gồm Thuế GTGT 8%.'] : []),
     'Báo giá trên chưa bao gồm chi phí mua bản quyền âm nhạc, hình ảnh nếu có.',
     'Báo giá đã bao gồm tối đa 03 lần chỉnh sửa sản phẩm hậu kỳ dựa trên format đã thống nhất.',
     'Trong vòng 05 ngày làm việc kể từ ngày bàn giao bản Demo, nếu Khách hàng không có phản hồi hoặc yêu cầu chỉnh sửa bằng văn bản, sản phẩm được coi là đã hoàn thành & tự động được nghiệm thu.',
@@ -223,7 +223,7 @@ export default function QuotePreview({
           ) : null}
           {showVat ? (
             <div className="flex justify-between gap-6 text-slate-600">
-              <span>VAT</span>
+              <span>Thuế GTGT 8%</span>
               <span>{formatCurrency(totals.vat_amount)}đ</span>
             </div>
           ) : null}

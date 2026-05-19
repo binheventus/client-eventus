@@ -691,7 +691,7 @@ function Totals({ quote, dense = false, spacious = false }) {
       ) : null}
       {showVat ? (
         <View style={[styles.totalLine, dense ? styles.totalLineDense : null, spacious ? styles.totalLineSpacious : null]}>
-          <Text>VAT</Text>
+          <Text>Thuế GTGT 8%</Text>
           <Text>{formatCurrency(quote?.vat_amount)}</Text>
         </View>
       ) : null}
@@ -708,7 +708,7 @@ function Notes({ quote, items = [], dense = false, spacious = false }) {
   const validityDays = normalizeQuoteValidityDays(quote?.validity_days)
   const terms = [
     `• Báo giá có hiệu lực trong ${validityDays} ngày. Thời gian làm việc tiêu chuẩn tối đa 04 tiếng/buổi và 08 tiếng/ngày. Thời gian Overtime sẽ được tính phí theo thỏa thuận riêng.`,
-    ...(!quote?.has_vat ? ['• Báo giá trên chưa bao gồm VAT.'] : []),
+    ...(!quote?.has_vat ? ['• Báo giá trên chưa bao gồm Thuế GTGT 8%.'] : []),
     '• Báo giá trên chưa bao gồm chi phí mua bản quyền âm nhạc, hình ảnh nếu có.',
     '• Báo giá đã bao gồm tối đa 03 lần chỉnh sửa sản phẩm hậu kỳ dựa trên format đã thống nhất.',
     '• Trong vòng 05 ngày làm việc kể từ ngày bàn giao bản Demo, nếu Khách hàng không có phản hồi hoặc yêu cầu chỉnh sửa bằng văn bản, sản phẩm được coi là đã hoàn thành & tự động được nghiệm thu.',

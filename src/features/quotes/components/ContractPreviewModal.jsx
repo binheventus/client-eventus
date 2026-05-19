@@ -68,8 +68,11 @@ function PartyPreview({ heading, profile = {}, fallbackPrefix, role = 'customer'
       </p>
       <PreviewLine label="Đại diện" value={profile.representative} fallback={`Người đại diện ${fallbackPrefix}`} />
       {profile.position ? <PreviewLine label="Chức vụ" value={profile.position} /> : null}
+      {role === 'customer' && hasText(profile.authorization_number) ? <PreviewLine label="Giấy ủy quyền số" value={profile.authorization_number} /> : null}
+      {role === 'customer' && hasText(profile.authorization_date) ? <PreviewLine label="Ngày giấy ủy quyền" value={profile.authorization_date} /> : null}
       <PreviewLine label="Địa chỉ" value={profile.address} fallback={`Địa chỉ ${fallbackPrefix}`} />
-      {role === 'customer' && profile.phone ? <PreviewLine label="Điện thoại" value={profile.phone} /> : null}
+      {role === 'customer' && hasText(profile.email) ? <PreviewLine label="Email" value={profile.email} /> : null}
+      {role === 'customer' && hasText(profile.phone) ? <PreviewLine label="Số điện thoại" value={profile.phone} /> : null}
       <PreviewLine label="Mã số thuế" value={profile.tax_code} fallback={`Mã số thuế ${fallbackPrefix}`} />
       {profile.bank_account ? <PreviewLine label="Số tài khoản" value={`${profile.bank_account}${profile.bank_name ? ` - ${profile.bank_name}` : ''}`} /> : null}
     </div>
