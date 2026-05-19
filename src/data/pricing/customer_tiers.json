@@ -2,7 +2,7 @@
   {
     "tier_code": "TIER_1",
     "tier_name": "Khách VinGroup / Agency đặc biệt",
-    "description": "Khách thuộc VinGroup; Agency thuộc nhà thầu VinGroup; Một số Agency đặc biệt (như JMB)",
+    "description": "Khách thuộc VinGroup; Agency thuộc nhà thầu VinGroup; Một số Agency đặc biệt: JMB, Sunmay,",
     "price_column_used": "price_tier_1",
     "payment_terms": "VinGroup: Thanh toán 100% sau khi hoàn tất bàn giao. Agency: Tạm ứng 50%",
     "default_discount": 0,
@@ -28,20 +28,29 @@
   },
   {
     "tier_code": "TIER_4",
-    "tier_name": "2res",
-    "description": null,
-    "price_column_used": null,
-    "payment_terms": null,
-    "default_discount": null,
+    "tier_name": "Khách 2RES",
+    "description": "2RES",
+    "price_column_used": "price_tier_4",
+    "payment_terms": "Thanh toán 100% sau khi hoàn tất bàn giao",
+    "default_discount": 0,
     "special_note": null
   },
   {
     "tier_code": "TIER_5",
-    "tier_name": null,
-    "description": null,
-    "price_column_used": null,
-    "payment_terms": null,
-    "default_discount": null,
+    "tier_name": "Khách BUV",
+    "description": "BUV",
+    "price_column_used": "price_tier_5",
+    "payment_terms": "Thanh toán 100% sau khi hoàn tất bàn giao",
+    "default_discount": 0,
+    "special_note": null
+  },
+  {
+    "tier_code": "TIER_6",
+    "tier_name": "Khách FPT",
+    "description": "Các đơn vị ký HĐ khung thuộc FPT",
+    "price_column_used": "price_tier_6",
+    "payment_terms": "Thanh toán 100% sau khi hoàn tất bàn giao",
+    "default_discount": 0,
     "special_note": null
   }
 ]

@@ -288,6 +288,11 @@ function quoteTable(contract = {}) {
   const quote = getQuote(contract)
   const items = Array.isArray(quote.items) ? quote.items : []
   const groups = groupItemsByDay(items)
+  const totalRows = [
+    ['Subtotal', quote.subtotal],
+    quote.has_vat !== false ? ['Thuế GTGT 8%', quote.vat_amount] : null,
+    ['Tổng cộng', quote.total_amount],
+  ].filter(Boolean)
   const rows = [
     tableRow([
       tableCell('Hạng mục', 3300, { bold: true, shading: 'F8FAFC' }),
@@ -308,23 +313,13 @@ function quoteTable(contract = {}) {
         tableCell(formatCurrencyAmount(item.total_price), 1500, { align: 'right' }),
       ])),
     ].filter(Boolean)),
+    ...totalRows.map(([label, value], index) => tableRow([
+      tableCell(label, 7500, { bold: index === totalRows.length - 1, align: 'right', colSpan: 5 }),
+      tableCell(formatCurrencyAmount(value), 1500, { bold: index === totalRows.length - 1, align: 'right' }),
+    ])),
   ]
 
   return simpleTable(rows, { width: 9000, fixed: true })
-}
-
-function totalsTable(contract = {}) {
-  const quote = getQuote(contract)
-  const rows = [
-    ['Subtotal', quote.subtotal],
-    quote.has_vat !== false ? ['Thuế GTGT 8%', quote.vat_amount] : null,
-    ['Tổng cộng', quote.total_amount],
-  ].filter(Boolean)
-
-  return simpleTable(rows.map(([label, value], index) => tableRow([
-    tableCell(label, 7500, { bold: index === rows.length - 1, align: 'right' }),
-    tableCell(formatCurrencyAmount(value), 1500, { bold: index === rows.length - 1, align: 'right' }),
-  ])), { width: 9000, fixed: true })
 }
 
 function scheduleXml(rows = []) {
@@ -342,7 +337,6 @@ function serviceArticleXml(contract = {}) {
     scheduleXml(contract.schedule_rows || []),
     paragraph('Chi tiết hạng mục', { bold: true }),
     quoteTable(contract),
-    totalsTable(contract),
     paragraph('Lưu ý về thời gian làm việc và tiến độ bàn giao:', { bold: true }),
     workProgressNotes.map(item => paragraph(`- ${item}`)).join(''),
   ].join('')
@@ -390,14 +384,10 @@ function signatureXml() {
   return [
     simpleTable([
       tableRow([
-        tableCell('ĐẠI DIỆN BÊN A', 4500, { bold: true, align: 'center' }),
-        tableCell('ĐẠI DIỆN BÊN B', 4500, { bold: true, align: 'center' }),
+        tableCell('ĐẠI DIỆN BÊN A', 2800, { bold: true, align: 'center' }),
+        tableCell('ĐẠI DIỆN BÊN B', 2800, { bold: true, align: 'center' }),
       ]),
-      tableRow([
-        tableCell('', 4500, { align: 'center' }),
-        tableCell('', 4500, { align: 'center' }),
-      ], { minHeight: 1400 }),
-    ], { width: 9000, fixed: true, align: 'center', borders: false }),
+    ], { width: 5600, fixed: true, align: 'center', borders: false }),
   ].join('')
 }
 
