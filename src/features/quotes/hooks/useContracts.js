@@ -319,6 +319,7 @@ export async function saveContractTemplate(payload = {}) {
     if (cleanPayload.is_default) {
       await fromQuoteTable('contractTemplates')
         .update({ is_default: false })
+        .eq('is_default', true)
         .neq('id', payload.id || '')
     }
 

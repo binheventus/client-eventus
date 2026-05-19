@@ -114,7 +114,10 @@ async function saveTemplate(supabase, template = {}) {
   }
 
   if (payload.is_default) {
-    let query = supabase.from('contract_templates').update({ is_default: false })
+    let query = supabase
+      .from('contract_templates')
+      .update({ is_default: false })
+      .eq('is_default', true)
     if (template.id) query = query.neq('id', template.id)
     const { error } = await query
     if (error) throw error
