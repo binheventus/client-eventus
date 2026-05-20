@@ -522,7 +522,7 @@ function CompetencyGrid() {
       </div>
       <p className="text-center text-xs text-slate-400 tracking-wide mt-6">
         Cập nhật nội dung tại{' '}
-        <code className="font-mono bg-white px-1.5 py-0.5 rounded border border-slate-200">src/data/competency.json</code>
+        <code className="font-mono bg-white px-1.5 py-0.5 rounded border border-slate-200">apps/web/src/data/competency.json</code>
       </p>
     </div>
   )

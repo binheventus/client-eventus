@@ -161,7 +161,7 @@ npm run pricing:export
 Lệnh này sẽ cập nhật các file trong:
 
 ```text
-src/data/pricing/
+apps/web/src/data/pricing/
 ```
 
 ## 8. Script sẽ tự kiểm tra lỗi gì?
@@ -200,7 +200,7 @@ scripts/export-pricing-from-google-sheet.mjs
 Dữ liệu JSON app đang dùng:
 
 ```text
-src/data/pricing/
+apps/web/src/data/pricing/
 ```
 
 Biến môi trường cần dùng khi export:

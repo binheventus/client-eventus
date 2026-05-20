@@ -4,7 +4,7 @@ import path from 'node:path'
 import process from 'node:process'
 
 const ROOT_DIR = process.cwd()
-const DEFAULT_OUTPUT_DIR = path.join(ROOT_DIR, 'src/data/pricing')
+const DEFAULT_OUTPUT_DIR = path.join(ROOT_DIR, 'apps/web/src/data/pricing')
 const TOKEN_URL = 'https://oauth2.googleapis.com/token'
 const SHEETS_SCOPE = 'https://www.googleapis.com/auth/spreadsheets.readonly'
 

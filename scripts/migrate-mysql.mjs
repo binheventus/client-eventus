@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { getPool } from '../api/lib/mysql.js'
+import { getPool } from '../apps/api/lib/mysql.js'
 
 function splitSqlStatements(sql) {
   return sql

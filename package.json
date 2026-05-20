@@ -4,20 +4,28 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "vite --config apps/web/vite.config.js",
+    "dev:web": "vite --config apps/web/vite.config.js",
+    "build": "vite --config apps/web/vite.config.js build",
     "db:migrate": "node scripts/migrate-mysql.mjs",
     "pricing:export": "node scripts/export-pricing-from-google-sheet.mjs",
-    "test:quotes": "node --test src/features/quotes/lib/*.test.js api/parse-quote.test.js",
-    "preview": "vite preview"
+    "test:quotes": "node --test apps/web/src/features/quotes/lib/*.test.js apps/api/parse-quote.test.js",
+    "preview": "vite --config apps/web/vite.config.js preview",
+    "start": "node apps/api/server.js",
+    "start:api": "node apps/api/server.js"
   },
   "dependencies": {
+    "@nestjs/common": "^11.1.21",
+    "@nestjs/core": "^11.1.21",
+    "@nestjs/platform-express": "^11.1.21",
     "@react-pdf/renderer": "^4.5.1",
     "lucide-react": "^0.400.0",
     "mysql2": "^3.22.3",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.22.0"
+    "react-router-dom": "^6.22.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.1",

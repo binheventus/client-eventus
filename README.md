@@ -29,17 +29,26 @@ DB_PASSWORD=
 npm run db:migrate
 ```
 
-4. Chạy app:
+4. Chạy app local:
 
 ```bash
 npm run dev
 ```
 
-Vite local server phục vụ cả frontend và các API `/api/quotes`, `/api/contracts`, `/api/client-pages`, `/api/parse-quote`.
+Vite phục vụ frontend trong `apps/web` và proxy `/api/*` qua NestJS trong `apps/api`.
+
+5. Chạy production-style:
+
+```bash
+npm run build
+npm start
+```
+
+NestJS server phục vụ cả API `/api/quotes`, `/api/contracts`, `/api/client-pages`, `/api/parse-quote` và frontend đã build trong `apps/web/dist`.
 
 ## Pricing Sync
 
-Bảng giá vẫn sync từ Google Sheet sang JSON trong `src/data/pricing/`:
+Bảng giá vẫn sync từ Google Sheet sang JSON trong `apps/web/src/data/pricing/`:
 
 ```bash
 npm run pricing:export
@@ -49,19 +58,17 @@ Các biến `GOOGLE_SERVICE_ACCOUNT_KEY_FILE` và `PRICING_SPREADSHEET_ID` chỉ
 
 ## Cập nhật nội dung
 
-Nội dung client portal runtime lưu trong bảng `client_pages`. Dữ liệu pricing nằm trong `src/data/pricing/`. Khung năng lực cũ vẫn nằm tại `src/data/competency.json`.
+Nội dung client portal runtime lưu trong bảng `client_pages`. Dữ liệu pricing nằm trong `apps/web/src/data/pricing/`. Khung năng lực cũ vẫn nằm tại `apps/web/src/data/competency.json`.
 
 ## Cấu trúc thư mục
 
 ```
-src/
-├── data/
-│   └── competency.json     ← EDIT FILE NÀY để cập nhật nội dung
-├── components/
-│   ├── Header.jsx
-│   ├── PositionCard.jsx
-│   └── CompetencyPanel.jsx
-└── pages/
-    ├── HomePage.jsx
-    └── PositionPage.jsx
+apps/
+├── api/                    NestJS API + MySQL runtime
+└── web/                    React/Vite frontend
+    └── src/
+        ├── data/
+        │   └── competency.json
+        ├── features/
+        └── pages/
 ```
