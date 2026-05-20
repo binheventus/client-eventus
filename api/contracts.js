@@ -152,13 +152,13 @@ async function saveTemplate(template = {}) {
 
   await withTransaction(async connection => {
     if (payload.is_default) {
-      await connection.execute(
+      await connection.query(
         `update ${tables.contractTemplates} set is_default = 0 where is_default = 1 and id <> ?`,
         [payload.id],
       )
     }
 
-    await connection.execute(
+    await connection.query(
       `insert into ${tables.contractTemplates}
        (id, name, description, title, seller_entity_code, party_role_config, contract_number_pattern,
         preamble, service_scope, schedule_rows, quote_table_config, payment_config, content_sections,

@@ -57,7 +57,6 @@ function runSql(client, sql, params = []) {
 function makeTransactionClient(connection) {
   return {
     ...connection,
-    execute: (sql, params = []) => runSql(connection, sql, params),
     query: (sql, params = []) => runSql(connection, sql, params),
   }
 }
@@ -129,7 +128,7 @@ export async function insertRow(connection, tableName, payload = {}) {
   const columns = entries.map(([key]) => `\`${key}\``).join(', ')
   const placeholders = entries.map(() => '?').join(', ')
   const values = entries.map(([, value]) => value)
-  await connection.execute(`insert into \`${tableName}\` (${columns}) values (${placeholders})`, values)
+  await connection.query(`insert into \`${tableName}\` (${columns}) values (${placeholders})`, values)
 }
 
 export async function updateRow(connection, tableName, payload = {}, whereSql, whereParams = []) {
@@ -138,5 +137,5 @@ export async function updateRow(connection, tableName, payload = {}, whereSql, w
 
   const assignments = entries.map(([key]) => `\`${key}\` = ?`).join(', ')
   const values = entries.map(([, value]) => value)
-  await connection.execute(`update \`${tableName}\` set ${assignments} where ${whereSql}`, [...values, ...whereParams])
+  await connection.query(`update \`${tableName}\` set ${assignments} where ${whereSql}`, [...values, ...whereParams])
 }

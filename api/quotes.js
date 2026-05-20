@@ -225,7 +225,7 @@ async function ensureClient(connection, { id, name } = {}) {
   if (!cleanName) return id || null
 
   if (id) {
-    await connection.execute(
+    await connection.query(
       `insert into ${tables.clients} (id, name) values (?, ?)
        on duplicate key update name = values(name), updated_at = current_timestamp(3)`,
       [id, cleanName],
@@ -233,14 +233,14 @@ async function ensureClient(connection, { id, name } = {}) {
     return id
   }
 
-  const [existing] = await connection.execute(
+  const [existing] = await connection.query(
     `select id from ${tables.clients} where name = ? limit 1`,
     [cleanName],
   )
   if (existing?.[0]?.id) return existing[0].id
 
   const nextId = makeId('client')
-  await connection.execute(
+  await connection.query(
     `insert into ${tables.clients} (id, name) values (?, ?)`,
     [nextId, cleanName],
   )
@@ -248,7 +248,7 @@ async function ensureClient(connection, { id, name } = {}) {
 }
 
 async function makeQuoteNumber(connection) {
-  const [rows] = await connection.execute(
+  const [rows] = await connection.query(
     `select max(cast(substring(quote_number, 4) as unsigned)) as max_number
      from ${tables.quotes}
      where quote_number regexp '^BG-[0-9]+$'`,
@@ -458,7 +458,7 @@ async function updateQuote(id, patch = {}) {
     await updateRow(connection, tables.quotes, payload, 'id = ?', [id])
 
     if (Array.isArray(items)) {
-      await connection.execute(`delete from ${tables.quoteItems} where quote_id = ?`, [id])
+      await connection.query(`delete from ${tables.quoteItems} where quote_id = ?`, [id])
       await insertQuoteItems(connection, id, items)
     }
   })
@@ -501,10 +501,10 @@ async function deleteQuote(id, { hard = false } = {}) {
   if (!hard) return updateQuote(id, { deleted_at: new Date().toISOString() })
 
   await withTransaction(async connection => {
-    await connection.execute(`delete from ${tables.quoteViews} where quote_id = ?`, [id])
-    await connection.execute(`delete from ${tables.quoteItems} where quote_id = ?`, [id])
-    await connection.execute(`delete from ${tables.contracts} where quote_id = ?`, [id])
-    await connection.execute(`delete from ${tables.quotes} where id = ?`, [id])
+    await connection.query(`delete from ${tables.quoteViews} where quote_id = ?`, [id])
+    await connection.query(`delete from ${tables.quoteItems} where quote_id = ?`, [id])
+    await connection.query(`delete from ${tables.contracts} where quote_id = ?`, [id])
+    await connection.query(`delete from ${tables.quotes} where id = ?`, [id])
   })
   return { ok: true }
 }
