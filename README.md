@@ -46,6 +46,11 @@ npm start
 
 NestJS server phục vụ cả API `/api/quotes`, `/api/contracts`, `/api/client-pages`, `/api/parse-quote` và frontend đã build trong `apps/web/dist`.
 
+## Deploy production
+
+Checklist deploy và cấu hình Nginx nằm trong `deploy/production-checklist.md`.
+File Nginx mẫu để bật cache asset + gzip/brotli nằm tại `deploy/nginx-client-eventus.conf`.
+
 ## Pricing Sync
 
 Bảng giá vẫn sync từ Google Sheet sang JSON trong `apps/web/src/data/pricing/`:

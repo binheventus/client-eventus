@@ -28,6 +28,14 @@ const contentTypes = {
 function sendFile(res, filePath) {
   const ext = path.extname(filePath)
   res.setHeader('content-type', contentTypes[ext] || 'application/octet-stream')
+  if (filePath === indexHtml || ext === '.html') {
+    res.setHeader('cache-control', 'no-cache')
+  } else if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+    res.setHeader('cache-control', 'public, max-age=31536000, immutable')
+  } else {
+    res.setHeader('cache-control', 'public, max-age=86400')
+  }
+  res.setHeader('vary', 'Accept-Encoding')
   fs.createReadStream(filePath)
     .on('error', () => {
       res.statusCode = 500
