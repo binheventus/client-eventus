@@ -1,28 +1,23 @@
 import { useState } from 'react'
+import { Download } from 'lucide-react'
 
-export default function QuotePDFDownloadButton({
-  quote,
-  items,
-  children = 'Download PDF',
-  loadingLabel = 'Đang tạo PDF...',
-  className = '',
-}) {
+export default function ContractPDFDownloadButton({ contract = {}, className = '' }) {
   const [loading, setLoading] = useState(false)
 
   async function downloadPdf() {
-    if (loading || !quote) return
+    if (loading || !contract?.id) return
 
     setLoading(true)
     try {
-      const [{ pdf }, { default: QuotePDFDocument, getQuotePdfFilename }] = await Promise.all([
+      const [{ pdf }, { default: ContractPDFDocument, getContractPdfFilename }] = await Promise.all([
         import('@react-pdf/renderer'),
-        import('./QuotePDFDocument'),
+        import('./ContractPDFDocument'),
       ])
-      const blob = await pdf(<QuotePDFDocument quote={quote} items={items || quote?.items || []} />).toBlob()
+      const blob = await pdf(<ContractPDFDocument contract={contract} />).toBlob()
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = getQuotePdfFilename(quote)
+      link.download = getContractPdfFilename(contract)
       document.body.appendChild(link)
       link.click()
       link.remove()
@@ -36,10 +31,11 @@ export default function QuotePDFDownloadButton({
     <button
       type="button"
       onClick={downloadPdf}
-      disabled={loading || !quote}
+      disabled={loading || !contract?.id}
       className={className}
     >
-      {loading ? loadingLabel : children}
+      <Download className="h-4 w-4" />
+      {loading ? 'Đang tạo PDF...' : 'Tải PDF'}
     </button>
   )
 }

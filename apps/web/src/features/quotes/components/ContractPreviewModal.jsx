@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { PDFDownloadLink } from '@react-pdf/renderer'
-import { Check, Copy, Download, FileText, X } from 'lucide-react'
-import ContractPDFDocument, { getContractPdfFilename } from './ContractPDFDocument'
+import { Check, Copy, FileText, X } from 'lucide-react'
+import ContractPDFDownloadButton from './ContractPDFDownloadButton'
 import ContractPaymentSummary from './ContractPaymentSummary'
 import QuotePreview from './QuotePreview'
 import { useEscapeToClose } from '../../../hooks/useEscapeToClose'
@@ -133,18 +132,10 @@ export function PreviewDownloadActions({ contract = {}, showShareButton = false 
             {copied ? 'Đã copy link' : 'Lấy link hợp đồng gửi khách'}
           </button>
         ) : null}
-        <PDFDownloadLink
-          document={<ContractPDFDocument contract={contract} />}
-          fileName={getContractPdfFilename(contract)}
+        <ContractPDFDownloadButton
+          contract={contract}
           className={`${actionClass} bg-[#f8981d] text-white shadow-sm hover:bg-orange-500`}
-        >
-          {({ loading }) => (
-            <>
-              <Download className="h-4 w-4" />
-              {loading ? 'Đang tạo PDF...' : 'Tải PDF'}
-            </>
-          )}
-        </PDFDownloadLink>
+        />
         <button
           type="button"
           onClick={() => downloadContractDocx(contract)}

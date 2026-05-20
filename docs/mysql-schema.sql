@@ -40,6 +40,11 @@ create table if not exists client_quotes (
   key client_quotes_status_idx (status),
   key client_quotes_created_at_idx (created_at),
   key client_quotes_deleted_at_idx (deleted_at),
+  key client_quotes_deleted_created_idx (deleted_at, created_at),
+  key client_quotes_deleted_status_created_idx (deleted_at, status, created_at),
+  key client_quotes_deleted_created_by_created_idx (deleted_at, created_by, created_at),
+  key client_quotes_deleted_entity_created_idx (deleted_at, entity_code, created_at),
+  key client_quotes_deleted_tier_created_idx (deleted_at, tier_code, created_at),
   constraint client_quotes_client_id_fk foreign key (client_id) references client_customers (id) on delete set null
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 

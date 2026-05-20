@@ -19,22 +19,24 @@ const DEFAULT_ENTITY_CODE = 'EVENTUS'
 const DEFAULT_TIER_CODE = 'TIER_2'
 const VALID_TIER_CODES = new Set(['TIER_1', 'TIER_2', 'TIER_3', 'TIER_4', 'TIER_5'])
 const LIST_QUOTE_COLUMNS = [
-  'id',
-  'quote_number',
-  'client_name',
-  'event_name',
-  'total_amount',
-  'status',
-  'created_by',
-  'created_by_name',
-  'sales_name',
-  'created_at',
-  'deleted_at',
-  'tier_code',
-  'entity_code',
-  'share_token',
-  'sent_at',
-  'validity_days',
+  'q.id',
+  'q.quote_number',
+  'q.client_name',
+  'q.event_name',
+  'q.total_amount',
+  'q.status',
+  'q.created_by',
+  'q.created_by_name',
+  'q.sales_name',
+  'q.created_at',
+  'q.deleted_at',
+  'q.tier_code',
+  'q.entity_code',
+  'q.share_token',
+  'q.sent_at',
+  'q.validity_days',
+  'c.id as contract_id',
+  'case when c.id is null then 0 else 1 end as has_saved_contract',
 ].join(', ')
 
 const QUOTE_COLUMNS = [
@@ -163,6 +165,7 @@ function normalizeQuoteRow(row = {}) {
     overtime_fee_total: normalizeNumber(row.overtime_fee_total),
     vat_amount: normalizeNumber(row.vat_amount),
     total_amount: normalizeNumber(row.total_amount),
+    has_saved_contract: normalizeBoolean(row.has_saved_contract),
   }
 }
 
@@ -311,36 +314,46 @@ function getFilters(queryParams = {}) {
 }
 
 function addQuoteFilters(where, params, filters = {}) {
+  const filterColumns = {
+    status: 'q.status',
+    tier_code: 'q.tier_code',
+    entity_code: 'q.entity_code',
+    created_by: 'q.created_by',
+  }
+
   Object.entries(filters).forEach(([key, rawValue]) => {
     if (rawValue === undefined || rawValue === null || rawValue === '') return
     const values = String(rawValue).split(',').map(value => value.trim()).filter(Boolean)
 
     if (key === 'search') {
-      where.push('(quote_number like ? or client_name like ? or event_name like ?)')
+      where.push('(q.quote_number like ? or q.client_name like ? or q.event_name like ?)')
       const pattern = `%${rawValue}%`
       params.push(pattern, pattern, pattern)
       return
     }
 
     if (key === 'date_from') {
-      where.push('created_at >= ?')
+      where.push('q.created_at >= ?')
       params.push(rawValue)
       return
     }
 
     if (key === 'date_to') {
-      where.push('created_at <= ?')
+      where.push('q.created_at <= ?')
       params.push(rawValue)
       return
     }
 
+    const column = filterColumns[key]
+    if (!column) return
+
     if (values.length > 1) {
-      where.push(`${key} in (${values.map(() => '?').join(', ')})`)
+      where.push(`${column} in (${values.map(() => '?').join(', ')})`)
       params.push(...values)
       return
     }
 
-    where.push(`${key} = ?`)
+    where.push(`${column} = ?`)
     params.push(rawValue)
   })
 }
@@ -351,19 +364,20 @@ async function listQuotes(queryParams = {}) {
   const offset = (page - 1) * pageSize
   const trash = ['1', 'true', 'yes'].includes(String(getQueryValue(queryParams.trash, '')).toLowerCase())
   const filters = getFilters(queryParams)
-  const where = [trash ? 'deleted_at is not null' : 'deleted_at is null']
+  const where = [trash ? 'q.deleted_at is not null' : 'q.deleted_at is null']
   const params = []
 
   addQuoteFilters(where, params, filters)
   const whereSql = where.length ? `where ${where.join(' and ')}` : ''
   const orderColumn = trash ? 'deleted_at' : 'created_at'
 
-  const countRows = await query(`select count(*) as count from ${tables.quotes} ${whereSql}`, params)
+  const countRows = await query(`select count(*) as count from ${tables.quotes} q ${whereSql}`, params)
   const rows = await query(
     `select ${LIST_QUOTE_COLUMNS}
-     from ${tables.quotes}
+     from ${tables.quotes} q
+     left join ${tables.contracts} c on c.quote_id = q.id
      ${whereSql}
-     order by ${orderColumn} desc
+     order by q.${orderColumn} desc
      limit ${pageSize} offset ${offset}`,
     params,
   )

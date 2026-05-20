@@ -7,28 +7,7 @@ import {
   getTotalQuotePages,
   QUOTE_LIST_PAGE_SIZE,
 } from '../lib/quoteList'
-import { getContractByQuoteId } from './useContracts'
 import { listQuotes } from './useQuotes'
-
-async function markQuotesWithContractState(quotes = []) {
-  return Promise.all(quotes.map(async quote => {
-    if (!quote?.id) return quote
-
-    try {
-      const contract = await getContractByQuoteId(quote.id)
-      return {
-        ...quote,
-        contract_id: contract?.id || quote.contract_id || null,
-        has_saved_contract: Boolean(contract?.id || quote.contract_id || quote.has_saved_contract),
-      }
-    } catch {
-      return {
-        ...quote,
-        has_saved_contract: Boolean(quote.contract_id || quote.has_saved_contract),
-      }
-    }
-  }))
-}
 
 export function useQuoteList({ pageSize = QUOTE_LIST_PAGE_SIZE } = {}) {
   const userContext = useMemo(() => getQuoteUserContext(), [])
@@ -56,13 +35,12 @@ export function useQuoteList({ pageSize = QUOTE_LIST_PAGE_SIZE } = {}) {
         page: requestedPage,
         pageSize,
       })
-      const quotesWithContractState = await markQuotesWithContractState(result.quotes)
 
       if (requestId !== requestIdRef.current) return result
 
-      setQuotes(quotesWithContractState)
+      setQuotes(result.quotes)
       setCount(result.count)
-      return { ...result, quotes: quotesWithContractState }
+      return result
     } catch (err) {
       if (requestId === requestIdRef.current) {
         setError(err?.message || 'Không tải được danh sách báo giá.')
