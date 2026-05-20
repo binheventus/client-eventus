@@ -364,8 +364,8 @@ async function listQuotes(queryParams = {}) {
      from ${tables.quotes}
      ${whereSql}
      order by ${orderColumn} desc
-     limit ? offset ?`,
-    [...params, pageSize, offset],
+     limit ${pageSize} offset ${offset}`,
+    params,
   )
 
   return {
