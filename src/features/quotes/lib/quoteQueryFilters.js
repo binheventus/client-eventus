@@ -4,7 +4,7 @@ function isEmptyFilterValue(value) {
   return value === undefined || value === null || value === ''
 }
 
-export function applySupabaseQuoteFilters(query, filters = {}) {
+export function applyRemoteQuoteFilters(query, filters = {}) {
   let nextQuery = query
 
   Object.entries(filters || {}).forEach(([key, value]) => {

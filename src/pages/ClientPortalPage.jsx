@@ -1,6 +1,5 @@
 import { lazy, Suspense, useState, useEffect, useMemo } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { hasSupabaseConfig, supabase } from '../lib/supabase'
 import { ADMIN_PASSWORD } from '../config'
 import { useEscapeToClose } from '../hooks/useEscapeToClose'
 import data from '../data/competency.json'
@@ -24,10 +23,35 @@ const CATEGORIES = [
   },
 ]
 
-const LAB_CONTENT_TABLE = 'lab_pages'
-
 function PageLoading() {
   return <div className="px-4 py-6 text-[13px] font-semibold text-slate-400">Đang tải...</div>
+}
+
+async function requestClientPages(path = '', { method = 'GET', body } = {}) {
+  const response = await fetch(`/api/client-pages${path}`, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(payload?.error || 'Không lưu được nội dung client portal.')
+  return payload
+}
+
+async function fetchClientPages() {
+  const result = await requestClientPages()
+  return result.pages || []
+}
+
+async function saveClientPage(page) {
+  const result = await requestClientPages('', { method: page.id ? 'PATCH' : 'POST', body: { page } })
+  return result.page
+}
+
+async function removeClientPage(id) {
+  return requestClientPages(`?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
 }
 
 const CATEGORY_CARD_META = {
@@ -66,7 +90,7 @@ const CATEGORY_BANNER_STYLES = {
 
 const CONTENT_STANDARDIZATION_PROMPT = `Bạn là biên tập viên tài liệu vận hành nội bộ cho Eventus.
 
-Nhiệm vụ của bạn là đọc hiểu nội dung gốc và viết lại thành tài liệu nội bộ cho Eventus AI Lab có cấu trúc đẹp, rõ ràng, dễ đọc.
+Nhiệm vụ của bạn là đọc hiểu nội dung gốc và viết lại thành tài liệu nội bộ cho Eventus Client Portal có cấu trúc đẹp, rõ ràng, dễ đọc.
 
 Đây KHÔNG phải nhiệm vụ chuyển text sang Markdown đơn giản.
 Đây là nhiệm vụ biên tập lại tài liệu vận hành: giữ đầy đủ ý quan trọng, nhưng trình bày lại cho chuyên nghiệp hơn.
@@ -364,7 +388,7 @@ function HomeHub({ onOpenCategory, admin }) {
             <div className="flex items-start justify-between gap-6">
               <div className="min-w-0">
                 <h1 className="text-[32px] font-semibold tracking-tight md:text-[40px]">
-                  Eventus AI Lab
+                  Eventus Client Portal
                 </h1>
                 <p className="mt-3 whitespace-nowrap text-[14px] leading-6 text-blue-100/90">
                   Tra cứu công cụ AI, dữ liệu vận hành, hướng dẫn nội bộ và các module hỗ trợ team từ một nơi duy nhất.
@@ -1040,8 +1064,8 @@ function QuoteModulePage() {
   return <Suspense fallback={<PageLoading />}>{page}</Suspense>
 }
 
-/* ─── Main Eventus AI Lab page ─── */
-export default function EventusAILabPage() {
+/* ─── Main client portal page ─── */
+export default function ClientPortalPage() {
   const location = useLocation()
   const { positionId, articleSlug } = useParams()
   const navigate = useNavigate()
@@ -1088,15 +1112,10 @@ export default function EventusAILabPage() {
       return
     }
 
-    if (!hasSupabaseConfig) {
-      setLoading(false)
-      return
-    }
-
-    supabase.from(LAB_CONTENT_TABLE).select('*').then(({ data: rows, error }) => {
-      if (!error && rows) setPages(rows)
-      setLoading(false)
-    })
+    fetchClientPages()
+      .then(rows => setPages(rows))
+      .catch(() => {})
+      .finally(() => setLoading(false))
   }, [location.pathname])
 
   const currentCat = CATEGORIES.find(c => c.id === activeCat)
@@ -1109,87 +1128,65 @@ export default function EventusAILabPage() {
   const currentPage = visiblePages.find(p => p.category === activeCat && p.title === selectedTitle)
 
   async function upsertCategoryItems(nextItems) {
-    if (!supabase) return
-
     const cleanItems = nextItems.map(item => String(item || '').trim()).filter(Boolean)
     const payload = {
+      id: categoryConfigRow?.id,
       category: activeCat,
       title: getCategoryConfigTitle(activeCat),
       content: JSON.stringify({ items: cleanItems }),
-      updated_at: new Date().toISOString(),
     }
+
+    const saved = await saveClientPage(payload)
+    if (!saved) return
 
     if (categoryConfigRow) {
-      const { data: updated } = await supabase
-        .from(LAB_CONTENT_TABLE)
-        .update({ content: payload.content, updated_at: payload.updated_at })
-        .eq('id', categoryConfigRow.id)
-        .select()
-        .single()
-
-      if (updated) {
-        setPages(prev => prev.map(page => (page.id === updated.id ? updated : page)))
-      }
-    } else {
-      const { data: inserted } = await supabase
-        .from(LAB_CONTENT_TABLE)
-        .insert(payload)
-        .select()
-        .single()
-
-      if (inserted) {
-        setPages(prev => [...prev, inserted])
-      }
+      setPages(prev => prev.map(page => (page.id === saved.id ? saved : page)))
+      return
     }
+
+    setPages(prev => [...prev, saved])
   }
 
   async function savePage() {
     setSaving(true)
-    if (!supabase) {
+
+    try {
+      const normalizedMenuTitle = String(menuTitleDraft || '').trim()
+      const oldTitle = selectedTitle
+      const existingTitleTaken = currentCategoryItems.some(
+        item => item.toLowerCase() === normalizedMenuTitle.toLowerCase() && item !== oldTitle
+      )
+
+      if (!normalizedMenuTitle) return
+
+      if (existingTitleTaken) {
+        setItemActionError('Tên tài liệu đã tồn tại trong danh mục này.')
+        return
+      }
+
+      const storedContent = buildStoredContent(draft, bannerDraft, titleDraft)
+      const nextItems = currentCategoryItems.map(item => (item === oldTitle ? normalizedMenuTitle : item))
+      const savedPage = await saveClientPage({
+        id: currentPage?.id,
+        category: activeCat,
+        title: normalizedMenuTitle,
+        content: storedContent,
+      })
+
+      if (savedPage && currentPage) setPages(prev => prev.map(p => p.id === savedPage.id ? savedPage : p))
+      if (savedPage && !currentPage) setPages(prev => [...prev, savedPage])
+      await upsertCategoryItems(nextItems)
+      setSelectedTitle(normalizedMenuTitle)
+      setItemActionError('')
+      if (CATEGORY_ROUTE_SEGMENTS[activeCat]) {
+        navigate(getArticlePath(activeCat, normalizedMenuTitle), { replace: true })
+      }
+      setEditing(false)
+    } catch (error) {
+      setItemActionError(error?.message || 'Không lưu được nội dung.')
+    } finally {
       setSaving(false)
-      setItemActionError('Thiếu cấu hình Supabase local nên chưa thể lưu nội dung.')
-      return
     }
-
-    const normalizedMenuTitle = String(menuTitleDraft || '').trim()
-    const oldTitle = selectedTitle
-    const existingTitleTaken = currentCategoryItems.some(
-      item => item.toLowerCase() === normalizedMenuTitle.toLowerCase() && item !== oldTitle
-    )
-
-    if (!normalizedMenuTitle) {
-      setSaving(false)
-      return
-    }
-
-    if (existingTitleTaken) {
-      setSaving(false)
-      setItemActionError('Tên tài liệu đã tồn tại trong danh mục này.')
-      return
-    }
-
-    const storedContent = buildStoredContent(draft, bannerDraft, titleDraft)
-    const nextItems = currentCategoryItems.map(item => (item === oldTitle ? normalizedMenuTitle : item))
-
-    if (currentPage) {
-      const { data: updated } = await supabase
-        .from(LAB_CONTENT_TABLE).update({ title: normalizedMenuTitle, content: storedContent, updated_at: new Date().toISOString() })
-        .eq('id', currentPage.id).select().single()
-      if (updated) setPages(prev => prev.map(p => p.id === updated.id ? updated : p))
-    } else {
-      const { data: inserted } = await supabase
-        .from(LAB_CONTENT_TABLE).insert({ category: activeCat, title: normalizedMenuTitle, content: storedContent })
-        .select().single()
-      if (inserted) setPages(prev => [...prev, inserted])
-    }
-    await upsertCategoryItems(nextItems)
-    setSelectedTitle(normalizedMenuTitle)
-    setItemActionError('')
-    if (CATEGORY_ROUTE_SEGMENTS[activeCat]) {
-      navigate(getArticlePath(activeCat, normalizedMenuTitle), { replace: true })
-    }
-    setSaving(false)
-    setEditing(false)
   }
 
   useEffect(() => {
@@ -1298,47 +1295,47 @@ export default function EventusAILabPage() {
       return
     }
 
-    if (!supabase) {
-      setItemActionError('Thiếu cấu hình Supabase local nên chưa thể tạo tài liệu.')
-      return
-    }
-
     setItemActionLoading(true)
-    await upsertCategoryItems([...currentCategoryItems, normalizedTitle])
-    setItemActionLoading(false)
-    setItemActionError('')
-    setNewItemTitle('')
-    setShowAddItemModal(false)
-    setSelectedTitle(normalizedTitle)
-    if (CATEGORY_ROUTE_SEGMENTS[activeCat]) {
-      navigate(getArticlePath(activeCat, normalizedTitle))
+    try {
+      await upsertCategoryItems([...currentCategoryItems, normalizedTitle])
+      setItemActionError('')
+      setNewItemTitle('')
+      setShowAddItemModal(false)
+      setSelectedTitle(normalizedTitle)
+      if (CATEGORY_ROUTE_SEGMENTS[activeCat]) {
+        navigate(getArticlePath(activeCat, normalizedTitle))
+      }
+      setEditing(false)
+    } catch (error) {
+      setItemActionError(error?.message || 'Không tạo được tài liệu.')
+    } finally {
+      setItemActionLoading(false)
     }
-    setEditing(false)
   }
 
   async function deleteMenuItem() {
     if (!selectedTitle) return
-    if (!supabase) {
-      setItemActionError('Thiếu cấu hình Supabase local nên chưa thể xóa tài liệu.')
-      return
-    }
 
     setItemActionLoading(true)
+    try {
+      if (currentPage) {
+        await removeClientPage(currentPage.id)
+        setPages(prev => prev.filter(page => page.id !== currentPage.id))
+      }
 
-    if (currentPage) {
-      await supabase.from(LAB_CONTENT_TABLE).delete().eq('id', currentPage.id)
-      setPages(prev => prev.filter(page => page.id !== currentPage.id))
+      await upsertCategoryItems(currentCategoryItems.filter(item => item !== selectedTitle))
+      setShowDeleteConfirm(false)
+      setSelectedTitle(null)
+      if (CATEGORY_ROUTE_SEGMENTS[activeCat]) {
+        navigate(getCategoryBasePath(activeCat))
+      }
+      setEditing(false)
+      setItemActionError('')
+    } catch (error) {
+      setItemActionError(error?.message || 'Không xóa được tài liệu.')
+    } finally {
+      setItemActionLoading(false)
     }
-
-    await upsertCategoryItems(currentCategoryItems.filter(item => item !== selectedTitle))
-    setItemActionLoading(false)
-    setShowDeleteConfirm(false)
-    setSelectedTitle(null)
-    if (CATEGORY_ROUTE_SEGMENTS[activeCat]) {
-      navigate(getCategoryBasePath(activeCat))
-    }
-    setEditing(false)
-    setItemActionError('')
   }
 
   async function copyPromptGuide() {
@@ -1365,7 +1362,7 @@ export default function EventusAILabPage() {
               onClick={() => navigate('/')}
               className="w-full rounded-3xl bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 px-5 py-6 text-left text-white shadow-lg transition-transform hover:-translate-y-0.5"
             >
-              <p className="text-[18px] font-semibold tracking-tight leading-7">Eventus AI Lab</p>
+              <p className="text-[18px] font-semibold tracking-tight leading-7">Eventus Client Portal</p>
             </button>
           </div>
 

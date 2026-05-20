@@ -1,5 +1,4 @@
 import { useCallback, useState } from 'react'
-import { fromQuoteTable, hasSupabaseConfig } from '../../../lib/supabase'
 import {
   buildInitialContractDraft,
   buildQuoteSnapshot,
@@ -9,77 +8,6 @@ import {
   normalizeContractTemplate,
   sectionsToTermsText,
 } from '../lib/contractDefaults'
-
-const LOCAL_CONTRACTS_KEY = 'eventus_local_contracts'
-const LOCAL_CONTRACT_TEMPLATES_KEY = 'eventus_local_contract_templates'
-
-function canUseLocalStorage() {
-  return typeof window !== 'undefined' && Boolean(window.localStorage)
-}
-
-function readLocalJson(key, fallback) {
-  if (!canUseLocalStorage()) return fallback
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(key) || 'null')
-    return parsed ?? fallback
-  } catch {
-    return fallback
-  }
-}
-
-function writeLocalJson(key, value) {
-  if (!canUseLocalStorage()) return
-  window.localStorage.setItem(key, JSON.stringify(value))
-}
-
-function makeLocalId(prefix = 'contract') {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
-  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
-}
-
-function nowIso() {
-  return new Date().toISOString()
-}
-
-function getLocalTemplates() {
-  return mergeDefaultContractTemplates(readLocalJson(LOCAL_CONTRACT_TEMPLATES_KEY, []))
-}
-
-function getLocalContracts() {
-  const rows = readLocalJson(LOCAL_CONTRACTS_KEY, [])
-  return Array.isArray(rows) ? rows : []
-}
-
-function saveLocalContracts(rows = []) {
-  writeLocalJson(LOCAL_CONTRACTS_KEY, rows)
-}
-
-function saveLocalTemplates(rows = []) {
-  writeLocalJson(LOCAL_CONTRACT_TEMPLATES_KEY, rows)
-}
-
-function isSchemaMissing(error) {
-  const message = String(error?.message || '').toLowerCase()
-  return error?.code === 'PGRST205' ||
-    error?.code === '42P01' ||
-    message.includes('schema cache') ||
-    message.includes('could not find') ||
-    message.includes('does not exist') ||
-    message.includes('contract_templates') ||
-    message.includes('contracts')
-}
-
-function shouldFallback(error) {
-  const message = String(error?.message || '')
-  return Boolean(error?.contractApiUnavailable) ||
-    [404, 405, 501].includes(Number(error?.status)) ||
-    message.includes('Thieu SUPABASE') ||
-    message.includes('Thiếu SUPABASE')
-}
-
-function canUseContractApi() {
-  return typeof window !== 'undefined' && hasSupabaseConfig
-}
 
 async function requestContractApi(path = '', { method = 'GET', body } = {}) {
   const response = await fetch(`/api/contracts${path}`, {
@@ -92,9 +20,7 @@ async function requestContractApi(path = '', { method = 'GET', body } = {}) {
 
   const contentType = response.headers.get('content-type') || ''
   if (!contentType.includes('application/json')) {
-    const error = new Error('Contract API unavailable.')
-    error.contractApiUnavailable = true
-    throw error
+    throw new Error('Contract API unavailable.')
   }
 
   const payload = await response.json().catch(() => ({}))
@@ -160,127 +86,9 @@ function cleanContractPayload(payload = {}) {
   }
 }
 
-function createLocalTemplate(payload = {}) {
-  const templates = readLocalJson(LOCAL_CONTRACT_TEMPLATES_KEY, [])
-  const cleanPayload = cleanTemplatePayload(payload)
-  const now = nowIso()
-  const template = {
-    ...cleanPayload,
-    id: payload.id || makeLocalId('template'),
-    created_at: now,
-    updated_at: now,
-  }
-
-  const nextTemplates = cleanPayload.is_default
-    ? templates.map(row => ({ ...row, is_default: false }))
-    : templates
-
-  saveLocalTemplates([template, ...nextTemplates])
-  return template
-}
-
-function updateLocalTemplate(id, payload = {}) {
-  const templates = readLocalJson(LOCAL_CONTRACT_TEMPLATES_KEY, [])
-  const cleanPayload = cleanTemplatePayload(payload)
-  let updated = null
-  const now = nowIso()
-
-  const nextTemplates = templates.map(template => {
-    if (template.id !== id) {
-      return cleanPayload.is_default ? { ...template, is_default: false } : template
-    }
-
-    updated = {
-      ...template,
-      ...cleanPayload,
-      updated_at: now,
-    }
-    return updated
-  })
-
-  if (!updated) return createLocalTemplate({ ...cleanPayload, id })
-  saveLocalTemplates(nextTemplates)
-  return updated
-}
-
-function deleteLocalTemplate(id) {
-  const templates = readLocalJson(LOCAL_CONTRACT_TEMPLATES_KEY, [])
-  saveLocalTemplates(templates.filter(template => template.id !== id))
-}
-
-function getLocalContractByQuoteId(quoteId) {
-  return getLocalContracts().find(contract => contract.quote_id === quoteId) || null
-}
-
-function getLocalContractByShareToken(shareToken) {
-  return getLocalContracts().find(contract => contract.quote_snapshot?.share_token === shareToken) || null
-}
-
-function saveLocalContract(payload = {}, { quote } = {}) {
-  const existing = payload.id
-    ? getLocalContracts().find(contract => contract.id === payload.id)
-    : getLocalContractByQuoteId(payload.quote_id)
-
-  if (!existing && quote && !canCreateContractFromQuote(quote)) {
-    throw new Error('Chỉ báo giá đã lưu hoàn thiện mới được tạo hợp đồng.')
-  }
-
-  const contracts = getLocalContracts()
-  const now = nowIso()
-  const cleanPayload = cleanContractPayload({
-    ...payload,
-    quote_snapshot: payload.quote_snapshot || buildQuoteSnapshot(quote),
-  })
-  const contract = {
-    ...existing,
-    ...cleanPayload,
-    id: existing?.id || payload.id || makeLocalId('contract'),
-    created_at: existing?.created_at || now,
-    updated_at: now,
-  }
-
-  const nextContracts = existing
-    ? contracts.map(row => (row.id === existing.id ? contract : row))
-    : [contract, ...contracts]
-
-  saveLocalContracts(nextContracts)
-  return contract
-}
-
-function deleteLocalContract({ id, quoteId } = {}) {
-  if (!id && !quoteId) return
-
-  saveLocalContracts(getLocalContracts().filter(contract => {
-    if (id && contract.id === id) return false
-    if (quoteId && contract.quote_id === quoteId) return false
-    return true
-  }))
-}
-
 export async function listContractTemplates() {
-  if (!hasSupabaseConfig) return getLocalTemplates()
-
-  if (canUseContractApi()) {
-    try {
-      const result = await requestContractApi('?resource=templates')
-      return mergeDefaultContractTemplates(result.templates || [])
-    } catch (error) {
-      if (!shouldFallback(error) && !isSchemaMissing(error)) throw error
-    }
-  }
-
-  try {
-    const { data, error } = await fromQuoteTable('contractTemplates')
-      .select('*')
-      .order('sort_order', { ascending: true })
-      .order('created_at', { ascending: false })
-
-    if (error) throw error
-    return mergeDefaultContractTemplates(data || [])
-  } catch (error) {
-    if (!isSchemaMissing(error)) throw error
-    return getLocalTemplates()
-  }
+  const result = await requestContractApi('?resource=templates')
+  return mergeDefaultContractTemplates(result.templates || [])
 }
 
 export async function saveContractTemplate(payload = {}) {
@@ -292,133 +100,35 @@ export async function saveContractTemplate(payload = {}) {
   if (!cleanPayload.name) throw new Error('Tên mẫu hợp đồng là bắt buộc.')
   if (!cleanPayload.terms_text) throw new Error('Nội dung từ ĐIỀU 3 trở đi là bắt buộc.')
 
-  if (!hasSupabaseConfig) {
-    return payload.id
-      ? updateLocalTemplate(payload.id, cleanPayload)
-      : createLocalTemplate(cleanPayload)
-  }
-
-  if (canUseContractApi()) {
-    try {
-      const result = await requestContractApi('', {
-        method: 'POST',
-        body: {
-          resource: 'template',
-          template: {
-            ...cleanPayload,
-            id: payload.id || undefined,
-          },
-        },
-      })
-      return result.template
-    } catch (error) {
-      if (!shouldFallback(error) && !isSchemaMissing(error)) throw error
-    }
-  }
-
-  try {
-    if (cleanPayload.is_default) {
-      await fromQuoteTable('contractTemplates')
-        .update({ is_default: false })
-        .eq('is_default', true)
-        .neq('id', payload.id || '')
-    }
-
-    if (payload.id) {
-      const { data, error } = await fromQuoteTable('contractTemplates')
-        .upsert({ id: payload.id, ...cleanPayload, updated_at: nowIso() }, { onConflict: 'id' })
-        .select()
-        .single()
-
-      if (error) throw error
-      return data
-    }
-
-    const { data, error } = await fromQuoteTable('contractTemplates')
-      .insert(cleanPayload)
-      .select()
-      .single()
-
-    if (error) throw error
-    return data
-  } catch (error) {
-    if (!isSchemaMissing(error)) throw error
-    return payload.id
-      ? updateLocalTemplate(payload.id, cleanPayload)
-      : createLocalTemplate(cleanPayload)
-  }
+  const result = await requestContractApi('', {
+    method: 'POST',
+    body: {
+      resource: 'template',
+      template: {
+        ...cleanPayload,
+        id: payload.id || undefined,
+      },
+    },
+  })
+  return result.template
 }
 
 export async function deleteContractTemplate(id) {
   const systemTemplateIds = new Set(DEFAULT_CONTRACT_TEMPLATES.map(template => template.id))
   if (!id || systemTemplateIds.has(id)) return
-
-  if (!hasSupabaseConfig) {
-    deleteLocalTemplate(id)
-    return
-  }
-
-  if (canUseContractApi()) {
-    try {
-      await requestContractApi(`?resource=template&id=${encodeURIComponent(id)}`, { method: 'DELETE' })
-      return
-    } catch (error) {
-      if (!shouldFallback(error) && !isSchemaMissing(error)) throw error
-    }
-  }
-
-  try {
-    const { error } = await fromQuoteTable('contractTemplates')
-      .delete()
-      .eq('id', id)
-    if (error) throw error
-  } catch (error) {
-    if (!isSchemaMissing(error)) throw error
-    deleteLocalTemplate(id)
-  }
+  await requestContractApi(`?resource=template&id=${encodeURIComponent(id)}`, { method: 'DELETE' })
 }
 
 export async function getContractByQuoteId(quoteId) {
   if (!quoteId) return null
-  if (!hasSupabaseConfig) return getLocalContractByQuoteId(quoteId)
-
-  if (canUseContractApi()) {
-    try {
-      const result = await requestContractApi(`?resource=contract&quote_id=${encodeURIComponent(quoteId)}`)
-      return result.contract || null
-    } catch (error) {
-      if (!shouldFallback(error) && !isSchemaMissing(error) && Number(error?.status) !== 404) throw error
-    }
-  }
-
-  try {
-    const { data, error } = await fromQuoteTable('contracts')
-      .select('*')
-      .eq('quote_id', quoteId)
-      .maybeSingle()
-
-    if (error) throw error
-    return data || null
-  } catch (error) {
-    if (!isSchemaMissing(error)) throw error
-    return getLocalContractByQuoteId(quoteId)
-  }
+  const result = await requestContractApi(`?resource=contract&quote_id=${encodeURIComponent(quoteId)}`)
+  return result.contract || null
 }
 
 export async function getPublicContractByToken(shareToken) {
   if (!shareToken) return null
-  if (!hasSupabaseConfig) return getLocalContractByShareToken(shareToken)
-
-  if (canUseContractApi()) {
-    try {
-      const result = await requestContractApi(`?resource=public_contract&token=${encodeURIComponent(shareToken)}`)
-      return result.contract || null
-    } catch (error) {
-      if (!shouldFallback(error) && !isSchemaMissing(error) && Number(error?.status) !== 404) throw error
-    }
-  }
-
-  return getLocalContractByShareToken(shareToken)
+  const result = await requestContractApi(`?resource=public_contract&token=${encodeURIComponent(shareToken)}`)
+  return result.contract || null
 }
 
 export async function saveContract(payload = {}, { quote } = {}) {
@@ -437,82 +147,26 @@ export async function saveContract(payload = {}, { quote } = {}) {
     quote_snapshot: buildQuoteSnapshot(quote || payload.quote_snapshot),
   })
 
-  if (!hasSupabaseConfig) return saveLocalContract({ ...payload, ...cleanPayload }, { quote })
-
-  if (canUseContractApi()) {
-    try {
-      const result = await requestContractApi('', {
-        method: 'POST',
-        body: {
-          resource: 'contract',
-          contract: {
-            ...cleanPayload,
-            id: payload.id || undefined,
-          },
-        },
-      })
-      return result.contract
-    } catch (error) {
-      if (!shouldFallback(error) && !isSchemaMissing(error)) throw error
-    }
-  }
-
-  try {
-    const stored = await getContractByQuoteId(cleanPayload.quote_id)
-    if (stored?.id) {
-      const { data, error } = await fromQuoteTable('contracts')
-        .update({ ...cleanPayload, updated_at: nowIso() })
-        .eq('id', stored.id)
-        .select()
-        .single()
-
-      if (error) throw error
-      return data
-    }
-
-    const { data, error } = await fromQuoteTable('contracts')
-      .insert(cleanPayload)
-      .select()
-      .single()
-
-    if (error) throw error
-    return data
-  } catch (error) {
-    if (!isSchemaMissing(error)) throw error
-    return saveLocalContract({ ...payload, ...cleanPayload }, { quote })
-  }
+  const result = await requestContractApi('', {
+    method: 'POST',
+    body: {
+      resource: 'contract',
+      contract: {
+        ...cleanPayload,
+        id: payload.id || undefined,
+      },
+    },
+  })
+  return result.contract
 }
 
 export async function deleteContract({ id, quoteId } = {}) {
   if (!id && !quoteId) throw new Error('Thiếu hợp đồng để xoá.')
 
-  if (!hasSupabaseConfig) {
-    deleteLocalContract({ id, quoteId })
-    return
-  }
-
   const queryParams = new URLSearchParams({ resource: 'contract' })
   if (id) queryParams.set('id', id)
   if (quoteId) queryParams.set('quote_id', quoteId)
-
-  if (canUseContractApi()) {
-    try {
-      await requestContractApi(`?${queryParams.toString()}`, { method: 'DELETE' })
-      return
-    } catch (error) {
-      if (!shouldFallback(error) && !isSchemaMissing(error)) throw error
-    }
-  }
-
-  try {
-    let query = fromQuoteTable('contracts').delete()
-    query = id ? query.eq('id', id) : query.eq('quote_id', quoteId)
-    const { error } = await query
-    if (error) throw error
-  } catch (error) {
-    if (!isSchemaMissing(error)) throw error
-    deleteLocalContract({ id, quoteId })
-  }
+  await requestContractApi(`?${queryParams.toString()}`, { method: 'DELETE' })
 }
 
 export function useContractTemplates() {

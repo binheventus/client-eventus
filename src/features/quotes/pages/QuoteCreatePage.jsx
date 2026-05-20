@@ -8,14 +8,13 @@ import QuotePreview from '../components/QuotePreview'
 import { useBusinessRules } from '../hooks/useBusinessRules'
 import { useCustomerTiers } from '../hooks/useCustomerTiers'
 import { useLegalEntities } from '../hooks/useLegalEntities'
-import { createQuote, getQuote, updateQuote } from '../hooks/useQuotes'
+import { createQuote, getQuote, listQuoteClients, updateQuote } from '../hooks/useQuotes'
 import { useServices } from '../hooks/useServices'
 import { useTravelFees } from '../hooks/useTravelFees'
 import { parseQuoteInput } from '../lib/aiParser'
 import { calculateQuotePricing, findServiceForQuoteItem } from '../lib/pricingCalculator'
 import { getQuoteActorPayload, getQuoteUserContext } from '../lib/quoteAuth'
 import { normalizeQuoteValidityDays } from '../lib/quoteValidity'
-import { fromQuoteTable, hasSupabaseConfig } from '../../../lib/supabase'
 
 const DEFAULT_QUOTE = {
   entity_code: 'EVENTUS',
@@ -658,12 +657,7 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
   }, [getDefaultEntity, quote.entity_code, isEditMode])
 
   useEffect(() => {
-    if (!hasSupabaseConfig) return
-    fromQuoteTable('clients')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(50)
-      .then(({ data }) => setClients(data || []))
+    listQuoteClients().then(setClients).catch(() => setClients([]))
   }, [])
 
   const displayItems = useMemo(() => calculateDisplayItems(items, quote, services, rulesMap), [items, quote, services, rulesMap])

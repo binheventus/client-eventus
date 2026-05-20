@@ -1,7 +1,7 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 
-const EventusAILabPage = lazy(() => import('./pages/EventusAILabPage'))
+const ClientPortalPage = lazy(() => import('./pages/ClientPortalPage'))
 const QuotePublicPage = lazy(() => import('./features/quotes/pages/QuotePublicPage'))
 const ContractPublicPage = lazy(() => import('./features/quotes/pages/ContractPublicPage'))
 
@@ -14,17 +14,17 @@ export default function App() {
     <BrowserRouter>
       <Suspense fallback={<AppLoading />}>
         <Routes>
-          <Route path="/" element={<EventusAILabPage />} />
-          <Route path="/quotes" element={<EventusAILabPage />} />
-          <Route path="/quotes/new" element={<EventusAILabPage />} />
-          <Route path="/quotes/trash" element={<EventusAILabPage />} />
-          <Route path="/quotes/contract-templates" element={<EventusAILabPage />} />
-          <Route path="/quotes/:id" element={<EventusAILabPage />} />
+          <Route path="/" element={<ClientPortalPage />} />
+          <Route path="/quotes" element={<ClientPortalPage />} />
+          <Route path="/quotes/new" element={<ClientPortalPage />} />
+          <Route path="/quotes/trash" element={<ClientPortalPage />} />
+          <Route path="/quotes/contract-templates" element={<ClientPortalPage />} />
+          <Route path="/quotes/:id" element={<ClientPortalPage />} />
           <Route path="/q/:share_token" element={<QuotePublicPage />} />
           <Route path="/c/:share_token" element={<ContractPublicPage />} />
-          <Route path="/position/:positionId" element={<EventusAILabPage />} />
-          <Route path="/position/:positionId/level/:levelIndex" element={<EventusAILabPage />} />
-          <Route path="*" element={<EventusAILabPage />} />
+          <Route path="/position/:positionId" element={<ClientPortalPage />} />
+          <Route path="/position/:positionId/level/:levelIndex" element={<ClientPortalPage />} />
+          <Route path="*" element={<ClientPortalPage />} />
         </Routes>
       </Suspense>
     </BrowserRouter>

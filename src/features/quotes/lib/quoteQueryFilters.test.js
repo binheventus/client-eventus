@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   applyLocalQuoteFilters,
-  applySupabaseQuoteFilters,
+  applyRemoteQuoteFilters,
   buildQuoteApiPath,
   getLocalQuoteSearchText,
 } from './quoteQueryFilters.js'
@@ -36,9 +36,9 @@ function makeQueryRecorder() {
   return query
 }
 
-test('applySupabaseQuoteFilters maps supported filters to the existing query operators', () => {
+test('applyRemoteQuoteFilters maps supported filters to the existing query operators', () => {
   const query = makeQueryRecorder()
-  applySupabaseQuoteFilters(query, {
+  applyRemoteQuoteFilters(query, {
     search: 'EVT',
     date_from: '2026-05-01',
     date_to: '2026-05-19',

@@ -6,14 +6,15 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "db:migrate": "node scripts/migrate-mysql.mjs",
     "pricing:export": "node scripts/export-pricing-from-google-sheet.mjs",
     "test:quotes": "node --test src/features/quotes/lib/*.test.js api/parse-quote.test.js",
     "preview": "vite preview"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.5.1",
-    "@supabase/supabase-js": "^2.49.0",
     "lucide-react": "^0.400.0",
+    "mysql2": "^3.22.3",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.22.0"

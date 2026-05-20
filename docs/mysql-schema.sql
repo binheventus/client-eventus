@@ -1,0 +1,136 @@
+create table if not exists client_customers (
+  id varchar(64) primary key,
+  name varchar(255) not null,
+  phone varchar(60) null,
+  email varchar(255) null,
+  created_at datetime(3) not null default current_timestamp(3),
+  updated_at datetime(3) not null default current_timestamp(3) on update current_timestamp(3),
+  unique key client_customers_name_unique (name)
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create table if not exists client_quotes (
+  id varchar(32) primary key,
+  quote_number varchar(40) null unique,
+  ai_input text null,
+  client_id varchar(64) null,
+  client_name varchar(255) null,
+  entity_code varchar(80) null,
+  tier_code varchar(80) null,
+  event_name varchar(255) null,
+  event_date date null,
+  location varchar(255) null,
+  duration_hours decimal(10,2) null,
+  validity_days int not null default 15,
+  has_vat tinyint(1) not null default 1,
+  status varchar(40) not null default 'draft',
+  sent_at datetime(3) null,
+  subtotal decimal(18,2) not null default 0,
+  travel_fee_total decimal(18,2) not null default 0,
+  overtime_fee_total decimal(18,2) not null default 0,
+  vat_amount decimal(18,2) not null default 0,
+  total_amount decimal(18,2) not null default 0,
+  share_token varchar(32) not null unique,
+  created_by varchar(80) null,
+  created_by_name varchar(255) null,
+  sales_name varchar(255) null,
+  deleted_at datetime(3) null,
+  created_at datetime(3) not null default current_timestamp(3),
+  updated_at datetime(3) not null default current_timestamp(3) on update current_timestamp(3),
+  key client_quotes_client_id_idx (client_id),
+  key client_quotes_status_idx (status),
+  key client_quotes_created_at_idx (created_at),
+  key client_quotes_deleted_at_idx (deleted_at),
+  constraint client_quotes_client_id_fk foreign key (client_id) references client_customers (id) on delete set null
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create table if not exists client_quote_items (
+  id varchar(64) primary key,
+  quote_id varchar(32) not null,
+  service_code varchar(120) null,
+  service_name text null,
+  service_name_raw text null,
+  unit varchar(80) null,
+  quantity decimal(12,2) not null default 1,
+  num_sessions decimal(12,2) not null default 1,
+  unit_price decimal(18,2) not null default 0,
+  total_price decimal(18,2) not null default 0,
+  is_custom tinyint(1) not null default 0,
+  custom_sort_rank int null,
+  is_overridden tinyint(1) not null default 0,
+  original_unit_price decimal(18,2) null,
+  override_reason text null,
+  sort_order int not null default 1,
+  created_at datetime(3) not null default current_timestamp(3),
+  updated_at datetime(3) not null default current_timestamp(3) on update current_timestamp(3),
+  key client_quote_items_quote_id_idx (quote_id),
+  constraint client_quote_items_quote_id_fk foreign key (quote_id) references client_quotes (id) on delete cascade
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create table if not exists client_quote_views (
+  id varchar(64) primary key,
+  quote_id varchar(32) not null,
+  user_agent text null,
+  viewed_at datetime(3) not null default current_timestamp(3),
+  key client_quote_views_quote_id_idx (quote_id),
+  constraint client_quote_views_quote_id_fk foreign key (quote_id) references client_quotes (id) on delete cascade
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create table if not exists client_contract_templates (
+  id varchar(120) primary key,
+  name varchar(255) not null,
+  description text null,
+  title varchar(255) not null default 'HOP DONG CUNG CAP DICH VU',
+  seller_entity_code varchar(80) null,
+  party_role_config json not null,
+  contract_number_pattern varchar(255) null,
+  preamble json not null,
+  service_scope text null,
+  schedule_rows json not null,
+  quote_table_config json not null,
+  payment_config json not null,
+  content_sections json not null,
+  terms_text longtext not null,
+  is_default tinyint(1) not null default 0,
+  is_active tinyint(1) not null default 1,
+  sort_order int not null default 100,
+  created_at datetime(3) not null default current_timestamp(3),
+  updated_at datetime(3) not null default current_timestamp(3) on update current_timestamp(3),
+  key client_contract_templates_active_idx (is_active, sort_order)
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create table if not exists client_contracts (
+  id varchar(64) primary key,
+  quote_id varchar(32) not null unique,
+  quote_number varchar(40) null,
+  contract_number varchar(120) not null,
+  status varchar(40) not null default 'draft',
+  template_id varchar(120) null,
+  title varchar(255) not null default 'HOP DONG CUNG CAP DICH VU',
+  seller_entity_code varchar(80) null,
+  seller_snapshot json not null,
+  customer_snapshot json not null,
+  party_role_config json not null,
+  contract_number_pattern varchar(255) null,
+  preamble json not null,
+  service_scope text null,
+  schedule_rows json not null,
+  quote_table_config json not null,
+  payment_config json not null,
+  content_sections json not null,
+  terms_text longtext not null,
+  quote_snapshot json not null,
+  created_at datetime(3) not null default current_timestamp(3),
+  updated_at datetime(3) not null default current_timestamp(3) on update current_timestamp(3),
+  key client_contracts_quote_id_idx (quote_id),
+  constraint client_contracts_quote_id_fk foreign key (quote_id) references client_quotes (id) on delete cascade
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create table if not exists client_pages (
+  id bigint unsigned primary key auto_increment,
+  category varchar(120) not null,
+  title varchar(255) not null,
+  content longtext not null,
+  created_at datetime(3) not null default current_timestamp(3),
+  updated_at datetime(3) not null default current_timestamp(3) on update current_timestamp(3),
+  unique key client_pages_category_title_unique (category, title)
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
