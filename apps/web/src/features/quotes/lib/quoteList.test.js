@@ -6,16 +6,17 @@ import {
   canOpenContractFromQuote,
   getAutoLoadFilterKey,
   getQuoteClientName,
+  getQuoteCreatorName,
   getQuoteStatusLabel,
   getQuoteStatusTone,
   hasSavedContract,
   getTotalQuotePages,
 } from './quoteList.js'
 
-test('buildAccessibleQuoteFilters scopes sales users to their own quotes', () => {
+test('buildAccessibleQuoteFilters keeps sales filters unchanged', () => {
   assert.deepEqual(
     buildAccessibleQuoteFilters({ status: 'sent' }, { role: 'sales', userId: 'user-1' }),
-    { status: 'sent', created_by: 'user-1' },
+    { status: 'sent' },
   )
 })
 
@@ -43,6 +44,9 @@ test('saved contracts can be opened even when creation would be blocked', () => 
 test('quote list helpers keep current fallback labels and pagination behavior', () => {
   assert.equal(getQuoteClientName({ client: { name: 'Client A' } }), 'Client A')
   assert.equal(getQuoteClientName({}), '-')
+  assert.equal(getQuoteCreatorName({ created_by_name: 'Binh' }, { role: 'admin', name: 'Logged In' }), 'Binh')
+  assert.equal(getQuoteCreatorName({ created_by_name: 'Sales Eventus' }, { role: 'sales', name: 'Logged In' }), 'Sales Eventus')
+  assert.equal(getQuoteCreatorName({}, { name: 'Logged In' }), 'Logged In')
   assert.equal(getQuoteStatusLabel(''), 'draft')
   assert.equal(getQuoteStatusTone('unknown'), 'bg-slate-100 text-slate-700')
   assert.equal(getTotalQuotePages(0, 20), 1)

@@ -1,11 +1,9 @@
 import { useNavigate } from 'react-router-dom'
 import { ScrollText } from 'lucide-react'
-import QuoteBreadcrumb from '../components/QuoteBreadcrumb'
 import QuoteListFilters from '../components/QuoteListFilters'
 import QuoteListTable from '../components/QuoteListTable'
 import QuotePagination from '../components/QuotePagination'
 import { useQuoteList } from '../hooks/useQuoteList'
-import { canViewAllQuotes } from '../lib/quoteAuth'
 import { canOpenContractFromQuote } from '../lib/quoteList'
 
 export default function QuoteListPage() {
@@ -23,6 +21,7 @@ export default function QuoteListPage() {
     reload,
     userContext,
   } = useQuoteList()
+  const displayName = userContext.name || 'Eventus'
 
   function openContractPage(quote) {
     if (!canOpenContractFromQuote(quote)) return
@@ -33,11 +32,8 @@ export default function QuoteListPage() {
     <div className="mx-auto max-w-[1500px] space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <QuoteBreadcrumb />
+          <p className="text-[13px] font-semibold text-slate-500">Xin chào, {displayName}</p>
           <h1 className="mt-2 text-[28px] font-semibold tracking-tight text-slate-950">Báo giá</h1>
-          <p className="mt-1 text-[13px] text-slate-500">
-            {canViewAllQuotes(userContext.role) ? 'Đang xem toàn bộ báo giá.' : 'Sales chỉ xem báo giá của chính mình khi có user id trong session.'}
-          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button

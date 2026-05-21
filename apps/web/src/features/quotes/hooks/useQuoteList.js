@@ -29,7 +29,7 @@ export function useQuoteList({ pageSize = QUOTE_LIST_PAGE_SIZE } = {}) {
     setError('')
 
     try {
-      const effectiveFilters = buildAccessibleQuoteFilters(requestedFilters, userContext)
+      const effectiveFilters = buildAccessibleQuoteFilters(requestedFilters)
       const result = await listQuotes({
         filters: effectiveFilters,
         page: requestedPage,
@@ -49,7 +49,7 @@ export function useQuoteList({ pageSize = QUOTE_LIST_PAGE_SIZE } = {}) {
     } finally {
       if (requestId === requestIdRef.current) setLoading(false)
     }
-  }, [pageSize, userContext])
+  }, [pageSize])
 
   useEffect(() => {
     fetchQuotes({ requestedPage: page, requestedFilters: filters })

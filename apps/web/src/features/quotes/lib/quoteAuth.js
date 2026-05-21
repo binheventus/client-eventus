@@ -52,10 +52,6 @@ export function getQuoteActorPayload(userContext = getQuoteUserContext()) {
   }
 }
 
-export function canViewAllQuotes(role) {
-  return ['leader', 'admin'].includes(String(role || '').toLowerCase())
-}
-
 export function canUseQuoteTrash(role) {
   return ['leader', 'admin'].includes(String(role || '').toLowerCase())
 }

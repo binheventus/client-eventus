@@ -1,5 +1,3 @@
-import { canViewAllQuotes } from './quoteAuth.js'
-
 export const QUOTE_LIST_PAGE_SIZE = 20
 
 export const DEFAULT_QUOTE_LIST_FILTERS = {
@@ -52,6 +50,11 @@ export function getQuoteClientName(quote = {}) {
   return quote.client_name || quote.customer_name || quote.client?.name || '-'
 }
 
+export function getQuoteCreatorName(quote = {}, userContext = {}) {
+  const currentUserName = userContext.name
+  return quote.created_by_name || quote.sales_name || currentUserName || quote.created_by || '-'
+}
+
 export function getQuoteStatusLabel(status) {
   return status || 'draft'
 }
@@ -76,14 +79,8 @@ export function getTotalQuotePages(count, pageSize = QUOTE_LIST_PAGE_SIZE) {
   return Math.max(1, Math.ceil((Number(count) || 0) / Math.max(Number(pageSize) || 1, 1)))
 }
 
-export function buildAccessibleQuoteFilters(filters = {}, userContext = {}) {
-  const effectiveFilters = { ...filters }
-
-  if (!canViewAllQuotes(userContext.role) && userContext.userId) {
-    effectiveFilters.created_by = userContext.userId
-  }
-
-  return effectiveFilters
+export function buildAccessibleQuoteFilters(filters = {}) {
+  return { ...filters }
 }
 
 export function getAutoLoadFilterKey(filters = {}) {
