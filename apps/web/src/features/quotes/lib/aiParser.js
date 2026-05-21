@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import { redirectToLoginIfAuthRequired } from './authRedirect'
 
 const parseCache = new Map()
 
@@ -31,7 +32,10 @@ export async function parseQuoteInput(inputText, context = {}, { force = false }
   })
 
   const payload = await response.json().catch(() => ({}))
-  if (!response.ok) throw new Error(payload?.error || 'Không parse được input báo giá.')
+  if (!response.ok) {
+    redirectToLoginIfAuthRequired(response, payload)
+    throw new Error(payload?.error || 'Không parse được input báo giá.')
+  }
 
   parseCache.set(cacheKey, payload)
   return payload

@@ -64,8 +64,10 @@ test('highest recap edit bracket supports the previous 7-8 cam service code', ()
 test('handler falls back to deterministic parser when AI keys are missing', async () => {
   const originalOpenAiKey = process.env.OPENAI_API_KEY
   const originalAnthropicKey = process.env.ANTHROPIC_API_KEY
+  const originalAuthDisabled = process.env.EVENTUS_AUTH_DISABLED
   delete process.env.OPENAI_API_KEY
   delete process.env.ANTHROPIC_API_KEY
+  process.env.EVENTUS_AUTH_DISABLED = '1'
 
   try {
     const response = {
@@ -102,5 +104,8 @@ test('handler falls back to deterministic parser when AI keys are missing', asyn
 
     if (originalAnthropicKey === undefined) delete process.env.ANTHROPIC_API_KEY
     else process.env.ANTHROPIC_API_KEY = originalAnthropicKey
+
+    if (originalAuthDisabled === undefined) delete process.env.EVENTUS_AUTH_DISABLED
+    else process.env.EVENTUS_AUTH_DISABLED = originalAuthDisabled
   }
 })

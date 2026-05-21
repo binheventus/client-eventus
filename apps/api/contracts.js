@@ -10,6 +10,7 @@ import {
   updateRow,
   withTransaction,
 } from './lib/mysql.js'
+import { requireEventusAuth } from './lib/eventus-auth.js'
 
 const PROTECTED_CONTRACT_TEMPLATE_IDS = new Set(['system-mediamonster-service-contract'])
 const JSON_TEMPLATE_COLUMNS = [
@@ -70,6 +71,11 @@ function getRequestBody(req) {
 function getQueryValue(value, fallback = '') {
   if (Array.isArray(value)) return value[0] ?? fallback
   return value ?? fallback
+}
+
+function isPublicContractRequest(req) {
+  if (req.method !== 'GET') return false
+  return getQueryValue(req.query?.resource, 'templates') === 'public_contract'
 }
 
 function makeId(prefix = '') {
@@ -405,6 +411,8 @@ async function saveContract(contract = {}) {
 
 export default async function handler(req, res) {
   try {
+    if (!isPublicContractRequest(req) && !await requireEventusAuth(req, res)) return
+
     if (req.method === 'GET') {
       const resource = getQueryValue(req.query?.resource, 'templates')
       if (resource === 'templates') {

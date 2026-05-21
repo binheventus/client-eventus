@@ -1,3 +1,5 @@
+import { requireEventusAuth } from './lib/eventus-auth.js'
+
 const DEFAULT_OPENAI_MODEL = 'gpt-5.4'
 const DEFAULT_ANTHROPIC_MODEL = 'claude-sonnet-4-6'
 const DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com'
@@ -706,6 +708,8 @@ export default async function handler(req, res) {
     res.setHeader('Allow', 'POST')
     return res.status(405).json({ error: 'Method not allowed' })
   }
+
+  if (!await requireEventusAuth(req, res)) return
 
   const inputText = String(req.body?.input_text || '').trim()
   if (!inputText) return res.status(400).json({ error: 'Thiếu input_text.' })

@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import { redirectToLoginIfAuthRequired } from '../lib/authRedirect'
 import { buildQuoteApiPath } from '../lib/quoteQueryFilters'
 
 const PRIVILEGED_ROLES = new Set(['leader', 'admin'])
@@ -23,6 +24,7 @@ async function requestQuoteApi(path = '', { method = 'GET', body } = {}) {
 
   const payload = await response.json().catch(() => ({}))
   if (!response.ok) {
+    redirectToLoginIfAuthRequired(response, payload)
     const error = new Error(payload?.error || 'Không gọi được Quote API.')
     error.status = response.status
     error.code = payload?.code

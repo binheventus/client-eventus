@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import { redirectToLoginIfAuthRequired } from '../lib/authRedirect'
 import {
   buildInitialContractDraft,
   buildQuoteSnapshot,
@@ -25,6 +26,7 @@ async function requestContractApi(path = '', { method = 'GET', body } = {}) {
 
   const payload = await response.json().catch(() => ({}))
   if (!response.ok) {
+    redirectToLoginIfAuthRequired(response, payload)
     const error = new Error(payload?.error || 'Không gọi được Contract API.')
     error.status = response.status
     error.code = payload?.code

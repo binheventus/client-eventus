@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { NestFactory } from '@nestjs/core'
+import { protectQuotePage } from './lib/eventus-auth.js'
 import { ApiModule } from './nest-app.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -73,6 +74,7 @@ function registerStaticFallback(server) {
 const app = await NestFactory.create(ApiModule, { logger: ['error', 'warn'] })
 app.enableCors()
 const server = app.getHttpAdapter().getInstance()
+server.use(protectQuotePage)
 registerStaticFallback(server)
 await app.init()
 await app.listen(port, host)

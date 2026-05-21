@@ -11,6 +11,7 @@ import {
   updateRow,
   withTransaction,
 } from './lib/mysql.js'
+import { requireEventusAuth } from './lib/eventus-auth.js'
 
 const SHARE_TOKEN_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 const SHARE_TOKEN_LENGTH = 7
@@ -95,15 +96,22 @@ function sendError(res, error, fallback = 'Khong xu ly duoc bao gia.') {
 }
 
 function getRequestBody(req) {
+  if (req.__eventusRequestBody) return req.__eventusRequestBody
+
+  let body = {}
   if (!req.body) return {}
   if (typeof req.body === 'string') {
     try {
-      return JSON.parse(req.body)
+      body = JSON.parse(req.body)
     } catch {
-      return {}
+      body = {}
     }
+  } else {
+    body = req.body
   }
-  return req.body
+
+  req.__eventusRequestBody = body
+  return body
 }
 
 function getQueryValue(value, fallback = '') {
@@ -114,6 +122,35 @@ function getQueryValue(value, fallback = '') {
 function getPositiveInteger(value, fallback) {
   const number = Number(getQueryValue(value))
   return Number.isFinite(number) && number > 0 ? Math.floor(number) : fallback
+}
+
+function isPublicQuoteRequest(req) {
+  if (req.method === 'GET') {
+    return Boolean(getQueryValue(req.query?.share_token || req.query?.token, ''))
+  }
+
+  if (req.method === 'POST') {
+    const body = getRequestBody(req)
+    return body?.action === 'view'
+  }
+
+  return false
+}
+
+function getAuthenticatedActorPayload(req) {
+  const user = req.eventusUser
+  if (!user) return {}
+
+  const userId = user.id || user.user_id || user.uuid
+  const userName = user.name || user.full_name || user.email || 'Eventus'
+  if (!userId && !userName) return {}
+
+  return {
+    ...(userId ? { user_id: String(userId), created_by: String(userId) } : {}),
+    user_name: userName,
+    created_by_name: userName,
+    sales_name: userName,
+  }
 }
 
 function normalizeCode(value) {
@@ -533,6 +570,8 @@ async function logQuoteView(quoteId, userAgent) {
 
 export default async function handler(req, res) {
   try {
+    if (!isPublicQuoteRequest(req) && !await requireEventusAuth(req, res)) return
+
     if (req.method === 'GET') {
       const resource = getQueryValue(req.query?.resource, '')
       if (resource === 'clients') return res.status(200).json({ clients: await listClients() })
@@ -562,7 +601,7 @@ export default async function handler(req, res) {
         return res.status(200).json(await logQuoteView(body.quote_id, req.headers?.['user-agent']))
       }
 
-      return res.status(201).json({ quote: await createQuote(body) })
+      return res.status(201).json({ quote: await createQuote({ ...body, ...getAuthenticatedActorPayload(req) }) })
     }
 
     if (req.method === 'PATCH') {
