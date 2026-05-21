@@ -7,6 +7,9 @@ export default function ContractDocumentDownloads({
   previewContract,
   disabled = false,
   showShareButton = false,
+  previewSavedByName = '',
+  className = '',
+  buttonClassName = '',
   onBeforePreview,
   buttonLabel = 'Preview',
   loadingLabel = 'Đang lưu...',
@@ -40,18 +43,25 @@ export default function ContractDocumentDownloads({
 
   return (
     <>
-      <div className="flex flex-wrap gap-2">
+      <div className={`flex flex-wrap gap-2 ${className}`}>
         <button
           type="button"
           disabled={buttonDisabled}
           onClick={openPreview}
-          className={`${buttonClass} ${buttonDisabled ? disabledClass : 'bg-[#f8981d] text-white hover:bg-orange-500'}`}
+          className={`${buttonClass} ${buttonClassName} ${buttonDisabled ? disabledClass : 'bg-[#f8981d] text-white hover:bg-orange-500'}`}
         >
           <Save className="h-4 w-4" />
           {previewing ? loadingLabel : buttonLabel}
         </button>
       </div>
-      {previewOpen && previewModalContract ? <ContractPreviewModal contract={previewModalContract} showShareButton={showShareButton || Boolean(contract)} onClose={closePreview} /> : null}
+      {previewOpen && previewModalContract ? (
+        <ContractPreviewModal
+          contract={previewModalContract}
+          showShareButton={showShareButton || Boolean(contract)}
+          savedByName={previewSavedByName}
+          onClose={closePreview}
+        />
+      ) : null}
     </>
   )
 }

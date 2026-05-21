@@ -27,6 +27,19 @@ function formatContractDate(value) {
   return new Intl.DateTimeFormat('vi-VN').format(date)
 }
 
+function formatSavedContractTime(value) {
+  const date = value ? new Date(value) : null
+  if (!date || Number.isNaN(date.getTime())) return ''
+  return new Intl.DateTimeFormat('vi-VN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour12: false,
+  }).format(date).replace(',', '')
+}
+
 function getPartyRole(contract = {}, partyKey = 'party_a') {
   return contract.party_role_config?.[partyKey] || (partyKey === 'party_a' ? 'customer' : 'seller')
 }
@@ -98,11 +111,13 @@ function getContractPreviewShareUrl(contract = {}) {
   return `${window.location.origin}/c/${shareToken}`
 }
 
-export function PreviewDownloadActions({ contract = {}, showShareButton = false }) {
+export function PreviewDownloadActions({ contract = {}, showShareButton = false, savedByName = '' }) {
   const [copied, setCopied] = useState(false)
   const copiedTimerRef = useRef(null)
   const shareUrl = useMemo(() => getContractPreviewShareUrl(contract), [contract])
   const actionClass = 'inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl px-5 py-3 text-[13px] font-bold transition'
+  const savedAtText = formatSavedContractTime(contract.updated_at || contract.created_at)
+  const showSavedMeta = Boolean(contract.id && savedAtText && savedByName)
 
   useEffect(() => () => {
     if (copiedTimerRef.current) window.clearTimeout(copiedTimerRef.current)
@@ -121,6 +136,11 @@ export function PreviewDownloadActions({ contract = {}, showShareButton = false 
 
   return (
     <div className="mx-auto max-w-4xl rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      {showSavedMeta ? (
+        <p className="mb-3 text-center text-[12px] text-slate-400">
+          Đã lưu lúc {savedAtText} bởi {savedByName}
+        </p>
+      ) : null}
       <div className={`grid gap-3 ${showShareButton && shareUrl ? 'lg:grid-cols-3' : 'sm:grid-cols-2'}`}>
         {showShareButton && shareUrl ? (
           <button
@@ -290,7 +310,7 @@ export function ContractPreviewDocument({ contract = {} }) {
   )
 }
 
-export default function ContractPreviewModal({ contract, title = 'Preview', showShareButton = false, onClose }) {
+export default function ContractPreviewModal({ contract, title = 'Preview', showShareButton = false, savedByName = '', onClose }) {
   useEscapeToClose(onClose)
 
   return (
@@ -313,7 +333,7 @@ export default function ContractPreviewModal({ contract, title = 'Preview', show
         <div className="max-h-[calc(90vh-49px)] overflow-y-auto px-5 py-3">
           <ContractPreviewDocument contract={contract} />
           <div className="mt-4">
-            <PreviewDownloadActions contract={contract} showShareButton={showShareButton} />
+            <PreviewDownloadActions contract={contract} showShareButton={showShareButton} savedByName={savedByName} />
           </div>
         </div>
       </section>

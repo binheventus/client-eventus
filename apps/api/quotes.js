@@ -304,7 +304,14 @@ async function insertQuoteItems(connection, quoteId, items = []) {
 }
 
 async function getQuoteById(id) {
-  const rows = await query(`select * from ${tables.quotes} where id = ? limit 1`, [id])
+  const rows = await query(
+    `select q.*, c.id as contract_id, case when c.id is null then 0 else 1 end as has_saved_contract
+     from ${tables.quotes} q
+     left join ${tables.contracts} c on c.quote_id = q.id
+     where q.id = ?
+     limit 1`,
+    [id],
+  )
   const quote = rows?.[0]
   if (!quote) {
     const error = new Error('Khong tim thay bao gia.')

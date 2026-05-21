@@ -27,6 +27,7 @@ import {
   sectionsToTermsText,
   termsTextToSections,
 } from '../lib/contractDefaults'
+import { getQuoteActorPayload, getQuoteUserContext } from '../lib/quoteAuth'
 import ContractDocumentDownloads from './ContractDocumentDownloads'
 import ContractPaymentSummary from './ContractPaymentSummary'
 import QuoteBreadcrumb from './QuoteBreadcrumb'
@@ -109,6 +110,19 @@ function formatDate(value) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return new Intl.DateTimeFormat('vi-VN').format(date)
+}
+
+function formatSavedContractTime(value) {
+  const date = value ? new Date(value) : null
+  if (!date || Number.isNaN(date.getTime())) return ''
+  return new Intl.DateTimeFormat('vi-VN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour12: false,
+  }).format(date).replace(',', '')
 }
 
 function todayInputDate() {
@@ -495,6 +509,7 @@ export default function ContractEditorModal({
   useEscapeToClose(onClose, open)
 
   const { legalEntities } = useLegalEntities()
+  const userContext = useMemo(() => getQuoteUserContext(), [])
   const [templates, setTemplates] = useState([])
   const [draft, setDraft] = useState(null)
   const [savedContract, setSavedContract] = useState(null)
@@ -515,6 +530,11 @@ export default function ContractEditorModal({
 
   const quoteIsReady = canCreateContractFromQuote(quote)
   const quoteSnapshot = useMemo(() => buildQuoteSnapshot(quote || {}), [quote])
+  const previewSavedByName = useMemo(() => getQuoteActorPayload(userContext).created_by_name, [userContext])
+  const savedContractTimeText = formatSavedContractTime(savedContract?.updated_at || savedContract?.created_at)
+  const savedContractMetaText = savedContract && savedContractTimeText
+    ? `Đã lưu lúc ${savedContractTimeText} bởi ${previewSavedByName}`
+    : 'Bấm Lưu & Preview để cập nhật bản gửi khách trước khi lấy link hoặc tải file.'
 
   useEffect(() => {
     if (!open || !quote?.id) return
@@ -872,6 +892,41 @@ export default function ContractEditorModal({
   }
   const paymentConfig = draft?.payment_config || {}
 
+  function renderActionPanel() {
+    return (
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm xl:shadow-none">
+        <p className="text-[12px] leading-5 text-slate-400">
+          {savedContractMetaText}
+        </p>
+        <div className="mt-4 space-y-2">
+          <ContractDocumentDownloads
+            contract={downloadableContract}
+            previewContract={previewContract}
+            disabled={saving || loading || deleting || !draft || (!quoteIsReady && !savedContract)}
+            showShareButton
+            previewSavedByName={previewSavedByName}
+            className="w-full"
+            buttonClassName="w-full justify-center"
+            onBeforePreview={handleSave}
+            buttonLabel="Lưu & Preview"
+            loadingLabel="Đang lưu..."
+          />
+          {savedContract ? (
+            <button
+              type="button"
+              onClick={() => setDeleteConfirmOpen(true)}
+              disabled={saving || loading || deleting}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-4 py-2.5 text-[12px] font-semibold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Xoá hợp đồng
+            </button>
+          ) : null}
+        </div>
+      </section>
+    )
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45">
       <section className="flex h-screen max-h-screen w-full flex-col overflow-hidden bg-slate-50 shadow-2xl">
@@ -900,8 +955,7 @@ export default function ContractEditorModal({
           <aside className="hidden overflow-y-auto border-r border-slate-200 bg-white p-4 xl:block">
             <div className="sticky top-0 space-y-4">
               <section className="rounded-2xl border border-slate-200 p-4">
-                <h3 className="text-[14px] font-semibold text-slate-900">Tổng quan</h3>
-                <dl className="mt-3">
+                <dl>
                   <SummaryRow label="Hợp đồng" value={draft?.contract_number || 'Tạo hợp đồng'} strong />
                   <SummaryRow label="Báo giá" value={quote?.quote_number || quote?.id} strong />
                   <SummaryRow label="Sự kiện" value={quote?.event_name} />
@@ -913,10 +967,9 @@ export default function ContractEditorModal({
               </section>
 
               <section className="rounded-2xl border border-slate-200 p-4">
-                <h3 className="text-[14px] font-semibold text-slate-900">Trạng thái</h3>
-                <div className="mt-3 space-y-2 text-[13px]">
+                <div className="space-y-2 text-[13px]">
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-slate-500">Hợp đồng</span>
+                    <span className="text-slate-500">Trạng thái</span>
                     <span className="font-semibold text-slate-900">{savedContract ? 'Đã lưu' : 'Chưa lưu'}</span>
                   </div>
                   <div className="flex items-center justify-between gap-3">
@@ -929,6 +982,8 @@ export default function ContractEditorModal({
                   </div>
                 </div>
               </section>
+
+              {renderActionPanel()}
             </div>
           </aside>
 
@@ -953,6 +1008,7 @@ export default function ContractEditorModal({
                         <SummaryRow label="Tổng tiền" value={`${formatCurrency(quoteSnapshot.total_amount)}đ`} strong />
                       </div>
                     </div>
+                    {renderActionPanel()}
                   </section>
 
                   <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -1145,35 +1201,6 @@ export default function ContractEditorModal({
           </main>
         </div>
 
-        <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-5 py-3">
-          <div className="flex flex-wrap items-center gap-3">
-            <p className="text-[12px] text-slate-500">
-              Bấm Lưu & Preview để cập nhật bản gửi khách trước khi lấy link hoặc tải file.
-            </p>
-            {savedContract ? (
-              <button
-                type="button"
-                onClick={() => setDeleteConfirmOpen(true)}
-                disabled={saving || loading || deleting}
-                className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-white px-3 py-2 text-[12px] font-semibold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                Xoá hợp đồng
-              </button>
-            ) : null}
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <ContractDocumentDownloads
-              contract={downloadableContract}
-              previewContract={previewContract}
-              disabled={saving || loading || deleting || !draft || (!quoteIsReady && !savedContract)}
-              showShareButton
-              onBeforePreview={handleSave}
-              buttonLabel="Lưu & Preview"
-              loadingLabel="Đang lưu..."
-            />
-          </div>
-        </footer>
       </section>
       {deleteConfirmOpen ? (
         <DeleteContractConfirmModal

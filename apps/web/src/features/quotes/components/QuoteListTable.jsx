@@ -1,9 +1,10 @@
-import { Eye, FileSignature } from 'lucide-react'
+import { FileSignature, Trash2 } from 'lucide-react'
 import {
   canOpenContractFromQuote,
   formatQuoteCurrency,
   formatQuoteDate,
   getQuoteClientName,
+  getQuoteCreatorName,
   hasSavedContract,
 } from '../lib/quoteList'
 import QuoteStatusBadge from './QuoteStatusBadge'
@@ -30,7 +31,7 @@ function EmptyRow({ children }) {
   )
 }
 
-function QuoteActions({ quote, onOpenQuote, onOpenContract }) {
+function QuoteActions({ quote, onOpenContract, onDeleteQuote }) {
   const canOpenContract = canOpenContractFromQuote(quote)
   const savedContract = hasSavedContract(quote)
   const contractActionLabel = savedContract ? 'Xem hợp đồng' : 'Tạo hợp đồng'
@@ -44,15 +45,6 @@ function QuoteActions({ quote, onOpenQuote, onOpenContract }) {
     <div className="flex justify-end">
       <div className="inline-flex items-center gap-2">
         <ActionButton
-          onClick={() => onOpenQuote(quote)}
-          title="Xem báo giá"
-          aria-label="Xem báo giá"
-          className="bg-blue-600 hover:bg-blue-700 focus-visible:ring-blue-200"
-        >
-          <Eye className="h-3.5 w-3.5" />
-          Xem báo giá
-        </ActionButton>
-        <ActionButton
           disabled={!canOpenContract}
           onClick={() => onOpenContract(quote)}
           aria-label={contractActionTitle}
@@ -62,36 +54,78 @@ function QuoteActions({ quote, onOpenQuote, onOpenContract }) {
           <FileSignature className="h-3.5 w-3.5" />
           {contractActionLabel}
         </ActionButton>
+        <button
+          type="button"
+          onClick={() => onDeleteQuote(quote)}
+          title="Xóa báo giá"
+          aria-label={`Xóa báo giá ${quote.quote_number || ''}`.trim()}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-100 bg-white text-red-600 shadow-sm transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
       </div>
     </div>
   )
 }
 
-function QuoteRow({ quote, onOpenQuote, onOpenContract }) {
+function QuoteOpenButton({ quote, children, className = '', align = 'left', label, onOpenQuote }) {
+  const quoteNumber = quote.quote_number || 'báo giá'
+  const accessibleLabel = label || `Xem báo giá ${quoteNumber}`
+
+  return (
+    <button
+      type="button"
+      onClick={() => onOpenQuote(quote)}
+      title={accessibleLabel}
+      aria-label={accessibleLabel}
+      className={`inline-flex max-w-full items-center ${align === 'right' ? 'justify-end text-right' : 'justify-start text-left'} rounded-md text-[13px] font-semibold text-blue-700 transition hover:text-blue-800 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-200 ${className}`}
+    >
+      {children}
+    </button>
+  )
+}
+
+function QuoteRow({ quote, userContext, onOpenQuote, onOpenContract, onDeleteQuote }) {
+  const formattedTotal = `${formatQuoteCurrency(quote.total_amount)}đ`
+
   return (
     <tr className="hover:bg-orange-50/40">
-      <td className="px-4 py-3 font-semibold text-slate-900">{quote.quote_number || '-'}</td>
+      <td className="px-4 py-3">
+        <QuoteOpenButton quote={quote} onOpenQuote={onOpenQuote}>
+          <span className="truncate">{quote.quote_number || '-'}</span>
+        </QuoteOpenButton>
+      </td>
       <td className="px-4 py-3 text-slate-700">{getQuoteClientName(quote)}</td>
       <td className="px-4 py-3 text-slate-700">{quote.event_name || '-'}</td>
-      <td className="px-4 py-3 text-right font-semibold text-slate-900">{formatQuoteCurrency(quote.total_amount)}đ</td>
+      <td className="px-4 py-3 text-right">
+        <QuoteOpenButton
+          quote={quote}
+          align="right"
+          label={`Xem báo giá ${quote.quote_number || ''} từ tổng tiền ${formattedTotal}`.trim()}
+          onOpenQuote={onOpenQuote}
+          className="w-full tabular-nums"
+        >
+          {formattedTotal}
+        </QuoteOpenButton>
+      </td>
       <td className="px-4 py-3"><QuoteStatusBadge status={quote.status} /></td>
-      <td className="px-4 py-3 text-slate-500">{quote.created_by_name || quote.sales_name || quote.created_by || '-'}</td>
+      <td className="px-4 py-3 text-slate-500">{getQuoteCreatorName(quote, userContext)}</td>
       <td className="px-4 py-3 text-slate-500">{formatQuoteDate(quote.created_at)}</td>
       <td className="px-4 py-3 whitespace-nowrap">
         <QuoteActions
           quote={quote}
-          onOpenQuote={onOpenQuote}
           onOpenContract={onOpenContract}
+          onDeleteQuote={onDeleteQuote}
         />
       </td>
     </tr>
   )
 }
 
-export default function QuoteListTable({ quotes, loading, onOpenQuote, onOpenContract }) {
+export default function QuoteListTable({ quotes, loading, userContext, onOpenQuote, onOpenContract, onDeleteQuote }) {
   return (
     <div className="overflow-x-auto">
-      <table className="min-w-[1100px] w-full text-left text-[13px]">
+      <table className="min-w-[980px] w-full text-left text-[13px]">
         <thead className="bg-slate-50 text-[11px] uppercase tracking-[0.12em] text-slate-500">
           <tr>
             <th className="px-4 py-3">Mã BG</th>
@@ -99,7 +133,7 @@ export default function QuoteListTable({ quotes, loading, onOpenQuote, onOpenCon
             <th className="px-4 py-3">Tên sự kiện</th>
             <th className="px-4 py-3 text-right">Tổng tiền</th>
             <th className="px-4 py-3">Trạng thái</th>
-            <th className="px-4 py-3">Sales tạo</th>
+            <th className="px-4 py-3">Người tạo</th>
             <th className="px-4 py-3">Ngày tạo</th>
             <th className="px-4 py-3 text-right">Thao tác</th>
           </tr>
@@ -111,8 +145,10 @@ export default function QuoteListTable({ quotes, loading, onOpenQuote, onOpenCon
             <QuoteRow
               key={quote.id}
               quote={quote}
+              userContext={userContext}
               onOpenQuote={onOpenQuote}
               onOpenContract={onOpenContract}
+              onDeleteQuote={onDeleteQuote}
             />
           )) : (
             <EmptyRow>Chưa có báo giá.</EmptyRow>

@@ -10,6 +10,7 @@ import {
 } from '../hooks/useQuotes'
 import { useLegalEntities } from '../hooks/useLegalEntities'
 import { canCreateContractFromQuote } from '../lib/contractDefaults'
+import { canOpenContractFromQuote, hasSavedContract } from '../lib/quoteList'
 import { normalizeQuoteValidityDays } from '../lib/quoteValidity'
 
 const QuotePDFDownloadButton = lazy(() => import('../components/QuotePDFDownloadButton'))
@@ -17,7 +18,7 @@ const ContractEditorModal = lazy(() => import('../components/ContractEditorModal
 
 const DETAIL_ACTION_BUTTON_BASE = 'inline-flex h-10 items-center justify-center gap-2 rounded-xl px-4 text-center text-[13px] font-semibold shadow-sm transition focus-visible:outline-none focus-visible:ring-2 disabled:cursor-not-allowed'
 const DETAIL_SECONDARY_ACTION_BUTTON = `${DETAIL_ACTION_BUTTON_BASE} w-[156px] border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 focus-visible:ring-slate-200`
-const DETAIL_CONTRACT_ACTION_BUTTON = `${DETAIL_ACTION_BUTTON_BASE} w-[156px] border border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100 focus-visible:ring-orange-200 disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-300 disabled:shadow-none`
+const DETAIL_CONTRACT_ACTION_BUTTON = `${DETAIL_ACTION_BUTTON_BASE} min-w-[156px] whitespace-nowrap border border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100 focus-visible:ring-orange-200 disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-300 disabled:shadow-none`
 const DETAIL_PRIMARY_ACTION_BUTTON = `${DETAIL_ACTION_BUTTON_BASE} min-w-[184px] whitespace-nowrap bg-[#f8981d] text-white hover:bg-orange-500 focus-visible:ring-orange-200`
 
 function formatDateTime(value) {
@@ -60,6 +61,12 @@ export default function QuoteDetailPage() {
   const contractRequested = useMemo(() => new URLSearchParams(location.search).get('contract') === '1', [location.search])
   const expired = validUntil ? validUntil.getTime() < Date.now() : false
   const canCreateContract = canCreateContractFromQuote(quote)
+  const canOpenContract = canOpenContractFromQuote(quote)
+  const hasContract = hasSavedContract(quote)
+  const contractActionLabel = hasContract ? 'Xem hợp đồng đã tạo' : 'Tạo hợp đồng'
+  const contractActionTitle = hasContract
+    ? 'Xem hoặc sửa hợp đồng đã tạo'
+    : canCreateContract ? 'Tạo hoặc sửa hợp đồng' : 'Báo giá nháp chưa tạo được hợp đồng'
 
   async function loadDetail() {
     setLoading(true)
@@ -86,11 +93,11 @@ export default function QuoteDetailPage() {
 
   useEffect(() => {
     if (!quote) return
-    setShowContractModal(contractRequested && canCreateContractFromQuote(quote))
+    setShowContractModal(contractRequested && canOpenContractFromQuote(quote))
   }, [contractRequested, quote])
 
   function openContractModal() {
-    if (!canCreateContract) return
+    if (!canOpenContract) return
     const params = new URLSearchParams(location.search)
     params.set('contract', '1')
     navigate(`/quotes/${id}?${params.toString()}`)
@@ -129,13 +136,13 @@ export default function QuoteDetailPage() {
           </button>
           <button
             type="button"
-            disabled={!canCreateContract}
+            disabled={!canOpenContract}
             onClick={openContractModal}
-            title={canCreateContract ? 'Tạo hoặc sửa hợp đồng' : 'Báo giá nháp chưa tạo được hợp đồng'}
+            title={contractActionTitle}
             className={DETAIL_CONTRACT_ACTION_BUTTON}
           >
             <FileSignature className="h-4 w-4" />
-            Tạo hợp đồng
+            {contractActionLabel}
           </button>
           <button
             type="button"
