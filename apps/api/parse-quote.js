@@ -717,7 +717,7 @@ export default async function handler(req, res) {
     return res.status(200).json(deterministicParseQuoteInput(
       inputText,
       context,
-      'Thiếu OPENAI_API_KEY hoặc ANTHROPIC_API_KEY trên môi trường backend/Vercel.'
+      'Thiếu OPENAI_API_KEY hoặc ANTHROPIC_API_KEY trên môi trường backend.'
     ))
   }
 

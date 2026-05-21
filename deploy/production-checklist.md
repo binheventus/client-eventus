@@ -1,5 +1,7 @@
 # Production Deploy Checklist
 
+Production hiện chạy trên VPS bằng Nginx + PM2. Project này không deploy qua Vercel; nếu thấy file/cấu hình Vercel cũ thì không dùng cho production.
+
 Run these commands once on the production server after pulling the latest code.
 
 ```bash

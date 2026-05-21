@@ -48,6 +48,7 @@ NestJS server phục vụ cả API `/api/quotes`, `/api/contracts`, `/api/client
 
 ## Deploy production
 
+Production hiện chạy trên VPS bằng Nginx + PM2, không dùng Vercel.
 Checklist deploy và cấu hình Nginx nằm trong `deploy/production-checklist.md`.
 File Nginx mẫu để bật cache asset + gzip/brotli nằm tại `deploy/nginx-client-eventus.conf`.
 

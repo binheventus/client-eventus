@@ -7,4 +7,4 @@ apps/web/dist/
 .env.*.local
 *service-account*.json
 *credentials*.json
-.vercel
+.vercel/
