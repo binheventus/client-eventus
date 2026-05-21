@@ -31,6 +31,21 @@ const JSON_CONTRACT_COLUMNS = [
   'content_sections',
   'quote_snapshot',
 ]
+const CUSTOMER_COLUMNS = [
+  'customer_code',
+  'company_name',
+  'tax_code',
+  'address',
+  'representative',
+  'position',
+  'authorization_number',
+  'authorization_date',
+  'phone_number',
+  'contact_name',
+  'email',
+  'entry_date',
+  'note',
+]
 
 function sendError(res, error, fallback = 'Khong xu ly duoc hop dong.') {
   const status = error?.statusCode || error?.status || 500
@@ -133,6 +148,94 @@ function cleanTemplatePayload(template = {}) {
     is_active: template.is_active !== false,
     sort_order: Number(template.sort_order || 100),
   }
+}
+
+function normalizeCustomerRow(row = {}) {
+  if (!row) return row
+  return {
+    id: row.id,
+    customer_code: row.customer_code || '',
+    company_name: row.company_name || '',
+    tax_code: row.tax_code || '',
+    address: row.address || '',
+    representative: row.representative || '',
+    position: row.position || '',
+    authorization_number: row.authorization_number || '',
+    authorization_date: row.authorization_date || '',
+    phone_number: row.phone_number || '',
+    contact_name: row.contact_name || '',
+    email: row.email || '',
+    entry_date: row.entry_date || '',
+    note: row.note || '',
+  }
+}
+
+function cleanCustomerPayload(customer = {}) {
+  return CUSTOMER_COLUMNS.reduce((payload, column) => {
+    const value = customer[column]
+    payload[column] = column === 'customer_code'
+      ? String(value || '').trim()
+      : emptyToNull(typeof value === 'string' ? value.trim() : value)
+    return payload
+  }, {})
+}
+
+async function listCustomers(search = '') {
+  const value = String(search || '').trim()
+  const params = []
+  let whereSql = ''
+
+  if (value) {
+    whereSql = `where customer_code like ? or company_name like ? or tax_code like ?`
+    params.push(`%${value}%`, `%${value}%`, `%${value}%`)
+  }
+
+  const rows = await query(
+    `select id, ${CUSTOMER_COLUMNS.join(', ')}
+     from ${tables.customers}
+     ${whereSql}
+     order by updated_at desc, id desc
+     limit 50`,
+    params,
+  )
+  return rows.map(normalizeCustomerRow)
+}
+
+async function getCustomerByCode(customerCode = '') {
+  const code = String(customerCode || '').trim()
+  if (!code) return null
+
+  const rows = await query(
+    `select id, ${CUSTOMER_COLUMNS.join(', ')}
+     from ${tables.customers}
+     where customer_code = ?
+     limit 1`,
+    [code],
+  )
+  return rows?.[0] ? normalizeCustomerRow(rows[0]) : null
+}
+
+async function createCustomer(customer = {}) {
+  const payload = cleanCustomerPayload(customer)
+  if (!payload.customer_code) {
+    const error = new Error('Ma khach hang khong duoc de trong.')
+    error.statusCode = 400
+    throw error
+  }
+
+  const existing = await getCustomerByCode(payload.customer_code)
+  if (existing?.id) {
+    const error = new Error('Ma khach hang nay da ton tai trong he thong.')
+    error.statusCode = 409
+    error.code = 'CUSTOMER_EXISTS'
+    throw error
+  }
+
+  await withTransaction(async connection => {
+    await insertRow(connection, tables.customers, payload)
+  })
+
+  return getCustomerByCode(payload.customer_code)
 }
 
 async function saveTemplate(template = {}) {
@@ -320,6 +423,17 @@ export default async function handler(req, res) {
         return res.status(200).json({ contract: await getPublicContractByToken(token) })
       }
 
+      if (resource === 'customers') {
+        const search = getQueryValue(req.query?.search, '')
+        return res.status(200).json({ customers: await listCustomers(search) })
+      }
+
+      if (resource === 'customer') {
+        const customerCode = getQueryValue(req.query?.customer_code, '')
+        if (!customerCode) return res.status(400).json({ error: 'Thieu ma khach hang.' })
+        return res.status(200).json({ customer: await getCustomerByCode(customerCode) })
+      }
+
       return res.status(400).json({ error: 'Resource khong hop le.' })
     }
 
@@ -331,6 +445,10 @@ export default async function handler(req, res) {
 
       if (body.resource === 'contract') {
         return res.status(200).json({ contract: await saveContract(body.contract || {}) })
+      }
+
+      if (body.resource === 'customer') {
+        return res.status(201).json({ customer: await createCustomer(body.customer || {}) })
       }
 
       return res.status(400).json({ error: 'Resource khong hop le.' })

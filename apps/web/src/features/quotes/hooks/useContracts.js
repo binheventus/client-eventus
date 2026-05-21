@@ -131,6 +131,32 @@ export async function getPublicContractByToken(shareToken) {
   return result.contract || null
 }
 
+export async function listSharedCustomers(search = '') {
+  const query = new URLSearchParams({ resource: 'customers' })
+  if (search) query.set('search', search)
+  const result = await requestContractApi(`?${query.toString()}`)
+  return result.customers || []
+}
+
+export async function getSharedCustomerByCode(customerCode = '') {
+  const code = String(customerCode || '').trim()
+  if (!code) return null
+  const query = new URLSearchParams({ resource: 'customer', customer_code: code })
+  const result = await requestContractApi(`?${query.toString()}`)
+  return result.customer || null
+}
+
+export async function createSharedCustomer(payload = {}) {
+  const result = await requestContractApi('', {
+    method: 'POST',
+    body: {
+      resource: 'customer',
+      customer: payload,
+    },
+  })
+  return result.customer || null
+}
+
 export async function saveContract(payload = {}, { quote } = {}) {
   if (!payload.quote_id) throw new Error('Thiếu quote id để tạo hợp đồng.')
   if (!payload.contract_number) throw new Error('Thiếu số hợp đồng.')

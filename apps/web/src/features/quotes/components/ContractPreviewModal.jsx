@@ -37,7 +37,7 @@ function getPartyProfile(contract = {}, partyKey = 'party_a') {
 }
 
 function getProfileName(profile = {}) {
-  return profile.company_name || profile.legal_name || ''
+  return profile.company_name || ''
 }
 
 function PreviewValue({ value, fallback, className = '' }) {
@@ -71,7 +71,7 @@ function PartyPreview({ heading, profile = {}, fallbackPrefix, role = 'customer'
       {role === 'customer' && hasText(profile.authorization_date) ? <PreviewLine label="Ngày giấy ủy quyền" value={profile.authorization_date} /> : null}
       <PreviewLine label="Địa chỉ" value={profile.address} fallback={`Địa chỉ ${fallbackPrefix}`} />
       {role === 'customer' && hasText(profile.email) ? <PreviewLine label="Email" value={profile.email} /> : null}
-      {role === 'customer' && hasText(profile.phone) ? <PreviewLine label="Số điện thoại" value={profile.phone} /> : null}
+      {role === 'customer' && hasText(profile.phone_number) ? <PreviewLine label="Số điện thoại" value={profile.phone_number} /> : null}
       <PreviewLine label="Mã số thuế" value={profile.tax_code} fallback={`Mã số thuế ${fallbackPrefix}`} />
       {profile.bank_account ? <PreviewLine label="Số tài khoản" value={`${profile.bank_account}${profile.bank_name ? ` - ${profile.bank_name}` : ''}`} /> : null}
     </div>

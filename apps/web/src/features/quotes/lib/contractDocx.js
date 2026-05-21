@@ -85,7 +85,7 @@ function getPartyProfile(contract = {}, partyKey = 'party_a') {
 }
 
 function getProfileName(profile = {}) {
-  return profile.company_name || profile.legal_name || ''
+  return profile.company_name || ''
 }
 
 function crc32(bytes) {
@@ -266,7 +266,7 @@ function partyTable(contract = {}) {
       role === 'customer' && hasText(profile.authorization_date) ? tableRow([tableCell('Ngày giấy ủy quyền', 1800), tableCell(profile.authorization_date, 7200)]) : '',
       tableRow([tableCell('Địa chỉ', 1800), tableCell(profile.address || '', 7200)]),
       role === 'customer' && hasText(profile.email) ? tableRow([tableCell('Email', 1800), tableCell(profile.email, 7200)]) : '',
-      role === 'customer' && hasText(profile.phone) ? tableRow([tableCell('Số điện thoại', 1800), tableCell(profile.phone, 7200)]) : '',
+      role === 'customer' && hasText(profile.phone_number) ? tableRow([tableCell('Số điện thoại', 1800), tableCell(profile.phone_number, 7200)]) : '',
       tableRow([tableCell('Mã số thuế', 1800), tableCell(profile.tax_code || '', 7200)]),
     ]
 

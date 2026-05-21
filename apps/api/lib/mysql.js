@@ -4,6 +4,7 @@ import { loadServerEnv } from './server-env.js'
 let pool
 
 export const tables = {
+  customers: 'customers',
   clients: 'client_customers',
   quotes: 'client_quotes',
   quoteItems: 'client_quote_items',

@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, Plus, Trash2, X } from 'lucide-react'
+import { AlertTriangle, Copy, Plus, Search, Trash2, X } from 'lucide-react'
 import { useEscapeToClose } from '../../../hooks/useEscapeToClose'
 import { useLegalEntities } from '../hooks/useLegalEntities'
 import {
   createContractDraftFromQuote,
+  createSharedCustomer,
   deleteContract,
   getContractByQuoteId,
+  getSharedCustomerByCode,
+  listSharedCustomers,
   listContractTemplates,
   saveContract,
 } from '../hooks/useContracts'
@@ -108,6 +111,12 @@ function formatDate(value) {
   return new Intl.DateTimeFormat('vi-VN').format(date)
 }
 
+function todayInputDate() {
+  const date = new Date()
+  const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
+  return offsetDate.toISOString().slice(0, 10)
+}
+
 function SummaryRow({ label, value, strong = false }) {
   return (
     <div className="border-b border-slate-100 py-2 last:border-b-0">
@@ -130,16 +139,166 @@ function LegalNoteList({ title, items = [] }) {
   )
 }
 
-function ProfileFields({ title, eyebrow, value = {}, onChange, companyLabel = 'Tên pháp nhân', type = 'customer', headerAction = null }) {
-  const companyKey = value.company_name !== undefined ? 'company_name' : 'legal_name'
+function mapSharedCustomerToProfile(customer = {}, current = {}) {
+  return {
+    ...current,
+    customer_id: customer.id || '',
+    customer_code: customer.customer_code || '',
+    company_name: customer.company_name || '',
+    tax_code: customer.tax_code || '',
+    address: customer.address || '',
+    representative: customer.representative || '',
+    position: customer.position || '',
+    authorization_number: customer.authorization_number || '',
+    authorization_date: customer.authorization_date || '',
+    email: customer.email || '',
+    phone_number: customer.phone_number || '',
+  }
+}
+
+function normalizeCustomerProfile(profile = {}) {
+  return {
+    ...(profile || {}),
+    company_name: profile?.company_name || '',
+    phone_number: profile?.phone_number || '',
+  }
+}
+
+function buildCustomerCreateDraft(profile = {}) {
+  return {
+    customer_code: profile.customer_code || '',
+    company_name: profile.company_name || '',
+    tax_code: profile.tax_code || '',
+    address: profile.address || '',
+    representative: profile.representative || '',
+    position: profile.position || '',
+    authorization_number: profile.authorization_number || '',
+    authorization_date: profile.authorization_date || '',
+    phone_number: profile.phone_number || '',
+    contact_name: '',
+    email: profile.email || '',
+    entry_date: todayInputDate(),
+    note: '',
+  }
+}
+
+function CustomerCreateForm({ initialProfile = {}, creating = false, onCreate, onCopyTaxLookup, onCancel }) {
+  const [form, setForm] = useState(() => buildCustomerCreateDraft(initialProfile))
+
+  useEffect(() => {
+    setForm(buildCustomerCreateDraft(initialProfile))
+  }, [initialProfile.customer_code])
+
+  function update(key, nextValue) {
+    setForm(prev => ({ ...prev, [key]: nextValue }))
+  }
+
+  function handleSubmit(event) {
+    event.preventDefault()
+    onCreate?.(form)
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-[14px] font-semibold text-slate-900">Thêm mã khách hàng mới</p>
+        <button type="button" onClick={onCancel} className="inline-flex h-8 items-center justify-center rounded-lg px-2.5 text-[12px] font-semibold text-slate-500 hover:bg-white hover:text-slate-800">
+          Đóng
+        </button>
+      </div>
+      <div className="mt-3 grid gap-3 md:grid-cols-6">
+        <Field label="Mã khách hàng" className="md:col-span-2">
+          <TextInput required value={form.customer_code || ''} onChange={event => update('customer_code', event.target.value)} />
+        </Field>
+        <Field label="Mã số thuế" className="md:col-span-3">
+          <TextInput value={form.tax_code || ''} onChange={event => update('tax_code', event.target.value)} />
+        </Field>
+        <div className="flex items-end">
+          <button type="button" onClick={() => onCopyTaxLookup?.(form.tax_code)} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 text-[12px] font-semibold text-slate-700 hover:bg-slate-50">
+            <Copy className="h-3.5 w-3.5" />
+            Copy MST & tra cứu
+          </button>
+        </div>
+        <Field label="Tên công ty" className="md:col-span-4">
+          <TextInput value={form.company_name || ''} onChange={event => update('company_name', event.target.value)} />
+        </Field>
+        <Field label="Số điện thoại" className="md:col-span-2">
+          <TextInput value={form.phone_number || ''} onChange={event => update('phone_number', event.target.value)} />
+        </Field>
+        <Field label="Địa chỉ" className="md:col-span-6">
+          <TextInput value={form.address || ''} onChange={event => update('address', event.target.value)} />
+        </Field>
+        <Field label="Người đại diện" className="md:col-span-3">
+          <TextInput value={form.representative || ''} onChange={event => update('representative', event.target.value)} />
+        </Field>
+        <Field label="Chức vụ" className="md:col-span-3">
+          <TextInput value={form.position || ''} onChange={event => update('position', event.target.value)} />
+        </Field>
+        <Field label="Giấy uỷ quyền số" className="md:col-span-3">
+          <TextInput value={form.authorization_number || ''} onChange={event => update('authorization_number', event.target.value)} />
+        </Field>
+        <Field label="Ngày giấy uỷ quyền" className="md:col-span-3">
+          <TextInput type="date" value={form.authorization_date || ''} onChange={event => update('authorization_date', event.target.value)} />
+        </Field>
+        <Field label="Người liên hệ" className="md:col-span-2">
+          <TextInput value={form.contact_name || ''} onChange={event => update('contact_name', event.target.value)} />
+        </Field>
+        <Field label="Email" className="md:col-span-2">
+          <TextInput type="email" value={form.email || ''} onChange={event => update('email', event.target.value)} />
+        </Field>
+        <Field label="Ngày nhập" className="md:col-span-2">
+          <TextInput type="date" value={form.entry_date || ''} onChange={event => update('entry_date', event.target.value)} />
+        </Field>
+        <Field label="Ghi chú khách hàng" className="md:col-span-6">
+          <Textarea rows={3} value={form.note || ''} onChange={event => update('note', event.target.value)} />
+        </Field>
+      </div>
+      <div className="mt-3 flex justify-end">
+        <button type="submit" disabled={creating} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#f8981d] px-4 text-[13px] font-semibold text-white shadow-sm hover:bg-[#e88912] disabled:opacity-50">
+          <Plus className="h-4 w-4" />
+          {creating ? 'Đang tạo...' : 'Thêm mới'}
+        </button>
+      </div>
+    </form>
+  )
+}
+
+function ProfileFields({
+  title,
+  eyebrow,
+  value = {},
+  onChange,
+  companyLabel = 'Tên pháp nhân',
+  type = 'customer',
+  headerAction = null,
+  customerOptions = [],
+  customerLookupState = {},
+  onLookupCustomer,
+  onCreateCustomer,
+  onCopyTaxLookup,
+}) {
+  const companyKey = 'company_name'
   const gridClass = type === 'seller' ? 'md:grid-cols-6' : 'md:grid-cols-2'
   const halfClass = type === 'seller' ? 'md:col-span-3' : ''
   const addressClass = type === 'seller' ? 'md:col-span-6' : 'md:col-span-2'
   const fieldsLocked = type === 'seller'
   const lockedInputClass = fieldsLocked ? 'bg-slate-50 text-slate-500' : ''
+  const isCustomer = type === 'customer'
+  const [createOpen, setCreateOpen] = useState(false)
 
   function update(key, nextValue) {
     onChange?.({ ...value, [key]: nextValue })
+  }
+
+  function handleCustomerCodeChange(nextValue) {
+    const matchedCustomer = customerOptions.find(customer => String(customer.customer_code || '').trim() === String(nextValue || '').trim())
+    if (matchedCustomer) {
+      onChange?.(mapSharedCustomerToProfile(matchedCustomer, value))
+      setCreateOpen(false)
+      return
+    }
+
+    update('customer_code', nextValue)
   }
 
   return (
@@ -150,6 +309,63 @@ function ProfileFields({ title, eyebrow, value = {}, onChange, companyLabel = 'T
           <h3 className="mt-1 text-[16px] font-semibold text-slate-900">{title}</h3>
         </div>
       )}
+
+      {isCustomer ? (
+        <div className="mt-4">
+          <div className="grid gap-3 md:grid-cols-[minmax(200px,300px)_auto_auto]">
+            <Field label="Mã khách hàng">
+              <TextInput
+                list="contract-customer-codes"
+                value={value.customer_code || ''}
+                onChange={event => handleCustomerCodeChange(event.target.value)}
+                onBlur={event => {
+                  const code = String(event.target.value || '').trim()
+                  if (code) onLookupCustomer?.(code)
+                }}
+              />
+              <datalist id="contract-customer-codes">
+                {customerOptions.map(customer => (
+                  <option key={customer.id || customer.customer_code} value={customer.customer_code}>
+                    {customer.company_name || customer.tax_code || customer.customer_code}
+                  </option>
+                ))}
+              </datalist>
+            </Field>
+            <div className="flex items-end">
+              <button
+                type="button"
+                onClick={() => onLookupCustomer?.(value.customer_code)}
+                disabled={customerLookupState.loading}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#f8981d] px-4 text-[13px] font-semibold text-white shadow-sm hover:bg-[#e88912] disabled:opacity-50"
+              >
+                <Search className="h-4 w-4" />
+                {customerLookupState.loading ? 'Đang tìm...' : 'Tìm'}
+              </button>
+            </div>
+            <div className="flex items-end">
+              <button
+                type="button"
+                onClick={() => setCreateOpen(true)}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-orange-200 bg-orange-50 px-3 text-[13px] font-semibold text-orange-700 hover:bg-orange-100"
+              >
+                <Plus className="h-4 w-4" />
+                Tạo mới
+              </button>
+            </div>
+          </div>
+          {customerLookupState.error ? (
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-amber-50 px-3 py-2 text-[13px] text-amber-800">
+              <span>{customerLookupState.error}</span>
+              <button type="button" onClick={() => setCreateOpen(true)} className="font-semibold text-amber-900 underline">
+                Tạo mã mới
+              </button>
+            </div>
+          ) : null}
+          {customerLookupState.notice ? (
+            <p className="mt-2 rounded-xl bg-emerald-50 px-3 py-2 text-[13px] text-emerald-700">{customerLookupState.notice}</p>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className={`mt-4 grid gap-3 ${gridClass}`}>
         <Field label={companyLabel} className={halfClass}>
@@ -170,7 +386,7 @@ function ProfileFields({ title, eyebrow, value = {}, onChange, companyLabel = 'T
               <TextInput value={value.email || ''} readOnly={fieldsLocked} className={lockedInputClass} onChange={event => update('email', event.target.value)} />
             </Field>
             <Field label="Số điện thoại" className={halfClass}>
-              <TextInput value={value.phone || ''} readOnly={fieldsLocked} className={lockedInputClass} onChange={event => update('phone', event.target.value)} />
+              <TextInput value={value.phone_number || ''} readOnly={fieldsLocked} className={lockedInputClass} onChange={event => update('phone_number', event.target.value)} />
             </Field>
           </>
         ) : null}
@@ -197,6 +413,19 @@ function ProfileFields({ title, eyebrow, value = {}, onChange, companyLabel = 'T
           <TextInput value={value.address || ''} readOnly={fieldsLocked} className={lockedInputClass} onChange={event => update('address', event.target.value)} />
         </Field>
       </div>
+
+      {isCustomer && createOpen ? (
+        <CustomerCreateForm
+          initialProfile={value}
+          creating={customerLookupState.creating}
+          onCreate={async payload => {
+            const created = await onCreateCustomer?.(payload)
+            if (created) setCreateOpen(false)
+          }}
+          onCopyTaxLookup={onCopyTaxLookup}
+          onCancel={() => setCreateOpen(false)}
+        />
+      ) : null}
     </section>
   )
 }
@@ -209,7 +438,7 @@ function hydrateContract(contract, quote) {
     quote_id: contract.quote_id || quote?.id || '',
     quote_number: contract.quote_number || quote?.quote_number || '',
     seller_snapshot: contract.seller_snapshot || getEntityProfile(contract.seller_entity_code || quote?.entity_code),
-    customer_snapshot: contract.customer_snapshot || {},
+    customer_snapshot: normalizeCustomerProfile(contract.customer_snapshot || {}),
     quote_snapshot: contract.quote_snapshot || buildQuoteSnapshot(quote),
   }
 }
@@ -276,6 +505,13 @@ export default function ContractEditorModal({
   const [notice, setNotice] = useState('')
   const [dirty, setDirty] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [customerOptions, setCustomerOptions] = useState([])
+  const [customerLookupState, setCustomerLookupState] = useState({
+    loading: false,
+    creating: false,
+    error: '',
+    notice: '',
+  })
 
   const quoteIsReady = canCreateContractFromQuote(quote)
   const quoteSnapshot = useMemo(() => buildQuoteSnapshot(quote || {}), [quote])
@@ -295,6 +531,7 @@ export default function ContractEditorModal({
           listContractTemplates(),
           getContractByQuoteId(quote.id),
         ])
+        const customers = await listSharedCustomers().catch(() => [])
 
         if (!mounted) return
         const defaultTemplate = getDefaultTemplate(templateRows)
@@ -303,6 +540,8 @@ export default function ContractEditorModal({
           : createContractDraftFromQuote(quote, defaultTemplate)
 
         setTemplates(templateRows)
+        setCustomerOptions(customers)
+        setCustomerLookupState({ loading: false, creating: false, error: '', notice: '' })
         setDraft(nextDraft)
         setSavedContract(existingContract ? hydrateContract(existingContract, quote) : null)
         setDirty(false)
@@ -330,7 +569,136 @@ export default function ContractEditorModal({
   }
 
   function updateCustomer(profile) {
-    updateDraft({ customer_snapshot: profile })
+    updateDraft({ customer_snapshot: normalizeCustomerProfile(profile) })
+    setCustomerLookupState(prev => ({ ...prev, error: '', notice: '' }))
+  }
+
+  function applySharedCustomer(customer) {
+    if (!customer) return
+    updateDraft({
+      customer_snapshot: mapSharedCustomerToProfile(customer, draft?.customer_snapshot || {}),
+    })
+    setCustomerLookupState(prev => ({
+      ...prev,
+      loading: false,
+      creating: false,
+      error: '',
+      notice: `Đã lấy thông tin khách hàng ${customer.customer_code}.`,
+    }))
+  }
+
+  async function handleLookupCustomer(customerCode) {
+    const code = String(customerCode || '').trim()
+    if (!code) {
+      setCustomerLookupState(prev => ({ ...prev, error: 'Nhập mã khách hàng trước khi tìm.', notice: '' }))
+      return null
+    }
+
+    const cached = customerOptions.find(customer => String(customer.customer_code || '').trim() === code)
+    if (cached) {
+      applySharedCustomer(cached)
+      return cached
+    }
+
+    setCustomerLookupState(prev => ({ ...prev, loading: true, error: '', notice: '' }))
+    try {
+      const customer = await getSharedCustomerByCode(code)
+      if (!customer) {
+        setCustomerLookupState(prev => ({
+          ...prev,
+          loading: false,
+          error: 'Khách hàng chưa tồn tại.',
+          notice: '',
+        }))
+        return null
+      }
+
+      setCustomerOptions(prev => {
+        const withoutCurrent = prev.filter(row => row.id !== customer.id && row.customer_code !== customer.customer_code)
+        return [customer, ...withoutCurrent]
+      })
+      applySharedCustomer(customer)
+      return customer
+    } catch (err) {
+      setCustomerLookupState(prev => ({
+        ...prev,
+        loading: false,
+        error: err?.message || 'Không tìm được khách hàng.',
+        notice: '',
+      }))
+      return null
+    }
+  }
+
+  async function handleCreateCustomer(payload) {
+    setCustomerLookupState(prev => ({ ...prev, creating: true, error: '', notice: '' }))
+    try {
+      const customer = await createSharedCustomer(payload)
+      if (customer) {
+        setCustomerOptions(prev => {
+          const withoutCurrent = prev.filter(row => row.id !== customer.id && row.customer_code !== customer.customer_code)
+          return [customer, ...withoutCurrent]
+        })
+        applySharedCustomer(customer)
+      }
+      return customer
+    } catch (err) {
+      setCustomerLookupState(prev => ({
+        ...prev,
+        creating: false,
+        error: err?.message || 'Không thể tạo mã khách hàng mới.',
+        notice: '',
+      }))
+      return null
+    }
+  }
+
+  async function copyTextToClipboard(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      try {
+        await navigator.clipboard.writeText(text)
+        return true
+      } catch {
+        // Fall through to the textarea copy fallback.
+      }
+    }
+
+    const textarea = document.createElement('textarea')
+    textarea.value = text
+    textarea.setAttribute('readonly', '')
+    textarea.style.position = 'fixed'
+    textarea.style.top = '0'
+    textarea.style.left = '0'
+    textarea.style.opacity = '0'
+    document.body.appendChild(textarea)
+    textarea.focus()
+    textarea.select()
+    textarea.setSelectionRange(0, textarea.value.length)
+
+    let copied = false
+    try {
+      copied = document.execCommand('copy')
+    } catch {
+      copied = false
+    }
+    document.body.removeChild(textarea)
+    return copied
+  }
+
+  async function handleCopyTaxLookup(taxCode) {
+    const value = String(taxCode || '').trim()
+    if (!value) {
+      setCustomerLookupState(prev => ({ ...prev, error: 'Nhập mã số thuế trước khi tra cứu.', notice: '' }))
+      return
+    }
+
+    const copied = await copyTextToClipboard(value)
+    setCustomerLookupState(prev => ({
+      ...prev,
+      error: copied ? '' : 'Không copy được mã số thuế, bạn vẫn có thể tra cứu thủ công.',
+      notice: copied ? 'Đã copy mã số thuế. Đang mở trang tra cứu.' : '',
+    }))
+    window.open('https://tracuunnt.gdt.gov.vn/tcnnt/mstdn.jsp', '_blank', 'noopener')
   }
 
   function handleSellerEntityChange(entityCode) {
@@ -404,7 +772,7 @@ export default function ContractEditorModal({
   function validate() {
     if (!draft) return 'Chưa có dữ liệu hợp đồng.'
     if (!draft.id && !quoteIsReady) return 'Chỉ báo giá đã lưu hoàn thiện mới được tạo hợp đồng.'
-    if (!String(draft.customer_snapshot?.legal_name || '').trim()) return 'Cần nhập tên pháp nhân khách hàng.'
+    if (!String(draft.customer_snapshot?.company_name || '').trim()) return 'Cần nhập tên công ty khách hàng.'
     if (!String(draft.service_scope || '').trim()) return 'Cần nhập nội dung dịch vụ.'
     if (!String(draft.terms_text ?? sectionsToTermsText(draft.content_sections)).trim()) return 'Cần nhập nội dung từ ĐIỀU 3 trở đi.'
     return ''
@@ -626,6 +994,11 @@ export default function ContractEditorModal({
                       onChange={updateCustomer}
                       companyLabel="Tên công ty / cá nhân"
                       type="customer"
+                      customerOptions={customerOptions}
+                      customerLookupState={customerLookupState}
+                      onLookupCustomer={handleLookupCustomer}
+                      onCreateCustomer={handleCreateCustomer}
+                      onCopyTaxLookup={handleCopyTaxLookup}
                     />
 
                     <ProfileFields

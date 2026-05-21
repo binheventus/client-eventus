@@ -256,7 +256,8 @@ export function getEntityProfile(entityCode = 'EVENTUS') {
 
 export function getCustomerProfileFromQuote(quote = {}) {
   return {
-    legal_name: quote.client_name || quote.customer_name || quote.client?.name || '',
+    customer_code: quote.customer_code || '',
+    company_name: quote.company_name || quote.client_name || quote.customer_name || quote.client?.name || '',
     tax_code: quote.client_tax_code || '',
     address: quote.client_address || '',
     representative: quote.client_representative || '',
@@ -264,7 +265,7 @@ export function getCustomerProfileFromQuote(quote = {}) {
     authorization_number: quote.client_authorization_number || '',
     authorization_date: quote.client_authorization_date || '',
     email: quote.client_email || quote.client?.email || '',
-    phone: quote.client_phone || quote.client?.phone || '',
+    phone_number: quote.client_phone || quote.client?.phone || '',
   }
 }
 

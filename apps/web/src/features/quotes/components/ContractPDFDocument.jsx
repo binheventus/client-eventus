@@ -82,7 +82,7 @@ function getPartyProfile(contract = {}, partyKey = 'party_a') {
 }
 
 function getProfileName(profile = {}) {
-  return profile.company_name || profile.legal_name || '-'
+  return profile.company_name || '-'
 }
 
 export function getContractPdfFilename(contract = {}) {
@@ -290,7 +290,7 @@ function PartyCard({ heading, profile = {}, role = 'customer' }) {
       {role === 'customer' && hasText(profile.authorization_date) ? <Text style={styles.partyLine}>Ngày giấy ủy quyền: {profile.authorization_date}</Text> : null}
       <Text style={styles.partyLine}>Địa chỉ: {profile.address || '-'}</Text>
       {role === 'customer' && hasText(profile.email) ? <Text style={styles.partyLine}>Email: {profile.email}</Text> : null}
-      {role === 'customer' && hasText(profile.phone) ? <Text style={styles.partyLine}>Số điện thoại: {profile.phone}</Text> : null}
+      {role === 'customer' && hasText(profile.phone_number) ? <Text style={styles.partyLine}>Số điện thoại: {profile.phone_number}</Text> : null}
       <Text style={styles.partyLine}>Mã số thuế: {profile.tax_code || '-'}</Text>
       {role === 'seller' && profile.bank_account ? <Text style={styles.partyLine}>Số tài khoản: {profile.bank_account} - {profile.bank_name || '-'}</Text> : null}
     </View>
