@@ -1,5 +1,4 @@
 import {
-  QUOTE_ENTITY_OPTIONS,
   QUOTE_STATUS_OPTIONS,
   QUOTE_TIER_OPTIONS,
 } from '../lib/quoteList'
@@ -23,7 +22,7 @@ export default function QuoteListFilters({ filters, onFilterChange, onSearchSubm
 
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(260px,1fr)_145px_120px_150px_145px_145px]">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(260px,1fr)_190px_120px_145px_145px]">
         <input
           value={filters.search}
           onChange={event => onFilterChange('search', event.target.value)}
@@ -40,11 +39,6 @@ export default function QuoteListFilters({ filters, onFilterChange, onSearchSubm
           value={filters.tier_code}
           options={QUOTE_TIER_OPTIONS}
           onChange={value => onFilterChange('tier_code', value)}
-        />
-        <SelectFilter
-          value={filters.entity_code}
-          options={QUOTE_ENTITY_OPTIONS}
-          onChange={value => onFilterChange('entity_code', value)}
         />
         <input
           type="date"

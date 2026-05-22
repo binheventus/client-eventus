@@ -4,6 +4,7 @@ import { calculateQuotePricing } from './pricingCalculator.js'
 
 const services = [
   { service_code: 'CHUP_IN_4H', price_tier_1: 1800000, price_tier_2: 1500000, price_tier_3: 1300000 },
+  { service_code: 'CHUP_IN_8H', price_tier_1: 2800000, price_tier_2: 2400000, price_tier_3: 2200000 },
   { service_code: 'CHUP_OUT_4H', price_tier_1: 2500000, price_tier_2: 2500000, price_tier_3: 2250000 },
   { service_code: 'CHUP_OUT_8H', price_tier_1: 3000000, price_tier_2: 2500000, price_tier_3: 2200000 },
   { service_code: 'QUAY_RECAP_IN_4H', price_tier_1: 2600000, price_tier_2: 2200000, price_tier_3: 2000000 },
@@ -187,6 +188,120 @@ test('non-overridden snapshot items reprice when customer tier changes', () => {
 
   assert.equal(result.subtotal, 1800000)
   assert.equal(result.items_with_calculated_price[0].unit_price, 1800000)
+})
+
+test('explicitly selected service code is preserved when quote duration differs', () => {
+  const result = calculateQuotePricing({
+    items: [{
+      service_code: 'CHUP_IN_8H',
+      quantity: 1,
+      num_sessions: 1,
+      unit_price: 2400000,
+      original_unit_price: 2400000,
+      is_overridden: false,
+    }],
+    services,
+    travelFees,
+    businessRules,
+    location: 'nội thành Hà Nội',
+    customer_tier: 'TIER_2',
+    has_vat: false,
+    duration_hours: 4,
+  })
+
+  assert.equal(result.subtotal, 2400000)
+  assert.equal(result.items_with_calculated_price[0].resolved_service_code, 'CHUP_IN_8H')
+  assert.equal(result.items_with_calculated_price[0].unit_price, 2400000)
+})
+
+test('explicit 8H items only get overtime after the included 8 hours', () => {
+  const input = {
+    items: [{
+      service_code: 'CHUP_IN_8H',
+      quantity: 1,
+      num_sessions: 1,
+      is_overridden: false,
+    }],
+    services,
+    travelFees,
+    businessRules: {
+      ...businessRules,
+      FULL_DAY_THRESHOLD: 7,
+    },
+    location: 'nội thành Hà Nội',
+    customer_tier: 'TIER_2',
+    has_vat: false,
+  }
+
+  const fiveHours = calculateQuotePricing({ ...input, duration_hours: 5 })
+  const eightHours = calculateQuotePricing({ ...input, duration_hours: 8 })
+  const nineHours = calculateQuotePricing({ ...input, duration_hours: 9 })
+
+  assert.equal(fiveHours.items_with_calculated_price[0].unit_price, 2400000)
+  assert.equal(fiveHours.items_with_calculated_price[0].overtime_unit_add_on, 0)
+  assert.equal(eightHours.items_with_calculated_price[0].unit_price, 2400000)
+  assert.equal(eightHours.items_with_calculated_price[0].overtime_unit_add_on, 0)
+  assert.equal(nineHours.items_with_calculated_price[0].unit_price, 2900000)
+  assert.equal(nineHours.items_with_calculated_price[0].overtime_unit_add_on, 500000)
+})
+
+test('explicit 4H items keep half-day overtime even when full-day threshold is 7', () => {
+  const result = calculateQuotePricing({
+    items: [{
+      service_code: 'CHUP_IN_4H',
+      quantity: 1,
+      num_sessions: 1,
+      is_overridden: false,
+    }],
+    services,
+    travelFees,
+    businessRules: {
+      ...businessRules,
+      FULL_DAY_THRESHOLD: 7,
+    },
+    location: 'nội thành Hà Nội',
+    customer_tier: 'TIER_2',
+    has_vat: false,
+    duration_hours: 8,
+  })
+
+  assert.equal(result.items_with_calculated_price[0].resolved_service_code, 'CHUP_IN_4H')
+  assert.equal(result.items_with_calculated_price[0].unit_price, 3500000)
+  assert.equal(result.items_with_calculated_price[0].overtime_unit_add_on, 2000000)
+})
+
+test('mixed 4H and 8H items use each item billable duration for overtime', () => {
+  const result = calculateQuotePricing({
+    items: [
+      {
+        service_code: 'CHUP_IN_8H',
+        quantity: 1,
+        num_sessions: 1,
+        billable_duration_hours: 9,
+        is_overridden: false,
+      },
+      {
+        service_code: 'CHUP_IN_4H',
+        quantity: 1,
+        num_sessions: 1,
+        billable_duration_hours: 4,
+        is_overridden: false,
+      },
+    ],
+    services,
+    travelFees,
+    businessRules,
+    location: 'nội thành Hà Nội',
+    customer_tier: 'TIER_2',
+    has_vat: false,
+    duration_hours: 9,
+  })
+
+  assert.equal(result.items_with_calculated_price[0].unit_price, 2900000)
+  assert.equal(result.items_with_calculated_price[0].overtime_unit_add_on, 500000)
+  assert.equal(result.items_with_calculated_price[1].unit_price, 1500000)
+  assert.equal(result.items_with_calculated_price[1].overtime_unit_add_on, 0)
+  assert.equal(result.subtotal, 4400000)
 })
 
 test('custom items keep their manual unit price across tiers', () => {

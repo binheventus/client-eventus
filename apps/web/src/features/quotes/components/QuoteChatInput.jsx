@@ -34,7 +34,7 @@ export default function QuoteChatInput({
           onChange?.(event.target.value)
           requestAnimationFrame(resizeTextarea)
         }}
-        rows={3}
+        rows={2}
         placeholder="VD: 2 chụp, 1 quay, 2 flycam, 5 tiếng, Hải Phòng, khách lạ..."
         className="w-full resize-none overflow-hidden rounded-2xl border border-[#f8981d] bg-white px-4 py-3 text-[14px] leading-6 text-slate-800 shadow-sm outline-none transition focus:border-[#f8981d] focus:ring-4 focus:ring-orange-100 disabled:cursor-not-allowed disabled:bg-slate-50"
       />

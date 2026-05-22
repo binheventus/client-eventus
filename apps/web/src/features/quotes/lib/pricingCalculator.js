@@ -1,6 +1,7 @@
 export const DEFAULT_HALF_DAY_THRESHOLD = 4.5
 export const DEFAULT_HALF_DAY_INCLUDED_HOURS = 4
 export const DEFAULT_FULL_DAY_THRESHOLD = 8
+export const DEFAULT_FULL_DAY_INCLUDED_HOURS = 8
 export const DEFAULT_OVERTIME_HOURLY_FEE = 500000
 export const DEFAULT_VAT_RATE = 0.08
 export const DEFAULT_DURATION_HOURS = 4
@@ -81,9 +82,18 @@ function getServiceCode(row) {
   return normalizeText(row?.service_code || row?.code)
 }
 
+function getSelectedServiceCode(item = {}) {
+  return normalizeText(item.resolved_service_code || item.service_code || item.service?.service_code || item.service?.code)
+}
+
 function itemHasOvertimePricing(item = {}, service = null) {
   const serviceCode = getServiceCode(service) || normalizeText(item.service_code || item.resolved_service_code)
   return /(?:_(?:IN|OUT))?_(?:4H|8H)$/.test(serviceCode)
+}
+
+function getServiceDurationUnit(item = {}, service = null) {
+  const serviceCode = getServiceCode(service) || getSelectedServiceCode(item)
+  return serviceCode.match(/(?:^|_)(4H|8H)$/)?.[1] || ''
 }
 
 function getBaseUnitPrice(item = {}, service = null, priceColumn = 'price_tier_2') {
@@ -91,15 +101,20 @@ function getBaseUnitPrice(item = {}, service = null, priceColumn = 'price_tier_2
   return toNumber(service?.[priceColumn] ?? item.unit_price ?? item.original_unit_price ?? service?.price_tier_2)
 }
 
+function getItemDurationHours(item = {}, fallbackDuration = DEFAULT_DURATION_HOURS) {
+  return toNumber(item.billable_duration_hours ?? item.item_duration_hours ?? item.duration_hours, fallbackDuration)
+}
+
 export function findServiceForQuoteItem(services = [], item = {}, location, durationHours, businessRules = {}) {
   const baseCode = inferServiceBaseFromItem(item)
   const locationUnit = getLocationUnit(location)
   const durationUnit = getDurationUnit(durationHours, businessRules)
+  const selectedServiceCode = getSelectedServiceCode(item)
   const candidates = [
+    selectedServiceCode,
     `${baseCode}_${locationUnit}_${durationUnit}`,
     `${baseCode}_${locationUnit}`,
     `${baseCode}_${durationUnit}`,
-    normalizeText(item.service_code),
     baseCode,
   ]
 
@@ -120,10 +135,16 @@ function getDefaultDurationHours(businessRules) {
   return toNumber(getRuleValue(businessRules, 'DEFAULT_DURATION_HOURS', DEFAULT_DURATION_HOURS), DEFAULT_DURATION_HOURS)
 }
 
-function getOvertimeHours(duration, businessRules) {
+function getItemOvertimeHours(duration, item = {}, service = null, businessRules = {}) {
+  if (!itemHasOvertimePricing(item, service)) return 0
+
+  const durationUnit = getServiceDurationUnit(item, service)
   const halfDayThreshold = toNumber(getRuleValue(businessRules, 'HALF_DAY_THRESHOLD', DEFAULT_HALF_DAY_THRESHOLD), DEFAULT_HALF_DAY_THRESHOLD)
   const halfDayIncludedHours = toNumber(getRuleValue(businessRules, 'HALF_DAY_INCLUDED_HOURS', DEFAULT_HALF_DAY_INCLUDED_HOURS), DEFAULT_HALF_DAY_INCLUDED_HOURS)
   const fullDayThreshold = toNumber(getRuleValue(businessRules, 'FULL_DAY_THRESHOLD', DEFAULT_FULL_DAY_THRESHOLD), DEFAULT_FULL_DAY_THRESHOLD)
+
+  if (durationUnit === '8H') return Math.max(0, Math.ceil(duration - DEFAULT_FULL_DAY_INCLUDED_HOURS))
+  if (durationUnit === '4H' && duration > halfDayThreshold) return Math.max(0, Math.ceil(duration - halfDayIncludedHours))
 
   if (duration > fullDayThreshold) return Math.ceil(duration - fullDayThreshold)
   if (duration > halfDayThreshold && duration < fullDayThreshold) return Math.ceil(duration - halfDayIncludedHours)
@@ -170,15 +191,15 @@ export function calculateQuotePricing(input = {}) {
   const priceColumn = getTierPriceColumn(tier)
   const overtimeHourlyFee = toNumber(getRuleValue(businessRules, 'OVERTIME_HOURLY_FEE', DEFAULT_OVERTIME_HOURLY_FEE), DEFAULT_OVERTIME_HOURLY_FEE)
   const vatRate = toNumber(getRuleValue(businessRules, 'VAT_RATE', DEFAULT_VAT_RATE), DEFAULT_VAT_RATE)
-  const overtimeHours = getOvertimeHours(duration, businessRules)
-  const overtimeUnitAddOn = overtimeHours * overtimeHourlyFee
 
   const itemsWithCalculatedPrice = items.map((item) => {
-    const service = findServiceForQuoteItem(services, item, effectiveLocation, duration, businessRules)
+    const itemDuration = getItemDurationHours(item, duration)
+    const service = findServiceForQuoteItem(services, item, effectiveLocation, itemDuration, businessRules)
     const quantity = toNumber(item.quantity, 1)
     const numSessions = toNumber(item.num_sessions, 1)
     const baseUnitPrice = getBaseUnitPrice(item, service, priceColumn)
-    const itemOvertimeAddOn = !item.is_overridden && itemHasOvertimePricing(item, service) ? overtimeUnitAddOn : 0
+    const overtimeHours = getItemOvertimeHours(itemDuration, item, service, businessRules)
+    const itemOvertimeAddOn = !item.is_overridden ? overtimeHours * overtimeHourlyFee : 0
     const unitPrice = baseUnitPrice + itemOvertimeAddOn
     const totalPrice = quantity * numSessions * unitPrice
 
@@ -189,6 +210,7 @@ export function calculateQuotePricing(input = {}) {
       unit_price: unitPrice,
       original_unit_price: item.original_unit_price ?? baseUnitPrice,
       total_price: totalPrice,
+      billable_duration_hours: itemDuration,
       overtime_unit_add_on: itemOvertimeAddOn,
     }
   })

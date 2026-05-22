@@ -36,7 +36,7 @@ const FIELD_LABELS = {
   editing_service: 'Dựng',
 }
 
-const OPTIONAL_PARSE_FIELDS = new Set(['event_date', 'event_name'])
+const OPTIONAL_PARSE_FIELDS = new Set(['event_date', 'event_name', 'duration_hours'])
 
 const CUSTOM_ITEM_PLACEMENTS = [
   { value: 'after_photo', label: 'Ngay dưới hạng mục chụp ảnh', sortRank: 0.5 },
@@ -303,6 +303,29 @@ function calculateQuoteItemTotal(item = {}) {
   return (Number(item.quantity) || 0) * (Number(item.num_sessions) || 1) * (Number(item.unit_price) || 0)
 }
 
+function getBillableDurationHours(value, fallback = DEFAULT_QUOTE.duration_hours) {
+  const number = Number(value)
+  if (Number.isFinite(number) && number > 0) return number
+  const fallbackNumber = Number(fallback)
+  return Number.isFinite(fallbackNumber) && fallbackNumber > 0 ? fallbackNumber : Number(DEFAULT_QUOTE.duration_hours)
+}
+
+function getServiceDefaultDurationHours(service, fallback = DEFAULT_QUOTE.duration_hours) {
+  const code = normalizeQuoteText(getServiceCode(service))
+  if (/(?:^|_)8H$/.test(code)) return 8
+  if (/(?:^|_)4H$/.test(code)) return 4
+  return getBillableDurationHours(null, fallback)
+}
+
+function getDerivedQuoteDurationHours(items = [], fallback = DEFAULT_QUOTE.duration_hours) {
+  const durations = items
+    .filter(item => !item.is_custom)
+    .map(item => Number(item.billable_duration_hours))
+    .filter(duration => Number.isFinite(duration) && duration > 0)
+
+  return durations.length ? Math.max(...durations) : getBillableDurationHours(null, fallback)
+}
+
 function toTitleCaseName(value = '') {
   return String(value || '')
     .trim()
@@ -319,7 +342,8 @@ function extractClientNameFromBrief(inputText = '') {
 }
 
 function normalizeParsedItem(item, quote, services) {
-  const service = findServiceForQuoteItem(services, item, quote.location, Number(quote.duration_hours) || 0)
+  const billableDurationHours = getBillableDurationHours(item.billable_duration_hours ?? item.item_duration_hours ?? item.duration_hours, quote.duration_hours)
+  const service = findServiceForQuoteItem(services, item, quote.location, billableDurationHours)
   const unitPrice = Number(service?.[getTierPriceColumn(quote.tier_code)] || service?.price_tier_2 || 0)
   const quantity = Number(item.quantity) || 1
   const numSessions = Number(item.num_sessions) || 1
@@ -331,6 +355,7 @@ function normalizeParsedItem(item, quote, services) {
     service_name_raw: item.service_name_raw || '',
     quantity,
     num_sessions: numSessions,
+    billable_duration_hours: billableDurationHours,
     unit_price: unitPrice,
     original_unit_price: unitPrice,
     total_price: quantity * numSessions * unitPrice,
@@ -558,7 +583,7 @@ function CustomItemModal({ onCancel, onConfirm }) {
   )
 }
 
-function hydrateSavedQuoteItem(item = {}, index = 0) {
+function hydrateSavedQuoteItem(item = {}, index = 0, quoteDurationHours = DEFAULT_QUOTE.duration_hours) {
   const quantity = Number(item.quantity) || 1
   const numSessions = Number(item.num_sessions) || 1
   const unitPrice = Number(item.unit_price) || 0
@@ -572,6 +597,7 @@ function hydrateSavedQuoteItem(item = {}, index = 0) {
     unit: item.unit || item.pricing_unit || (isCustom ? CUSTOM_ITEM_UNIT_OPTIONS[0] : undefined),
     quantity,
     num_sessions: numSessions,
+    billable_duration_hours: item.billable_duration_hours ?? getBillableDurationHours(item.item_duration_hours ?? item.duration_hours, quoteDurationHours),
     unit_price: unitPrice,
     original_unit_price: item.original_unit_price ?? unitPrice,
     total_price: Number(item.total_price) || quantity * numSessions * unitPrice,
@@ -620,7 +646,7 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
         const existingQuote = await getQuote(quoteId)
         if (!mounted) return
 
-        setQuote({
+        const nextQuote = {
           entity_code: existingQuote.entity_code || DEFAULT_QUOTE.entity_code,
           event_name: existingQuote.event_name || '',
           event_date: existingQuote.event_date || '',
@@ -631,10 +657,11 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
           client_name: existingQuote.client_name || DEFAULT_QUOTE.client_name,
           validity_days: normalizeQuoteValidityDays(existingQuote.validity_days),
           has_vat: existingQuote.has_vat !== false,
-        })
+        }
+        setQuote(nextQuote)
         setClientQuery(existingQuote.client_name || DEFAULT_QUOTE.client_name)
         setInputText(existingQuote.ai_input || '')
-        setItems((existingQuote.items || []).map(hydrateSavedQuoteItem))
+        setItems((existingQuote.items || []).map((item, index) => hydrateSavedQuoteItem(item, index, nextQuote.duration_hours)))
       } catch (err) {
         if (mounted) setValidationError(err?.message || 'Không tải được báo giá để sửa.')
       } finally {
@@ -762,6 +789,7 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
     const serviceCode = getServiceCode(service)
     const normalizedServiceCode = normalizeQuoteText(serviceCode)
     const unitPrice = Number(service?.[getTierPriceColumn(quote.tier_code)] || service?.price_tier_2 || 0)
+    const defaultBillableDurationHours = getServiceDefaultDurationHours(service, quote.duration_hours)
     setItems(prev => {
       const existingIndex = normalizedServiceCode
         ? prev.findIndex(item => getQuoteItemCode(item) === normalizedServiceCode)
@@ -775,6 +803,7 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
             quantity: (Number(item.quantity) || 0) + 1,
             service_code: item.service_code || serviceCode,
             service_name: item.service_name || getServiceName(service),
+            billable_duration_hours: item.billable_duration_hours ?? defaultBillableDurationHours,
             service,
           }
           next.total_price = calculateQuoteItemTotal(next)
@@ -788,6 +817,7 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
         service_name: getServiceName(service),
         quantity: 1,
         num_sessions: 1,
+        billable_duration_hours: defaultBillableDurationHours,
         unit_price: unitPrice,
         original_unit_price: unitPrice,
         total_price: unitPrice,
@@ -812,6 +842,7 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
       unit: unit || CUSTOM_ITEM_UNIT_OPTIONS[0],
       quantity: safeQuantity,
       num_sessions: safeNumSessions,
+      billable_duration_hours: null,
       unit_price: safeUnitPrice,
       original_unit_price: safeUnitPrice,
       total_price: safeQuantity * safeNumSessions * safeUnitPrice,
@@ -826,7 +857,6 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
   function validateBeforeSave() {
     if (!quote.entity_code) return 'Phải chọn pháp nhân.'
     if (!quote.tier_code) return 'Phải chọn loại khách.'
-    if (!Number(quote.duration_hours)) return 'Phải nhập thời lượng.'
     if (!displayItems.length) return 'Phải có ít nhất 1 hạng mục.'
     if (displayItems.some(item => item.is_custom && !String(item.service_name || '').trim())) return 'Custom item cần có tên hạng mục.'
     return ''
@@ -846,6 +876,7 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
       const now = new Date().toISOString()
       const clientName = String(quote.client_name || clientQuery || '').trim()
       const clientId = quote.client_id || null
+      const derivedDurationHours = getDerivedQuoteDurationHours(displayItems, quote.duration_hours)
       const quotePayload = {
         ...(!isEditMode ? getQuoteActorPayload(userContext) : {}),
         ai_input: inputText,
@@ -856,7 +887,7 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
         event_name: quote.event_name,
         event_date: quote.event_date || null,
         location: quote.location,
-        duration_hours: Number(quote.duration_hours),
+        duration_hours: derivedDurationHours,
         validity_days: normalizeQuoteValidityDays(quote.validity_days),
         has_vat: Boolean(quote.has_vat),
         ...(!isEditMode ? {
@@ -875,6 +906,7 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
           unit: item.unit || item.pricing_unit || item.service?.unit || 'Người',
           quantity: Number(item.quantity),
           num_sessions: Number(item.num_sessions),
+          billable_duration_hours: item.is_custom ? null : getBillableDurationHours(item.billable_duration_hours, derivedDurationHours),
           unit_price: Number(item.unit_price),
           total_price: Number(item.total_price),
           is_overridden: Boolean(item.is_overridden),
@@ -913,7 +945,6 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
     <div className="mx-auto w-full max-w-[1920px] space-y-5">
       <div>
         <QuoteBreadcrumb items={[{ label: isEditMode ? 'Sửa báo giá' : 'Tạo báo giá mới' }]} />
-        <h1 className="mt-2 text-[22px] font-semibold tracking-tight text-[#f8981d]">{isEditMode ? 'Sửa báo giá Eventus AI' : 'Trợ lý báo giá Eventus AI'}</h1>
       </div>
 
       {initialLoading && <p className="rounded-xl bg-slate-50 px-4 py-3 text-[13px] text-slate-500">Đang tải báo giá để sửa...</p>}
@@ -980,16 +1011,7 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
           </section>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="mb-4 text-[16px] font-semibold text-slate-900">Thông tin chi tiết</h2>
-            <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_96px]">
-              <label className="block">
-                <span className="mb-1.5 block text-[12px] font-semibold text-slate-600">Loại khách</span>
-                <select value={quote.tier_code} onChange={event => setQuote(prev => ({ ...prev, tier_code: event.target.value }))} className="w-full rounded-xl border border-slate-200 px-4 py-3 text-[13px] outline-none focus:border-[#f8981d] focus:ring-2 focus:ring-orange-100">
-                  {(customerTiers.length ? customerTiers : [{ tier_code: 'TIER_1' }, { tier_code: 'TIER_2' }, { tier_code: 'TIER_3' }]).map(tier => (
-                    <option key={tier.tier_code || tier.code} value={tier.tier_code || tier.code}>{tier.tier_name || tier.name || tier.tier_code || tier.code}</option>
-                  ))}
-                </select>
-              </label>
+            <div className="grid gap-4 md:grid-cols-[minmax(0,1.2fr)_minmax(260px,0.8fr)]">
               <label className="block">
                 <span className="mb-1.5 block text-[12px] font-semibold text-slate-600">Khách hàng</span>
                 <div className="relative">
@@ -1029,8 +1051,12 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
                 </div>
               </label>
               <label className="block">
-                <span className="mb-1.5 block text-[12px] font-semibold text-slate-600">Thời lượng</span>
-                <input type="number" min="0" step="0.5" value={quote.duration_hours} onChange={event => setQuote(prev => ({ ...prev, duration_hours: event.target.value }))} className="w-full appearance-none rounded-xl border border-slate-200 px-3 py-3 text-right text-[13px] outline-none focus:border-[#f8981d] focus:ring-2 focus:ring-orange-100 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                <span className="mb-1.5 block text-[12px] font-semibold text-slate-600">Nhóm khách hàng</span>
+                <select value={quote.tier_code} onChange={event => setQuote(prev => ({ ...prev, tier_code: event.target.value }))} className="w-full rounded-xl border border-slate-200 px-4 py-3 text-[13px] outline-none focus:border-[#f8981d] focus:ring-2 focus:ring-orange-100">
+                  {(customerTiers.length ? customerTiers : [{ tier_code: 'TIER_1' }, { tier_code: 'TIER_2' }, { tier_code: 'TIER_3' }]).map(tier => (
+                    <option key={tier.tier_code || tier.code} value={tier.tier_code || tier.code}>{tier.tier_name || tier.name || tier.tier_code || tier.code}</option>
+                  ))}
+                </select>
               </label>
             </div>
           </section>

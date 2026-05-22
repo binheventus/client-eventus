@@ -50,6 +50,31 @@ const quoteListIndexes = [
   },
 ]
 
+const quoteItemColumns = [
+  {
+    tableName: 'client_quote_items',
+    columnName: 'billable_duration_hours',
+    definition: 'decimal(10,2) null after `num_sessions`',
+  },
+]
+
+async function ensureColumn(pool, { tableName, columnName, definition }) {
+  const [rows] = await pool.query(
+    `select 1
+     from information_schema.columns
+     where table_schema = database()
+       and table_name = ?
+       and column_name = ?
+     limit 1`,
+    [tableName, columnName],
+  )
+
+  if (rows.length) return false
+
+  await pool.query(`alter table \`${tableName}\` add column \`${columnName}\` ${definition}`)
+  return true
+}
+
 async function ensureIndex(pool, { tableName, indexName, columns }) {
   const [rows] = await pool.query(
     `select 1
@@ -78,6 +103,11 @@ try {
     if (await ensureIndex(pool, indexConfig)) createdIndexes.push(indexConfig.indexName)
   }
 
+  const createdColumns = []
+  for (const columnConfig of quoteItemColumns) {
+    if (await ensureColumn(pool, columnConfig)) createdColumns.push(`${columnConfig.tableName}.${columnConfig.columnName}`)
+  }
+
   await pool.query('set foreign_key_checks = 0')
   for (const tableName of legacyAiLabTables) {
     await pool.query(`drop table if exists \`${tableName}\``)
@@ -88,6 +118,7 @@ try {
     ok: true,
     schema: schemaPath,
     statements: splitSqlStatements(schemaSql).length,
+    created_columns: createdColumns,
     created_indexes: createdIndexes,
     dropped_legacy_tables: legacyAiLabTables.length,
   }, null, 2))

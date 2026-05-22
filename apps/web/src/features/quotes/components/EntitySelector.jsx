@@ -26,7 +26,7 @@ export default function EntitySelector({ entities = [], value, onChange, disable
               type="button"
               disabled={disabled}
               onClick={() => onChange?.(code)}
-              className={`${compact ? 'min-w-[104px] px-2.5 py-2' : 'min-w-[132px] px-3 py-2'} rounded-lg border text-left transition ${
+              className={`${compact ? 'w-[132px] px-2.5 py-2' : 'min-w-[132px] px-3 py-2'} rounded-lg border text-left transition ${
                 active
                   ? 'border-orange-300 bg-orange-50 text-slate-800'
                   : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'

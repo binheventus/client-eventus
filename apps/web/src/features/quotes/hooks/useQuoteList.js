@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { getQuoteUserContext } from '../lib/quoteAuth'
+import { getQuoteUserContext, normalizeQuoteUserContext } from '../lib/quoteAuth'
 import {
   buildAccessibleQuoteFilters,
   DEFAULT_QUOTE_LIST_FILTERS,
@@ -10,7 +10,8 @@ import {
 import { listQuotes } from './useQuotes'
 
 export function useQuoteList({ pageSize = QUOTE_LIST_PAGE_SIZE } = {}) {
-  const userContext = useMemo(() => getQuoteUserContext(), [])
+  const initialUserContext = useMemo(() => getQuoteUserContext(), [])
+  const [userContext, setUserContext] = useState(initialUserContext)
   const [quotes, setQuotes] = useState([])
   const [count, setCount] = useState(0)
   const [page, setPage] = useState(1)
@@ -40,6 +41,9 @@ export function useQuoteList({ pageSize = QUOTE_LIST_PAGE_SIZE } = {}) {
 
       setQuotes(result.quotes)
       setCount(result.count)
+      if (result.current_user) {
+        setUserContext(prev => normalizeQuoteUserContext(result.current_user, prev))
+      }
       return result
     } catch (err) {
       if (requestId === requestIdRef.current) {

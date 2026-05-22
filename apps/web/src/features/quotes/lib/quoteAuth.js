@@ -5,6 +5,27 @@ const FALLBACK_ACTOR_IDS = {
   system: '00000000-0000-0000-0000-000000000000',
 }
 
+function compactName(parts = []) {
+  return parts.map(part => String(part || '').trim()).filter(Boolean).join(' ')
+}
+
+export function normalizeQuoteUserContext(user = {}, fallback = {}) {
+  const role = user?.role || user?.user_role || fallback?.role || 'sales'
+  const userId = user?.id || user?.user_id || user?.uuid || fallback?.userId || null
+  const name = (
+    user?.name ||
+    user?.full_name ||
+    user?.display_name ||
+    user?.username ||
+    compactName([user?.first_name, user?.last_name]) ||
+    user?.email ||
+    fallback?.name ||
+    ''
+  )
+
+  return { role, userId, name }
+}
+
 export function getQuoteUserContext() {
   if (typeof window === 'undefined') {
     return { role: 'sales', userId: null, name: '' }
@@ -32,11 +53,7 @@ export function getQuoteUserContext() {
     }
   }, null)
 
-  return {
-    role: stored?.role || stored?.user_role || 'sales',
-    userId: stored?.id || stored?.user_id || stored?.uuid || null,
-    name: stored?.name || stored?.full_name || stored?.email || '',
-  }
+  return normalizeQuoteUserContext(stored)
 }
 
 export function getQuoteActorPayload(userContext = getQuoteUserContext()) {

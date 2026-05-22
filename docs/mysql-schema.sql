@@ -57,6 +57,7 @@ create table if not exists client_quote_items (
   unit varchar(80) null,
   quantity decimal(12,2) not null default 1,
   num_sessions decimal(12,2) not null default 1,
+  billable_duration_hours decimal(10,2) null,
   unit_price decimal(18,2) not null default 0,
   total_price decimal(18,2) not null default 0,
   is_custom tinyint(1) not null default 0,

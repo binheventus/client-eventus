@@ -77,6 +77,7 @@ const QUOTE_ITEM_COLUMNS = [
   'unit',
   'quantity',
   'num_sessions',
+  'billable_duration_hours',
   'unit_price',
   'total_price',
   'is_custom',
@@ -142,7 +143,7 @@ function getAuthenticatedActorPayload(req) {
   if (!user) return {}
 
   const userId = user.id || user.user_id || user.uuid
-  const userName = user.name || user.full_name || user.email || 'Eventus'
+  const userName = getAuthenticatedUserName(user)
   if (!userId && !userName) return {}
 
   return {
@@ -150,6 +151,34 @@ function getAuthenticatedActorPayload(req) {
     user_name: userName,
     created_by_name: userName,
     sales_name: userName,
+  }
+}
+
+function compactName(parts = []) {
+  return parts.map(part => String(part || '').trim()).filter(Boolean).join(' ')
+}
+
+function getAuthenticatedUserName(user = {}) {
+  return (
+    user.name ||
+    user.full_name ||
+    user.display_name ||
+    user.username ||
+    compactName([user.first_name, user.last_name]) ||
+    user.email ||
+    'Eventus'
+  )
+}
+
+function getAuthenticatedUserPayload(req) {
+  const user = req.eventusUser
+  if (!user) return null
+
+  return {
+    id: user.id || user.user_id || user.uuid || null,
+    name: getAuthenticatedUserName(user),
+    email: user.email || null,
+    role: user.role || user.user_role || 'sales',
   }
 }
 
@@ -211,6 +240,7 @@ function normalizeQuoteItemRow(row = {}) {
     ...row,
     quantity: normalizeNumber(row.quantity),
     num_sessions: normalizeNumber(row.num_sessions),
+    billable_duration_hours: normalizeNumber(row.billable_duration_hours),
     unit_price: normalizeNumber(row.unit_price),
     total_price: normalizeNumber(row.total_price),
     original_unit_price: normalizeNumber(row.original_unit_price),
@@ -249,6 +279,7 @@ function normalizeQuoteItemPayload(item = {}, quoteId, index = 0) {
     unit: emptyToNull(item.unit || item.pricing_unit),
     quantity: Number(item.quantity) || 1,
     num_sessions: Number(item.num_sessions) || 1,
+    billable_duration_hours: emptyToNull(item.billable_duration_hours ?? item.item_duration_hours),
     unit_price: Number(item.unit_price) || 0,
     total_price: Number(item.total_price) || 0,
     is_custom: Boolean(item.is_custom || serviceCode === 'CUSTOM'),
@@ -593,7 +624,11 @@ export default async function handler(req, res) {
       if (shareToken) return res.status(200).json({ quote: await getQuoteByShareToken(shareToken) })
       if (id) return res.status(200).json({ quote: await getQuoteById(id) })
 
-      return res.status(200).json(await listQuotes(req.query || {}))
+      const quoteList = await listQuotes(req.query || {})
+      return res.status(200).json({
+        ...quoteList,
+        current_user: getAuthenticatedUserPayload(req),
+      })
     }
 
     if (req.method === 'POST') {

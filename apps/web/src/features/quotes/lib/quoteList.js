@@ -11,10 +11,8 @@ export const DEFAULT_QUOTE_LIST_FILTERS = {
 
 export const QUOTE_STATUS_OPTIONS = [
   { value: '', label: 'Tất cả trạng thái' },
-  { value: 'draft', label: 'Draft' },
-  { value: 'sent', label: 'Sent' },
-  { value: 'accepted', label: 'Accepted' },
-  { value: 'rejected', label: 'Rejected' },
+  { value: 'draft', label: 'Nháp' },
+  { value: 'sent', label: 'Đã lấy link gửi khách' },
 ]
 
 export const QUOTE_TIER_OPTIONS = [
@@ -37,6 +35,13 @@ const STATUS_TONES = {
   rejected: 'bg-red-100 text-red-700',
 }
 
+const STATUS_LABELS = {
+  draft: 'Nháp',
+  sent: 'Đã lấy link gửi khách',
+  accepted: 'Accepted',
+  rejected: 'Rejected',
+}
+
 export function formatQuoteCurrency(value) {
   return new Intl.NumberFormat('vi-VN').format(Number(value) || 0)
 }
@@ -56,7 +61,8 @@ export function getQuoteCreatorName(quote = {}, userContext = {}) {
 }
 
 export function getQuoteStatusLabel(status) {
-  return status || 'draft'
+  const normalized = String(status || 'draft').toLowerCase()
+  return STATUS_LABELS[normalized] || status || STATUS_LABELS.draft
 }
 
 export function getQuoteStatusTone(status) {

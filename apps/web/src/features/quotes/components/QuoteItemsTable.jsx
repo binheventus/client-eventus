@@ -9,6 +9,13 @@ function parseCurrencyInput(value) {
   return clean ? Number(clean) : 0
 }
 
+function formatHourInput(value) {
+  if (value === undefined || value === null || value === '') return ''
+  const number = Number(value)
+  if (!Number.isFinite(number)) return ''
+  return Number.isInteger(number) ? String(number) : String(number).replace(/\.0+$/, '')
+}
+
 function getServiceName(item) {
   return item.service_name || item.service?.quote_display_name || item.service?.service_name || item.service?.name || item.service_name_raw || item.service_code || 'Hạng mục'
 }
@@ -57,9 +64,10 @@ export default function QuoteItemsTable({
         <table className="w-full table-fixed text-left text-[13px]">
           <thead className="bg-slate-50 text-[11px] uppercase tracking-[0.12em] text-slate-500">
             <tr>
-              <th className="w-[59%] py-3 pl-5 pr-3 font-semibold">Dịch vụ</th>
+              <th className="w-[51%] py-3 pl-5 pr-3 font-semibold">Dịch vụ</th>
               <th className="w-[6%] px-1.5 py-3 text-center font-semibold">SL</th>
               <th className="w-[7%] px-1.5 py-3 text-center font-semibold">Số buổi</th>
+              <th className="w-[8%] px-1.5 py-3 text-center font-semibold">Giờ tính</th>
               <th className="w-[13%] px-2 py-3 text-right font-semibold">Đơn giá</th>
               <th className="w-[10%] py-3 pl-0 pr-0 text-right font-semibold">Thành tiền</th>
               <th className="w-[5%] py-3 pl-0 pr-1" />
@@ -68,7 +76,7 @@ export default function QuoteItemsTable({
           <tbody className="divide-y divide-slate-100">
             {items.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-[13px] text-slate-400">
+                <td colSpan={7} className="px-4 py-8 text-center text-[13px] text-slate-400">
                   Chưa có hạng mục.
                 </td>
               </tr>
@@ -126,6 +134,20 @@ export default function QuoteItemsTable({
                     onChange={event => onChangeItem?.(index, { num_sessions: Number(event.target.value) })}
                     className="w-full rounded-lg border border-slate-200 px-1.5 py-1.5 text-right outline-none focus:border-[#f8981d] focus:ring-2 focus:ring-orange-100"
                   />
+                </td>
+                <td className="px-1.5 py-2">
+                  {item.is_custom ? (
+                    <div className="rounded-lg border border-transparent px-1.5 py-1.5 text-center text-slate-300">-</div>
+                  ) : (
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      value={formatHourInput(item.billable_duration_hours)}
+                      onChange={event => onChangeItem?.(index, { billable_duration_hours: Number(event.target.value) || '' })}
+                      className="w-full rounded-lg border border-slate-200 px-1.5 py-1.5 text-right outline-none focus:border-[#f8981d] focus:ring-2 focus:ring-orange-100"
+                    />
+                  )}
                 </td>
                 <td className="px-2 py-2">
                   <input

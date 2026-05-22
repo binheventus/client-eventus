@@ -433,6 +433,7 @@ export function buildQuoteSnapshot(quote = {}) {
       unit: item.unit || item.pricing_unit || item.service?.unit || 'Người',
       quantity: Number(item.quantity || 0),
       num_sessions: Number(item.num_sessions || 1),
+      billable_duration_hours: item.billable_duration_hours ?? '',
       unit_price: Number(item.unit_price || 0),
       total_price: Number(item.total_price || 0),
       sort_order: item.sort_order ?? index + 1,
