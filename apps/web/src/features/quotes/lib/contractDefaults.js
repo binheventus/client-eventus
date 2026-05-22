@@ -40,10 +40,22 @@ export const DEFAULT_CONTRACT_PREAMBLE = [
   'Căn cứ theo nhu cầu hợp tác và khả năng của hai bên.',
 ]
 
+export const WORK_DURATION_PLACEHOLDER = '[Số giờ/buổi hoặc Số giờ/ngày]'
+
+export const DEFAULT_WORK_PROGRESS_NOTES = [
+  `Thời gian làm việc của ekip Bên B là tối đa ${WORK_DURATION_PLACEHOLDER} theo mốc đã thống nhất. Trường hợp phát sinh ngoài giờ theo yêu cầu của Bên A, Bên A thanh toán thêm phí overtime là 500.000 đồng/giờ/nhân sự. Số giờ làm thêm phải được Bên A xác nhận bằng văn bản hoặc email/Zalo trước khi thực hiện.`,
+  'Tiến độ bàn giao video highlight và reels được tính theo ngày làm việc kể từ khi Bên A cung cấp đầy đủ brief dựng, logo, font, nhạc và các yêu cầu liên quan. Trường hợp Bên A chậm cung cấp tài liệu, deadline được gia hạn tương ứng.',
+]
+
 function normalizeTextArray(value, fallback = []) {
   if (!Array.isArray(value)) return fallback
   const rows = value.map(item => String(item || '').trim()).filter(Boolean)
   return rows.length ? rows : fallback
+}
+
+function normalizeEditableTextArray(value, fallback = []) {
+  if (!Array.isArray(value)) return fallback
+  return value.map(item => String(item ?? ''))
 }
 
 export function getContractPreamble(contract = {}) {
@@ -336,11 +348,15 @@ export function getContractWorkDurationText(contract = {}) {
 
 export function getContractWorkProgressNotes(contract = {}) {
   const workDurationText = getContractWorkDurationText(contract)
+  const workProgressNotes = normalizeEditableTextArray(
+    contract.quote_table_config?.work_progress_notes,
+    DEFAULT_WORK_PROGRESS_NOTES,
+  )
 
-  return [
-    `Thời gian làm việc của ekip Bên B là tối đa ${workDurationText} theo mốc đã thống nhất. Trường hợp phát sinh ngoài giờ theo yêu cầu của Bên A, Bên A thanh toán thêm phí overtime là 500.000 đồng/giờ/nhân sự. Số giờ làm thêm phải được Bên A xác nhận bằng văn bản hoặc email/Zalo trước khi thực hiện.`,
-    'Tiến độ bàn giao video highlight và reels được tính theo ngày làm việc kể từ khi Bên A cung cấp đầy đủ brief dựng, logo, font, nhạc và các yêu cầu liên quan. Trường hợp Bên A chậm cung cấp tài liệu, deadline được gia hạn tương ứng.',
-  ]
+  return workProgressNotes
+    .map(note => note.trim())
+    .filter(Boolean)
+    .map(note => note.replaceAll(WORK_DURATION_PLACEHOLDER, workDurationText))
 }
 
 export function numberToVietnameseCardinal(value) {
@@ -365,6 +381,10 @@ export function normalizeContractTemplate(template = {}) {
     ...DEFAULT_QUOTE_TABLE_CONFIG,
     ...(template.quote_table_config || {}),
   }
+  quoteTableConfig.work_progress_notes = normalizeEditableTextArray(
+    template.quote_table_config?.work_progress_notes,
+    DEFAULT_WORK_PROGRESS_NOTES,
+  )
 
   return {
     ...template,

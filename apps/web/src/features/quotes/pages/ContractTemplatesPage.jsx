@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { CopyPlus, Eye, Plus, Save, Trash2 } from 'lucide-react'
 import { useEscapeToClose } from '../../../hooks/useEscapeToClose'
 import QuoteBreadcrumb from '../components/QuoteBreadcrumb'
@@ -14,9 +14,9 @@ import {
   DEFAULT_CONTRACT_TITLE,
   DEFAULT_PAYMENT_CONFIG,
   DEFAULT_QUOTE_TABLE_CONFIG,
+  DEFAULT_WORK_PROGRESS_NOTES,
   getContractPreamble,
   getContractPaymentNotes,
-  getContractWorkProgressNotes,
   normalizeContractTemplate,
   sectionsToTermsText,
   termsTextToSections,
@@ -61,6 +61,36 @@ function Textarea(props) {
   )
 }
 
+function AutoResizeTextarea({ value, onChange, minRows = 5, className = '', ...props }) {
+  const textareaRef = useRef(null)
+
+  function resizeTextarea(textarea) {
+    if (!textarea) return
+    textarea.style.height = 'auto'
+    textarea.style.height = `${textarea.scrollHeight}px`
+  }
+
+  useEffect(() => {
+    resizeTextarea(textareaRef.current)
+  }, [value])
+
+  function handleChange(event) {
+    resizeTextarea(event.currentTarget)
+    onChange?.(event)
+  }
+
+  return (
+    <textarea
+      {...props}
+      ref={textareaRef}
+      rows={minRows}
+      value={value}
+      onChange={handleChange}
+      className={`w-full resize-none overflow-hidden rounded-xl border border-slate-200 px-3 py-3 text-[13px] leading-6 outline-none transition focus:border-[#f8981d] focus:ring-2 focus:ring-orange-100 ${className}`}
+    />
+  )
+}
+
 function Select(props) {
   return (
     <select
@@ -97,6 +127,18 @@ function withFixedContractTitle(template = {}) {
     ...template,
     title: DEFAULT_CONTRACT_TITLE,
   }
+}
+
+function getWorkProgressNotesTemplateText(template = {}) {
+  const notes = Array.isArray(template.quote_table_config?.work_progress_notes)
+    ? template.quote_table_config.work_progress_notes
+    : DEFAULT_WORK_PROGRESS_NOTES
+
+  return notes.join('\n')
+}
+
+function parseWorkProgressNotesText(value = '') {
+  return String(value || '').split('\n')
 }
 
 function LegalNoteList({ title, items = [] }) {
@@ -172,7 +214,6 @@ export default function ContractTemplatesPage() {
       return left.index - right.index
     })
     .map(row => row.template), [templates, protectedTemplateIds])
-  const workProgressNotes = useMemo(() => getContractWorkProgressNotes(draft), [draft])
   const paymentNotes = useMemo(() => getContractPaymentNotes(draft.payment_config), [draft.payment_config])
   const paymentDocuments = Array.isArray(draft.payment_config?.payment_documents)
     ? draft.payment_config.payment_documents
@@ -219,6 +260,21 @@ export default function ContractTemplatesPage() {
         ...draft.payment_config,
         ...patch,
       },
+    })
+  }
+
+  function updateQuoteTableConfig(patch) {
+    updateDraft({
+      quote_table_config: {
+        ...draft.quote_table_config,
+        ...patch,
+      },
+    })
+  }
+
+  function updateWorkProgressNotesText(value) {
+    updateQuoteTableConfig({
+      work_progress_notes: parseWorkProgressNotesText(value),
     })
   }
 
@@ -371,7 +427,6 @@ export default function ContractTemplatesPage() {
                       {isSystemTemplate ? <span className="rounded-full bg-slate-200 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-600">Mẫu hệ thống</span> : null}
                     </span>
                   </div>
-                  <p className="mt-1 line-clamp-2 text-[12px] leading-5 text-slate-500">{DEFAULT_CONTRACT_TITLE}</p>
                 </button>
               )
             }) : (
@@ -450,7 +505,15 @@ export default function ContractTemplatesPage() {
               )}
             </div>
             <p className="mt-4 text-[13px] font-semibold text-slate-900">Chi tiết hạng mục</p>
-            <LegalNoteList title="Lưu ý về thời gian làm việc và tiến độ bàn giao:" items={workProgressNotes} />
+            <label className="mt-5 block">
+              <span className="block text-[13px] font-semibold text-slate-900">Lưu ý về thời gian làm việc và tiến độ bàn giao</span>
+              <AutoResizeTextarea
+                minRows={5}
+                value={getWorkProgressNotesTemplateText(draft)}
+                onChange={event => updateWorkProgressNotesText(event.target.value)}
+                className="mt-2"
+              />
+            </label>
           </section>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

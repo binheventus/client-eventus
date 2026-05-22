@@ -28,11 +28,13 @@ export const QUOTE_ENTITY_OPTIONS = [
   { value: 'MEDIAMONSTER', label: 'Mediamonster' },
 ]
 
+const MUTED_STATUS_TONE = 'bg-slate-100 text-slate-500'
+
 const STATUS_TONES = {
-  draft: 'bg-slate-100 text-slate-700',
-  sent: 'bg-blue-100 text-blue-700',
-  accepted: 'bg-emerald-100 text-emerald-700',
-  rejected: 'bg-red-100 text-red-700',
+  draft: MUTED_STATUS_TONE,
+  sent: MUTED_STATUS_TONE,
+  accepted: MUTED_STATUS_TONE,
+  rejected: MUTED_STATUS_TONE,
 }
 
 const STATUS_LABELS = {
@@ -66,7 +68,7 @@ export function getQuoteStatusLabel(status) {
 }
 
 export function getQuoteStatusTone(status) {
-  return STATUS_TONES[String(status || 'draft').toLowerCase()] || STATUS_TONES.draft
+  return STATUS_TONES[String(status || 'draft').toLowerCase()] || MUTED_STATUS_TONE
 }
 
 export function canCreateContractFromQuote(quote = {}) {

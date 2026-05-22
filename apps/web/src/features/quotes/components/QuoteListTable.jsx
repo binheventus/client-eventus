@@ -9,7 +9,7 @@ import {
 } from '../lib/quoteList'
 import QuoteStatusBadge from './QuoteStatusBadge'
 
-const ACTION_BUTTON_BASE = 'inline-flex h-9 items-center justify-center gap-1.5 rounded-lg px-3.5 text-[12px] font-semibold text-white shadow-sm transition focus-visible:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 disabled:shadow-none'
+const ACTION_BUTTON_BASE = 'inline-flex h-9 items-center justify-center gap-1.5 rounded-lg px-3.5 text-[12px] font-semibold shadow-sm transition focus-visible:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 disabled:shadow-none'
 
 function ActionButton({ children, className = '', ...props }) {
   return (
@@ -38,8 +38,8 @@ function QuoteActions({ quote, onOpenContract, onDeleteQuote }) {
   const disabledContractLabel = 'Báo giá nháp chưa tạo được hợp đồng'
   const contractActionTitle = canOpenContract ? contractActionLabel : disabledContractLabel
   const contractActionClass = savedContract
-    ? 'bg-blue-600 hover:bg-blue-700 focus-visible:ring-blue-200'
-    : 'bg-emerald-600 hover:bg-emerald-700 focus-visible:ring-emerald-200'
+    ? 'border border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100 focus-visible:ring-orange-200'
+    : 'bg-[#f8981d] text-white hover:bg-orange-500 focus-visible:ring-orange-200'
 
   return (
     <div className="flex justify-end">
@@ -95,6 +95,7 @@ function QuoteRow({ quote, userContext, onOpenQuote, onOpenContract, onDeleteQuo
           <span className="truncate">{quote.quote_number || '-'}</span>
         </QuoteOpenButton>
       </td>
+      <td className="px-4 py-3 text-slate-500">{formatQuoteDate(quote.created_at)}</td>
       <td className="px-4 py-3 text-slate-700">{getQuoteClientName(quote)}</td>
       <td className="px-4 py-3 text-slate-700">{quote.event_name || '-'}</td>
       <td className="px-4 py-3 text-right">
@@ -110,7 +111,6 @@ function QuoteRow({ quote, userContext, onOpenQuote, onOpenContract, onDeleteQuo
       </td>
       <td className="px-4 py-3"><QuoteStatusBadge status={quote.status} /></td>
       <td className="px-4 py-3 text-slate-500">{getQuoteCreatorName(quote, userContext)}</td>
-      <td className="px-4 py-3 text-slate-500">{formatQuoteDate(quote.created_at)}</td>
       <td className="px-4 py-3 whitespace-nowrap">
         <QuoteActions
           quote={quote}
@@ -129,12 +129,12 @@ export default function QuoteListTable({ quotes, loading, userContext, onOpenQuo
         <thead className="bg-slate-50 text-[11px] uppercase tracking-[0.12em] text-slate-500">
           <tr>
             <th className="px-4 py-3">Mã BG</th>
+            <th className="px-4 py-3">Ngày tạo</th>
             <th className="px-4 py-3">Khách hàng</th>
             <th className="px-4 py-3">Tên sự kiện</th>
             <th className="px-4 py-3 text-right">Tổng tiền</th>
             <th className="px-4 py-3">Trạng thái</th>
             <th className="px-4 py-3">Người tạo</th>
-            <th className="px-4 py-3">Ngày tạo</th>
             <th className="px-4 py-3 text-right">Thao tác</th>
           </tr>
         </thead>

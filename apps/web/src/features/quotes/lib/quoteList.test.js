@@ -49,7 +49,7 @@ test('quote list helpers keep current fallback labels and pagination behavior', 
   assert.equal(getQuoteCreatorName({}, { name: 'Logged In' }), 'Logged In')
   assert.equal(getQuoteStatusLabel(''), 'Nháp')
   assert.equal(getQuoteStatusLabel('sent'), 'Đã lấy link gửi khách')
-  assert.equal(getQuoteStatusTone('unknown'), 'bg-slate-100 text-slate-700')
+  assert.equal(getQuoteStatusTone('unknown'), 'bg-slate-100 text-slate-500')
   assert.equal(getTotalQuotePages(0, 20), 1)
   assert.equal(getTotalQuotePages(41, 20), 3)
 })
