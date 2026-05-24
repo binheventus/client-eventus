@@ -12,6 +12,7 @@ export const tables = {
   contracts: 'client_contracts',
   contractTemplates: 'client_contract_templates',
   pages: 'client_pages',
+  jobs: 'jobs',
 }
 
 function getDbConfig() {

@@ -31,6 +31,7 @@ const JSON_CONTRACT_COLUMNS = [
   'payment_config',
   'content_sections',
   'quote_snapshot',
+  'source_snapshot',
 ]
 const CUSTOMER_COLUMNS = [
   'customer_code',
@@ -82,6 +83,42 @@ function makeId(prefix = '') {
   return prefix ? `${prefix}_${randomUUID()}` : randomUUID()
 }
 
+function makeShareToken() {
+  return randomUUID().replace(/-/g, '').slice(0, 16)
+}
+
+function getPositiveInteger(value, fallback = 1) {
+  const number = Number(value)
+  return Number.isInteger(number) && number > 0 ? number : fallback
+}
+
+function normalizeDateText(value) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value)
+  return new Intl.DateTimeFormat('vi-VN').format(date)
+}
+
+function stripHtml(value = '') {
+  return String(value || '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|li|tr|h[1-6])>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/\r\n?/g, '\n')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+function normalizeSourceType(value = 'quote') {
+  const sourceType = String(value || 'quote').toLowerCase()
+  return ['quote', 'job', 'manual'].includes(sourceType) ? sourceType : 'quote'
+}
+
 function normalizeTemplateRow(row = {}) {
   if (!row) return row
   const normalized = { ...row }
@@ -102,6 +139,108 @@ function normalizeContractRow(row = {}) {
     normalized[column] = fromJson(normalized[column], fallback)
   })
   return normalized
+}
+
+function normalizeJobRow(row = {}) {
+  if (!row) return row
+  const locationText = stripHtml(row.job_description)
+  const timeRange = [row.start_time, row.end_time].filter(Boolean).join(' - ')
+  const dateText = normalizeDateText(row.job_date)
+  const title = stripHtml(row.job_title)
+  const customerName = row.customer_company_name || row.customer_name || row.customer_name_snapshot || ''
+
+  return {
+    id: row.id,
+    job_title: title,
+    job_date: row.job_date || '',
+    date_text: dateText,
+    start_time: row.start_time || '',
+    end_time: row.end_time || '',
+    time_range: timeRange,
+    job_description: locationText,
+    location: locationText,
+    ekip: stripHtml(row.ekip),
+    price: Number(row.price || 0),
+    has_vat: true,
+    customer_id: row.customer_id || null,
+    customer_name: customerName,
+    customer_snapshot: {
+      customer_id: row.customer_id || '',
+      customer_code: row.customer_code || '',
+      company_name: customerName,
+      tax_code: row.customer_tax_code || '',
+      address: row.customer_address || '',
+      representative: row.customer_representative || '',
+      position: row.customer_position || '',
+      authorization_number: row.customer_authorization_number || '',
+      authorization_date: row.customer_authorization_date || '',
+      email: row.customer_email || '',
+      phone_number: row.customer_phone_number || '',
+    },
+    has_saved_contract: normalizeBoolean(row.has_saved_contract),
+    contract_id: row.contract_id || null,
+    contract_number: row.contract_number || '',
+  }
+}
+
+function buildJobSourceSnapshot(job = {}) {
+  return {
+    source_type: 'job',
+    external_job_id: job.id,
+    job_title: job.job_title,
+    job_date: job.job_date,
+    date_text: job.date_text,
+    start_time: job.start_time,
+    end_time: job.end_time,
+    time_range: job.time_range,
+    job_description: job.job_description,
+    location: job.location,
+    ekip: job.ekip,
+    price: job.price,
+    has_vat: job.has_vat !== false,
+    customer_snapshot: job.customer_snapshot || {},
+  }
+}
+
+function buildJobQuoteSnapshot(job = {}) {
+  const itemName = job.job_title
+    ? `Dịch vụ media theo job ${job.job_title}`
+    : 'Dịch vụ media theo job'
+  const total = Number(job.price || 0)
+
+  return {
+    id: '',
+    quote_number: '',
+    share_token: '',
+    entity_code: '',
+    client_name: job.customer_name || job.customer_snapshot?.company_name || '',
+    event_name: job.job_title || '',
+    event_date: job.job_date || '',
+    location: job.location || '',
+    duration_hours: '',
+    validity_days: '',
+    has_vat: job.has_vat !== false,
+    terms_text: '',
+    subtotal: total,
+    travel_fee_total: 0,
+    overtime_fee_total: 0,
+    vat_amount: 0,
+    total_amount: total,
+    items: [
+      {
+        service_code: 'JOB_TOTAL',
+        service_name: itemName,
+        unit: 'Gói',
+        quantity: 1,
+        num_sessions: 1,
+        billable_duration_hours: '',
+        unit_price: total,
+        total_price: total,
+        sort_order: 1,
+        group_label: '',
+      },
+    ],
+  }
 }
 
 async function getQuoteById(id) {
@@ -131,6 +270,143 @@ async function listTemplates() {
      order by sort_order asc, created_at desc`,
   )
   return rows.map(normalizeTemplateRow)
+}
+
+async function listContracts(queryParams = {}) {
+  const page = getPositiveInteger(queryParams.page, 1)
+  const pageSize = getPositiveInteger(queryParams.pageSize, 20)
+  const offset = (page - 1) * pageSize
+  const sourceType = getQueryValue(queryParams.source_type, '')
+  const search = String(getQueryValue(queryParams.search, '') || '').trim()
+  const where = []
+  const params = []
+
+  if (sourceType) {
+    where.push('c.source_type = ?')
+    params.push(sourceType)
+  }
+
+  if (search) {
+    where.push(`(
+      c.contract_number like ?
+      or c.quote_number like ?
+      or json_unquote(json_extract(c.customer_snapshot, '$.company_name')) like ?
+      or json_unquote(json_extract(c.quote_snapshot, '$.event_name')) like ?
+      or json_unquote(json_extract(c.source_snapshot, '$.job_title')) like ?
+    )`)
+    params.push(...Array(5).fill(`%${search}%`))
+  }
+
+  const whereSql = where.length ? `where ${where.join(' and ')}` : ''
+  const countRows = await query(`select count(*) as count from ${tables.contracts} c ${whereSql}`, params)
+  const rows = await query(
+    `select c.*
+     from ${tables.contracts} c
+     ${whereSql}
+     order by c.updated_at desc, c.created_at desc
+     limit ${pageSize} offset ${offset}`,
+    params,
+  )
+
+  return {
+    contracts: rows.map(normalizeContractRow),
+    count: Number(countRows?.[0]?.count || 0),
+    page,
+    pageSize,
+  }
+}
+
+async function listContractJobs(queryParams = {}) {
+  const page = getPositiveInteger(queryParams.page, 1)
+  const pageSize = getPositiveInteger(queryParams.pageSize, 20)
+  const offset = (page - 1) * pageSize
+  const search = String(getQueryValue(queryParams.search, '') || '').trim()
+  const where = ['j.deleted_at is null']
+  const params = []
+
+  if (search) {
+    where.push(`(
+      j.job_title like ?
+      or j.job_description like ?
+      or j.customer_name like ?
+      or customers.company_name like ?
+      or customers.customer_code like ?
+    )`)
+    params.push(...Array(5).fill(`%${search}%`))
+  }
+
+  const whereSql = `where ${where.join(' and ')}`
+  const countRows = await query(`select count(*) as count from ${tables.jobs} j left join ${tables.customers} customers on customers.id = j.customer_id ${whereSql}`, params)
+  const rows = await query(
+    `select
+       j.id, j.job_title, j.job_date, j.start_time, j.end_time, j.job_description,
+       j.ekip, j.price, j.customer_id, j.customer_name as customer_name_snapshot,
+       customers.customer_code, customers.company_name as customer_company_name,
+       customers.tax_code as customer_tax_code,
+       customers.address as customer_address, customers.representative as customer_representative,
+       customers.position as customer_position,
+       customers.authorization_number as customer_authorization_number,
+       customers.authorization_date as customer_authorization_date,
+       customers.phone_number as customer_phone_number,
+       customers.email as customer_email,
+       c.id as contract_id, c.contract_number,
+       case when c.id is null then 0 else 1 end as has_saved_contract
+     from ${tables.jobs} j
+     left join ${tables.customers} customers on customers.id = j.customer_id
+     left join ${tables.contracts} c on c.source_type = 'job' and c.external_job_id = j.id
+     ${whereSql}
+     order by j.job_date desc, j.id desc
+     limit ${pageSize} offset ${offset}`,
+    params,
+  )
+
+  return {
+    jobs: rows.map(normalizeJobRow),
+    count: Number(countRows?.[0]?.count || 0),
+    page,
+    pageSize,
+  }
+}
+
+async function getContractJobById(jobId) {
+  const rows = await query(
+    `select
+       j.id, j.job_title, j.job_date, j.start_time, j.end_time, j.job_description,
+       j.ekip, j.price, j.customer_id, j.customer_name as customer_name_snapshot,
+       customers.customer_code, customers.company_name as customer_company_name,
+       customers.tax_code as customer_tax_code,
+       customers.address as customer_address, customers.representative as customer_representative,
+       customers.position as customer_position,
+       customers.authorization_number as customer_authorization_number,
+       customers.authorization_date as customer_authorization_date,
+       customers.phone_number as customer_phone_number,
+       customers.email as customer_email,
+       c.id as contract_id, c.contract_number,
+       case when c.id is null then 0 else 1 end as has_saved_contract
+     from ${tables.jobs} j
+     left join ${tables.customers} customers on customers.id = j.customer_id
+     left join ${tables.contracts} c on c.source_type = 'job' and c.external_job_id = j.id
+     where j.id = ? and j.deleted_at is null
+     limit 1`,
+    [jobId],
+  )
+
+  const job = rows?.[0] ? normalizeJobRow(rows[0]) : null
+  if (!job) {
+    const error = new Error('Khong tim thay job.')
+    error.statusCode = 404
+    throw error
+  }
+  return {
+    ...job,
+    source_snapshot: buildJobSourceSnapshot(job),
+    quote_snapshot: buildJobQuoteSnapshot(job),
+    schedule_rows: [{
+      time_range: job.time_range,
+      date_text: job.date_text,
+      location: job.location,
+    }],
+  }
 }
 
 function cleanTemplatePayload(template = {}) {
@@ -334,12 +610,33 @@ async function deleteContract({ id, quoteId } = {}) {
   return { ok: true }
 }
 
+async function getContractById(id) {
+  const rows = await query(`select * from ${tables.contracts} where id = ? limit 1`, [id])
+  return rows?.[0] ? normalizeContractRow(rows[0]) : null
+}
+
 async function getContractByQuoteId(quoteId) {
   const rows = await query(`select * from ${tables.contracts} where quote_id = ? limit 1`, [quoteId])
   return rows?.[0] ? normalizeContractRow(rows[0]) : null
 }
 
+async function getContractByJobId(jobId) {
+  const rows = await query(
+    `select * from ${tables.contracts} where source_type = 'job' and external_job_id = ? limit 1`,
+    [jobId],
+  )
+  return rows?.[0] ? normalizeContractRow(rows[0]) : null
+}
+
+async function getContractByShareToken(shareToken) {
+  const rows = await query(`select * from ${tables.contracts} where share_token = ? limit 1`, [shareToken])
+  return rows?.[0] ? normalizeContractRow(rows[0]) : null
+}
+
 async function getPublicContractByToken(shareToken) {
+  const directContract = await getContractByShareToken(shareToken)
+  if (directContract?.id) return directContract
+
   const quote = await getQuoteByShareToken(shareToken)
   if (!quote?.id) return null
   return getContractByQuoteId(quote.id)
@@ -347,10 +644,14 @@ async function getPublicContractByToken(shareToken) {
 
 function cleanContractPayload(contract = {}) {
   const { email, phone, ...sellerSnapshot } = contract.seller_snapshot || {}
+  const sourceType = normalizeSourceType(contract.source_type || (contract.quote_id ? 'quote' : 'manual'))
 
   return {
-    quote_id: contract.quote_id,
+    quote_id: emptyToNull(contract.quote_id),
     quote_number: contract.quote_number || null,
+    source_type: sourceType,
+    external_job_id: sourceType === 'job' ? emptyToNull(contract.external_job_id) : null,
+    share_token: contract.share_token || makeShareToken(),
     contract_number: contract.contract_number,
     status: contract.status || 'draft',
     template_id: contract.template_id || null,
@@ -368,16 +669,12 @@ function cleanContractPayload(contract = {}) {
     content_sections: toJson(Array.isArray(contract.content_sections) ? contract.content_sections : [], []),
     terms_text: contract.terms_text || '',
     quote_snapshot: toJson(contract.quote_snapshot || {}, {}),
+    source_snapshot: toJson(contract.source_snapshot || {}, {}),
   }
 }
 
 async function saveContract(contract = {}) {
   const payload = cleanContractPayload(contract)
-  if (!payload.quote_id) {
-    const error = new Error('Thieu quote id.')
-    error.statusCode = 400
-    throw error
-  }
 
   if (!payload.contract_number || !payload.terms_text) {
     const error = new Error('Thieu so hop dong hoac noi dung hop dong.')
@@ -385,8 +682,24 @@ async function saveContract(contract = {}) {
     throw error
   }
 
-  const existing = await getContractByQuoteId(payload.quote_id)
-  if (!existing) {
+  if (payload.source_type === 'quote' && !payload.quote_id) {
+    const error = new Error('Thieu quote id.')
+    error.statusCode = 400
+    throw error
+  }
+
+  if (payload.source_type === 'job' && !payload.external_job_id) {
+    const error = new Error('Thieu job id.')
+    error.statusCode = 400
+    throw error
+  }
+
+  let existing = null
+  if (contract.id) existing = await getContractById(contract.id)
+  if (!existing && payload.quote_id) existing = await getContractByQuoteId(payload.quote_id)
+  if (!existing && payload.source_type === 'job') existing = await getContractByJobId(payload.external_job_id)
+
+  if (!existing && payload.quote_id) {
     const quote = await getQuoteById(payload.quote_id)
     if (String(quote.status || 'draft').toLowerCase() === 'draft') {
       const error = new Error('Chi bao gia da luu hoan thien moi duoc tao hop dong.')
@@ -395,18 +708,25 @@ async function saveContract(contract = {}) {
     }
   }
 
+  if (existing?.id && contract.id && existing.id !== contract.id) {
+    const error = new Error('Hop dong da ton tai voi nguon nay.')
+    error.statusCode = 409
+    error.code = 'CONTRACT_EXISTS'
+    throw error
+  }
+
   if (existing?.id) {
     await withTransaction(async connection => {
       await updateRow(connection, tables.contracts, payload, 'id = ?', [existing.id])
     })
-    return getContractByQuoteId(payload.quote_id)
+    return getContractById(existing.id)
   }
 
   const id = contract.id || makeId('contract')
   await withTransaction(async connection => {
     await insertRow(connection, tables.contracts, { id, ...payload })
   })
-  return getContractByQuoteId(payload.quote_id)
+  return getContractById(id)
 }
 
 export default async function handler(req, res) {
@@ -419,10 +739,28 @@ export default async function handler(req, res) {
         return res.status(200).json({ templates: await listTemplates() })
       }
 
+      if (resource === 'contracts') {
+        return res.status(200).json(await listContracts(req.query || {}))
+      }
+
       if (resource === 'contract') {
+        const id = getQueryValue(req.query?.id, '')
         const quoteId = getQueryValue(req.query?.quote_id, '')
-        if (!quoteId) return res.status(400).json({ error: 'Thieu quote id.' })
-        return res.status(200).json({ contract: await getContractByQuoteId(quoteId) })
+        const jobId = getQueryValue(req.query?.job_id || req.query?.external_job_id, '')
+        if (id) return res.status(200).json({ contract: await getContractById(id) })
+        if (quoteId) return res.status(200).json({ contract: await getContractByQuoteId(quoteId) })
+        if (jobId) return res.status(200).json({ contract: await getContractByJobId(jobId) })
+        return res.status(400).json({ error: 'Thieu contract id, quote id hoac job id.' })
+      }
+
+      if (resource === 'jobs') {
+        return res.status(200).json(await listContractJobs(req.query || {}))
+      }
+
+      if (resource === 'job') {
+        const jobId = getQueryValue(req.query?.id || req.query?.job_id, '')
+        if (!jobId) return res.status(400).json({ error: 'Thieu job id.' })
+        return res.status(200).json({ job: await getContractJobById(jobId) })
       }
 
       if (resource === 'public_contract') {

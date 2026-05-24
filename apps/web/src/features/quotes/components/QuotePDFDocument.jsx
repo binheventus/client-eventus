@@ -2,9 +2,13 @@ import { Document, Font, Image, Page, StyleSheet, Text, View } from '@react-pdf/
 import equipmentRulesData from '../../../data/pricing/equipment_rules.json'
 import legalEntitiesData from '../../../data/pricing/legal_entities.json'
 import { getMatchedEquipmentRules } from '../lib/equipmentRules'
-import { normalizeQuoteValidityDays } from '../lib/quoteValidity'
+import { getQuoteTerms } from '../lib/quoteTerms'
 
 const SIGNATURE_IMAGE_SRC = '/signatures/nguyen-thu-huyen.png'
+const STAMP_IMAGE_BY_ENTITY = {
+  EVENTUS: '/stamps/Stamp-eventus.png',
+  MEDIAMONSTER: '/stamps/Stamp-mediamonster.png',
+}
 const PDF_FONT_FAMILY = 'BeVietnamProQuote'
 const FONT_PATH = '/fonts/be-vietnam-pro'
 
@@ -98,6 +102,10 @@ function getQuoteCode(quote) {
   return String(code).replace(/^#/, '')
 }
 
+function getStampImageSrc(entityCode) {
+  return STAMP_IMAGE_BY_ENTITY[entityCode] || STAMP_IMAGE_BY_ENTITY.EVENTUS
+}
+
 function getClientName(quote) {
   return quote?.client_name || quote?.customer_name || quote?.client?.name || '-'
 }
@@ -135,7 +143,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
     fontFamily: PDF_FONT_FAMILY,
     fontSize: 9,
-    color: '#0f172a',
+    color: '#000000',
     lineHeight: 1.35,
   },
   pageDense: {
@@ -194,7 +202,7 @@ const styles = StyleSheet.create({
   logoFallback: {
     fontSize: 9,
     fontWeight: 700,
-    color: '#94a3b8',
+    color: '#000000',
     textTransform: 'uppercase',
     letterSpacing: 1,
   },
@@ -202,7 +210,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontSize: 16,
     fontWeight: 700,
-    color: '#020617',
+    color: '#000000',
     lineHeight: 1.25,
   },
   documentTitleDense: {
@@ -216,7 +224,7 @@ const styles = StyleSheet.create({
   },
   quoteNo: {
     marginTop: 3,
-    color: '#94a3b8',
+    color: '#000000',
     fontSize: 8.5,
     fontWeight: 500,
     lineHeight: 1.2,
@@ -236,7 +244,7 @@ const styles = StyleSheet.create({
   company: {
     fontSize: 8.2,
     fontWeight: 700,
-    color: '#475569',
+    color: '#000000',
     textAlign: 'right',
     textTransform: 'uppercase',
   },
@@ -244,7 +252,7 @@ const styles = StyleSheet.create({
     fontSize: 8,
   },
   muted: {
-    color: '#64748b',
+    color: '#000000',
     textAlign: 'right',
     marginTop: 1,
     fontSize: 8,
@@ -268,13 +276,13 @@ const styles = StyleSheet.create({
     marginBottom: 5,
     fontSize: 10,
     fontWeight: 700,
-    color: '#111827',
+    color: '#000000',
   },
   table: {
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: '#cbd5e1',
     borderRadius: 7,
-    marginBottom: 4,
+    marginBottom: 2,
     overflow: 'hidden',
   },
   tableDense: {
@@ -287,7 +295,7 @@ const styles = StyleSheet.create({
   tableHeader: {
     flexDirection: 'row',
     backgroundColor: '#f8fafc',
-    color: '#64748b',
+    color: '#000000',
     fontWeight: 700,
   },
   row: {
@@ -319,7 +327,7 @@ const styles = StyleSheet.create({
   headerCell: {
     fontSize: 7.5,
     fontWeight: 700,
-    color: '#64748b',
+    color: '#000000',
     textTransform: 'uppercase',
   },
   headerCellDense: {
@@ -356,7 +364,7 @@ const styles = StyleSheet.create({
     width: '18%',
     textAlign: 'right',
     fontWeight: 600,
-    color: '#020617',
+    color: '#000000',
   },
   amountDense: {
     width: '17%',
@@ -365,7 +373,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 4,
     backgroundColor: '#f8fafc',
-    color: '#334155',
+    color: '#000000',
     fontWeight: 700,
     borderTopWidth: 1,
     borderTopColor: '#e2e8f0',
@@ -383,6 +391,7 @@ const styles = StyleSheet.create({
     width: 240,
     marginTop: 0,
     marginBottom: 8,
+    paddingRight: 5,
   },
   totalsDense: {
     width: 232,
@@ -395,8 +404,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingVertical: 3,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
+    color: '#000000',
   },
   totalLineDense: {
     paddingVertical: 2.6,
@@ -409,10 +417,13 @@ const styles = StyleSheet.create({
   grandTotal: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
     paddingTop: 5,
-    fontSize: 10.5,
+    marginTop: 2,
+    fontSize: 10,
     fontWeight: 700,
-    color: '#020617',
+    color: '#000000',
   },
   grandTotalDense: {
     paddingTop: 4,
@@ -424,38 +435,24 @@ const styles = StyleSheet.create({
   },
   notes: {
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    backgroundColor: '#f8fafc',
+    borderColor: '#cbd5e1',
+    backgroundColor: '#ffffff',
     borderRadius: 7,
-    padding: 4,
-    marginTop: 1,
+    padding: 5,
+    marginTop: 8,
   },
   notesDense: {
     borderRadius: 7,
-    padding: 3.6,
-    marginTop: 1,
+    padding: 4.4,
+    marginTop: 7,
   },
   notesSpacious: {
     padding: 7,
-    marginTop: 2,
-  },
-  notesTitle: {
-    marginTop: 18,
-    marginBottom: 7,
-  },
-  notesTitleDense: {
-    marginTop: 14,
-    marginBottom: 5.5,
-    fontSize: 9.4,
-  },
-  notesTitleSpacious: {
-    marginTop: 24,
-    marginBottom: 10,
-    fontSize: 10.5,
+    marginTop: 10,
   },
   noteLine: {
     marginBottom: 1.4,
-    color: '#475569',
+    color: '#000000',
     fontSize: 7,
     lineHeight: 1.16,
   },
@@ -481,7 +478,7 @@ const styles = StyleSheet.create({
   noteHeading: {
     fontSize: 7.4,
     fontWeight: 700,
-    color: '#111827',
+    color: '#000000',
     marginBottom: 1,
     textTransform: 'uppercase',
     letterSpacing: 0.2,
@@ -495,63 +492,98 @@ const styles = StyleSheet.create({
     marginBottom: 1.5,
   },
   signature: {
-    marginTop: 16,
+    marginTop: 8,
     marginLeft: 'auto',
-    width: 90,
+    width: 132,
     textAlign: 'center',
   },
   signatureDense: {
-    marginTop: 13,
-    width: 88,
+    marginTop: 7,
+    width: 128,
   },
   signatureSpacious: {
-    marginTop: 22,
-    width: 96,
+    marginTop: 10,
+    width: 138,
   },
   signatureDate: {
-    marginBottom: 1,
-    fontSize: 7,
-    fontWeight: 700,
-    color: '#111827',
+    marginBottom: 9,
+    fontSize: 8,
+    fontWeight: 400,
+    color: '#000000',
   },
   signatureDateDense: {
-    fontSize: 6.8,
-    marginBottom: 0.8,
+    fontSize: 7.8,
+    marginBottom: 8,
   },
   signatureDateSpacious: {
-    fontSize: 7.3,
-    marginBottom: 1.3,
+    fontSize: 8.2,
+    marginBottom: 10,
   },
   signatureImage: {
-    width: 34,
-    height: 20,
+    width: 86,
+    height: 52,
     objectFit: 'contain',
-    marginHorizontal: 'auto',
+    marginLeft: 'auto',
+    marginRight: -4,
+  },
+  signatureImageWrap: {
+    position: 'relative',
+    height: 58,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  signatureImageWrapDense: {
+    height: 54,
+  },
+  signatureImageWrapSpacious: {
+    height: 62,
+  },
+  stampImage: {
+    position: 'absolute',
+    left: 22,
+    top: -14,
+    width: 76,
+    height: 76,
+    objectFit: 'contain',
+  },
+  stampImageDense: {
+    left: 21,
+    top: -13,
+    width: 72,
+    height: 72,
+  },
+  stampImageSpacious: {
+    left: 24,
+    top: -15,
+    width: 80,
+    height: 80,
   },
   signatureImageDense: {
-    width: 32,
-    height: 18,
+    width: 82,
+    height: 49,
+    marginRight: -2,
   },
   signatureImageSpacious: {
-    width: 38,
-    height: 22,
+    width: 92,
+    height: 55,
+    marginRight: -6,
   },
   signatureName: {
-    marginTop: 1,
+    marginTop: -2,
     fontSize: 7.8,
     fontWeight: 700,
-    color: '#111827',
+    color: '#000000',
   },
   signatureNameDense: {
-    marginTop: 0.8,
+    marginTop: -2.5,
     fontSize: 7.5,
   },
   signatureNameSpacious: {
-    marginTop: 1.4,
+    marginTop: -1,
     fontSize: 8.2,
   },
   signatureRole: {
-    color: '#64748b',
+    color: '#000000',
     fontSize: 7,
   },
   signatureRoleDense: {
@@ -574,7 +606,7 @@ const styles = StyleSheet.create({
   },
   introLine: {
     marginBottom: 3,
-    color: '#334155',
+    color: '#000000',
   },
   introLineDense: {
     marginBottom: 2.4,
@@ -586,7 +618,7 @@ const styles = StyleSheet.create({
   },
   introClient: {
     fontWeight: 600,
-    color: '#0f172a',
+    color: '#000000',
   },
   pageNumber: {
     position: 'absolute',
@@ -595,7 +627,7 @@ const styles = StyleSheet.create({
     right: 32,
     textAlign: 'center',
     fontSize: 8,
-    color: '#94a3b8',
+    color: '#000000',
   },
 })
 
@@ -705,14 +737,7 @@ function Totals({ quote, dense = false, spacious = false }) {
 
 function Notes({ quote, items = [], dense = false, spacious = false }) {
   const equipmentRules = getMatchedEquipmentRules(items, equipmentRulesData)
-  const validityDays = normalizeQuoteValidityDays(quote?.validity_days)
-  const terms = [
-    `• Báo giá có hiệu lực trong ${validityDays} ngày. Thời gian làm việc tiêu chuẩn tối đa 04 tiếng/buổi và 08 tiếng/ngày. Thời gian Overtime sẽ được tính phí theo thỏa thuận riêng.`,
-    ...(!quote?.has_vat ? ['• Báo giá trên chưa bao gồm Thuế GTGT 8%.'] : []),
-    '• Báo giá trên chưa bao gồm chi phí mua bản quyền âm nhạc, hình ảnh nếu có.',
-    '• Báo giá đã bao gồm tối đa 03 lần chỉnh sửa sản phẩm hậu kỳ dựa trên format đã thống nhất.',
-    '• Trong vòng 05 ngày làm việc kể từ ngày bàn giao bản Demo, nếu Khách hàng không có phản hồi hoặc yêu cầu chỉnh sửa bằng văn bản, sản phẩm được coi là đã hoàn thành & tự động được nghiệm thu.',
-  ]
+  const terms = getQuoteTerms(quote)
   const paymentTerms = [
     '• Đợt 1 (Tạm ứng): Quý khách vui lòng thanh toán 50% tổng giá trị báo giá sau khi xác nhận báo giá để giữ lịch nhân sự và chuẩn bị thiết bị.',
     '• Đợt 2 (Tất toán): Thanh toán 50% giá trị còn lại trong vòng 03 ngày làm việc sau khi bàn giao đầy đủ sản phẩm cuối cùng.',
@@ -732,18 +757,28 @@ function Notes({ quote, items = [], dense = false, spacious = false }) {
       ) : null}
       <View style={[styles.noteSection, dense ? styles.noteSectionDense : null, spacious ? styles.noteSectionSpacious : null]}>
         <Text style={[styles.noteHeading, dense ? styles.noteHeadingDense : null, spacious ? styles.noteHeadingSpacious : null]}>ĐIỀU KHOẢN & ĐIỀU KIỆN</Text>
-        {terms.map(term => <Text key={term} style={[styles.noteLine, dense ? styles.noteLineDense : null, spacious ? styles.noteLineSpacious : null]}>{term}</Text>)}
+        {terms.map(term => <Text key={term} style={[styles.noteLine, dense ? styles.noteLineDense : null, spacious ? styles.noteLineSpacious : null]}>• {term}</Text>)}
       </View>
       <View>
         <Text style={[styles.noteHeading, dense ? styles.noteHeadingDense : null, spacious ? styles.noteHeadingSpacious : null]}>ĐIỀU KHOẢN THANH TOÁN</Text>
         {paymentTerms.map(term => <Text key={term} style={[styles.noteLine, dense ? styles.noteLineDense : null, spacious ? styles.noteLineSpacious : null]}>{term}</Text>)}
       </View>
-      <View style={[styles.signature, dense ? styles.signatureDense : null, spacious ? styles.signatureSpacious : null]}>
-        <Text style={[styles.signatureDate, dense ? styles.signatureDateDense : null, spacious ? styles.signatureDateSpacious : null]}>Ngày lập: {formatQuoteDate(quote?.created_at)}</Text>
+    </View>
+  )
+}
+
+function SignatureBlock({ quote, dense = false, spacious = false }) {
+  const stampImageSrc = getStampImageSrc(quote?.entity_code)
+
+  return (
+    <View style={[styles.signature, dense ? styles.signatureDense : null, spacious ? styles.signatureSpacious : null]}>
+      <Text style={[styles.signatureDate, dense ? styles.signatureDateDense : null, spacious ? styles.signatureDateSpacious : null]}>Ngày lập: {formatQuoteDate(quote?.created_at)}</Text>
+      <View style={[styles.signatureImageWrap, dense ? styles.signatureImageWrapDense : null, spacious ? styles.signatureImageWrapSpacious : null]}>
+        <Image src={stampImageSrc} style={[styles.stampImage, dense ? styles.stampImageDense : null, spacious ? styles.stampImageSpacious : null]} />
         <Image src={SIGNATURE_IMAGE_SRC} style={[styles.signatureImage, dense ? styles.signatureImageDense : null, spacious ? styles.signatureImageSpacious : null]} />
-        <Text style={[styles.signatureName, dense ? styles.signatureNameDense : null, spacious ? styles.signatureNameSpacious : null]}>Nguyễn Thu Huyền</Text>
-        <Text style={[styles.signatureRole, dense ? styles.signatureRoleDense : null, spacious ? styles.signatureRoleSpacious : null]}>Account Manager</Text>
       </View>
+      <Text style={[styles.signatureName, dense ? styles.signatureNameDense : null, spacious ? styles.signatureNameSpacious : null]}>Nguyễn Thu Huyền</Text>
+      <Text style={[styles.signatureRole, dense ? styles.signatureRoleDense : null, spacious ? styles.signatureRoleSpacious : null]}>Account Manager</Text>
     </View>
   )
 }
@@ -759,8 +794,8 @@ export function QuotePDFPage({ quote = {}, items = [] }) {
       <InfoSection quote={quote} dense={dense} spacious={spacious} />
       <ItemsTable items={pdfItems} dense={dense} spacious={spacious} />
       <Totals quote={quote} dense={dense} spacious={spacious} />
-      <Text style={[styles.sectionTitle, styles.notesTitle, dense ? styles.notesTitleDense : null, spacious ? styles.notesTitleSpacious : null]}>Ghi chú</Text>
       <Notes quote={quote} items={pdfItems} dense={dense} spacious={spacious} />
+      <SignatureBlock quote={quote} dense={dense} spacious={spacious} />
       <Text
         style={styles.pageNumber}
         render={({ pageNumber, totalPages }) => `Trang ${pageNumber}/${totalPages}`}

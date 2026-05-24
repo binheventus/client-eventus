@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { AlertTriangle, ScrollText, Trash2 } from 'lucide-react'
+import { AlertTriangle, FileSignature, ScrollText, Trash2 } from 'lucide-react'
 import { useEscapeToClose } from '../../../hooks/useEscapeToClose'
 import QuoteListFilters from '../components/QuoteListFilters'
 import QuoteListTable from '../components/QuoteListTable'
@@ -139,6 +139,14 @@ export default function QuoteListPage() {
           >
             <ScrollText className="h-4 w-4" />
             Mẫu hợp đồng
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/contracts')}
+            className="inline-flex items-center gap-2 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-[13px] font-semibold text-orange-700 shadow-sm hover:bg-orange-100"
+          >
+            <FileSignature className="h-4 w-4" />
+            Tạo hợp đồng mới
           </button>
           <button
             type="button"

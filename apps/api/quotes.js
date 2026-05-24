@@ -54,6 +54,7 @@ const QUOTE_COLUMNS = [
   'duration_hours',
   'validity_days',
   'has_vat',
+  'terms_text',
   'status',
   'sent_at',
   'subtotal',

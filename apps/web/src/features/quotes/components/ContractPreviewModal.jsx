@@ -106,7 +106,7 @@ function SchedulePreview({ row = {} }) {
 }
 
 function getContractPreviewShareUrl(contract = {}) {
-  const shareToken = contract.quote_snapshot?.share_token || contract.share_token
+  const shareToken = contract.share_token || contract.quote_snapshot?.share_token
   if (!shareToken || typeof window === 'undefined') return ''
   return `${window.location.origin}/c/${shareToken}`
 }

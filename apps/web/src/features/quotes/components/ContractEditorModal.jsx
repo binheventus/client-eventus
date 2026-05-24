@@ -4,8 +4,11 @@ import { useEscapeToClose } from '../../../hooks/useEscapeToClose'
 import { useLegalEntities } from '../hooks/useLegalEntities'
 import {
   createContractDraftFromQuote,
+  createContractDraftFromSource,
   createSharedCustomer,
   deleteContract,
+  getContractById,
+  getContractByJobId,
   getContractByQuoteId,
   getSharedCustomerByCode,
   listSharedCustomers,
@@ -103,6 +106,40 @@ function composeServiceScope(detail = '') {
 
 function formatCurrency(value) {
   return new Intl.NumberFormat('vi-VN').format(Number(value || 0))
+}
+
+function parseCurrencyInput(value) {
+  const clean = String(value || '').replace(/[^\d]/g, '')
+  return clean ? Number(clean) : 0
+}
+
+function buildSingleLineQuoteSnapshot(snapshot = {}, patch = {}) {
+  const currentItems = Array.isArray(snapshot.items) ? snapshot.items : []
+  const firstItem = currentItems[0] || {}
+  const nextItem = {
+    service_code: firstItem.service_code || 'CONTRACT_TOTAL',
+    service_name: patch.service_name ?? firstItem.service_name ?? 'Dịch vụ media theo thỏa thuận',
+    unit: patch.unit ?? firstItem.unit ?? 'Gói',
+    quantity: Number(patch.quantity ?? firstItem.quantity ?? 1) || 1,
+    num_sessions: Number(patch.num_sessions ?? firstItem.num_sessions ?? 1) || 1,
+    unit_price: Number(patch.unit_price ?? firstItem.unit_price ?? snapshot.total_amount ?? 0) || 0,
+    sort_order: 1,
+  }
+  nextItem.total_price = nextItem.quantity * nextItem.num_sessions * nextItem.unit_price
+
+  const hasVat = patch.has_vat ?? snapshot.has_vat ?? true
+  const totalAmount = nextItem.total_price
+  const subtotal = hasVat ? Math.round(totalAmount / 1.08) : totalAmount
+  const vatAmount = hasVat ? totalAmount - subtotal : 0
+
+  return {
+    ...snapshot,
+    has_vat: Boolean(hasVat),
+    subtotal,
+    vat_amount: vatAmount,
+    total_amount: totalAmount,
+    items: [nextItem],
+  }
 }
 
 function formatDate(value) {
@@ -504,6 +541,9 @@ function DeleteContractConfirmModal({ contractNumber, deleting, onCancel, onConf
 export default function ContractEditorModal({
   open,
   quote,
+  sourceType = 'quote',
+  sourceDraft = null,
+  contractId = '',
   onClose,
 }) {
   useEscapeToClose(onClose, open)
@@ -528,7 +568,9 @@ export default function ContractEditorModal({
     notice: '',
   })
 
-  const quoteIsReady = canCreateContractFromQuote(quote)
+  const isQuoteSource = sourceType === 'quote'
+  const contractSourceReady = !isQuoteSource || canCreateContractFromQuote(quote)
+  const quoteIsReady = contractSourceReady
   const quoteSnapshot = useMemo(() => buildQuoteSnapshot(quote || {}), [quote])
   const previewSavedByName = useMemo(() => getQuoteActorPayload(userContext).created_by_name, [userContext])
   const savedContractTimeText = formatSavedContractTime(savedContract?.updated_at || savedContract?.created_at)
@@ -537,7 +579,9 @@ export default function ContractEditorModal({
     : 'Bấm Lưu & Preview để cập nhật bản gửi khách trước khi lấy link hoặc tải file.'
 
   useEffect(() => {
-    if (!open || !quote?.id) return
+    if (!open) return
+    if (isQuoteSource && !quote?.id && !contractId) return
+    if (sourceType === 'job' && !sourceDraft?.external_job_id && !contractId) return
     let mounted = true
 
     async function loadContractContext() {
@@ -547,23 +591,32 @@ export default function ContractEditorModal({
       setDeleteConfirmOpen(false)
 
       try {
+        const existingLoader = contractId
+          ? getContractById(contractId)
+          : sourceType === 'job'
+            ? getContractByJobId(sourceDraft.external_job_id)
+            : isQuoteSource && quote?.id
+              ? getContractByQuoteId(quote.id)
+              : Promise.resolve(null)
         const [templateRows, existingContract] = await Promise.all([
           listContractTemplates(),
-          getContractByQuoteId(quote.id),
+          existingLoader,
         ])
         const customers = await listSharedCustomers().catch(() => [])
 
         if (!mounted) return
         const defaultTemplate = getDefaultTemplate(templateRows)
         const nextDraft = existingContract
-          ? hydrateContract(existingContract, quote)
-          : createContractDraftFromQuote(quote, defaultTemplate)
+          ? hydrateContract(existingContract, quote || existingContract.quote_snapshot)
+          : isQuoteSource
+            ? createContractDraftFromQuote(quote, defaultTemplate)
+            : createContractDraftFromSource(sourceDraft || { source_type: sourceType }, defaultTemplate)
 
         setTemplates(templateRows)
         setCustomerOptions(customers)
         setCustomerLookupState({ loading: false, creating: false, error: '', notice: '' })
         setDraft(nextDraft)
-        setSavedContract(existingContract ? hydrateContract(existingContract, quote) : null)
+        setSavedContract(existingContract ? hydrateContract(existingContract, quote || existingContract.quote_snapshot) : null)
         setDirty(false)
       } catch (err) {
         if (mounted) setError(err?.message || 'Không tải được dữ liệu hợp đồng.')
@@ -576,7 +629,7 @@ export default function ContractEditorModal({
     return () => {
       mounted = false
     }
-  }, [open, quote?.id])
+  }, [open, quote?.id, sourceType, sourceDraft?.external_job_id, contractId])
 
   function updateDraft(patch) {
     setDraft(prev => normalizeContractTemplate({ ...prev, ...patch }))
@@ -741,7 +794,7 @@ export default function ContractEditorModal({
       seller_snapshot: getEntityProfile(sellerEntityCode),
       party_role_config: normalizedTemplate.party_role_config,
       contract_number_pattern: normalizedTemplate.contract_number_pattern,
-      contract_number: generateContractNumber(normalizedTemplate.contract_number_pattern, quote),
+      contract_number: draft.contract_number || '',
       preamble: normalizedTemplate.preamble,
       service_scope: normalizedTemplate.service_scope || draft.service_scope,
       schedule_rows: normalizedTemplate.schedule_rows.length ? normalizedTemplate.schedule_rows : draft.schedule_rows,
@@ -789,6 +842,12 @@ export default function ContractEditorModal({
     })
   }
 
+  function updateSourceQuoteSnapshot(patch) {
+    updateDraft({
+      quote_snapshot: buildSingleLineQuoteSnapshot(draft.quote_snapshot || {}, patch),
+    })
+  }
+
   function validate() {
     if (!draft) return 'Chưa có dữ liệu hợp đồng.'
     if (!draft.id && !quoteIsReady) return 'Chỉ báo giá đã lưu hoàn thiện mới được tạo hợp đồng.'
@@ -811,14 +870,25 @@ export default function ContractEditorModal({
 
     try {
       const termsText = String(draft.terms_text ?? sectionsToTermsText(draft.content_sections)).trim()
+      const finalQuoteSnapshot = quote ? quoteSnapshot : (draft.quote_snapshot || {})
+      const finalContractNumber = draft.contract_number || generateContractNumber(
+        draft.contract_number_pattern,
+        {
+          ...finalQuoteSnapshot,
+          external_job_id: draft.external_job_id,
+          source_code: draft.external_job_id ? `JOB${draft.external_job_id}` : '',
+          client_name: draft.customer_snapshot?.company_name || finalQuoteSnapshot.client_name,
+        },
+      )
       const saved = await saveContract({
         ...draft,
+        contract_number: finalContractNumber,
         status: draft.status === 'draft' ? 'generated' : draft.status,
         terms_text: termsText,
         content_sections: termsTextToSections(termsText),
-        quote_snapshot: quoteSnapshot,
+        quote_snapshot: finalQuoteSnapshot,
       }, { quote })
-      const hydrated = hydrateContract(saved, quote)
+      const hydrated = hydrateContract(saved, quote || saved.quote_snapshot)
       setDraft(hydrated)
       setSavedContract(hydrated)
       setDirty(false)
@@ -842,9 +912,11 @@ export default function ContractEditorModal({
     try {
       await deleteContract({
         id: savedContract?.id || draft?.id,
-        quoteId: quote?.id,
+        quoteId: isQuoteSource ? quote?.id : undefined,
       })
-      const nextDraft = createContractDraftFromQuote(quote, getDefaultTemplate(templates))
+      const nextDraft = isQuoteSource
+        ? createContractDraftFromQuote(quote, getDefaultTemplate(templates))
+        : createContractDraftFromSource(sourceDraft || { source_type: sourceType }, getDefaultTemplate(templates))
       setDraft(nextDraft)
       setSavedContract(null)
       setDirty(false)
@@ -859,19 +931,23 @@ export default function ContractEditorModal({
 
   if (!open) return null
 
+  const draftQuoteSnapshot = draft?.quote_snapshot || {}
+  const baseQuoteSnapshot = quote ? quoteSnapshot : draftQuoteSnapshot
   const savedQuoteSnapshot = savedContract?.quote_snapshot || {}
   const currentQuoteSnapshot = {
-    ...quoteSnapshot,
+    ...baseQuoteSnapshot,
     ...savedQuoteSnapshot,
-    share_token: savedQuoteSnapshot.share_token || quoteSnapshot.share_token,
+    share_token: savedQuoteSnapshot.share_token || baseQuoteSnapshot.share_token,
   }
   const downloadableContract = savedContract && !dirty ? {
     ...draft,
+    share_token: savedContract.share_token || draft.share_token,
     quote_snapshot: currentQuoteSnapshot,
   } : null
   const previewContract = draft ? {
     ...draft,
-    quote_snapshot: savedContract ? currentQuoteSnapshot : quoteSnapshot,
+    share_token: savedContract?.share_token || draft.share_token,
+    quote_snapshot: savedContract ? currentQuoteSnapshot : baseQuoteSnapshot,
   } : null
   const serviceScopeDetail = getServiceScopeDetail(draft?.service_scope)
   const termsText = draft?.terms_text ?? sectionsToTermsText(draft?.content_sections || [])
@@ -881,15 +957,16 @@ export default function ContractEditorModal({
     : DEFAULT_PAYMENT_CONFIG.payment_documents
   const paymentNotes = getContractPaymentNotes(draft?.payment_config)
   const workProgressNotes = getContractWorkProgressNotes(draft || {})
-  const quotePreviewQuote = { ...(quote || {}), ...quoteSnapshot }
-  const quotePreviewItems = Array.isArray(quoteSnapshot.items) ? quoteSnapshot.items : []
+  const quotePreviewQuote = { ...(quote || {}), ...baseQuoteSnapshot }
+  const quotePreviewItems = Array.isArray(baseQuoteSnapshot.items) ? baseQuoteSnapshot.items : []
   const quotePreviewTotals = {
-    subtotal: quoteSnapshot.subtotal,
-    travel_fee_total: quoteSnapshot.travel_fee_total,
-    overtime_fee_total: quoteSnapshot.overtime_fee_total,
-    vat_amount: quoteSnapshot.vat_amount,
-    total_amount: quoteSnapshot.total_amount,
+    subtotal: baseQuoteSnapshot.subtotal,
+    travel_fee_total: baseQuoteSnapshot.travel_fee_total,
+    overtime_fee_total: baseQuoteSnapshot.overtime_fee_total,
+    vat_amount: baseQuoteSnapshot.vat_amount,
+    total_amount: baseQuoteSnapshot.total_amount,
   }
+  const summaryQuote = quote || baseQuoteSnapshot || {}
   const paymentConfig = draft?.payment_config || {}
 
   function renderActionPanel() {
@@ -935,7 +1012,9 @@ export default function ContractEditorModal({
             <div>
               <QuoteBreadcrumb
                 items={[
-                  { label: quote?.quote_number || quote?.id || 'Chi tiết báo giá', to: `/quotes/${quote?.id}` },
+                  isQuoteSource && quote?.id
+                    ? { label: quote.quote_number || quote.id || 'Chi tiết báo giá', to: `/quotes/${quote.id}` }
+                    : { label: 'Hợp đồng', to: '/contracts' },
                   { label: 'Hợp đồng' },
                 ]}
               />
@@ -957,12 +1036,12 @@ export default function ContractEditorModal({
               <section className="rounded-2xl border border-slate-200 p-4">
                 <dl>
                   <SummaryRow label="Hợp đồng" value={draft?.contract_number || 'Tạo hợp đồng'} strong />
-                  <SummaryRow label="Báo giá" value={quote?.quote_number || quote?.id} strong />
-                  <SummaryRow label="Sự kiện" value={quote?.event_name} />
-                  <SummaryRow label="Khách hàng" value={quote?.client_name || quote?.customer_name} />
-                  <SummaryRow label="Ngày sự kiện" value={formatDate(quote?.event_date)} />
-                  <SummaryRow label="Địa điểm" value={quote?.location} />
-                  <SummaryRow label="Tổng tiền" value={`${formatCurrency(quoteSnapshot.total_amount)}đ`} strong />
+                  <SummaryRow label={isQuoteSource ? 'Báo giá' : 'Nguồn'} value={isQuoteSource ? (summaryQuote.quote_number || summaryQuote.id) : (draft?.source_type === 'job' ? `JOB${draft.external_job_id}` : 'Thủ công')} strong />
+                  <SummaryRow label="Sự kiện" value={summaryQuote.event_name} />
+                  <SummaryRow label="Khách hàng" value={summaryQuote.client_name || summaryQuote.customer_name} />
+                  <SummaryRow label="Ngày sự kiện" value={formatDate(summaryQuote.event_date)} />
+                  <SummaryRow label="Địa điểm" value={summaryQuote.location} />
+                  <SummaryRow label="Tổng tiền" value={`${formatCurrency(baseQuoteSnapshot.total_amount)}đ`} strong />
                 </dl>
               </section>
 
@@ -978,7 +1057,7 @@ export default function ContractEditorModal({
                   </div>
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-slate-500">Hạng mục</span>
-                    <span className="font-semibold text-slate-900">{quoteSnapshot.items?.length || 0}</span>
+                    <span className="font-semibold text-slate-900">{baseQuoteSnapshot.items?.length || 0}</span>
                   </div>
                 </div>
               </section>
@@ -1004,8 +1083,8 @@ export default function ContractEditorModal({
                     <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                       <div className="grid gap-3 sm:grid-cols-2">
                         <SummaryRow label="Hợp đồng" value={draft?.contract_number || 'Tạo hợp đồng'} strong />
-                        <SummaryRow label="Báo giá" value={quote?.quote_number || quote?.id} strong />
-                        <SummaryRow label="Tổng tiền" value={`${formatCurrency(quoteSnapshot.total_amount)}đ`} strong />
+                        <SummaryRow label={isQuoteSource ? 'Báo giá' : 'Nguồn'} value={isQuoteSource ? (summaryQuote.quote_number || summaryQuote.id) : (draft?.source_type === 'job' ? `JOB${draft.external_job_id}` : 'Thủ công')} strong />
+                        <SummaryRow label="Tổng tiền" value={`${formatCurrency(baseQuoteSnapshot.total_amount)}đ`} strong />
                       </div>
                     </div>
                     {renderActionPanel()}
@@ -1140,6 +1219,38 @@ export default function ContractEditorModal({
                       </div>
                     </div>
                     <p className="mt-4 text-[13px] font-semibold text-slate-900">Chi tiết hạng mục</p>
+                    {!isQuoteSource ? (
+                      <div className="mt-3 grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 lg:grid-cols-[minmax(260px,1fr)_120px_160px_190px]">
+                        <Field label="Tên hạng mục">
+                          <TextInput
+                            value={quotePreviewItems[0]?.service_name || ''}
+                            onChange={event => updateSourceQuoteSnapshot({ service_name: event.target.value })}
+                          />
+                        </Field>
+                        <Field label="Đơn vị">
+                          <TextInput
+                            value={quotePreviewItems[0]?.unit || 'Gói'}
+                            onChange={event => updateSourceQuoteSnapshot({ unit: event.target.value })}
+                          />
+                        </Field>
+                        <Field label="Giá trị">
+                          <TextInput
+                            inputMode="numeric"
+                            value={formatCurrency(quotePreviewItems[0]?.unit_price || baseQuoteSnapshot.total_amount)}
+                            onChange={event => updateSourceQuoteSnapshot({ unit_price: parseCurrencyInput(event.target.value) })}
+                          />
+                        </Field>
+                        <Field label="VAT">
+                          <Select
+                            value={baseQuoteSnapshot.has_vat === false ? 'excluded' : 'included'}
+                            onChange={event => updateSourceQuoteSnapshot({ has_vat: event.target.value === 'included' })}
+                          >
+                            <option value="included">Đã bao gồm VAT</option>
+                            <option value="excluded">Chưa bao gồm VAT</option>
+                          </Select>
+                        </Field>
+                      </div>
+                    ) : null}
                     <div className="mt-3">
                       <QuotePreview
                         quote={quotePreviewQuote}
@@ -1176,7 +1287,7 @@ export default function ContractEditorModal({
                     </div>
                     <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
                       <ContractPaymentSummary
-                        quote={quoteSnapshot}
+                        quote={baseQuoteSnapshot}
                         paymentConfig={paymentConfig}
                       />
                       <p className="mt-4 text-[13px] font-semibold text-slate-900">Hồ sơ thanh toán:</p>

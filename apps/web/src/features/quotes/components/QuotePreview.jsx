@@ -2,9 +2,17 @@ import { useState } from 'react'
 import equipmentRulesData from '../../../data/pricing/equipment_rules.json'
 import legalEntitiesData from '../../../data/pricing/legal_entities.json'
 import { getMatchedEquipmentRules } from '../lib/equipmentRules'
-import { normalizeQuoteValidityDays } from '../lib/quoteValidity'
+import { getQuoteTerms } from '../lib/quoteTerms'
 
 const SIGNATURE_IMAGE_SRC = '/signatures/nguyen-thu-huyen.png'
+const STAMP_IMAGE_BY_ENTITY = {
+  EVENTUS: '/stamps/Stamp-eventus.png',
+  MEDIAMONSTER: '/stamps/Stamp-mediamonster.png',
+}
+
+function getStampImageSrc(entityCode) {
+  return STAMP_IMAGE_BY_ENTITY[entityCode] || STAMP_IMAGE_BY_ENTITY.EVENTUS
+}
 
 function formatCurrency(value) {
   return new Intl.NumberFormat('vi-VN').format(Number(value) || 0)
@@ -45,55 +53,59 @@ function getItemUnit(item) {
   return item.unit || item.service?.unit || item.pricing_unit || 'Người'
 }
 
-function SignatureBlock({ quote }) {
+function SignatureBlock({ quote, showStamp = true }) {
   const [imageFailed, setImageFailed] = useState(false)
+  const [stampFailed, setStampFailed] = useState(false)
+  const stampImageSrc = getStampImageSrc(quote?.entity_code)
 
   return (
-    <section className="flex justify-end pt-1">
-      <div className="w-full max-w-[180px] text-right text-[12px] leading-5 text-slate-700">
-        <p className="font-semibold text-slate-900">Ngày lập: {formatQuoteDate(quote?.created_at)}</p>
-        <div className="mt-2 ml-auto flex aspect-[500/301] w-[120px] items-center justify-center text-center text-[10px] leading-4 text-slate-400">
+    <section className="flex justify-end pr-8 pt-1">
+      <div className="w-full max-w-[180px] text-right text-[12px] leading-5 text-black">
+        <p className="text-black">Ngày lập: {formatQuoteDate(quote?.created_at)}</p>
+        <div className="relative mt-7 ml-auto flex aspect-[500/301] w-[120px] items-center justify-center text-center text-[10px] leading-4 text-black">
+          {showStamp && !stampFailed ? (
+            <img
+              src={stampImageSrc}
+              alt="Con dấu pháp nhân"
+              onError={() => setStampFailed(true)}
+              className="pointer-events-none absolute -left-2 -top-8 z-10 h-36 w-36 max-w-none object-contain"
+            />
+          ) : null}
           {!imageFailed ? (
             <img
               src={SIGNATURE_IMAGE_SRC}
               alt="Chữ ký Nguyễn Thu Huyền"
               onError={() => setImageFailed(true)}
-              className="max-h-full max-w-full object-contain"
+              className="relative z-0 w-[138px] max-w-none translate-x-8 object-contain"
             />
           ) : (
             <span className="rounded border border-dashed border-slate-300 px-2 py-1">Đặt ảnh chữ ký tại public/signatures/nguyen-thu-huyen.png</span>
           )}
         </div>
-        <p className="mt-1 text-[10px] font-bold text-slate-950">Nguyễn Thu Huyền</p>
-        <p className="text-[9px] text-slate-500">Account Manager</p>
+        <p className="mt-4 text-[10px] font-bold text-black">Nguyễn Thu Huyền</p>
+        <p className="text-[9px] text-black">Account Manager</p>
       </div>
     </section>
   )
 }
 
-function QuoteEndNotes({ quote = {}, items = [], validityDays = 15 }) {
+function QuoteEndNotes({ quote = {}, items = [] }) {
   const equipmentRules = getMatchedEquipmentRules(items, equipmentRulesData)
-  const terms = [
-    `Báo giá có hiệu lực trong ${validityDays} ngày. Thời gian làm việc tiêu chuẩn tối đa 04 tiếng/buổi và 08 tiếng/ngày. Thời gian Overtime sẽ được tính phí theo thỏa thuận riêng.`,
-    ...(!quote.has_vat ? ['Báo giá trên chưa bao gồm Thuế GTGT 8%.'] : []),
-    'Báo giá trên chưa bao gồm chi phí mua bản quyền âm nhạc, hình ảnh nếu có.',
-    'Báo giá đã bao gồm tối đa 03 lần chỉnh sửa sản phẩm hậu kỳ dựa trên format đã thống nhất.',
-    'Trong vòng 05 ngày làm việc kể từ ngày bàn giao bản Demo, nếu Khách hàng không có phản hồi hoặc yêu cầu chỉnh sửa bằng văn bản, sản phẩm được coi là đã hoàn thành & tự động được nghiệm thu.',
-  ]
+  const terms = getQuoteTerms(quote)
   const paymentTerms = [
     'Đợt 1 (Tạm ứng): Quý khách vui lòng thanh toán 50% tổng giá trị báo giá sau khi xác nhận báo giá để giữ lịch nhân sự và chuẩn bị thiết bị.',
     'Đợt 2 (Tất toán): Thanh toán 50% giá trị còn lại trong vòng 03 ngày làm việc sau khi bàn giao đầy đủ sản phẩm cuối cùng.',
   ]
 
   return (
-    <section className="space-y-2.5 rounded-lg bg-slate-50 px-3 py-3 text-[10px] leading-[1.22] text-slate-600">
+    <section className="space-y-2.5 rounded-lg border border-slate-300 bg-white px-3 py-3 text-[10px] leading-[1.22] text-black">
       {equipmentRules.length ? (
         <div>
-          <h3 className="text-[10px] font-bold uppercase tracking-[0.04em] text-slate-900">THIẾT BỊ SỬ DỤNG</h3>
+          <h3 className="text-[10px] font-bold uppercase tracking-[0.04em] text-black">THIẾT BỊ SỬ DỤNG</h3>
           <ul className="mt-1 list-disc space-y-0.5 pl-3">
             {equipmentRules.map(rule => (
               <li key={`${rule.equipment_title}-${rule.sort_order}`}>
-                <span className="font-semibold text-slate-800">{rule.equipment_title}:</span> {rule.equipment_description}
+                <span className="font-semibold text-black">{rule.equipment_title}:</span> {rule.equipment_description}
               </li>
             ))}
           </ul>
@@ -101,20 +113,18 @@ function QuoteEndNotes({ quote = {}, items = [], validityDays = 15 }) {
       ) : null}
 
       <div>
-        <h3 className="text-[10px] font-bold uppercase tracking-[0.04em] text-slate-900">ĐIỀU KHOẢN & ĐIỀU KIỆN</h3>
+        <h3 className="text-[10px] font-bold uppercase tracking-[0.04em] text-black">ĐIỀU KHOẢN & ĐIỀU KIỆN</h3>
         <ul className="mt-1 list-disc space-y-0.5 pl-3">
           {terms.map(term => <li key={term}>{term}</li>)}
         </ul>
       </div>
 
       <div>
-        <h3 className="text-[10px] font-bold uppercase tracking-[0.04em] text-slate-900">ĐIỀU KHOẢN THANH TOÁN</h3>
+        <h3 className="text-[10px] font-bold uppercase tracking-[0.04em] text-black">ĐIỀU KHOẢN THANH TOÁN</h3>
         <ul className="mt-1 list-disc space-y-0.5 pl-3">
           {paymentTerms.map(term => <li key={term}>{term}</li>)}
         </ul>
       </div>
-
-      <SignatureBlock quote={quote} />
     </section>
   )
 }
@@ -127,6 +137,7 @@ export default function QuotePreview({
   client,
   sticky = true,
   tableOnly = false,
+  showStamp = true,
 }) {
   const entityRows = entities.length ? entities : legalEntitiesData
   const entity = getEntity(quote.entity_code, entityRows)
@@ -143,39 +154,39 @@ export default function QuotePreview({
   return (
     <div className={`${sticky ? 'sticky top-6' : ''} overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm`}>
       {!tableOnly ? (
-        <div className="grid items-center gap-5 bg-slate-100 px-10 py-6 text-slate-900 sm:px-14 sm:grid-cols-[minmax(0,0.65fr)_minmax(0,1.35fr)]">
+        <div className="grid items-center gap-5 bg-slate-100 px-10 py-6 text-black sm:px-14 sm:grid-cols-[minmax(0,0.65fr)_minmax(0,1.35fr)]">
           <div className="min-w-0">
             {logoUrl ? (
               <img src={logoUrl} alt={entity?.display_name || entityName} className="h-14 w-auto object-contain" />
             ) : (
-              <div className="flex h-7 w-24 items-center text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Logo</div>
+              <div className="flex h-7 w-24 items-center text-[10px] font-semibold uppercase tracking-[0.14em] text-black">Logo</div>
             )}
-            <h2 className="mt-3 text-[22px] font-bold tracking-tight text-slate-950">{entityName}</h2>
+            <h2 className="mt-3 text-[22px] font-bold tracking-tight text-black">{entityName}</h2>
           </div>
-          <div className="min-w-0 space-y-1 text-left text-[10px] leading-4 text-slate-500 sm:text-right">
+          <div className="min-w-0 space-y-1 text-left text-[10px] leading-4 text-black sm:text-right">
             {contactRows.map((row, index) => (
-              <div key={`${row}-${index}`} className={`whitespace-nowrap ${index === 0 ? 'font-semibold uppercase tracking-[0.06em] text-slate-600' : ''}`}>
+              <div key={`${row}-${index}`} className={`whitespace-nowrap ${index === 0 ? 'font-semibold uppercase tracking-[0.06em] text-black' : ''}`}>
                 {row}
               </div>
             ))}
             {displayedQuoteCode ? (
-              <div className="pt-0.5 text-[10px] font-medium leading-4 text-slate-400">{displayedQuoteCode}</div>
+              <div className="pt-0.5 text-[10px] font-medium leading-4 text-black">{displayedQuoteCode}</div>
             ) : null}
           </div>
         </div>
       ) : null}
 
-      <div className={`${tableOnly ? 'space-y-4 px-4 py-4 sm:px-5' : 'space-y-6 px-10 py-6 sm:px-14 sm:py-7'}`}>
+      <div className={`${tableOnly ? 'space-y-4 px-4 py-4 sm:px-5' : 'flex flex-col gap-3 px-10 py-6 sm:px-14 sm:py-7'}`}>
         {!tableOnly ? (
-          <section className="space-y-3 text-[13px] leading-6 text-slate-700">
-            <p className="font-semibold text-slate-900">Kính gửi: {clientName}</p>
+          <section className="space-y-3 text-[13px] leading-6 text-black">
+            <p className="font-semibold text-black">Kính gửi: {clientName}</p>
             <p>Dựa trên thông tin trao đổi, chúng tôi xin gửi báo giá chi tiết dịch vụ như sau:</p>
           </section>
         ) : null}
 
-        <section className="overflow-hidden rounded-xl border border-slate-200">
-          <table className="w-full table-fixed text-left text-[10.5px]">
-            <thead className="bg-slate-50 text-[8px] uppercase tracking-[0.08em] text-slate-500">
+        <section className="overflow-hidden rounded-xl border border-slate-300">
+          <table className="w-full table-fixed text-left text-[13px]">
+            <thead className="bg-slate-50 text-[8px] uppercase tracking-[0.08em] text-black">
               <tr>
                 <th className="w-[39%] px-3 py-2.5 font-semibold">Hạng mục</th>
                 <th className="w-[12%] whitespace-nowrap px-1 py-2.5 text-center font-semibold">Đơn vị tính</th>
@@ -188,54 +199,61 @@ export default function QuotePreview({
             <tbody className="divide-y divide-slate-100">
               {items.length ? items.map((item, index) => (
                 <tr key={item.local_id || index}>
-                  <td className="px-3 py-2.5 font-medium leading-4 text-slate-800">{getItemName(item)}</td>
-                  <td className="px-1 py-2.5 text-center text-slate-600">{getItemUnit(item)}</td>
-                  <td className="px-1 py-2.5 text-center text-slate-600">{item.quantity}</td>
-                  <td className="px-1 py-2.5 text-center text-slate-600">{item.num_sessions || 1}</td>
-                  <td className="px-1.5 py-2.5 text-right text-slate-600">{formatCurrency(item.unit_price)}đ</td>
-                  <td className="px-3 py-2.5 text-right font-semibold text-slate-900">{formatCurrency(item.total_price)}đ</td>
+                  <td className="px-3 py-2.5 font-medium leading-4 text-black">{getItemName(item)}</td>
+                  <td className="px-1 py-2.5 text-center text-black">{getItemUnit(item)}</td>
+                  <td className="px-1 py-2.5 text-center text-black">{item.quantity}</td>
+                  <td className="px-1 py-2.5 text-center text-black">{item.num_sessions || 1}</td>
+                  <td className="px-1.5 py-2.5 text-right text-black">{formatCurrency(item.unit_price)}đ</td>
+                  <td className="px-3 py-2.5 text-right font-semibold text-black">{formatCurrency(item.total_price)}đ</td>
                 </tr>
               )) : (
                 <tr>
-                  <td colSpan={6} className="px-3 py-8 text-center text-[12px] text-slate-400">Chưa có hạng mục.</td>
+                  <td colSpan={6} className="px-3 py-8 text-center text-[12px] text-black">Chưa có hạng mục.</td>
                 </tr>
               )}
             </tbody>
           </table>
         </section>
 
-        <section className={`${tableOnly ? 'ml-auto' : '-mt-6 ml-auto'} w-full max-w-[360px] space-y-1.5 text-[13px]`}>
-          <div className="flex justify-between gap-6 text-slate-600">
+        <section className={`${tableOnly ? 'ml-auto' : 'mt-2 ml-auto'} w-full max-w-[360px] space-y-1.5 pr-3 text-[13px]`}>
+          <div className="flex justify-between gap-6 text-black">
             <span>Subtotal</span>
             <span>{formatCurrency(totals.subtotal)}đ</span>
           </div>
           {!tableOnly && showTravelFee ? (
-            <div className="flex justify-between gap-6 text-slate-600">
+            <div className="flex justify-between gap-6 text-black">
               <span>Phụ phí di chuyển</span>
               <span>{formatCurrency(totals.travel_fee_total)}đ</span>
             </div>
           ) : null}
           {!tableOnly && showOvertimeFee ? (
-            <div className="flex justify-between gap-6 text-slate-600">
+            <div className="flex justify-between gap-6 text-black">
               <span>Phụ phí Over-time</span>
               <span>{formatCurrency(totals.overtime_fee_total)}đ</span>
             </div>
           ) : null}
           {showVat ? (
-            <div className="flex justify-between gap-6 text-slate-600">
+            <div className="flex justify-between gap-6 text-black">
               <span>Thuế GTGT 8%</span>
               <span>{formatCurrency(totals.vat_amount)}đ</span>
             </div>
           ) : null}
           <div className="border-t border-slate-200 pt-2">
-            <div className={`flex justify-between font-bold text-slate-950 ${tableOnly ? 'text-[15px]' : 'text-[16px]'}`}>
+            <div className={`flex justify-between font-bold text-black ${tableOnly ? 'text-[14px]' : 'text-[15px]'}`}>
               <span>Tổng cộng</span>
               <span>{formatCurrency(totals.total_amount)}đ</span>
             </div>
           </div>
         </section>
 
-        {!tableOnly ? <QuoteEndNotes quote={quote} items={items} validityDays={normalizeQuoteValidityDays(quote.validity_days)} /> : null}
+        {!tableOnly ? (
+          <>
+            <div className="mt-2">
+              <QuoteEndNotes quote={quote} items={items} />
+            </div>
+            <SignatureBlock quote={quote} showStamp={showStamp} />
+          </>
+        ) : null}
       </div>
     </div>
   )

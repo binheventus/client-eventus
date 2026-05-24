@@ -1,4 +1,4 @@
-import legalEntitiesData from '../../../data/pricing/legal_entities.json'
+import legalEntitiesData from '../../../data/pricing/legal_entities.json' with { type: 'json' }
 
 export const MEDIAMONSTER_SAMPLE_TEMPLATE_ID = 'system-mediamonster-service-contract'
 export const DEFAULT_CONTRACT_TEMPLATE_ID = MEDIAMONSTER_SAMPLE_TEMPLATE_ID
@@ -229,8 +229,11 @@ function getCustomerShortCode(quote = {}) {
 
 export function generateContractNumber(pattern = 'HD-{{quote_code}}', quote = {}, dateValue = new Date()) {
   const date = dateValue ? new Date(dateValue) : new Date()
+  const sourceCode = quote.source_code || (quote.external_job_id ? `JOB${quote.external_job_id}` : getQuoteCode(quote))
   const replacements = {
     quote_code: getQuoteCode(quote),
+    source_code: sourceCode,
+    job_code: quote.external_job_id ? `JOB${quote.external_job_id}` : sourceCode,
     customer_short_code: getCustomerShortCode(quote),
     dd: String(date.getDate()).padStart(2, '0'),
     mm: String(date.getMonth() + 1).padStart(2, '0'),
@@ -442,6 +445,7 @@ export function buildQuoteSnapshot(quote = {}) {
     duration_hours: quote.duration_hours || '',
     validity_days: quote.validity_days || '',
     has_vat: quote.has_vat !== false,
+    terms_text: quote.terms_text || '',
     subtotal: Number(quote.subtotal || 0),
     travel_fee_total: Number(quote.travel_fee_total || 0),
     overtime_fee_total: Number(quote.overtime_fee_total || 0),
@@ -489,7 +493,10 @@ export function buildInitialContractDraft(quote = {}, templateInput = DEFAULT_CO
     id: '',
     quote_id: quote.id || '',
     quote_number: quote.quote_number || '',
-    contract_number: getContractNumber(quote, template),
+    source_type: quote.source_type || 'quote',
+    external_job_id: quote.external_job_id || null,
+    share_token: '',
+    contract_number: '',
     status: 'draft',
     template_id: template.id || DEFAULT_CONTRACT_TEMPLATE_ID,
     title: template.title || DEFAULT_CONTRACT_TITLE,
@@ -506,6 +513,54 @@ export function buildInitialContractDraft(quote = {}, templateInput = DEFAULT_CO
     content_sections: template.content_sections,
     terms_text: template.terms_text || sectionsToTermsText(template.content_sections),
     quote_snapshot: buildQuoteSnapshot(quote),
+    source_snapshot: quote.source_snapshot || {},
+  }
+}
+
+export function buildInitialContractDraftFromSource(source = {}, templateInput = DEFAULT_CONTRACT_TEMPLATES[0]) {
+  const template = normalizeContractTemplate(templateInput)
+  const quoteSnapshot = source.quote_snapshot || {}
+  const sourceSnapshot = source.source_snapshot || {}
+  const sourceType = source.source_type || sourceSnapshot.source_type || 'manual'
+  const sellerEntityCode = source.entity_code || quoteSnapshot.entity_code || template.seller_entity_code || 'EVENTUS'
+  const customerSnapshot = source.customer_snapshot || sourceSnapshot.customer_snapshot || getCustomerProfileFromQuote(quoteSnapshot)
+  const contractNumberSource = {
+    ...quoteSnapshot,
+    source_code: source.source_code || (source.external_job_id ? `JOB${source.external_job_id}` : ''),
+    external_job_id: source.external_job_id,
+    client_name: customerSnapshot.company_name || quoteSnapshot.client_name,
+  }
+
+  return {
+    id: '',
+    quote_id: source.quote_id || '',
+    quote_number: source.quote_number || '',
+    source_type: sourceType,
+    external_job_id: source.external_job_id || null,
+    share_token: '',
+    contract_number: source.contract_number || '',
+    status: 'draft',
+    template_id: template.id || DEFAULT_CONTRACT_TEMPLATE_ID,
+    title: template.title || DEFAULT_CONTRACT_TITLE,
+    seller_entity_code: sellerEntityCode,
+    seller_snapshot: getEntityProfile(sellerEntityCode),
+    customer_snapshot: customerSnapshot,
+    party_role_config: template.party_role_config,
+    contract_number_pattern: template.contract_number_pattern,
+    preamble: template.preamble,
+    service_scope: source.service_scope || inferServiceScope(quoteSnapshot, template),
+    schedule_rows: Array.isArray(source.schedule_rows) && source.schedule_rows.length
+      ? source.schedule_rows
+      : buildScheduleRows(quoteSnapshot, template),
+    quote_table_config: template.quote_table_config,
+    payment_config: template.payment_config,
+    content_sections: template.content_sections,
+    terms_text: template.terms_text || sectionsToTermsText(template.content_sections),
+    quote_snapshot: {
+      ...buildQuoteSnapshot(quoteSnapshot),
+      ...(quoteSnapshot || {}),
+    },
+    source_snapshot: sourceSnapshot,
   }
 }
 

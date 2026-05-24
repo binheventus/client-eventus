@@ -22,6 +22,7 @@ create table if not exists client_quotes (
   duration_hours decimal(10,2) null,
   validity_days int not null default 15,
   has_vat tinyint(1) not null default 1,
+  terms_text longtext null,
   status varchar(40) not null default 'draft',
   sent_at datetime(3) null,
   subtotal decimal(18,2) not null default 0,
@@ -106,8 +107,11 @@ create table if not exists client_contract_templates (
 
 create table if not exists client_contracts (
   id varchar(64) primary key,
-  quote_id varchar(32) not null unique,
+  quote_id varchar(32) null unique,
   quote_number varchar(40) null,
+  source_type varchar(40) not null default 'quote',
+  external_job_id bigint unsigned null,
+  share_token varchar(32) null,
   contract_number varchar(120) not null,
   status varchar(40) not null default 'draft',
   template_id varchar(120) null,
@@ -125,10 +129,13 @@ create table if not exists client_contracts (
   content_sections json not null,
   terms_text longtext not null,
   quote_snapshot json not null,
+  source_snapshot json null,
   created_at datetime(3) not null default current_timestamp(3),
   updated_at datetime(3) not null default current_timestamp(3) on update current_timestamp(3),
   key client_contracts_quote_id_idx (quote_id),
-  constraint client_contracts_quote_id_fk foreign key (quote_id) references client_quotes (id) on delete cascade
+  unique key client_contracts_share_token_unique (share_token),
+  unique key client_contracts_source_job_unique (source_type, external_job_id),
+  constraint client_contracts_quote_id_fk foreign key (quote_id) references client_quotes (id) on delete set null
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 
 create table if not exists client_pages (

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { PencilLine, Stamp } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import EntitySelector from '../components/EntitySelector'
 import QuoteBreadcrumb from '../components/QuoteBreadcrumb'
@@ -14,6 +15,7 @@ import { useTravelFees } from '../hooks/useTravelFees'
 import { parseQuoteInput } from '../lib/aiParser'
 import { calculateQuotePricing, findServiceForQuoteItem } from '../lib/pricingCalculator'
 import { getQuoteActorPayload, getQuoteUserContext } from '../lib/quoteAuth'
+import { getDefaultQuoteTermsText, getQuoteTerms, normalizeQuoteTermsText } from '../lib/quoteTerms'
 import { normalizeQuoteValidityDays } from '../lib/quoteValidity'
 
 const DEFAULT_QUOTE = {
@@ -27,6 +29,7 @@ const DEFAULT_QUOTE = {
   client_name: 'Mr. ',
   validity_days: 15,
   has_vat: true,
+  terms_text: '',
 }
 
 const FIELD_LABELS = {
@@ -473,6 +476,66 @@ function OverrideReasonModal({ onCancel, onConfirm }) {
   )
 }
 
+function QuoteTermsModal({ quote, value, onChange, onValidityDaysChange, onReset, onCancel, onConfirm }) {
+  useEscapeToClose(onCancel)
+
+  const canSave = Boolean(normalizeQuoteTermsText(value))
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-5 backdrop-blur-sm">
+      <div className="w-full max-w-3xl rounded-2xl bg-white p-6 shadow-2xl">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="text-[16px] font-semibold text-slate-900">Sửa điều khoản và điều kiện</h3>
+            <p className="mt-1 text-[13px] leading-5 text-slate-500">Mỗi dòng sẽ hiển thị thành một gạch đầu dòng trong báo giá.</p>
+          </div>
+          <button
+            type="button"
+            onClick={onReset}
+            className="rounded-xl border border-slate-200 px-4 py-2 text-[13px] font-semibold text-slate-600 hover:bg-slate-50"
+          >
+            Khôi phục mặc định
+          </button>
+        </div>
+        <label className="mt-4 block">
+          <span className="mb-1.5 block text-[12px] font-semibold text-slate-600">ĐIỀU KHOẢN & ĐIỀU KIỆN</span>
+          <textarea
+            value={value}
+            onChange={event => onChange(event.target.value)}
+            rows={9}
+            className="w-full resize-none rounded-xl border border-slate-200 px-4 py-3 text-[13px] leading-6 outline-none focus:border-[#f8981d] focus:ring-2 focus:ring-orange-100"
+            autoFocus
+          />
+        </label>
+        <label className="mt-3 block w-[150px]">
+          <span className="sr-only">Hiệu lực báo giá</span>
+          <select
+            value={normalizeQuoteValidityDays(quote.validity_days)}
+            aria-label="Hiệu lực báo giá"
+            onChange={event => onValidityDaysChange(Number(event.target.value))}
+            className="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-[11px] font-semibold text-slate-700 outline-none focus:border-[#f8981d] focus:ring-2 focus:ring-orange-100"
+          >
+            <option value={7}>Hiệu lực 7 ngày</option>
+            <option value={15}>Hiệu lực 15 ngày</option>
+            <option value={30}>Hiệu lực 30 ngày</option>
+          </select>
+        </label>
+        <div className="mt-5 flex justify-end gap-2">
+          <button type="button" onClick={onCancel} className="rounded-xl border border-slate-200 px-4 py-2 text-[13px] font-semibold text-slate-600 hover:bg-slate-50">Huỷ</button>
+          <button
+            type="button"
+            disabled={!canSave}
+            onClick={onConfirm}
+            className="rounded-xl bg-slate-900 px-4 py-2 text-[13px] font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+          >
+            Lưu điều khoản
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function CustomItemModal({ onCancel, onConfirm }) {
   useEscapeToClose(onCancel)
 
@@ -633,6 +696,9 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
   const [showCustomItemModal, setShowCustomItemModal] = useState(false)
   const [overrideDraft, setOverrideDraft] = useState(null)
   const [clientInputFocused, setClientInputFocused] = useState(false)
+  const [showTermsModal, setShowTermsModal] = useState(false)
+  const [termsDraft, setTermsDraft] = useState('')
+  const [showStamp, setShowStamp] = useState(false)
 
   useEffect(() => {
     if (!isEditMode) return
@@ -657,6 +723,7 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
           client_name: existingQuote.client_name || DEFAULT_QUOTE.client_name,
           validity_days: normalizeQuoteValidityDays(existingQuote.validity_days),
           has_vat: existingQuote.has_vat !== false,
+          terms_text: existingQuote.terms_text || '',
         }
         setQuote(nextQuote)
         setClientQuery(existingQuote.client_name || DEFAULT_QUOTE.client_name)
@@ -862,6 +929,25 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
     return ''
   }
 
+  function openTermsModal() {
+    const currentTerms = getQuoteTerms(quote)
+    setTermsDraft(currentTerms.join('\n'))
+    setShowTermsModal(true)
+  }
+
+  function confirmTermsEdit() {
+    setQuote(prev => ({ ...prev, terms_text: normalizeQuoteTermsText(termsDraft) }))
+    setShowTermsModal(false)
+  }
+
+  function updateTermsValidityDays(validityDays) {
+    const shouldRefreshDefaultTerms = normalizeQuoteTermsText(termsDraft) === normalizeQuoteTermsText(getDefaultQuoteTermsText(quote))
+    const nextQuote = { ...quote, validity_days: validityDays }
+
+    setQuote(prev => ({ ...prev, validity_days: validityDays }))
+    if (shouldRefreshDefaultTerms) setTermsDraft(getDefaultQuoteTermsText(nextQuote))
+  }
+
   async function saveQuote(status) {
     const error = validateBeforeSave()
     if (error) {
@@ -890,6 +976,7 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
         duration_hours: derivedDurationHours,
         validity_days: normalizeQuoteValidityDays(quote.validity_days),
         has_vat: Boolean(quote.has_vat),
+        terms_text: normalizeQuoteTermsText(quote.terms_text) || null,
         ...(!isEditMode ? {
           status,
           sent_at: status === 'sent' ? now : null,
@@ -1070,27 +1157,41 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
           />
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="grid gap-4 md:grid-cols-[minmax(180px,0.75fr)_minmax(280px,1.25fr)]">
+            <div className="grid gap-4 md:grid-cols-[minmax(360px,0.85fr)_minmax(280px,1.15fr)]">
               <div className="space-y-3">
-                <div className="flex max-w-[300px] gap-2">
+                <div className="flex items-center gap-2">
                   <label className="flex w-[132px] items-center justify-between rounded-lg border border-slate-200 px-2.5 py-2">
                     <span className="text-[11px] font-semibold text-slate-700">Thuế GTGT 8%</span>
                     <input type="checkbox" checked={quote.has_vat} onChange={event => setQuote(prev => ({ ...prev, has_vat: event.target.checked }))} className="h-3.5 w-3.5 accent-[#f8981d]" />
                   </label>
-                  <label className="block w-[130px]">
-                    <span className="sr-only">Hiệu lực báo giá</span>
-                    <select value={quote.validity_days} aria-label="Hiệu lực báo giá" onChange={event => setQuote(prev => ({ ...prev, validity_days: Number(event.target.value) }))} className="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-[11px] font-semibold text-slate-700 outline-none focus:border-[#f8981d] focus:ring-2 focus:ring-orange-100">
-                      <option value={7}>Hiệu lực 7 ngày</option>
-                      <option value={15}>Hiệu lực 15 ngày</option>
-                      <option value={30}>Hiệu lực 30 ngày</option>
-                    </select>
-                  </label>
+                  <button
+                    type="button"
+                    onClick={openTermsModal}
+                    className="inline-flex h-[38px] min-w-[190px] items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-semibold text-slate-700 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-orange-100"
+                  >
+                    <PencilLine className="h-3.5 w-3.5" />
+                    Sửa điều khoản và điều kiện
+                  </button>
                 </div>
                 <EntitySelector
                   compact
                   entities={legalEntities}
                   value={quote.entity_code}
                   onChange={entity_code => setQuote(prev => ({ ...prev, entity_code }))}
+                  action={(
+                    <button
+                      type="button"
+                      onClick={() => setShowStamp(prev => !prev)}
+                      className={`inline-flex h-[34px] w-[118px] items-center justify-center gap-1.5 rounded-lg border px-2 text-[11px] font-semibold transition ${
+                        showStamp
+                          ? 'border-orange-300 bg-orange-50 text-slate-800'
+                          : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                      }`}
+                    >
+                      <Stamp className="h-3.5 w-3.5" />
+                      {showStamp ? 'Ẩn con dấu' : 'Hiện con dấu'}
+                    </button>
+                  )}
                 />
               </div>
               <div className="ml-auto w-full max-w-md space-y-2 text-[14px]">
@@ -1129,7 +1230,7 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
           </section>
         </div>
 
-        <QuotePreview quote={quote} items={displayItems} totals={totals} entities={legalEntities} client={selectedClient} sticky={false} />
+        <QuotePreview quote={quote} items={displayItems} totals={totals} entities={legalEntities} client={selectedClient} sticky={false} showStamp={showStamp} />
       </div>
 
       {showServicePicker && (
@@ -1152,6 +1253,18 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
         <OverrideReasonModal
           onCancel={() => setOverrideDraft(null)}
           onConfirm={confirmOverride}
+        />
+      )}
+
+      {showTermsModal && (
+        <QuoteTermsModal
+          quote={quote}
+          value={termsDraft}
+          onChange={setTermsDraft}
+          onValidityDaysChange={updateTermsValidityDays}
+          onReset={() => setTermsDraft(getDefaultQuoteTermsText(quote))}
+          onCancel={() => setShowTermsModal(false)}
+          onConfirm={confirmTermsEdit}
         />
       )}
     </div>

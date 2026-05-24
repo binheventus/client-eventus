@@ -58,6 +58,52 @@ const quoteItemColumns = [
   },
 ]
 
+const quoteColumns = [
+  {
+    tableName: 'client_quotes',
+    columnName: 'terms_text',
+    definition: 'longtext null after `has_vat`',
+  },
+]
+
+const contractColumns = [
+  {
+    tableName: 'client_contracts',
+    columnName: 'source_type',
+    definition: `varchar(40) not null default 'quote' after \`quote_number\``,
+  },
+  {
+    tableName: 'client_contracts',
+    columnName: 'external_job_id',
+    definition: 'bigint unsigned null after `source_type`',
+  },
+  {
+    tableName: 'client_contracts',
+    columnName: 'share_token',
+    definition: 'varchar(32) null after `external_job_id`',
+  },
+  {
+    tableName: 'client_contracts',
+    columnName: 'source_snapshot',
+    definition: 'json null after `quote_snapshot`',
+  },
+]
+
+const contractIndexes = [
+  {
+    tableName: 'client_contracts',
+    indexName: 'client_contracts_share_token_unique',
+    columns: ['share_token'],
+    unique: true,
+  },
+  {
+    tableName: 'client_contracts',
+    indexName: 'client_contracts_source_job_unique',
+    columns: ['source_type', 'external_job_id'],
+    unique: true,
+  },
+]
+
 async function ensureColumn(pool, { tableName, columnName, definition }) {
   const [rows] = await pool.query(
     `select 1
@@ -93,6 +139,60 @@ async function ensureIndex(pool, { tableName, indexName, columns }) {
   return true
 }
 
+async function ensureConfiguredIndex(pool, { tableName, indexName, columns, unique = false }) {
+  const [rows] = await pool.query(
+    `select 1
+     from information_schema.statistics
+     where table_schema = database()
+       and table_name = ?
+       and index_name = ?
+     limit 1`,
+    [tableName, indexName],
+  )
+
+  if (rows.length) return false
+
+  const columnSql = columns.map(column => `\`${column}\``).join(', ')
+  await pool.query(`alter table \`${tableName}\` add ${unique ? 'unique ' : ''}index \`${indexName}\` (${columnSql})`)
+  return true
+}
+
+async function ensureContractQuoteNullable(pool) {
+  const [columns] = await pool.query(
+    `select is_nullable
+     from information_schema.columns
+     where table_schema = database()
+       and table_name = 'client_contracts'
+       and column_name = 'quote_id'
+     limit 1`,
+  )
+
+  if (columns?.[0]?.is_nullable === 'YES') return false
+
+  const [constraints] = await pool.query(
+    `select constraint_name as constraintName
+     from information_schema.key_column_usage
+     where table_schema = database()
+       and table_name = 'client_contracts'
+       and column_name = 'quote_id'
+       and referenced_table_name = 'client_quotes'`,
+  )
+
+  for (const row of constraints) {
+    if (row.constraintName) {
+      await pool.query(`alter table \`client_contracts\` drop foreign key \`${row.constraintName}\``)
+    }
+  }
+
+  await pool.query('alter table `client_contracts` modify column `quote_id` varchar(32) null')
+  await pool.query(
+    `alter table \`client_contracts\`
+     add constraint \`client_contracts_quote_id_fk\`
+     foreign key (\`quote_id\`) references \`client_quotes\`(\`id\`) on delete set null`,
+  )
+  return true
+}
+
 try {
   for (const statement of splitSqlStatements(schemaSql)) {
     await pool.query(statement)
@@ -104,8 +204,22 @@ try {
   }
 
   const createdColumns = []
+  for (const columnConfig of quoteColumns) {
+    if (await ensureColumn(pool, columnConfig)) createdColumns.push(`${columnConfig.tableName}.${columnConfig.columnName}`)
+  }
+
   for (const columnConfig of quoteItemColumns) {
     if (await ensureColumn(pool, columnConfig)) createdColumns.push(`${columnConfig.tableName}.${columnConfig.columnName}`)
+  }
+
+  for (const columnConfig of contractColumns) {
+    if (await ensureColumn(pool, columnConfig)) createdColumns.push(`${columnConfig.tableName}.${columnConfig.columnName}`)
+  }
+
+  if (await ensureContractQuoteNullable(pool)) createdColumns.push('client_contracts.quote_id nullable')
+
+  for (const indexConfig of contractIndexes) {
+    if (await ensureConfiguredIndex(pool, indexConfig)) createdIndexes.push(indexConfig.indexName)
   }
 
   await pool.query('set foreign_key_checks = 0')

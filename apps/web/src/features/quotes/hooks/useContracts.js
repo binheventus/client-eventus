@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 import { redirectToLoginIfAuthRequired } from '../lib/authRedirect'
 import {
   buildInitialContractDraft,
+  buildInitialContractDraftFromSource,
   buildQuoteSnapshot,
   canCreateContractFromQuote,
   DEFAULT_CONTRACT_TEMPLATES,
@@ -68,6 +69,9 @@ function cleanContractPayload(payload = {}) {
   return {
     quote_id: payload.quote_id,
     quote_number: payload.quote_number || null,
+    source_type: payload.source_type || (payload.quote_id ? 'quote' : 'manual'),
+    external_job_id: payload.external_job_id || null,
+    share_token: payload.share_token || null,
     contract_number: payload.contract_number,
     status: payload.status || 'draft',
     template_id: payload.template_id || null,
@@ -85,6 +89,7 @@ function cleanContractPayload(payload = {}) {
     content_sections: normalized.content_sections,
     terms_text: payload.terms_text || sectionsToTermsText(normalized.content_sections),
     quote_snapshot: payload.quote_snapshot || {},
+    source_snapshot: payload.source_snapshot || {},
   }
 }
 
@@ -127,6 +132,37 @@ export async function getContractByQuoteId(quoteId) {
   return result.contract || null
 }
 
+export async function getContractById(id) {
+  if (!id) return null
+  const result = await requestContractApi(`?resource=contract&id=${encodeURIComponent(id)}`)
+  return result.contract || null
+}
+
+export async function getContractByJobId(jobId) {
+  if (!jobId) return null
+  const result = await requestContractApi(`?resource=contract&job_id=${encodeURIComponent(jobId)}`)
+  return result.contract || null
+}
+
+export async function listContracts({ search = '', sourceType = '', page = 1, pageSize = 20 } = {}) {
+  const query = new URLSearchParams({ resource: 'contracts', page: String(page), pageSize: String(pageSize) })
+  if (search) query.set('search', search)
+  if (sourceType) query.set('source_type', sourceType)
+  return requestContractApi(`?${query.toString()}`)
+}
+
+export async function listContractJobs({ search = '', page = 1, pageSize = 20 } = {}) {
+  const query = new URLSearchParams({ resource: 'jobs', page: String(page), pageSize: String(pageSize) })
+  if (search) query.set('search', search)
+  return requestContractApi(`?${query.toString()}`)
+}
+
+export async function getContractJob(jobId) {
+  if (!jobId) return null
+  const result = await requestContractApi(`?resource=job&id=${encodeURIComponent(jobId)}`)
+  return result.job || null
+}
+
 export async function getPublicContractByToken(shareToken) {
   if (!shareToken) return null
   const result = await requestContractApi(`?resource=public_contract&token=${encodeURIComponent(shareToken)}`)
@@ -160,19 +196,28 @@ export async function createSharedCustomer(payload = {}) {
 }
 
 export async function saveContract(payload = {}, { quote } = {}) {
-  if (!payload.quote_id) throw new Error('Thiếu quote id để tạo hợp đồng.')
   if (!payload.contract_number) throw new Error('Thiếu số hợp đồng.')
   if (!payload.title) throw new Error('Thiếu tiêu đề hợp đồng.')
   if (!payload.terms_text) throw new Error('Thiếu nội dung điều khoản hợp đồng.')
 
-  const existing = payload.id ? payload : await getContractByQuoteId(payload.quote_id)
-  if (!existing && quote && !canCreateContractFromQuote(quote)) {
+  const sourceType = payload.source_type || (payload.quote_id ? 'quote' : 'manual')
+  if (sourceType === 'quote' && !payload.quote_id) throw new Error('Thiếu quote id để tạo hợp đồng.')
+  if (sourceType === 'job' && !payload.external_job_id) throw new Error('Thiếu job id để tạo hợp đồng.')
+
+  const existing = payload.id
+    ? payload
+    : sourceType === 'job'
+      ? await getContractByJobId(payload.external_job_id)
+      : payload.quote_id
+        ? await getContractByQuoteId(payload.quote_id)
+        : null
+  if (!existing && sourceType === 'quote' && quote && !canCreateContractFromQuote(quote)) {
     throw new Error('Chỉ báo giá đã lưu hoàn thiện mới được tạo hợp đồng.')
   }
 
   const cleanPayload = cleanContractPayload({
     ...payload,
-    quote_snapshot: buildQuoteSnapshot(quote || payload.quote_snapshot),
+    quote_snapshot: quote ? buildQuoteSnapshot(quote) : (payload.quote_snapshot || {}),
   })
 
   const result = await requestContractApi('', {
@@ -222,4 +267,8 @@ export function useContractTemplates() {
 
 export function createContractDraftFromQuote(quote = {}, template) {
   return buildInitialContractDraft(quote, template)
+}
+
+export function createContractDraftFromSource(source = {}, template) {
+  return buildInitialContractDraftFromSource(source, template)
 }

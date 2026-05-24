@@ -51,7 +51,8 @@ export function getEventusLoginUrl(req) {
 
 export function isProtectedQuotePageRequest(req) {
   const pathname = new URL(req?.url || '/', 'http://client.local').pathname
-  return pathname === '/quotes' || pathname.startsWith('/quotes/')
+  return pathname === '/quotes' || pathname.startsWith('/quotes/') ||
+    pathname === '/contracts' || pathname.startsWith('/contracts/')
 }
 
 export async function getEventusAuthUser(req) {
