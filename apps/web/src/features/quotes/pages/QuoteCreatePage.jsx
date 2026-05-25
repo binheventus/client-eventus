@@ -7,6 +7,7 @@ import QuoteChatInput from '../components/QuoteChatInput'
 import QuoteItemsTable from '../components/QuoteItemsTable'
 import QuotePreview from '../components/QuotePreview'
 import { useBusinessRules } from '../hooks/useBusinessRules'
+import { useServiceGroups } from '../hooks/useServiceGroups'
 import { useCustomerTiers } from '../hooks/useCustomerTiers'
 import { useLegalEntities } from '../hooks/useLegalEntities'
 import { createQuote, getQuote, listQuoteClients, updateQuote } from '../hooks/useQuotes'
@@ -52,6 +53,13 @@ const CUSTOM_ITEM_PLACEMENTS = [
 
 const DEFAULT_CUSTOM_ITEM_PLACEMENT = 'bottom'
 const CUSTOM_ITEM_UNIT_OPTIONS = ['Người', 'Gói', 'Video', 'Ảnh', 'Thiết bị']
+const FALLBACK_GROUPS = {
+  PHOTO: { group_code: 'PHOTO', group_label: 'Hạng mục chụp ảnh', group_sort_order: 1 },
+  VIDEO: { group_code: 'VIDEO', group_label: 'Hạng mục quay phim', group_sort_order: 2 },
+  LIVESTREAM: { group_code: 'LIVESTREAM', group_label: 'Hạng mục livestream', group_sort_order: 3 },
+  POST: { group_code: 'POST', group_label: 'Hạng mục hậu kỳ', group_sort_order: 4 },
+  OTHER: { group_code: 'OTHER', group_label: 'Chi phí khác', group_sort_order: 99 },
+}
 
 function getInitialSalesBrief(search = '', isEditMode = false) {
   if (isEditMode) return ''
@@ -218,12 +226,118 @@ function getServiceRawName(service) {
   return service?.service_name || service?.name || getServiceName(service)
 }
 
+function getGroupCode(value = '') {
+  return String(value || '').trim().toUpperCase()
+}
+
+function getFallbackGroupCodeForService(service = {}) {
+  const directCode = getGroupCode(service.group_code)
+  if (directCode) return directCode
+
+  const equipmentGroup = normalizeQuoteText(service.equipment_group)
+  const serviceCode = normalizeQuoteText(getServiceCode(service))
+  const serviceText = normalizeServiceSearchText(`${getServiceName(service)} ${getServiceRawName(service)}`)
+
+  if (equipmentGroup === 'CHUP' || /^CHUP(?:_|$)/.test(serviceCode) || serviceText.includes('CHUP ANH')) return 'PHOTO'
+  if (equipmentGroup === 'QUAY' || /^QUAY(?:_|$)/.test(serviceCode)) return serviceCode.includes('LIVE') ? 'LIVESTREAM' : 'VIDEO'
+  if (equipmentGroup === 'BANTRON' || serviceCode.includes('LIVE') || serviceText.includes('LIVESTREAM')) return 'LIVESTREAM'
+  if (serviceCode.includes('EDIT') || serviceText.includes('DUNG VIDEO') || serviceText.includes('HAU KY') || serviceText.includes('CHINH ANH')) return 'POST'
+  return 'OTHER'
+}
+
+function getGroupForCode(groupCode = 'OTHER', serviceGroups = []) {
+  const code = getGroupCode(groupCode) || 'OTHER'
+  const configuredGroup = serviceGroups.find(group => getGroupCode(group.group_code) === code)
+  const fallbackGroup = FALLBACK_GROUPS[code] || FALLBACK_GROUPS.OTHER
+
+  return {
+    group_code: code,
+    group_label: configuredGroup?.group_label || fallbackGroup.group_label,
+    group_sort_order: Number(configuredGroup?.group_sort_order ?? fallbackGroup.group_sort_order ?? 99),
+  }
+}
+
+function getGroupForService(service = {}, serviceGroups = []) {
+  const code = getFallbackGroupCodeForService(service)
+  const group = getGroupForCode(code, serviceGroups)
+
+  return {
+    ...group,
+    group_label: service.group_label || group.group_label,
+    group_sort_order: Number(service.group_sort_order ?? group.group_sort_order ?? 99),
+  }
+}
+
+function getGroupForCustomPlacement(placement = DEFAULT_CUSTOM_ITEM_PLACEMENT, serviceGroups = []) {
+  const groupCodeByPlacement = {
+    after_photo: 'PHOTO',
+    after_video: 'VIDEO',
+    after_mixer: 'LIVESTREAM',
+    after_editing: 'POST',
+  }
+  return getGroupForCode(groupCodeByPlacement[placement] || 'OTHER', serviceGroups)
+}
+
+function getItemGroupSortOrder(item = {}) {
+  const sortOrder = Number(item.group_sort_order)
+  return Number.isFinite(sortOrder) ? sortOrder : getGroupForCode(item.group_code).group_sort_order
+}
+
+function normalizeGroupOption(group = {}, fallbackIndex = 0) {
+  const groupCode = getGroupCode(group.group_code) || `GROUP_${fallbackIndex + 1}`
+  const hasGroupLabel = Object.prototype.hasOwnProperty.call(group, 'group_label')
+  return {
+    ...group,
+    group_code: groupCode,
+    group_label: hasGroupLabel ? String(group.group_label ?? '') : (groupCode || 'Nhóm hạng mục'),
+    group_sort_order: Number(group.group_sort_order ?? fallbackIndex + 1),
+    is_custom_group: Boolean(group.is_custom_group),
+    is_implicit_group: Boolean(group.is_implicit_group),
+  }
+}
+
+function mergeGroupOptions(...groupLists) {
+  const map = new Map()
+  groupLists.flat().forEach((group, index) => {
+    if (!group) return
+    const normalized = normalizeGroupOption(group, index)
+    if (!normalized.group_code) return
+    map.set(normalized.group_code, {
+      ...(map.get(normalized.group_code) || {}),
+      ...normalized,
+    })
+  })
+
+  return Array.from(map.values()).sort((a, b) => {
+    const sortDiff = Number(a.group_sort_order || 99) - Number(b.group_sort_order || 99)
+    return sortDiff || String(a.group_label).localeCompare(String(b.group_label), 'vi')
+  })
+}
+
 function getClientDisplayName(client = {}) {
   return String(client.name || client.client_name || '').trim()
 }
 
+function hasEnteredClientName(value = '') {
+  return String(value || '')
+    .trim()
+    .replace(/^mr\.?\s*/i, '')
+    .trim()
+    .length > 0
+}
+
 function makeLocalId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+function makeImplicitQuoteGroup() {
+  return {
+    group_code: 'CUSTOM_DEFAULT',
+    group_label: 'Nhóm 1',
+    group_sort_order: 1,
+    is_custom_group: true,
+    is_implicit_group: true,
+  }
 }
 
 function getTierPriceColumn(tierCode = 'TIER_2') {
@@ -301,6 +415,8 @@ function sortQuoteItems(items = []) {
   return [...items]
     .map((item, index) => ({ item, index }))
     .sort((a, b) => {
+      const groupDiff = getItemGroupSortOrder(a.item) - getItemGroupSortOrder(b.item)
+      if (groupDiff) return groupDiff
       const rankDiff = getQuoteItemSortRank(a.item) - getQuoteItemSortRank(b.item)
       return rankDiff || a.index - b.index
     })
@@ -349,9 +465,10 @@ function extractClientNameFromBrief(inputText = '') {
   return name ? `Mr. ${name}` : ''
 }
 
-function normalizeParsedItem(item, quote, services) {
+function normalizeParsedItem(item, quote, services, serviceGroups = []) {
   const billableDurationHours = getBillableDurationHours(item.billable_duration_hours ?? item.item_duration_hours ?? item.duration_hours, quote.duration_hours)
   const service = findServiceForQuoteItem(services, item, quote.location, billableDurationHours)
+  const group = getGroupForService(service || item, serviceGroups)
   const unitPrice = Number(service?.[getTierPriceColumn(quote.tier_code)] || service?.price_tier_2 || 0)
   const quantity = Number(item.quantity) || 1
   const numSessions = Number(item.num_sessions) || 1
@@ -369,11 +486,12 @@ function normalizeParsedItem(item, quote, services) {
     total_price: quantity * numSessions * unitPrice,
     is_overridden: false,
     override_reason: '',
+    ...group,
     service,
   }
 }
 
-function calculateDisplayItems(items, quote, services, businessRules) {
+function calculateDisplayItems(items, quote, services, businessRules, serviceGroups = []) {
   const result = calculateQuotePricing({
     items,
     services,
@@ -387,12 +505,13 @@ function calculateDisplayItems(items, quote, services, businessRules) {
   return result.items_with_calculated_price.map((calculated, index) => ({
     ...items[index],
     ...calculated,
+    ...(!(items[index]?.group_code && items[index]?.group_label) ? getGroupForService({ ...(calculated.service || {}), ...(items[index] || {}) }, serviceGroups) : {}),
     service_name: items[index]?.service_name || getServiceName(calculated.service),
     original_unit_price: items[index]?.original_unit_price ?? calculated.unit_price,
   }))
 }
 
-function ServicePickerModal({ services, tierCode, onClose, onSelect }) {
+function ServicePickerModal({ services, tierCode, serviceGroups = [], onClose, onSelect }) {
   useEscapeToClose(onClose)
 
   const [query, setQuery] = useState('')
@@ -436,6 +555,7 @@ function ServicePickerModal({ services, tierCode, onClose, onSelect }) {
                   {getServiceRawName(service) ? (
                     <span>{getServiceRawName(service)}</span>
                   ) : null}
+                  <span className="font-medium text-orange-300">{getGroupForService(service, serviceGroups).group_label}</span>
                 </div>
               </div>
               <div className="text-[13px] font-semibold text-slate-700">{formatCurrency(service?.[priceColumn] || service?.price_tier_2)}đ</div>
@@ -507,7 +627,7 @@ function QuoteTermsModal({ quote, value, onChange, onValidityDaysChange, onReset
   )
 }
 
-function CustomItemModal({ onCancel, onConfirm }) {
+function CustomItemModal({ targetGroup, onCancel, onConfirm }) {
   useEscapeToClose(onCancel)
 
   const [serviceName, setServiceName] = useState('')
@@ -537,19 +657,26 @@ function CustomItemModal({ onCancel, onConfirm }) {
               autoFocus
             />
           </label>
-          <div className="grid gap-3 md:grid-cols-[170px_104px_76px_76px_116px]">
-            <label className="block">
-              <span className="mb-1.5 block text-[12px] font-semibold text-slate-600">Thứ tự trong bảng</span>
-              <select
-                value={placement}
-                onChange={event => setPlacement(event.target.value)}
-                className="w-full rounded-xl border border-slate-200 px-3 py-3 text-[13px] outline-none focus:border-[#f8981d] focus:ring-2 focus:ring-orange-100"
-              >
-                {CUSTOM_ITEM_PLACEMENTS.map(option => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </select>
-            </label>
+          {targetGroup ? (
+            <p className="rounded-xl bg-slate-50 px-3 py-2 text-[12px] font-semibold text-slate-600">
+              Nhóm: {targetGroup.group_label}
+            </p>
+          ) : null}
+          <div className={`grid gap-3 ${targetGroup ? 'md:grid-cols-[104px_76px_76px_116px]' : 'md:grid-cols-[170px_104px_76px_76px_116px]'}`}>
+            {!targetGroup ? (
+              <label className="block">
+                <span className="mb-1.5 block text-[12px] font-semibold text-slate-600">Thứ tự trong bảng</span>
+                <select
+                  value={placement}
+                  onChange={event => setPlacement(event.target.value)}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-3 text-[13px] outline-none focus:border-[#f8981d] focus:ring-2 focus:ring-orange-100"
+                >
+                  {CUSTOM_ITEM_PLACEMENTS.map(option => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             <label className="block">
               <span className="mb-1.5 block text-[12px] font-semibold text-slate-600">Đơn vị tính</span>
               <select
@@ -637,6 +764,9 @@ function hydrateSavedQuoteItem(item = {}, index = 0, quoteDurationHours = DEFAUL
     total_price: Number(item.total_price) || quantity * numSessions * unitPrice,
     is_custom: Boolean(isCustom),
     custom_sort_rank: Number.isFinite(Number(item.custom_sort_rank)) ? Number(item.custom_sort_rank) : undefined,
+    group_code: item.group_code || '',
+    group_label: item.group_label || '',
+    group_sort_order: item.group_sort_order ?? null,
     is_overridden: Boolean(item.is_overridden || isCustom),
     override_reason: item.override_reason || '',
     sort_order: item.sort_order ?? index + 1,
@@ -653,6 +783,7 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
   const { businessRules, rulesMap } = useBusinessRules()
   const { legalEntities, getDefaultEntity } = useLegalEntities()
   const { customerTiers } = useCustomerTiers()
+  const { serviceGroups } = useServiceGroups()
   const [quote, setQuote] = useState(DEFAULT_QUOTE)
   const [items, setItems] = useState([])
   const [clients, setClients] = useState([])
@@ -666,6 +797,9 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
   const [initialLoading, setInitialLoading] = useState(isEditMode)
   const [showServicePicker, setShowServicePicker] = useState(false)
   const [showCustomItemModal, setShowCustomItemModal] = useState(false)
+  const [quoteGroups, setQuoteGroups] = useState(() => isEditMode ? [] : [makeImplicitQuoteGroup()])
+  const [removedGroupCodes, setRemovedGroupCodes] = useState([])
+  const [targetGroup, setTargetGroup] = useState(null)
   const [clientInputFocused, setClientInputFocused] = useState(false)
   const [showTermsModal, setShowTermsModal] = useState(false)
   const [termsDraft, setTermsDraft] = useState('')
@@ -739,7 +873,23 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
     listQuoteClients().then(setClients).catch(() => setClients([]))
   }, [])
 
-  const displayItems = useMemo(() => calculateDisplayItems(items, quote, services, rulesMap), [items, quote, services, rulesMap])
+  useEffect(() => {
+    const defaults = serviceGroups.length ? serviceGroups : Object.values(FALLBACK_GROUPS)
+    setQuoteGroups(prev => mergeGroupOptions(defaults, prev))
+  }, [serviceGroups])
+
+  const displayItems = useMemo(() => calculateDisplayItems(items, quote, services, rulesMap, serviceGroups), [items, quote, services, rulesMap, serviceGroups])
+  const quoteGroupOptions = useMemo(() => {
+    const defaults = serviceGroups.length ? serviceGroups : Object.values(FALLBACK_GROUPS)
+    const itemGroupCodes = new Set(displayItems.map(item => getGroupCode(item.group_code) || 'OTHER'))
+    const groupsFromItems = displayItems.map(item => ({
+      group_code: item.group_code,
+      group_label: item.group_label,
+      group_sort_order: item.group_sort_order,
+    }))
+    return mergeGroupOptions(defaults, quoteGroups, groupsFromItems)
+      .filter(group => !removedGroupCodes.includes(getGroupCode(group.group_code)) || itemGroupCodes.has(getGroupCode(group.group_code)))
+  }, [displayItems, quoteGroups, removedGroupCodes, serviceGroups])
   const highlightedReasoningTerms = useMemo(() => getHighlightedReasoningTerms(services, customerTiers), [services, customerTiers])
   const totals = useMemo(() => calculateQuotePricing({
     items: displayItems,
@@ -785,8 +935,8 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
         duration_hours: parsed.duration_hours || quote.duration_hours,
         tier_code: parsed.tier_code || quote.tier_code,
       }
-      const parsedItems = (parsed.items || []).map(item => normalizeParsedItem(item, nextQuote, services))
-      const pricedParsedItems = calculateDisplayItems(parsedItems, nextQuote, services, rulesMap)
+      const parsedItems = (parsed.items || []).map(item => normalizeParsedItem(item, nextQuote, services, serviceGroups))
+      const pricedParsedItems = calculateDisplayItems(parsedItems, nextQuote, services, rulesMap, serviceGroups)
       const overtimeReasoning = buildOvertimeReasoningLine(pricedParsedItems, rulesMap)
       const normalizedResult = normalizeParseResult({
         ...result,
@@ -817,21 +967,114 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
           next.override_reason = ''
         }
 
-        shouldSort = Boolean(patch.service_name || patch.service_name_raw || patch.service_code)
+        shouldSort = Boolean(patch.service_name || patch.service_name_raw || patch.service_code || patch.group_code || patch.group_sort_order)
         return next
       })
       return shouldSort ? sortQuoteItems(nextItems) : nextItems
     })
   }
 
+  function upsertQuoteGroup(group) {
+    const groupCode = getGroupCode(group?.group_code)
+    if (groupCode) setRemovedGroupCodes(prev => prev.filter(code => code !== groupCode))
+    setQuoteGroups(prev => mergeGroupOptions(prev, [group]))
+  }
+
+  function addQuoteGroup() {
+    const customGroupCount = quoteGroups.filter(group => group.is_custom_group).length
+    const maxSortOrder = quoteGroupOptions
+      .map(group => Number(group.group_sort_order))
+      .filter(sortOrder => Number.isFinite(sortOrder) && sortOrder < 99)
+      .reduce((max, sortOrder) => Math.max(max, sortOrder), 0)
+    const group = {
+      group_code: `CUSTOM_${Date.now()}`,
+      group_label: `Nhóm ${customGroupCount + 1}`,
+      group_sort_order: maxSortOrder + 1,
+      is_custom_group: true,
+    }
+    upsertQuoteGroup(group)
+  }
+
+  function renameQuoteGroup(group, nextLabel) {
+    const patch = { ...group, group_label: nextLabel }
+    upsertQuoteGroup(patch)
+    setItems(prev => prev.map(item => (
+      getGroupCode(item.group_code) === getGroupCode(group.group_code)
+        ? { ...item, group_label: nextLabel }
+        : item
+    )))
+  }
+
+  function moveQuoteGroup(group, direction) {
+    const activeGroupCodes = new Set([
+      ...displayItems.map(item => getGroupCode(item.group_code) || 'OTHER'),
+      ...quoteGroups.filter(option => option.is_custom_group).map(option => getGroupCode(option.group_code)),
+    ])
+    const activeGroups = quoteGroupOptions.filter(option => activeGroupCodes.has(getGroupCode(option.group_code)))
+    const inactiveGroups = quoteGroupOptions.filter(option => !activeGroupCodes.has(getGroupCode(option.group_code)))
+    const currentIndex = activeGroups.findIndex(option => getGroupCode(option.group_code) === getGroupCode(group.group_code))
+    const nextIndex = currentIndex + direction
+    if (currentIndex < 0 || nextIndex < 0 || nextIndex >= activeGroups.length) return
+
+    const reordered = [...activeGroups]
+    const [current] = reordered.splice(currentIndex, 1)
+    reordered.splice(nextIndex, 0, current)
+    const withSortOrder = [...reordered, ...inactiveGroups].map((option, index) => ({
+      ...option,
+      group_sort_order: index + 1,
+    }))
+    const sortMap = new Map(withSortOrder.map(option => [getGroupCode(option.group_code), option]))
+
+    setQuoteGroups(withSortOrder)
+    setItems(prev => sortQuoteItems(prev.map(item => {
+      const nextGroup = sortMap.get(getGroupCode(item.group_code))
+      if (!nextGroup) return item
+      return {
+        ...item,
+        group_label: nextGroup.group_label,
+        group_sort_order: nextGroup.group_sort_order,
+      }
+    })))
+  }
+
+  function removeQuoteGroup(group, itemCount = 0) {
+    const groupCode = getGroupCode(group?.group_code)
+    if (!groupCode) return
+
+    if (itemCount > 0) {
+      const confirmed = window.confirm(`Nhóm "${group.group_label || groupCode}" đang có ${itemCount} dịch vụ. Bạn có chắc muốn xóa nhóm này không?`)
+      if (!confirmed) return
+    }
+
+    setRemovedGroupCodes(prev => prev.includes(groupCode) ? prev : [...prev, groupCode])
+    setQuoteGroups(prev => prev.filter(option => getGroupCode(option.group_code) !== groupCode))
+    setItems(prev => prev.filter(item => (getGroupCode(item.group_code) || 'OTHER') !== groupCode))
+  }
+
+  function openServicePicker(group) {
+    setTargetGroup(group || null)
+    setShowServicePicker(true)
+  }
+
+  function openCustomItemModal(group) {
+    setTargetGroup(group || null)
+    setShowCustomItemModal(true)
+  }
+
   function addServiceItem(service) {
     const serviceCode = getServiceCode(service)
     const normalizedServiceCode = normalizeQuoteText(serviceCode)
+    const group = targetGroup ? normalizeGroupOption(targetGroup) : getGroupForService(service, serviceGroups)
+    const normalizedTargetGroupCode = getGroupCode(group.group_code)
     const unitPrice = Number(service?.[getTierPriceColumn(quote.tier_code)] || service?.price_tier_2 || 0)
     const defaultBillableDurationHours = getServiceDefaultDurationHours(service, quote.duration_hours)
+    upsertQuoteGroup(group)
     setItems(prev => {
       const existingIndex = normalizedServiceCode
-        ? prev.findIndex(item => getQuoteItemCode(item) === normalizedServiceCode)
+        ? prev.findIndex(item => {
+          const itemGroupCode = getGroupCode(item.group_code) || 'OTHER'
+          return getQuoteItemCode(item) === normalizedServiceCode && itemGroupCode === normalizedTargetGroupCode
+        })
         : -1
 
       if (existingIndex >= 0) {
@@ -843,6 +1086,7 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
             service_code: item.service_code || serviceCode,
             service_name: item.service_name || getServiceName(service),
             billable_duration_hours: item.billable_duration_hours ?? defaultBillableDurationHours,
+            ...group,
             service,
           }
           next.total_price = calculateQuoteItemTotal(next)
@@ -860,19 +1104,23 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
         unit_price: unitPrice,
         original_unit_price: unitPrice,
         total_price: unitPrice,
+        ...group,
         is_overridden: false,
         override_reason: '',
         service,
       }])
     })
     setShowServicePicker(false)
+    setTargetGroup(null)
   }
 
   function addCustomItem({ serviceName, placement, unit, quantity, numSessions, unitPrice }) {
     const selectedPlacement = placement || getCustomItemPlacement()
+    const group = targetGroup ? normalizeGroupOption(targetGroup) : getGroupForCustomPlacement(selectedPlacement.value, serviceGroups)
     const safeQuantity = Math.max(Number(quantity) || 0, 0)
     const safeNumSessions = Math.max(Number(numSessions) || 1, 1)
     const safeUnitPrice = Math.max(Number(unitPrice) || 0, 0)
+    upsertQuoteGroup(group)
     setItems(prev => sortQuoteItems([...prev, {
       local_id: makeLocalId(),
       service_code: 'CUSTOM',
@@ -887,15 +1135,18 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
       total_price: safeQuantity * safeNumSessions * safeUnitPrice,
       is_custom: true,
       custom_sort_rank: selectedPlacement.sortRank,
+      ...group,
       is_overridden: true,
       override_reason: '',
     }]))
     setShowCustomItemModal(false)
+    setTargetGroup(null)
   }
 
   function validateBeforeSave() {
     if (!quote.entity_code) return 'Phải chọn pháp nhân.'
     if (!quote.tier_code) return 'Phải chọn loại khách.'
+    if (!hasEnteredClientName(quote.client_name || clientQuery)) return 'Bạn chưa nhập tên khách hàng.'
     if (!displayItems.length) return 'Phải có ít nhất 1 hạng mục.'
     if (displayItems.some(item => item.is_custom && !String(item.service_name || '').trim())) return 'Custom item cần có tên hạng mục.'
     return ''
@@ -972,6 +1223,9 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
           original_unit_price: item.original_unit_price ?? item.unit_price,
           override_reason: null,
           custom_sort_rank: item.custom_sort_rank,
+          group_code: item.group_code || null,
+          group_label: item.group_label || null,
+          group_sort_order: item.group_sort_order ?? null,
           sort_order: index + 1,
         })),
       }
@@ -1122,10 +1376,15 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
 
           <QuoteItemsTable
             items={displayItems}
+            groupOptions={quoteGroupOptions}
             onChangeItem={updateItem}
             onRemoveItem={index => setItems(prev => prev.filter((_, itemIndex) => itemIndex !== index))}
-            onAddService={() => setShowServicePicker(true)}
-            onAddCustomItem={() => setShowCustomItemModal(true)}
+            onAddService={openServicePicker}
+            onAddCustomItem={openCustomItemModal}
+            onAddGroup={addQuoteGroup}
+            onRenameGroup={renameQuoteGroup}
+            onMoveGroup={moveQuoteGroup}
+            onRemoveGroup={removeQuoteGroup}
           />
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -1209,14 +1468,22 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
         <ServicePickerModal
           services={services}
           tierCode={quote.tier_code}
-          onClose={() => setShowServicePicker(false)}
+          serviceGroups={serviceGroups}
+          onClose={() => {
+            setShowServicePicker(false)
+            setTargetGroup(null)
+          }}
           onSelect={addServiceItem}
         />
       )}
 
       {showCustomItemModal && (
         <CustomItemModal
-          onCancel={() => setShowCustomItemModal(false)}
+          targetGroup={targetGroup}
+          onCancel={() => {
+            setShowCustomItemModal(false)
+            setTargetGroup(null)
+          }}
           onConfirm={addCustomItem}
         />
       )}

@@ -464,7 +464,9 @@ export function buildQuoteSnapshot(quote = {}) {
       unit_price: Number(item.unit_price || 0),
       total_price: Number(item.total_price || 0),
       sort_order: item.sort_order ?? index + 1,
+      group_code: item.group_code || '',
       group_label: item.group_label || item.event_day || item.day_index || '',
+      group_sort_order: item.group_sort_order ?? null,
     })),
   }
 }

@@ -86,6 +86,9 @@ const QUOTE_ITEM_COLUMNS = [
   'is_overridden',
   'original_unit_price',
   'override_reason',
+  'group_code',
+  'group_label',
+  'group_sort_order',
   'sort_order',
 ]
 
@@ -246,6 +249,7 @@ function normalizeQuoteItemRow(row = {}) {
     total_price: normalizeNumber(row.total_price),
     original_unit_price: normalizeNumber(row.original_unit_price),
     custom_sort_rank: normalizeNumber(row.custom_sort_rank),
+    group_sort_order: normalizeNumber(row.group_sort_order),
     sort_order: normalizeNumber(row.sort_order),
     is_custom: normalizeBoolean(row.is_custom),
     is_overridden: normalizeBoolean(row.is_overridden),
@@ -288,6 +292,9 @@ function normalizeQuoteItemPayload(item = {}, quoteId, index = 0) {
     is_overridden: Boolean(item.is_overridden || item.is_custom || serviceCode === 'CUSTOM'),
     original_unit_price: item.original_unit_price ?? item.unit_price ?? null,
     override_reason: emptyToNull(item.override_reason),
+    group_code: emptyToNull(item.group_code),
+    group_label: emptyToNull(item.group_label),
+    group_sort_order: item.group_sort_order ?? null,
     sort_order: item.sort_order ?? index + 1,
   }, QUOTE_ITEM_COLUMNS)
 }

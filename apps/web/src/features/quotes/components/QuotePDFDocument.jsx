@@ -118,15 +118,31 @@ function getItemUnit(item) {
   return item?.unit || item?.service?.unit || item?.pricing_unit || 'Người'
 }
 
-function groupItemsByDay(items = []) {
+function getItemGroupLabel(item = {}) {
+  return String(item.group_label || item.event_day || item.day_index || item.day || 'Hạng mục').trim() || 'Hạng mục'
+}
+
+function getItemGroupSortOrder(item = {}) {
+  const sortOrder = Number(item.group_sort_order)
+  return Number.isFinite(sortOrder) ? sortOrder : 99
+}
+
+function groupQuoteItems(items = []) {
   const groups = new Map()
-  items.forEach(item => {
-    const day = item.event_day || item.day_index || item.day || null
-    const key = day ? `Ngày ${day}` : 'Hạng mục'
-    if (!groups.has(key)) groups.set(key, [])
-    groups.get(key).push(item)
+  items.forEach((item, index) => {
+    const label = getItemGroupLabel(item)
+    const key = `${item.group_code || label}-${label}`
+    if (!groups.has(key)) {
+      groups.set(key, {
+        label,
+        sortOrder: getItemGroupSortOrder(item),
+        firstIndex: index,
+        items: [],
+      })
+    }
+    groups.get(key).items.push(item)
   })
-  return Array.from(groups.entries())
+  return Array.from(groups.values()).sort((a, b) => (a.sortOrder - b.sortOrder) || (a.firstIndex - b.firstIndex))
 }
 
 function isDensePdf(items = []) {
@@ -341,6 +357,9 @@ const styles = StyleSheet.create({
   itemName: {
     width: '37%',
   },
+  itemNameIndented: {
+    paddingLeft: 12,
+  },
   itemNameDense: {
     width: '38%',
   },
@@ -363,7 +382,6 @@ const styles = StyleSheet.create({
   amount: {
     width: '18%',
     textAlign: 'right',
-    fontWeight: 600,
     color: '#000000',
   },
   amountDense: {
@@ -667,7 +685,8 @@ function InfoSection({ quote, dense = false, spacious = false }) {
 }
 
 function ItemsTable({ items = [], dense = false, spacious = false }) {
-  const groups = groupItemsByDay(items)
+  const groups = groupQuoteItems(items)
+  const showGroupHeaders = groups.length > 1
 
   return (
     <View style={[styles.table, dense ? styles.tableDense : null, spacious ? styles.tableSpacious : null]}>
@@ -679,12 +698,12 @@ function ItemsTable({ items = [], dense = false, spacious = false }) {
         <Text style={[styles.cell, styles.price, styles.headerCell, dense ? styles.cellDense : null, spacious ? styles.cellSpacious : null, dense ? styles.headerCellDense : null, spacious ? styles.headerCellSpacious : null]}>Đơn giá</Text>
         <Text style={[styles.cell, styles.amount, dense ? styles.amountDense : null, styles.headerCell, dense ? styles.cellDense : null, spacious ? styles.cellSpacious : null, dense ? styles.headerCellDense : null, spacious ? styles.headerCellSpacious : null]}>Thành tiền</Text>
       </View>
-      {groups.map(([groupName, groupItems]) => (
-        <View key={groupName} wrap={false}>
-          {groups.length > 1 ? <Text style={[styles.groupRow, dense ? styles.groupRowDense : null, spacious ? styles.groupRowSpacious : null]}>{groupName}</Text> : null}
-          {groupItems.map((item, index) => (
-            <View key={`${groupName}-${index}`} style={[styles.row, dense ? styles.rowDense : null, spacious ? styles.rowSpacious : null]} wrap={false}>
-              <Text style={[styles.cell, styles.itemName, dense ? styles.itemNameDense : null, dense ? styles.cellDense : null, spacious ? styles.cellSpacious : null]}>{getItemName(item)}</Text>
+      {groups.map(group => (
+        <View key={`${group.label}-${group.firstIndex}`} wrap={false}>
+          {showGroupHeaders ? <Text style={[styles.groupRow, dense ? styles.groupRowDense : null, spacious ? styles.groupRowSpacious : null]}>{group.label}</Text> : null}
+          {group.items.map((item, index) => (
+            <View key={`${group.label}-${index}`} style={[styles.row, dense ? styles.rowDense : null, spacious ? styles.rowSpacious : null]} wrap={false}>
+              <Text style={[styles.cell, styles.itemName, showGroupHeaders ? styles.itemNameIndented : null, dense ? styles.itemNameDense : null, dense ? styles.cellDense : null, spacious ? styles.cellSpacious : null]}>{getItemName(item)}</Text>
               <Text style={[styles.cell, styles.unit, dense ? styles.cellDense : null, spacious ? styles.cellSpacious : null]}>{getItemUnit(item)}</Text>
               <Text style={[styles.cell, styles.qty, dense ? styles.cellDense : null, spacious ? styles.cellSpacious : null]}>{item.quantity || 1}</Text>
               <Text style={[styles.cell, styles.sessions, dense ? styles.cellDense : null, spacious ? styles.cellSpacious : null]}>{item.num_sessions || 1}</Text>

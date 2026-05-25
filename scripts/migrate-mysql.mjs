@@ -56,6 +56,21 @@ const quoteItemColumns = [
     columnName: 'billable_duration_hours',
     definition: 'decimal(10,2) null after `num_sessions`',
   },
+  {
+    tableName: 'client_quote_items',
+    columnName: 'group_code',
+    definition: 'varchar(80) null after `override_reason`',
+  },
+  {
+    tableName: 'client_quote_items',
+    columnName: 'group_label',
+    definition: 'varchar(255) null after `group_code`',
+  },
+  {
+    tableName: 'client_quote_items',
+    columnName: 'group_sort_order',
+    definition: 'int null after `group_label`',
+  },
 ]
 
 const quoteColumns = [

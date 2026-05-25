@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import equipmentRulesData from '../../../data/pricing/equipment_rules.json'
 import legalEntitiesData from '../../../data/pricing/legal_entities.json'
 import { getMatchedEquipmentRules } from '../lib/equipmentRules'
@@ -51,6 +51,39 @@ function getItemName(item) {
 
 function getItemUnit(item) {
   return item.unit || item.service?.unit || item.pricing_unit || 'Người'
+}
+
+function getItemGroupLabel(item = {}) {
+  return String(item.group_label || item.event_day || item.day_index || item.day || 'Hạng mục').trim() || 'Hạng mục'
+}
+
+function getItemGroupSortOrder(item = {}) {
+  const sortOrder = Number(item.group_sort_order)
+  return Number.isFinite(sortOrder) ? sortOrder : 99
+}
+
+function groupQuoteItems(items = []) {
+  const groups = new Map()
+  items.forEach((item, index) => {
+    const label = getItemGroupLabel(item)
+    const key = `${item.group_code || label}-${label}`
+    if (!groups.has(key)) {
+      groups.set(key, {
+        key,
+        label,
+        sortOrder: getItemGroupSortOrder(item),
+        firstIndex: index,
+        items: [],
+      })
+    }
+    groups.get(key).items.push(item)
+  })
+
+  return Array.from(groups.values()).sort((a, b) => (a.sortOrder - b.sortOrder) || (a.firstIndex - b.firstIndex))
+}
+
+function getGroupTotal(items = []) {
+  return items.reduce((sum, item) => sum + Number(item.total_price || 0), 0)
 }
 
 function ContactRow({ row, highlight = false }) {
@@ -149,6 +182,9 @@ function QuoteEndNotes({ quote = {}, items = [] }) {
 }
 
 function QuoteItemsMobileCards({ items = [] }) {
+  const groups = groupQuoteItems(items)
+  const showGroupHeaders = groups.length > 1
+
   if (!items.length) {
     return (
       <section className="rounded-xl border border-slate-300 px-4 py-8 text-center text-[12px] text-black sm:hidden">
@@ -159,20 +195,35 @@ function QuoteItemsMobileCards({ items = [] }) {
 
   return (
     <section className="space-y-2 sm:hidden">
-      {items.map((item, index) => (
-        <article key={item.local_id || index} className="rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-black">
-          <h3 className="text-[13px] font-semibold leading-5 text-black">{getItemName(item)}</h3>
-          <div className="mt-1 flex items-start justify-between gap-3 text-[11px] leading-4 text-slate-600">
-            <span>{item.quantity} {getItemUnit(item)} • {item.num_sessions || 1} buổi</span>
-            <span className="shrink-0 text-right">{formatCurrency(item.unit_price)}đ/{getItemUnit(item).toLowerCase()}</span>
-          </div>
-          <dl className="mt-3 border-t border-slate-100 pt-2 text-[13px] leading-5 text-black">
-            <div className="flex items-center justify-between gap-4 font-bold">
-              <dt>Thành tiền</dt>
-              <dd>{formatCurrency(item.total_price)}đ</dd>
+      {groups.map(group => (
+        <div key={group.key} className="space-y-2">
+          {showGroupHeaders ? (
+            <div className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-[12px] font-bold uppercase tracking-[0.04em] text-black">
+              {group.label}
             </div>
-          </dl>
-        </article>
+          ) : null}
+          {group.items.map((item, index) => (
+            <article key={item.local_id || `${group.key}-${index}`} className="rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-black">
+              <h3 className="text-[13px] font-semibold leading-5 text-black">{getItemName(item)}</h3>
+              <div className="mt-1 flex items-start justify-between gap-3 text-[11px] leading-4 text-slate-600">
+                <span>{item.quantity} {getItemUnit(item)} • {item.num_sessions || 1} buổi</span>
+                <span className="shrink-0 text-right">{formatCurrency(item.unit_price)}đ/{getItemUnit(item).toLowerCase()}</span>
+              </div>
+              <dl className="mt-3 border-t border-slate-100 pt-2 text-[13px] leading-5 text-black">
+                <div className="flex items-center justify-between gap-4 font-bold">
+                  <dt>Thành tiền</dt>
+                  <dd>{formatCurrency(item.total_price)}đ</dd>
+                </div>
+              </dl>
+            </article>
+          ))}
+          {showGroupHeaders ? (
+            <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-[12px] font-bold text-black">
+              <span>Tạm tính {group.label.toLowerCase()}</span>
+              <span>{formatCurrency(getGroupTotal(group.items))}đ</span>
+            </div>
+          ) : null}
+        </div>
       ))}
     </section>
   )
@@ -199,6 +250,8 @@ export default function QuotePreview({
   const clientName = client?.name || quote.client_name || 'Quý khách hàng'
   const quoteCode = quote.quote_number || quote.id || quote.share_token || ''
   const displayedQuoteCode = quoteCode ? `#${String(quoteCode).replace(/^#/, '')}` : ''
+  const itemGroups = groupQuoteItems(items)
+  const showGroupHeaders = itemGroups.length > 1
 
   return (
     <div className={`${sticky ? 'sticky top-6' : ''} overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm`}>
@@ -235,10 +288,10 @@ export default function QuotePreview({
 
         <section className="hidden overflow-hidden rounded-xl border border-slate-300 sm:block">
           <table className="w-full table-fixed text-left text-[13px]">
-            <thead className="bg-slate-50 text-[8px] uppercase tracking-[0.08em] text-black">
+            <thead className="bg-slate-50 text-[9px] uppercase tracking-[0.08em] text-black">
               <tr>
                 <th className="w-[39%] px-3 py-2.5 font-semibold">Hạng mục</th>
-                <th className="w-[12%] whitespace-nowrap px-1 py-2.5 text-center font-semibold">Đơn vị tính</th>
+                <th className="w-[12%] whitespace-nowrap px-1 py-2.5 text-center font-semibold">ĐVT</th>
                 <th className="w-[10%] whitespace-nowrap px-1 py-2.5 text-center font-semibold">Số lượng</th>
                 <th className="w-[8%] whitespace-nowrap px-1 py-2.5 text-center font-semibold">Số buổi</th>
                 <th className="w-[15%] px-1.5 py-2.5 text-right font-semibold">Đơn giá</th>
@@ -246,15 +299,31 @@ export default function QuotePreview({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {items.length ? items.map((item, index) => (
-                <tr key={item.local_id || index}>
-                  <td className="px-3 py-2.5 font-medium leading-4 text-black">{getItemName(item)}</td>
-                  <td className="px-1 py-2.5 text-center text-black">{getItemUnit(item)}</td>
-                  <td className="px-1 py-2.5 text-center text-black">{item.quantity}</td>
-                  <td className="px-1 py-2.5 text-center text-black">{item.num_sessions || 1}</td>
-                  <td className="px-1.5 py-2.5 text-right text-black">{formatCurrency(item.unit_price)}đ</td>
-                  <td className="px-3 py-2.5 text-right font-semibold text-black">{formatCurrency(item.total_price)}đ</td>
-                </tr>
+              {items.length ? itemGroups.map(group => (
+                <Fragment key={group.key}>
+                  {showGroupHeaders ? (
+                    <tr>
+                      <td colSpan={6} className="bg-slate-100 px-3 py-2 text-[9px] font-bold uppercase tracking-[0.05em] text-black">
+                        <div className="flex items-center gap-2">
+                          <span>{group.label}</span>
+                          <span className="inline-flex shrink-0 rounded-full border border-slate-300 bg-white px-2 py-0.5 text-[9px] font-bold tracking-normal text-black">
+                            {formatCurrency(getGroupTotal(group.items))}đ
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : null}
+                  {group.items.map((item, index) => (
+                    <tr key={item.local_id || `${group.key}-${index}`}>
+                      <td className={`${showGroupHeaders ? 'pl-6' : 'pl-3'} py-2.5 pr-3 font-medium leading-4 text-black`}>{getItemName(item)}</td>
+                      <td className="px-1 py-2.5 text-center text-black">{getItemUnit(item)}</td>
+                      <td className="px-1 py-2.5 text-center text-black">{item.quantity}</td>
+                      <td className="px-1 py-2.5 text-center text-black">{item.num_sessions || 1}</td>
+                      <td className="px-1.5 py-2.5 text-right text-black">{formatCurrency(item.unit_price)}đ</td>
+                      <td className="px-3 py-2.5 text-right text-black">{formatCurrency(item.total_price)}đ</td>
+                    </tr>
+                  ))}
+                </Fragment>
               )) : (
                 <tr>
                   <td colSpan={6} className="px-3 py-8 text-center text-[12px] text-black">Chưa có hạng mục.</td>

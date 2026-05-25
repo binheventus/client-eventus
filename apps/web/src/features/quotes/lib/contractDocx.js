@@ -63,17 +63,30 @@ function getItemGroupLabel(item = {}) {
   if (!rawLabel) return 'Hạng mục'
   const label = String(rawLabel).trim()
   if (!label) return 'Hạng mục'
+  if (item.group_label) return label
   return /^ngày\b/i.test(label) ? label : `Ngày ${label}`
+}
+
+function getItemGroupSortOrder(item = {}) {
+  const sortOrder = Number(item.group_sort_order)
+  return Number.isFinite(sortOrder) ? sortOrder : 99
 }
 
 function groupItemsByDay(items = []) {
   const groups = new Map()
-  items.forEach(item => {
+  items.forEach((item, index) => {
     const key = getItemGroupLabel(item)
-    if (!groups.has(key)) groups.set(key, [])
-    groups.get(key).push(item)
+    if (!groups.has(key)) {
+      groups.set(key, {
+        label: key,
+        sortOrder: getItemGroupSortOrder(item),
+        firstIndex: index,
+        items: [],
+      })
+    }
+    groups.get(key).items.push(item)
   })
-  return Array.from(groups.entries())
+  return Array.from(groups.values()).sort((a, b) => (a.sortOrder - b.sortOrder) || (a.firstIndex - b.firstIndex))
 }
 
 function getPartyRole(contract = {}, partyKey = 'party_a') {
@@ -302,9 +315,9 @@ function quoteTable(contract = {}) {
       tableCell('Đơn giá', 1400, { bold: true, shading: 'F8FAFC', align: 'right' }),
       tableCell('Thành tiền', 1500, { bold: true, shading: 'F8FAFC', align: 'right' }),
     ]),
-    ...groups.flatMap(([groupName, groupItems]) => [
-      groups.length > 1 ? tableRow([tableCell(groupName, 9000, { bold: true, shading: 'F8FAFC', colSpan: 6 })]) : '',
-      ...groupItems.map(item => tableRow([
+    ...groups.flatMap(group => [
+      groups.length > 1 ? tableRow([tableCell(group.label, 9000, { bold: true, shading: 'F8FAFC', colSpan: 6 })]) : '',
+      ...group.items.map(item => tableRow([
         tableCell(getItemName(item), 3300),
         tableCell(getItemUnit(item), 1100, { align: 'center' }),
         tableCell(String(item.quantity || 1), 900, { align: 'center' }),

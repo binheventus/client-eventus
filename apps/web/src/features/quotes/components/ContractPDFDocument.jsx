@@ -60,17 +60,30 @@ function getItemGroupLabel(item = {}) {
   if (!rawLabel) return 'Hạng mục'
   const label = String(rawLabel).trim()
   if (!label) return 'Hạng mục'
+  if (item.group_label) return label
   return /^ngày\b/i.test(label) ? label : `Ngày ${label}`
+}
+
+function getItemGroupSortOrder(item = {}) {
+  const sortOrder = Number(item.group_sort_order)
+  return Number.isFinite(sortOrder) ? sortOrder : 99
 }
 
 function groupItemsByDay(items = []) {
   const groups = new Map()
-  items.forEach(item => {
+  items.forEach((item, index) => {
     const key = getItemGroupLabel(item)
-    if (!groups.has(key)) groups.set(key, [])
-    groups.get(key).push(item)
+    if (!groups.has(key)) {
+      groups.set(key, {
+        label: key,
+        sortOrder: getItemGroupSortOrder(item),
+        firstIndex: index,
+        items: [],
+      })
+    }
+    groups.get(key).items.push(item)
   })
-  return Array.from(groups.entries())
+  return Array.from(groups.values()).sort((a, b) => (a.sortOrder - b.sortOrder) || (a.firstIndex - b.firstIndex))
 }
 
 function getPartyRole(contract = {}, partyKey = 'party_a') {
@@ -342,11 +355,11 @@ function QuoteItemsTable({ items = [] }) {
         <Text style={[styles.cell, styles.headerCell, styles.price]}>Đơn giá</Text>
         <Text style={[styles.cell, styles.headerCell, styles.amount]}>Thành tiền</Text>
       </View>
-      {groups.map(([groupName, groupItems]) => (
-        <View key={groupName} wrap={false}>
-          {groups.length > 1 ? <Text style={styles.groupRow}>{groupName}</Text> : null}
-          {groupItems.map((item, index) => (
-            <View key={`${groupName}-${item.service_code || item.service_name || 'item'}-${index}`} style={styles.row} wrap={false}>
+      {groups.map(group => (
+        <View key={`${group.label}-${group.firstIndex}`} wrap={false}>
+          {groups.length > 1 ? <Text style={styles.groupRow}>{group.label}</Text> : null}
+          {group.items.map((item, index) => (
+            <View key={`${group.label}-${item.service_code || item.service_name || 'item'}-${index}`} style={styles.row} wrap={false}>
               <Text style={[styles.cell, styles.itemName]}>{getItemName(item)}</Text>
               <Text style={[styles.cell, styles.unit]}>{getItemUnit(item)}</Text>
               <Text style={[styles.cell, styles.qty]}>{item.quantity || 1}</Text>

@@ -45,6 +45,12 @@ const SHEETS = [
     required: ['match_prefixes', 'equipment_title', 'equipment_description'],
     transform: transformEquipmentRules,
   },
+  {
+    name: '07_service_groups',
+    output: 'service_groups.json',
+    required: ['group_code', 'group_label'],
+    transform: transformServiceGroups,
+  },
 ]
 
 function getArg(name) {
@@ -190,6 +196,7 @@ function transformServices(rows) {
   return rows.map((row, index) => ({
     ...row,
     service_code: String(row.service_code || '').trim(),
+    group_code: String(row.group_code || '').trim().toUpperCase(),
     is_active: row.is_active === undefined || row.is_active === null ? true : toBoolean(row.is_active),
     sort_order: toNumber(row.sort_order) || index + 1,
   }))
@@ -290,6 +297,16 @@ function transformEquipmentRules(rows) {
   })
 }
 
+function transformServiceGroups(rows) {
+  return rows.map((row, index) => ({
+    ...row,
+    group_code: String(row.group_code || '').trim().toUpperCase(),
+    group_label: String(row.group_label || '').trim(),
+    group_sort_order: toNumber(row.group_sort_order) || index + 1,
+    is_active: row.is_active === undefined || row.is_active === null ? true : toBoolean(row.is_active),
+  }))
+}
+
 function assertUnique(rows, field, label) {
   const seen = new Set()
   rows.forEach((row, index) => {
@@ -307,6 +324,7 @@ function validatePricingData(data) {
   const rules = data['business_rules.json'] || []
   const entities = data['legal_entities.json'] || []
   const equipmentRules = data['equipment_rules.json'] || []
+  const serviceGroups = data['service_groups.json'] || []
 
   if (services.length < 50 && !hasArg('allow-small-service-catalog')) {
     throw new Error(`Services catalog has only ${services.length} rows. Expected around 53. Pass --allow-small-service-catalog if intentional.`)
@@ -336,6 +354,7 @@ function validatePricingData(data) {
 
   assertUnique(entities, 'entity_code', 'legal_entities')
   if (!entities.some(row => row.is_default)) throw new Error('legal_entities must include one default entity.')
+  assertUnique(serviceGroups, 'group_code', 'service_groups')
 
   equipmentRules.forEach((row, index) => {
     if (!row.match_prefix_list?.length) throw new Error(`equipment_rules row ${index + 1} must include at least one match_prefixes value.`)
