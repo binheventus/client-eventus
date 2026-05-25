@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { PencilLine, Stamp } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import EntitySelector from '../components/EntitySelector'
 import QuoteBreadcrumb from '../components/QuoteBreadcrumb'
 import QuoteChatInput from '../components/QuoteChatInput'
@@ -52,6 +52,11 @@ const CUSTOM_ITEM_PLACEMENTS = [
 
 const DEFAULT_CUSTOM_ITEM_PLACEMENT = 'bottom'
 const CUSTOM_ITEM_UNIT_OPTIONS = ['Người', 'Gói', 'Video', 'Ảnh', 'Thiết bị']
+
+function getInitialSalesBrief(search = '', isEditMode = false) {
+  if (isEditMode) return ''
+  return new URLSearchParams(search).get('sales_brief') || ''
+}
 
 function getCustomItemPlacement(value = DEFAULT_CUSTOM_ITEM_PLACEMENT) {
   return CUSTOM_ITEM_PLACEMENTS.find(placement => placement.value === value) || CUSTOM_ITEM_PLACEMENTS.at(-1)
@@ -674,6 +679,7 @@ function hydrateSavedQuoteItem(item = {}, index = 0, quoteDurationHours = DEFAUL
 
 export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
   const navigate = useNavigate()
+  const location = useLocation()
   const isEditMode = mode === 'edit' && Boolean(quoteId)
   const userContext = useMemo(() => getQuoteUserContext(), [])
   const { services, loading: servicesLoading } = useServices()
@@ -685,7 +691,7 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
   const [items, setItems] = useState([])
   const [clients, setClients] = useState([])
   const [clientQuery, setClientQuery] = useState(DEFAULT_QUOTE.client_name)
-  const [inputText, setInputText] = useState('')
+  const [inputText, setInputText] = useState(() => getInitialSalesBrief(location.search, isEditMode))
   const [parseResult, setParseResult] = useState(null)
   const [parseLoading, setParseLoading] = useState(false)
   const [parseError, setParseError] = useState('')
@@ -699,6 +705,20 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
   const [showTermsModal, setShowTermsModal] = useState(false)
   const [termsDraft, setTermsDraft] = useState('')
   const [showStamp, setShowStamp] = useState(false)
+
+  useEffect(() => {
+    if (isEditMode) return
+
+    const params = new URLSearchParams(location.search)
+    if (!params.has('sales_brief')) return
+
+    params.delete('sales_brief')
+    const nextSearch = params.toString()
+    navigate({
+      pathname: location.pathname,
+      search: nextSearch ? `?${nextSearch}` : '',
+    }, { replace: true })
+  }, [isEditMode, location.pathname, location.search, navigate])
 
   useEffect(() => {
     if (!isEditMode) return

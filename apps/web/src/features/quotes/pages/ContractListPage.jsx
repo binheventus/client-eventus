@@ -1,5 +1,5 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { AlertTriangle, BriefcaseBusiness, FileSignature, Plus, ScrollText, Search, Trash2, X } from 'lucide-react'
 import { useEscapeToClose } from '../../../hooks/useEscapeToClose'
 import QuoteBreadcrumb from '../components/QuoteBreadcrumb'
@@ -52,6 +52,145 @@ const EMPTY_MANUAL_SOURCE = {
   schedule_rows: [
     { time_range: '', date_text: '', location: '' },
   ],
+}
+
+const SCHEDULE_CONTRACT_QUERY_KEYS = [
+  'sales_brief',
+  'customer_code',
+  'service_scope',
+  'job_title',
+  'ekip',
+  'start_time',
+  'end_time',
+  'job_time',
+  'job_date',
+  'location',
+  'contract_value',
+]
+
+function compactText(value = '') {
+  return String(value || '').trim()
+}
+
+function parseContractValue(value) {
+  const clean = String(value || '').replace(/[^\d]/g, '')
+  return clean ? Number(clean) : 0
+}
+
+function getScheduleQueryParams(params = new URLSearchParams()) {
+  const get = key => compactText(params.get(key))
+  return {
+    source: get('source'),
+    jobId: get('job_id'),
+    salesBrief: get('sales_brief'),
+    customerCode: get('customer_code'),
+    serviceScope: get('service_scope'),
+    jobTitle: get('job_title'),
+    ekip: get('ekip'),
+    startTime: get('start_time'),
+    endTime: get('end_time'),
+    jobTime: get('job_time'),
+    jobDate: get('job_date'),
+    location: get('location'),
+    contractValue: get('contract_value'),
+  }
+}
+
+function buildJobTime({ jobTime = '', startTime = '', endTime = '' } = {}) {
+  if (jobTime) return jobTime
+  return [startTime, endTime].filter(Boolean).join(' - ')
+}
+
+function buildJobServiceScope(job = {}, { serviceScope = '', salesBrief = '' } = {}) {
+  const brief = compactText(serviceScope || salesBrief)
+  if (brief) return /^cung cấp\s+/i.test(brief) ? brief : `cung cấp ${brief}`
+  return job.job_title ? `cung cấp dịch vụ media cho ${job.job_title}` : 'cung cấp dịch vụ media theo job'
+}
+
+function buildJobQuoteSnapshot(job = {}, scheduleParams = {}) {
+  const quoteSnapshot = job.quote_snapshot || {}
+  const contractValue = parseContractValue(scheduleParams.contractValue)
+  const total = contractValue || Number(quoteSnapshot.total_amount || job.price || 0)
+  const serviceName = scheduleParams.serviceScope || scheduleParams.jobTitle || quoteSnapshot.items?.[0]?.service_name || job.job_title || 'Dịch vụ media theo job'
+  const hasVat = quoteSnapshot.has_vat !== false
+  const subtotal = hasVat ? Math.round(total / 1.08) : total
+  const vatAmount = hasVat ? total - subtotal : 0
+
+  return {
+    ...quoteSnapshot,
+    client_name: quoteSnapshot.client_name || job.customer_name || job.customer_snapshot?.company_name || '',
+    event_name: scheduleParams.jobTitle || quoteSnapshot.event_name || job.job_title || '',
+    event_date: scheduleParams.jobDate || quoteSnapshot.event_date || job.job_date || '',
+    location: scheduleParams.location || quoteSnapshot.location || job.location || '',
+    has_vat: hasVat,
+    subtotal,
+    vat_amount: vatAmount,
+    total_amount: total,
+    items: [{
+      service_code: quoteSnapshot.items?.[0]?.service_code || 'JOB_TOTAL',
+      service_name: serviceName,
+      unit: quoteSnapshot.items?.[0]?.unit || 'Gói',
+      quantity: 1,
+      num_sessions: 1,
+      billable_duration_hours: quoteSnapshot.items?.[0]?.billable_duration_hours || '',
+      unit_price: total,
+      total_price: total,
+      sort_order: 1,
+      group_label: quoteSnapshot.items?.[0]?.group_label || '',
+    }],
+  }
+}
+
+function buildJobSourceDraft(job = {}, scheduleParams = {}) {
+  const jobTitle = scheduleParams.jobTitle || job.job_title || ''
+  const jobTime = buildJobTime(scheduleParams)
+  const jobDate = scheduleParams.jobDate || job.date_text || ''
+  const location = scheduleParams.location || job.location || ''
+  const quoteSnapshot = buildJobQuoteSnapshot(job, scheduleParams)
+
+  return {
+    ...job,
+    job_title: jobTitle || job.job_title,
+    ekip: scheduleParams.ekip || job.ekip,
+    time_range: jobTime || job.time_range,
+    date_text: jobDate,
+    location,
+    price: parseContractValue(scheduleParams.contractValue) || job.price,
+    source_type: 'job',
+    external_job_id: job.id,
+    service_scope: buildJobServiceScope({ ...job, job_title: jobTitle }, scheduleParams),
+    customer_snapshot: {
+      ...(job.customer_snapshot || {}),
+      customer_code: scheduleParams.customerCode || job.customer_snapshot?.customer_code || '',
+    },
+    quote_snapshot: quoteSnapshot,
+    schedule_rows: [{
+      time_range: jobTime || job.time_range || '',
+      date_text: jobDate,
+      location,
+    }],
+    source_snapshot: {
+      ...(job.source_snapshot || {}),
+      source_type: 'job',
+      origin_source: scheduleParams.source || job.source_snapshot?.origin_source || '',
+      external_job_id: job.id,
+      job_title: jobTitle || job.source_snapshot?.job_title || '',
+      date_text: jobDate,
+      start_time: scheduleParams.startTime || job.source_snapshot?.start_time || '',
+      end_time: scheduleParams.endTime || job.source_snapshot?.end_time || '',
+      time_range: jobTime || job.source_snapshot?.time_range || '',
+      job_description: scheduleParams.location || job.source_snapshot?.job_description || '',
+      location,
+      ekip: scheduleParams.ekip || job.source_snapshot?.ekip || '',
+      price: parseContractValue(scheduleParams.contractValue) || job.source_snapshot?.price || job.price || 0,
+      sales_brief: scheduleParams.salesBrief || job.source_snapshot?.sales_brief || '',
+      service_scope: scheduleParams.serviceScope || job.source_snapshot?.service_scope || '',
+      customer_snapshot: {
+        ...(job.source_snapshot?.customer_snapshot || job.customer_snapshot || {}),
+        customer_code: scheduleParams.customerCode || job.source_snapshot?.customer_snapshot?.customer_code || job.customer_snapshot?.customer_code || '',
+      },
+    },
+  }
 }
 
 function getContractCustomerName(contract = {}) {
@@ -289,7 +428,9 @@ function NewContractModal({ onClose, onCreateManual, onCreateFromJob }) {
 
 export default function ContractListPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { id: routeContractId } = useParams()
+  const scheduleRequestRef = useRef('')
   const [contracts, setContracts] = useState([])
   const [count, setCount] = useState(0)
   const [search, setSearch] = useState('')
@@ -351,6 +492,57 @@ export default function ContractListPage() {
     }
   }, [routeContractId])
 
+  useEffect(() => {
+    if (routeContractId) return
+
+    const params = new URLSearchParams(location.search)
+    const scheduleParams = getScheduleQueryParams(params)
+    const { source, jobId } = scheduleParams
+    if (source !== 'lichlamviec' || !jobId) return
+
+    const requestKey = `${source}:${jobId}`
+    if (scheduleRequestRef.current === requestKey) return
+    scheduleRequestRef.current = requestKey
+
+    let mounted = true
+
+    async function openScheduleContract() {
+      setNewModalOpen(false)
+      setError('')
+
+      try {
+        const job = await getContractJob(jobId)
+        if (!mounted) return
+
+        if (job.contract_id) {
+          navigate(`/contracts/${job.contract_id}`)
+          return
+        }
+
+        setEditorState({
+          sourceType: 'job',
+          sourceDraft: buildJobSourceDraft(job, scheduleParams),
+        })
+
+        if (SCHEDULE_CONTRACT_QUERY_KEYS.some(key => params.has(key))) {
+          SCHEDULE_CONTRACT_QUERY_KEYS.forEach(key => params.delete(key))
+          const nextSearch = params.toString()
+          navigate({
+            pathname: location.pathname,
+            search: nextSearch ? `?${nextSearch}` : '',
+          }, { replace: true })
+        }
+      } catch (err) {
+        if (mounted) setError(err?.message || 'Không mở được job từ lịch làm việc.')
+      }
+    }
+
+    openScheduleContract()
+    return () => {
+      mounted = false
+    }
+  }, [location.pathname, location.search, navigate, routeContractId])
+
   async function createFromJob(jobId) {
     setNewModalOpen(false)
     const job = await getContractJob(jobId)
@@ -360,12 +552,7 @@ export default function ContractListPage() {
     }
     setEditorState({
       sourceType: 'job',
-      sourceDraft: {
-        ...job,
-        source_type: 'job',
-        external_job_id: job.id,
-        service_scope: job.job_title ? `cung cấp dịch vụ media cho ${job.job_title}` : 'cung cấp dịch vụ media theo job',
-      },
+      sourceDraft: buildJobSourceDraft(job),
     })
   }
 
