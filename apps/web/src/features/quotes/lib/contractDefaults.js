@@ -340,6 +340,9 @@ function formatHourValue(value) {
 }
 
 export function getContractWorkDurationText(contract = {}) {
+  const customDurationText = normalizeText(contract.quote_table_config?.work_duration_text || contract.work_duration_text)
+  if (customDurationText) return customDurationText
+
   const durationHours = contract.quote_snapshot?.duration_hours ?? contract.duration_hours
   const hourText = formatHourValue(durationHours)
   if (!hourText) return '[Số giờ/buổi hoặc Số giờ/ngày]'
@@ -463,6 +466,60 @@ export function buildQuoteSnapshot(quote = {}) {
       sort_order: item.sort_order ?? index + 1,
       group_label: item.group_label || item.event_day || item.day_index || '',
     })),
+  }
+}
+
+export function getContractVatMode(snapshot = {}, patch = {}) {
+  if (patch.vat_mode === 'included' || patch.vat_mode === 'excluded') return patch.vat_mode
+  if (snapshot.vat_mode === 'included' || snapshot.vat_mode === 'excluded') return snapshot.vat_mode
+  if (typeof patch.has_vat === 'boolean') return patch.has_vat ? 'included' : 'excluded'
+  if (snapshot.has_vat === false) return 'excluded'
+  return 'included'
+}
+
+export function buildSingleLineQuoteSnapshot(snapshot = {}, patch = {}) {
+  const currentItems = Array.isArray(snapshot.items) ? snapshot.items : []
+  const firstItem = currentItems[0] || {}
+  const quantity = Number(patch.quantity ?? firstItem.quantity ?? 1) || 1
+  const numSessions = Number(patch.num_sessions ?? firstItem.num_sessions ?? 1) || 1
+  const vatRate = 0.08
+  const vatMode = getContractVatMode(snapshot, patch)
+  const fallbackInputAmount = Number(snapshot.contract_value_input || 0) ||
+    (vatMode === 'included'
+      ? Number(snapshot.total_amount || firstItem.total_price || firstItem.unit_price || 0)
+      : Number(snapshot.subtotal || firstItem.total_price || firstItem.unit_price || snapshot.total_amount || 0))
+  const inputAmount = Number(patch.amount ?? patch.unit_price ?? fallbackInputAmount) || 0
+  const subtotal = vatMode === 'included'
+    ? Math.round(inputAmount / (1 + vatRate))
+    : inputAmount
+  const vatAmount = vatMode === 'included'
+    ? inputAmount - subtotal
+    : Math.round(subtotal * vatRate)
+  const totalAmount = vatMode === 'included'
+    ? inputAmount
+    : subtotal + vatAmount
+  const unitPrice = Math.round(subtotal / Math.max(1, quantity * numSessions))
+
+  const nextItem = {
+    service_code: firstItem.service_code || 'CONTRACT_TOTAL',
+    service_name: patch.service_name ?? firstItem.service_name ?? 'Dịch vụ media theo thỏa thuận',
+    unit: patch.unit ?? firstItem.unit ?? 'Gói',
+    quantity,
+    num_sessions: numSessions,
+    unit_price: unitPrice,
+    total_price: subtotal,
+    sort_order: 1,
+  }
+
+  return {
+    ...snapshot,
+    has_vat: true,
+    vat_mode: vatMode,
+    contract_value_input: inputAmount,
+    subtotal,
+    vat_amount: vatAmount,
+    total_amount: totalAmount,
+    items: [nextItem],
   }
 }
 

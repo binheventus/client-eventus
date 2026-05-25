@@ -2,7 +2,10 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   buildInitialContractDraftFromSource,
+  buildSingleLineQuoteSnapshot,
   generateContractNumber,
+  getContractWorkDurationText,
+  getContractWorkProgressNotes,
 } from './contractDefaults.js'
 
 const template = {
@@ -75,4 +78,51 @@ test('generateContractNumber can use job source code without a quote id', () => 
   )
 
   assert.equal(contractNumber, '2405/HD-JOB42/TM/2026')
+})
+
+test('buildSingleLineQuoteSnapshot treats excluded VAT input as pre-tax amount', () => {
+  const snapshot = buildSingleLineQuoteSnapshot({}, {
+    amount: 10000000,
+    vat_mode: 'excluded',
+  })
+
+  assert.equal(snapshot.has_vat, true)
+  assert.equal(snapshot.vat_mode, 'excluded')
+  assert.equal(snapshot.subtotal, 10000000)
+  assert.equal(snapshot.vat_amount, 800000)
+  assert.equal(snapshot.total_amount, 10800000)
+  assert.equal(snapshot.items[0].unit_price, 10000000)
+  assert.equal(snapshot.items[0].total_price, 10000000)
+})
+
+test('buildSingleLineQuoteSnapshot treats included VAT input as total amount and displays pre-tax item values', () => {
+  const snapshot = buildSingleLineQuoteSnapshot({}, {
+    amount: 10800000,
+    vat_mode: 'included',
+  })
+
+  assert.equal(snapshot.has_vat, true)
+  assert.equal(snapshot.vat_mode, 'included')
+  assert.equal(snapshot.subtotal, 10000000)
+  assert.equal(snapshot.vat_amount, 800000)
+  assert.equal(snapshot.total_amount, 10800000)
+  assert.equal(snapshot.items[0].unit_price, 10000000)
+  assert.equal(snapshot.items[0].total_price, 10000000)
+})
+
+test('contract work duration text can be overridden for progress notes', () => {
+  const contract = {
+    quote_snapshot: { duration_hours: 8 },
+    quote_table_config: {
+      work_duration_text: '6 giờ/ngày',
+      work_progress_notes: [
+        'Thời gian làm việc tối đa [Số giờ/buổi hoặc Số giờ/ngày].',
+      ],
+    },
+  }
+
+  assert.equal(getContractWorkDurationText(contract), '6 giờ/ngày')
+  assert.deepEqual(getContractWorkProgressNotes(contract), [
+    'Thời gian làm việc tối đa 6 giờ/ngày.',
+  ])
 })

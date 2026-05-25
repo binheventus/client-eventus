@@ -18,11 +18,14 @@ import {
 import {
   buildQuoteSnapshot,
   canCreateContractFromQuote,
+  buildSingleLineQuoteSnapshot,
   DEFAULT_CONTRACT_TITLE,
   DEFAULT_PAYMENT_CONFIG,
   generateContractNumber,
+  getContractVatMode,
   getContractPreamble,
   getContractPaymentNotes,
+  getContractWorkDurationText,
   getContractWorkProgressNotes,
   getDefaultTemplate,
   getEntityProfile,
@@ -111,35 +114,6 @@ function formatCurrency(value) {
 function parseCurrencyInput(value) {
   const clean = String(value || '').replace(/[^\d]/g, '')
   return clean ? Number(clean) : 0
-}
-
-function buildSingleLineQuoteSnapshot(snapshot = {}, patch = {}) {
-  const currentItems = Array.isArray(snapshot.items) ? snapshot.items : []
-  const firstItem = currentItems[0] || {}
-  const nextItem = {
-    service_code: firstItem.service_code || 'CONTRACT_TOTAL',
-    service_name: patch.service_name ?? firstItem.service_name ?? 'Dịch vụ media theo thỏa thuận',
-    unit: patch.unit ?? firstItem.unit ?? 'Gói',
-    quantity: Number(patch.quantity ?? firstItem.quantity ?? 1) || 1,
-    num_sessions: Number(patch.num_sessions ?? firstItem.num_sessions ?? 1) || 1,
-    unit_price: Number(patch.unit_price ?? firstItem.unit_price ?? snapshot.total_amount ?? 0) || 0,
-    sort_order: 1,
-  }
-  nextItem.total_price = nextItem.quantity * nextItem.num_sessions * nextItem.unit_price
-
-  const hasVat = patch.has_vat ?? snapshot.has_vat ?? true
-  const totalAmount = nextItem.total_price
-  const subtotal = hasVat ? Math.round(totalAmount / 1.08) : totalAmount
-  const vatAmount = hasVat ? totalAmount - subtotal : 0
-
-  return {
-    ...snapshot,
-    has_vat: Boolean(hasVat),
-    subtotal,
-    vat_amount: vatAmount,
-    total_amount: totalAmount,
-    items: [nextItem],
-  }
 }
 
 function formatDate(value) {
@@ -835,6 +809,15 @@ export default function ContractEditorModal({
     })
   }
 
+  function updateQuoteTableConfig(patch) {
+    updateDraft({
+      quote_table_config: {
+        ...draft.quote_table_config,
+        ...patch,
+      },
+    })
+  }
+
   function updateTermsText(value) {
     updateDraft({
       terms_text: value,
@@ -870,7 +853,7 @@ export default function ContractEditorModal({
 
     try {
       const termsText = String(draft.terms_text ?? sectionsToTermsText(draft.content_sections)).trim()
-      const finalQuoteSnapshot = quote ? quoteSnapshot : (draft.quote_snapshot || {})
+      const finalQuoteSnapshot = quote ? quoteSnapshot : buildSingleLineQuoteSnapshot(draft.quote_snapshot || {})
       const finalContractNumber = draft.contract_number || generateContractNumber(
         draft.contract_number_pattern,
         {
@@ -932,7 +915,7 @@ export default function ContractEditorModal({
   if (!open) return null
 
   const draftQuoteSnapshot = draft?.quote_snapshot || {}
-  const baseQuoteSnapshot = quote ? quoteSnapshot : draftQuoteSnapshot
+  const baseQuoteSnapshot = quote ? quoteSnapshot : buildSingleLineQuoteSnapshot(draftQuoteSnapshot)
   const savedQuoteSnapshot = savedContract?.quote_snapshot || {}
   const currentQuoteSnapshot = {
     ...baseQuoteSnapshot,
@@ -957,6 +940,9 @@ export default function ContractEditorModal({
     : DEFAULT_PAYMENT_CONFIG.payment_documents
   const paymentNotes = getContractPaymentNotes(draft?.payment_config)
   const workProgressNotes = getContractWorkProgressNotes(draft || {})
+  const workDurationText = draft?.quote_table_config && Object.prototype.hasOwnProperty.call(draft.quote_table_config, 'work_duration_text')
+    ? draft.quote_table_config.work_duration_text
+    : getContractWorkDurationText(draft || {})
   const quotePreviewQuote = { ...(quote || {}), ...baseQuoteSnapshot }
   const quotePreviewItems = Array.isArray(baseQuoteSnapshot.items) ? baseQuoteSnapshot.items : []
   const quotePreviewTotals = {
@@ -968,6 +954,11 @@ export default function ContractEditorModal({
   }
   const summaryQuote = quote || baseQuoteSnapshot || {}
   const paymentConfig = draft?.payment_config || {}
+  const contractVatMode = getContractVatMode(baseQuoteSnapshot)
+  const contractValueInput = Number(baseQuoteSnapshot.contract_value_input || 0) ||
+    (contractVatMode === 'included'
+      ? Number(baseQuoteSnapshot.total_amount || 0)
+      : Number(baseQuoteSnapshot.subtotal || baseQuoteSnapshot.total_amount || 0))
 
   function renderActionPanel() {
     return (
@@ -1236,14 +1227,14 @@ export default function ContractEditorModal({
                         <Field label="Giá trị">
                           <TextInput
                             inputMode="numeric"
-                            value={formatCurrency(quotePreviewItems[0]?.unit_price || baseQuoteSnapshot.total_amount)}
-                            onChange={event => updateSourceQuoteSnapshot({ unit_price: parseCurrencyInput(event.target.value) })}
+                            value={formatCurrency(contractValueInput)}
+                            onChange={event => updateSourceQuoteSnapshot({ amount: parseCurrencyInput(event.target.value) })}
                           />
                         </Field>
                         <Field label="VAT">
                           <Select
-                            value={baseQuoteSnapshot.has_vat === false ? 'excluded' : 'included'}
-                            onChange={event => updateSourceQuoteSnapshot({ has_vat: event.target.value === 'included' })}
+                            value={contractVatMode}
+                            onChange={event => updateSourceQuoteSnapshot({ vat_mode: event.target.value })}
                           >
                             <option value="included">Đã bao gồm VAT</option>
                             <option value="excluded">Chưa bao gồm VAT</option>
@@ -1263,6 +1254,15 @@ export default function ContractEditorModal({
                     </div>
                     <div className="mt-3 space-y-1">
                       <p className="text-[13px] font-semibold text-slate-900">Lưu ý về thời gian làm việc và tiến độ bàn giao:</p>
+                      <label className="mb-3 flex items-center gap-2 text-[12px] font-semibold text-slate-600">
+                        <span className="shrink-0">Số giờ/buổi hoặc Số giờ/ngày</span>
+                        <input
+                          className="h-9 w-[150px] shrink-0 rounded-xl border border-slate-200 px-2.5 py-1.5 text-[12px] font-normal text-slate-900 outline-none transition placeholder:text-slate-300 focus:border-[#f8981d] focus:ring-2 focus:ring-orange-100"
+                          value={workDurationText}
+                          placeholder="Ví dụ: 4 giờ/buổi"
+                          onChange={event => updateQuoteTableConfig({ work_duration_text: event.target.value })}
+                        />
+                      </label>
                       <ul className="list-disc space-y-1 pl-5 text-[13px] leading-6 text-slate-700">
                         {workProgressNotes.map(item => <li key={item}>{item}</li>)}
                       </ul>

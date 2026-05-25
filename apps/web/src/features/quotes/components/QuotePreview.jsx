@@ -53,6 +53,25 @@ function getItemUnit(item) {
   return item.unit || item.service?.unit || item.pricing_unit || 'Người'
 }
 
+function ContactRow({ row, highlight = false }) {
+  if (row.includes(' | ')) {
+    const [first, second] = row.split(' | ')
+    return (
+      <div className="break-words sm:whitespace-nowrap">
+        <span>{first}</span>
+        <span className="hidden sm:inline"> | </span>
+        <span className="block sm:inline">{second}</span>
+      </div>
+    )
+  }
+
+  return (
+    <div className={`break-words sm:whitespace-nowrap ${highlight ? 'font-semibold uppercase tracking-[0.06em] text-black' : ''}`}>
+      {row}
+    </div>
+  )
+}
+
 function SignatureBlock({ quote, showStamp = true }) {
   const [imageFailed, setImageFailed] = useState(false)
   const [stampFailed, setStampFailed] = useState(false)
@@ -129,6 +148,36 @@ function QuoteEndNotes({ quote = {}, items = [] }) {
   )
 }
 
+function QuoteItemsMobileCards({ items = [] }) {
+  if (!items.length) {
+    return (
+      <section className="rounded-xl border border-slate-300 px-4 py-8 text-center text-[12px] text-black sm:hidden">
+        Chưa có hạng mục.
+      </section>
+    )
+  }
+
+  return (
+    <section className="space-y-2 sm:hidden">
+      {items.map((item, index) => (
+        <article key={item.local_id || index} className="rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-black">
+          <h3 className="text-[13px] font-semibold leading-5 text-black">{getItemName(item)}</h3>
+          <div className="mt-1 flex items-start justify-between gap-3 text-[11px] leading-4 text-slate-600">
+            <span>{item.quantity} {getItemUnit(item)} • {item.num_sessions || 1} buổi</span>
+            <span className="shrink-0 text-right">{formatCurrency(item.unit_price)}đ/{getItemUnit(item).toLowerCase()}</span>
+          </div>
+          <dl className="mt-3 border-t border-slate-100 pt-2 text-[13px] leading-5 text-black">
+            <div className="flex items-center justify-between gap-4 font-bold">
+              <dt>Thành tiền</dt>
+              <dd>{formatCurrency(item.total_price)}đ</dd>
+            </div>
+          </dl>
+        </article>
+      ))}
+    </section>
+  )
+}
+
 export default function QuotePreview({
   quote = {},
   items = [],
@@ -154,20 +203,18 @@ export default function QuotePreview({
   return (
     <div className={`${sticky ? 'sticky top-6' : ''} overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm`}>
       {!tableOnly ? (
-        <div className="grid items-center gap-5 bg-slate-100 px-10 py-6 text-black sm:px-14 sm:grid-cols-[minmax(0,0.65fr)_minmax(0,1.35fr)]">
-          <div className="min-w-0">
+        <div className="grid items-center gap-5 bg-slate-100 px-6 py-6 text-black sm:px-14 sm:grid-cols-[minmax(0,0.65fr)_minmax(0,1.35fr)]">
+          <div className="flex min-w-0 items-start justify-between gap-4 sm:block">
             {logoUrl ? (
-              <img src={logoUrl} alt={entity?.display_name || entityName} className="h-14 w-auto object-contain" />
+              <img src={logoUrl} alt={entity?.display_name || entityName} className="order-2 h-10 w-auto shrink-0 object-contain sm:h-14" />
             ) : (
-              <div className="flex h-7 w-24 items-center text-[10px] font-semibold uppercase tracking-[0.14em] text-black">Logo</div>
+              <div className="order-2 flex h-7 w-24 shrink-0 items-center justify-end text-[10px] font-semibold uppercase tracking-[0.14em] text-black">Logo</div>
             )}
-            <h2 className="mt-3 text-[22px] font-bold tracking-tight text-black">{entityName}</h2>
+            <h2 className="order-1 mt-0 min-w-0 text-left text-[22px] font-bold tracking-tight text-black sm:mt-3">{entityName}</h2>
           </div>
           <div className="min-w-0 space-y-1 text-left text-[10px] leading-4 text-black sm:text-right">
             {contactRows.map((row, index) => (
-              <div key={`${row}-${index}`} className={`whitespace-nowrap ${index === 0 ? 'font-semibold uppercase tracking-[0.06em] text-black' : ''}`}>
-                {row}
-              </div>
+              <ContactRow key={`${row}-${index}`} row={row} highlight={index === 0} />
             ))}
             {displayedQuoteCode ? (
               <div className="pt-0.5 text-[10px] font-medium leading-4 text-black">{displayedQuoteCode}</div>
@@ -176,7 +223,7 @@ export default function QuotePreview({
         </div>
       ) : null}
 
-      <div className={`${tableOnly ? 'space-y-4 px-4 py-4 sm:px-5' : 'flex flex-col gap-3 px-10 py-6 sm:px-14 sm:py-7'}`}>
+      <div className={`${tableOnly ? 'space-y-4 px-4 py-4 sm:px-5' : 'flex flex-col gap-3 px-6 py-6 sm:px-14 sm:py-7'}`}>
         {!tableOnly ? (
           <section className="space-y-3 text-[13px] leading-6 text-black">
             <p className="font-semibold text-black">Kính gửi: {clientName}</p>
@@ -184,7 +231,9 @@ export default function QuotePreview({
           </section>
         ) : null}
 
-        <section className="overflow-hidden rounded-xl border border-slate-300">
+        <QuoteItemsMobileCards items={items} />
+
+        <section className="hidden overflow-hidden rounded-xl border border-slate-300 sm:block">
           <table className="w-full table-fixed text-left text-[13px]">
             <thead className="bg-slate-50 text-[8px] uppercase tracking-[0.08em] text-black">
               <tr>

@@ -447,40 +447,6 @@ function ServicePickerModal({ services, tierCode, onClose, onSelect }) {
   )
 }
 
-function OverrideReasonModal({ onCancel, onConfirm }) {
-  useEscapeToClose(onCancel)
-
-  const [reason, setReason] = useState('')
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-5 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
-        <h3 className="text-[16px] font-semibold text-slate-900">Lý do sửa đơn giá</h3>
-        <p className="mt-1 text-[13px] leading-5 text-slate-500">Giá sửa tay sẽ được lưu với thông tin override để audit.</p>
-        <textarea
-          value={reason}
-          onChange={event => setReason(event.target.value)}
-          rows={4}
-          className="mt-4 w-full resize-none rounded-xl border border-slate-200 px-4 py-3 text-[13px] outline-none focus:border-[#f8981d] focus:ring-2 focus:ring-orange-100"
-          placeholder="VD: Giảm theo deal đã duyệt..."
-          autoFocus
-        />
-        <div className="mt-4 flex justify-end gap-2">
-          <button type="button" onClick={onCancel} className="rounded-xl border border-slate-200 px-4 py-2 text-[13px] font-semibold text-slate-600 hover:bg-slate-50">Huỷ</button>
-          <button
-            type="button"
-            disabled={!reason.trim()}
-            onClick={() => onConfirm(reason.trim())}
-            className="rounded-xl bg-slate-900 px-4 py-2 text-[13px] font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
-          >
-            Lưu lý do
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 function QuoteTermsModal({ quote, value, onChange, onValidityDaysChange, onReset, onCancel, onConfirm }) {
   useEscapeToClose(onCancel)
 
@@ -700,7 +666,6 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
   const [initialLoading, setInitialLoading] = useState(isEditMode)
   const [showServicePicker, setShowServicePicker] = useState(false)
   const [showCustomItemModal, setShowCustomItemModal] = useState(false)
-  const [overrideDraft, setOverrideDraft] = useState(null)
   const [clientInputFocused, setClientInputFocused] = useState(false)
   const [showTermsModal, setShowTermsModal] = useState(false)
   const [termsDraft, setTermsDraft] = useState('')
@@ -847,8 +812,9 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
         next.total_price = (Number(next.quantity) || 0) * (Number(next.num_sessions) || 1) * (Number(next.unit_price) || 0)
 
         if (meta.priceChanged && !item.is_custom && Number(patch.unit_price) !== Number(item.unit_price)) {
-          setOverrideDraft({ index, patch })
-          return item
+          next.is_overridden = true
+          next.original_unit_price = item.original_unit_price ?? item.unit_price
+          next.override_reason = ''
         }
 
         shouldSort = Boolean(patch.service_name || patch.service_name_raw || patch.service_code)
@@ -856,20 +822,6 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
       })
       return shouldSort ? sortQuoteItems(nextItems) : nextItems
     })
-  }
-
-  function confirmOverride(reason) {
-    if (!overrideDraft) return
-    setItems(prev => sortQuoteItems(prev.map((item, index) => {
-      if (index !== overrideDraft.index) return item
-      const next = { ...item, ...overrideDraft.patch }
-      next.is_overridden = true
-      next.original_unit_price = item.original_unit_price ?? item.unit_price
-      next.override_reason = reason
-      next.total_price = (Number(next.quantity) || 0) * (Number(next.num_sessions) || 1) * (Number(next.unit_price) || 0)
-      return next
-    })))
-    setOverrideDraft(null)
   }
 
   function addServiceItem(service) {
@@ -1018,7 +970,7 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
           total_price: Number(item.total_price),
           is_overridden: Boolean(item.is_overridden),
           original_unit_price: item.original_unit_price ?? item.unit_price,
-          override_reason: item.override_reason || null,
+          override_reason: null,
           custom_sort_rank: item.custom_sort_rank,
           sort_order: index + 1,
         })),
@@ -1266,13 +1218,6 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
         <CustomItemModal
           onCancel={() => setShowCustomItemModal(false)}
           onConfirm={addCustomItem}
-        />
-      )}
-
-      {overrideDraft && (
-        <OverrideReasonModal
-          onCancel={() => setOverrideDraft(null)}
-          onConfirm={confirmOverride}
         />
       )}
 
