@@ -379,7 +379,7 @@ export default function ContractTemplatesPage() {
     <div className="mx-auto max-w-[1500px] space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <QuoteBreadcrumb items={[{ label: 'Mẫu hợp đồng' }]} />
+          <QuoteBreadcrumb root={{ label: 'Hợp đồng', to: '/contracts' }} items={[{ label: 'Mẫu hợp đồng' }]} />
           <h1 className="mt-2 text-[28px] font-semibold tracking-tight text-slate-950">Mẫu hợp đồng</h1>
           <p className="mt-1 text-[13px] text-slate-500">Quản lý cấu trúc hợp đồng: lịch triển khai, thanh toán và điều khoản.</p>
           <p className="mt-2 inline-flex rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-[12px] font-medium text-amber-800">

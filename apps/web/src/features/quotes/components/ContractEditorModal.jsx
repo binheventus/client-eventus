@@ -1015,7 +1015,7 @@ export default function ContractEditorModal({
                   isQuoteSource && quote?.id
                     ? { label: quote.quote_number || quote.id || 'Chi tiết báo giá', to: `/quotes/${quote.id}` }
                     : { label: 'Hợp đồng', to: '/contracts' },
-                  { label: 'Hợp đồng' },
+                  { label: draft?.contract_number || savedContract?.contract_number || 'Hợp đồng' },
                 ]}
               />
             </div>

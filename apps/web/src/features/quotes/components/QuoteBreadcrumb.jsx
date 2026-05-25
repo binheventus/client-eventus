@@ -1,9 +1,9 @@
 import { Link } from 'react-router-dom'
 import { ChevronRight } from 'lucide-react'
 
-export default function QuoteBreadcrumb({ items = [] }) {
+export default function QuoteBreadcrumb({ items = [], root = { label: 'Báo giá', to: '/quotes' } }) {
   const crumbs = [
-    { label: 'Báo giá', to: '/quotes' },
+    root,
     ...items,
   ].filter(item => item?.label)
 
