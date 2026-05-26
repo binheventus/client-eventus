@@ -427,7 +427,7 @@ function PaymentArticle({ contract = {}, quote = {} }) {
       <Text style={styles.paragraph}>Giá trị của hợp đồng là: {formatCurrency(quote.total_amount)} {quote.has_vat !== false ? '(Đã bao gồm VAT)' : '(Chưa bao gồm VAT)'}</Text>
       <Text style={styles.paragraph}>(Bằng chữ: {numberToVietnameseWords(quote.total_amount)}./.)</Text>
       <Text style={styles.paragraph}>Phương thức thanh toán: Việc thanh toán Hợp đồng sẽ thực hiện thành 02 lần:</Text>
-      <Text style={styles.paragraph}>Lần 1: Bên A đặt cọc {depositPercent}% giá trị hợp đồng tương ứng {formatCurrency(depositAmount)} cho Bên B sau khi ký hợp đồng{payment.issue_invoice_on_deposit ? ' và Bên B xuất hóa đơn cho Bên A sau khi nhận được thanh toán lần 1' : ''}.</Text>
+      <Text style={styles.paragraph}>Lần 1: Bên A đặt cọc {depositPercent}% giá trị hợp đồng tương ứng {formatCurrency(depositAmount)} cho Bên B sau khi ký hợp đồng{payment.issue_invoice_on_deposit ? ' và trước ngày thực hiện tối thiểu 02 ngày, đồng thời bên B xuất hóa đơn cho bên A sau khi nhận được thanh toán lần 1' : ''}.</Text>
       <Text style={styles.paragraph}>Lần 2: Bên A thanh toán nốt số tiền còn lại cho Bên B trong vòng {Number(payment.final_due_days || 7)} ngày sau khi Bên B bàn giao cho Bên A đầy đủ sản phẩm & hóa đơn tài chính theo yêu cầu của Bên A.</Text>
       {docs.length ? (
         <>

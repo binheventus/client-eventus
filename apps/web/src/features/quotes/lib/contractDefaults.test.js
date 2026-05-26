@@ -126,3 +126,11 @@ test('contract work duration text can be overridden for progress notes', () => {
     'Thời gian làm việc tối đa 6 giờ/ngày.',
   ])
 })
+
+test('contract work duration text defaults to four hours per session', () => {
+  assert.equal(getContractWorkDurationText({}), '04 giờ/buổi')
+  assert.deepEqual(getContractWorkProgressNotes({}), [
+    'Thời gian làm việc tiêu chuẩn của nhân sự Bên B là tối đa 04 giờ/buổi theo thỏa thuận. Các yêu cầu phát sinh ngoài khung giờ này sẽ được tính phí ngoài giờ là 500.000 đồng/giờ/nhân sự, với điều kiện phải được Bên A xác nhận qua văn bản hoặc email/Zalo trước khi thực hiện.',
+    'Đối với sản phẩm hậu kỳ: Ảnh sự kiện (đã chỉnh sửa màu sắc và bố cục) được bàn giao trong vòng 24 giờ và Video Recap trong vòng 03 ngày kể từ khi kết thúc sự kiện (nếu có). Tiến độ bàn giao Video được tính kể từ thời điểm Bên A cung cấp đầy đủ các tài liệu cần thiết (brief, logo, font, nhạc hoặc tư liệu liên quan tùy theo hạng mục). Trường hợp Bên A chậm cung cấp tài liệu, thời hạn bàn giao sẽ được gia hạn tương ứng.',
+  ])
+})

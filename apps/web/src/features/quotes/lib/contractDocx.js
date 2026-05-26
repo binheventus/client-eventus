@@ -376,7 +376,7 @@ function paymentArticleXml(contract = {}) {
     richParagraph([
       { text: `Lần 1: Bên A đặt cọc ${depositPercent}% giá trị hợp đồng tương ứng ` },
       { text: depositValue, bold: true },
-      { text: ` cho Bên B sau khi ký hợp đồng${payment.issue_invoice_on_deposit ? ' và Bên B xuất hóa đơn cho Bên A sau khi nhận được thanh toán lần 1' : ''}.` },
+      { text: ` cho Bên B sau khi ký hợp đồng${payment.issue_invoice_on_deposit ? ' và trước ngày thực hiện tối thiểu 02 ngày, đồng thời bên B xuất hóa đơn cho bên A sau khi nhận được thanh toán lần 1' : ''}.` },
     ]),
     paragraph(`Lần 2: Bên A thanh toán nốt số tiền còn lại cho Bên B trong vòng ${Number(payment.final_due_days || 7)} ngày sau khi Bên B bàn giao cho Bên A đầy đủ sản phẩm & hóa đơn tài chính theo yêu cầu của Bên A.`),
     docs.length ? paragraph('Hồ sơ thanh toán bao gồm:', { bold: true }) : '',

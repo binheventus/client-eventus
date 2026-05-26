@@ -45,6 +45,15 @@ function getEntityContactRows(entity, entityCode) {
   ].filter(Boolean)
 }
 
+function getEntityMobileContactRows(entity, entityCode) {
+  const legalName = getLegalName(entity, entityCode)
+  return [
+    legalName,
+    entity?.address || null,
+    [entity?.email || null, entity?.hotline || null].filter(Boolean).join(' | '),
+  ].filter(Boolean)
+}
+
 function getItemName(item) {
   return item.service_name || item.service?.quote_display_name || item.service?.service_name || item.service?.name || item.service_name_raw || item.service_code || 'Hạng mục'
 }
@@ -194,35 +203,36 @@ function QuoteItemsMobileCards({ items = [] }) {
   }
 
   return (
-    <section className="space-y-2 sm:hidden">
+    <section className="space-y-3 sm:hidden">
       {groups.map(group => (
-        <div key={group.key} className="space-y-2">
+        <div key={group.key} className="overflow-hidden rounded-xl border border-slate-300 bg-white text-black">
           {showGroupHeaders ? (
-            <div className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-[12px] font-bold uppercase tracking-[0.04em] text-black">
-              {group.label}
-            </div>
-          ) : null}
-          {group.items.map((item, index) => (
-            <article key={item.local_id || `${group.key}-${index}`} className="rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-black">
-              <h3 className="text-[13px] font-semibold leading-5 text-black">{getItemName(item)}</h3>
-              <div className="mt-1 flex items-start justify-between gap-3 text-[11px] leading-4 text-slate-600">
-                <span>{item.quantity} {getItemUnit(item)} • {item.num_sessions || 1} buổi</span>
-                <span className="shrink-0 text-right">{formatCurrency(item.unit_price)}đ/{getItemUnit(item).toLowerCase()}</span>
+            <div className="border-b border-slate-200 bg-slate-50 px-3.5 py-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-[12px] font-bold uppercase tracking-[0.04em] text-black">
+                <span className="min-w-0">{group.label}</span>
+                <span className="shrink-0 rounded-full border border-slate-300 bg-white px-2 py-0.5 text-[10px] tracking-normal">
+                  {formatCurrency(getGroupTotal(group.items))}đ
+                </span>
               </div>
-              <dl className="mt-3 border-t border-slate-100 pt-2 text-[13px] leading-5 text-black">
-                <div className="flex items-center justify-between gap-4 font-bold">
-                  <dt>Thành tiền</dt>
-                  <dd>{formatCurrency(item.total_price)}đ</dd>
-                </div>
-              </dl>
-            </article>
-          ))}
-          {showGroupHeaders ? (
-            <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-[12px] font-bold text-black">
-              <span>Tạm tính {group.label.toLowerCase()}</span>
-              <span>{formatCurrency(getGroupTotal(group.items))}đ</span>
             </div>
           ) : null}
+          <div className="divide-y divide-slate-100">
+            {group.items.map((item, index) => (
+              <article key={item.local_id || `${group.key}-${index}`} className="px-3.5 py-3 text-black">
+                <h3 className="text-[13px] font-semibold leading-5 text-black">{getItemName(item)}</h3>
+                <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 text-[11px] leading-4 text-slate-600">
+                  <span>{item.quantity} {getItemUnit(item)} • {item.num_sessions || 1} buổi</span>
+                  <span className="max-w-[130px] text-right">{formatCurrency(item.unit_price)}đ/{getItemUnit(item).toLowerCase()}</span>
+                </div>
+                <dl className="mt-3 border-t border-slate-100 pt-2 text-[11px] leading-4 text-black">
+                  <div className="flex items-center justify-between gap-4 font-bold">
+                    <dt>Thành tiền</dt>
+                    <dd>{formatCurrency(item.total_price)}đ</dd>
+                  </div>
+                </dl>
+              </article>
+            ))}
+          </div>
         </div>
       ))}
     </section>
@@ -244,6 +254,7 @@ export default function QuotePreview({
   const entityName = getEntityName(quote.entity_code, entities)
   const logoUrl = entity?.logo_file ? `/logos/${entity.logo_file}` : null
   const contactRows = getEntityContactRows(entity, quote.entity_code)
+  const mobileContactRows = getEntityMobileContactRows(entity, quote.entity_code)
   const showTravelFee = Number(totals.travel_fee_total || 0) > 0
   const showOvertimeFee = Number(totals.overtime_fee_total || 0) > 0
   const showVat = Boolean(quote.has_vat)
@@ -254,9 +265,9 @@ export default function QuotePreview({
   const showGroupHeaders = itemGroups.length > 1
 
   return (
-    <div className={`${sticky ? 'sticky top-6' : ''} overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm`}>
+    <div className={`${sticky ? 'sticky top-6' : ''} w-full min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm`}>
       {!tableOnly ? (
-        <div className="grid items-center gap-5 bg-slate-100 px-6 py-6 text-black sm:px-14 sm:grid-cols-[minmax(0,0.65fr)_minmax(0,1.35fr)]">
+        <div className="grid items-center gap-3 bg-slate-100 px-6 py-4 text-black sm:gap-5 sm:px-14 sm:py-6 sm:grid-cols-[minmax(0,0.65fr)_minmax(0,1.35fr)]">
           <div className="flex min-w-0 items-start justify-between gap-4 sm:block">
             {logoUrl ? (
               <img src={logoUrl} alt={entity?.display_name || entityName} className="order-2 h-10 w-auto shrink-0 object-contain sm:h-14" />
@@ -265,12 +276,21 @@ export default function QuotePreview({
             )}
             <h2 className="order-1 mt-0 min-w-0 text-left text-[22px] font-bold tracking-tight text-black sm:mt-3">{entityName}</h2>
           </div>
-          <div className="min-w-0 space-y-1 text-left text-[10px] leading-4 text-black sm:text-right">
-            {contactRows.map((row, index) => (
-              <ContactRow key={`${row}-${index}`} row={row} highlight={index === 0} />
-            ))}
+          <div className="min-w-0 space-y-0.5 text-left text-[10px] leading-4 text-black sm:space-y-1 sm:text-right">
+            <div className="sm:hidden">
+              {mobileContactRows.map((row, index) => (
+                <div key={`${row}-${index}`} className={`break-words ${row.includes(' | ') ? 'whitespace-nowrap' : ''} ${index === 0 ? 'font-semibold uppercase tracking-[0.06em] text-black' : ''}`}>
+                  {row}
+                </div>
+              ))}
+            </div>
+            <div className="hidden sm:block">
+              {contactRows.map((row, index) => (
+                <ContactRow key={`${row}-${index}`} row={row} highlight={index === 0} />
+              ))}
+            </div>
             {displayedQuoteCode ? (
-              <div className="pt-0.5 text-[10px] font-medium leading-4 text-black">{displayedQuoteCode}</div>
+              <div className="text-[10px] font-medium leading-4 text-black sm:pt-0.5">{displayedQuoteCode}</div>
             ) : null}
           </div>
         </div>
@@ -333,7 +353,7 @@ export default function QuotePreview({
           </table>
         </section>
 
-        <section className={`${tableOnly ? 'ml-auto' : 'mt-2 ml-auto'} w-full max-w-[360px] space-y-1.5 pr-3 text-[13px]`}>
+        <section className={`${tableOnly ? 'ml-auto' : 'mt-2 ml-auto'} w-full max-w-[360px] space-y-1.5 text-[13px] sm:pr-3`}>
           <div className="flex justify-between gap-6 text-black">
             <span>Subtotal</span>
             <span>{formatCurrency(totals.subtotal)}đ</span>

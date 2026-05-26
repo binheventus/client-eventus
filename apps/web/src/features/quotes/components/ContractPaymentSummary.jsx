@@ -25,7 +25,7 @@ export default function ContractPaymentSummary({ quote = {}, paymentConfig = {},
         <p>
           Lần 1: Bên A đặt cọc {depositPercent}% giá trị hợp đồng tương ứng{' '}
           <span className="font-bold text-slate-950">{formatCurrency(depositAmount) || 'Số tiền tạm ứng'} VNĐ</span>{' '}
-          cho Bên B sau khi ký hợp đồng{paymentConfig.issue_invoice_on_deposit === false ? '.' : ' và Bên B xuất hóa đơn cho Bên A sau khi nhận được thanh toán lần 1.'}
+          cho Bên B sau khi ký hợp đồng{paymentConfig.issue_invoice_on_deposit === false ? '.' : ' và trước ngày thực hiện tối thiểu 02 ngày, đồng thời bên B xuất hóa đơn cho bên A sau khi nhận được thanh toán lần 1.'}
         </p>
         <p>
           Lần 2: Bên A thanh toán nốt số tiền còn lại cho Bên B trong vòng {finalDueDays} ngày sau khi Bên B bàn giao cho Bên A đầy đủ sản phẩm & hóa đơn tài chính theo yêu cầu của Bên A.

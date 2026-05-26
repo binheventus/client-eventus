@@ -41,10 +41,11 @@ export const DEFAULT_CONTRACT_PREAMBLE = [
 ]
 
 export const WORK_DURATION_PLACEHOLDER = '[Số giờ/buổi hoặc Số giờ/ngày]'
+export const DEFAULT_WORK_DURATION_TEXT = '04 giờ/buổi'
 
 export const DEFAULT_WORK_PROGRESS_NOTES = [
-  `Thời gian làm việc của ekip Bên B là tối đa ${WORK_DURATION_PLACEHOLDER} theo mốc đã thống nhất. Trường hợp phát sinh ngoài giờ theo yêu cầu của Bên A, Bên A thanh toán thêm phí overtime là 500.000 đồng/giờ/nhân sự. Số giờ làm thêm phải được Bên A xác nhận bằng văn bản hoặc email/Zalo trước khi thực hiện.`,
-  'Tiến độ bàn giao video highlight và reels được tính theo ngày làm việc kể từ khi Bên A cung cấp đầy đủ brief dựng, logo, font, nhạc và các yêu cầu liên quan. Trường hợp Bên A chậm cung cấp tài liệu, deadline được gia hạn tương ứng.',
+  `Thời gian làm việc tiêu chuẩn của nhân sự Bên B là tối đa ${WORK_DURATION_PLACEHOLDER} theo thỏa thuận. Các yêu cầu phát sinh ngoài khung giờ này sẽ được tính phí ngoài giờ là 500.000 đồng/giờ/nhân sự, với điều kiện phải được Bên A xác nhận qua văn bản hoặc email/Zalo trước khi thực hiện.`,
+  'Đối với sản phẩm hậu kỳ: Ảnh sự kiện (đã chỉnh sửa màu sắc và bố cục) được bàn giao trong vòng 24 giờ và Video Recap trong vòng 03 ngày kể từ khi kết thúc sự kiện (nếu có). Tiến độ bàn giao Video được tính kể từ thời điểm Bên A cung cấp đầy đủ các tài liệu cần thiết (brief, logo, font, nhạc hoặc tư liệu liên quan tùy theo hạng mục). Trường hợp Bên A chậm cung cấp tài liệu, thời hạn bàn giao sẽ được gia hạn tương ứng.',
 ]
 
 function normalizeTextArray(value, fallback = []) {
@@ -345,7 +346,7 @@ export function getContractWorkDurationText(contract = {}) {
 
   const durationHours = contract.quote_snapshot?.duration_hours ?? contract.duration_hours
   const hourText = formatHourValue(durationHours)
-  if (!hourText) return '[Số giờ/buổi hoặc Số giờ/ngày]'
+  if (!hourText) return DEFAULT_WORK_DURATION_TEXT
 
   const durationNumber = Number(String(durationHours).replace(',', '.'))
   const unit = durationNumber >= 8 ? 'ngày' : 'buổi'
