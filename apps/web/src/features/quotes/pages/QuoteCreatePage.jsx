@@ -468,7 +468,13 @@ function extractClientNameFromBrief(inputText = '') {
 function normalizeParsedItem(item, quote, services, serviceGroups = []) {
   const billableDurationHours = getBillableDurationHours(item.billable_duration_hours ?? item.item_duration_hours ?? item.duration_hours, quote.duration_hours)
   const service = findServiceForQuoteItem(services, item, quote.location, billableDurationHours)
-  const group = getGroupForService(service || item, serviceGroups)
+  const parsedGroupCode = getGroupCode(item.group_code)
+  const parsedGroup = parsedGroupCode ? {
+    group_code: parsedGroupCode,
+    group_label: item.group_label || parsedGroupCode,
+    group_sort_order: Number(item.group_sort_order ?? 99),
+  } : null
+  const group = parsedGroup || getGroupForService(service || item, serviceGroups)
   const unitPrice = Number(service?.[getTierPriceColumn(quote.tier_code)] || service?.price_tier_2 || 0)
   const quantity = Number(item.quantity) || 1
   const numSessions = Number(item.num_sessions) || 1

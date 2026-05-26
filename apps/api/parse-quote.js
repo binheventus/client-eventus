@@ -3,6 +3,7 @@ import { requireEventusAuth } from './lib/eventus-auth.js'
 const DEFAULT_OPENAI_MODEL = 'gpt-5.4'
 const DEFAULT_ANTHROPIC_MODEL = 'claude-sonnet-4-6'
 const DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com'
+const DEFAULT_QUOTE_PARSE_TIMEOUT_MS = 12000
 const EMPTY_QUOTE_PARSE_RESULT = {
   parsed: {
     items: [],
@@ -310,41 +311,57 @@ function itemLooksLikeRecapEdit(item = {}) {
   return /^RECAP_(?:1_2|3_4|5_6|7|7_8)_CAM$/.test(getServiceCodeFromItem(item))
 }
 
+function getPostProductionGroup() {
+  return {
+    group_code: 'POST',
+    group_label: 'Hạng mục hậu kỳ',
+    group_sort_order: 4,
+  }
+}
+
+function applyPostProductionGroup(item = {}) {
+  return {
+    ...item,
+    ...getPostProductionGroup(),
+  }
+}
+
 export function applyBriefBusinessRules(result, inputText = '', context = {}) {
-  if (!briefNeedsDefaultRecapEdit(inputText)) return result
-  const items = Array.isArray(result?.parsed?.items) ? result.parsed.items : []
+  const groupedResult = applyMultiDayBriefGroups(result, inputText, context)
+  if (!briefNeedsDefaultRecapEdit(inputText)) return groupedResult
+  const items = Array.isArray(groupedResult?.parsed?.items) ? groupedResult.parsed.items : []
   const cameraCount = getVideoShootCameraCount(items, inputText)
   const defaultEditService = getRecapEditServiceForCameraCount(context, cameraCount)
-  if (!defaultEditService || !serviceExists(context, defaultEditService)) return result
+  if (!defaultEditService || !serviceExists(context, defaultEditService)) return groupedResult
 
   if (items.some(item => itemLooksLikeRecapEdit(item))) {
     let replaced = false
     return {
-      ...result,
+      ...groupedResult,
       parsed: {
-        ...result.parsed,
+        ...groupedResult.parsed,
         items: items.flatMap(item => {
           if (!itemLooksLikeRecapEdit(item)) return [item]
           if (replaced) return []
           replaced = true
-          return [{
+          return [applyPostProductionGroup({
             ...item,
             service_code: defaultEditService,
             quantity: Number(item?.quantity) || 1,
             service_name_raw: getRecapEditRawName(defaultEditService),
-          }]
+          })]
         }),
       },
     }
   }
 
   return {
-    ...result,
+    ...groupedResult,
     parsed: {
-      ...result.parsed,
+      ...groupedResult.parsed,
       items: [
         ...items,
-        makeFallbackItem(defaultEditService, 1, getRecapEditRawName(defaultEditService)),
+        applyPostProductionGroup(makeFallbackItem(defaultEditService, 1, getRecapEditRawName(defaultEditService))),
       ],
     },
   }
@@ -406,6 +423,31 @@ function parseMaybeJson(text = '') {
   }
 }
 
+function getQuoteParseTimeoutMs() {
+  const value = Number(process.env.QUOTE_PARSE_TIMEOUT_MS || DEFAULT_QUOTE_PARSE_TIMEOUT_MS)
+  return Number.isFinite(value) && value > 0 ? value : DEFAULT_QUOTE_PARSE_TIMEOUT_MS
+}
+
+async function fetchAiProvider(url, options = {}) {
+  const timeoutMs = getQuoteParseTimeoutMs()
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
+
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    })
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw new Error(`AI provider quá thời gian phản hồi sau ${Math.round(timeoutMs / 1000)} giây.`)
+    }
+    throw error
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
 function parseNumberBeforeKeyword(normalizedText, keywords = []) {
   for (const keyword of keywords) {
     const pattern = new RegExp(`(?:^|\\s)(\\d+(?:[,.]\\d+)?)\\s*(?:(?:nguoi|may)\\s+)?${keyword}\\b`)
@@ -426,6 +468,28 @@ function parseVideoQuantityFromText(normalizedText = '') {
   if (cameraMatch && /\b(quay|video)\b/.test(normalizedText)) return Number(String(cameraMatch[1]).replace(',', '.')) || 1
 
   return /\b(quay|video|videographer)\b/.test(normalizedText) ? 1 : 0
+}
+
+function parseDaySections(inputText = '') {
+  const source = String(inputText || '')
+  const markers = Array.from(source.matchAll(/(?:^|\n)\s*(?:ngày|ngay|day)\s*((?:\d{1,2}[/.]\d{1,2}(?:[/.]\d{2,4})?)|\d+)\s*[:.-]?\s*/gi))
+  if (!markers.length) return []
+
+  return markers.map((marker, index) => {
+    const dayToken = String(marker[1] || index + 1).trim()
+    const groupCode = `DAY_${dayToken.replace(/\D+/g, '_').replace(/^_+|_+$/g, '') || index + 1}`
+    const start = marker.index + marker[0].length
+    const end = markers[index + 1]?.index ?? source.length
+    return {
+      dayNumber: Number(dayToken) || index + 1,
+      group: {
+        group_code: groupCode,
+        group_label: `Ngày ${dayToken}`,
+        group_sort_order: index + 1,
+      },
+      text: source.slice(start, end).trim(),
+    }
+  }).filter(section => section.text)
 }
 
 function parseDurationHours(normalizedText, context = {}) {
@@ -461,27 +525,106 @@ function makeFallbackItem(serviceCode, quantity, raw) {
   }
 }
 
-export function deterministicParseQuoteInput(inputText = '', context = {}, reason = '') {
+function makeFallbackItemWithMeta(serviceCode, quantity, raw, meta = {}) {
+  return {
+    ...makeFallbackItem(serviceCode, quantity, raw),
+    ...meta,
+  }
+}
+
+function buildDeterministicBriefItems(inputText = '', context = {}, itemMeta = {}) {
   const normalizedText = normalizeVietnameseText(inputText)
+  const durationHours = parseDurationHours(normalizedText, context)
+  const meta = {
+    ...itemMeta,
+    billable_duration_hours: durationHours,
+  }
   const items = []
   const photoQty = parseNumberBeforeKeyword(normalizedText, ['chup', 'photo', 'photographer'])
   const videoQty = parseVideoQuantityFromText(normalizedText)
   const flycamQty = parseNumberBeforeKeyword(normalizedText, ['flycam', 'drone'])
   const liveQty = parseNumberBeforeKeyword(normalizedText, ['live', 'livestream'])
 
-  if (photoQty) items.push(makeFallbackItem('CHUP_IN_4H', photoQty, 'chụp ảnh'))
-  if (videoQty) items.push(makeFallbackItem(normalizedText.includes('quay full') ? 'QUAY_FULL_IN_4H' : 'QUAY_RECAP_IN_4H', videoQty, normalizedText.includes('quay full') ? 'quay full' : 'quay'))
-  if (flycamQty) items.push(makeFallbackItem('FLYCAM', flycamQty, 'flycam'))
-  if (liveQty) items.push(makeFallbackItem('LIVE_VIDEO', liveQty, 'live'))
+  if (photoQty) items.push(makeFallbackItemWithMeta('CHUP_IN_4H', photoQty, 'chụp ảnh', meta))
+  if (videoQty) items.push(makeFallbackItemWithMeta(normalizedText.includes('quay full') ? 'QUAY_FULL_IN_4H' : 'QUAY_RECAP_IN_4H', videoQty, normalizedText.includes('quay full') ? 'quay full' : 'quay', meta))
+  if (flycamQty) items.push(makeFallbackItemWithMeta('FLYCAM', flycamQty, 'flycam', meta))
+  if (liveQty) items.push(makeFallbackItemWithMeta('LIVE_VIDEO', liveQty, 'live', meta))
+
+  return {
+    items,
+    location: parseLocation(inputText, normalizedText, context),
+    duration_hours: durationHours,
+    tier_code: parseTierCode(normalizedText),
+    num_days: Number(normalizedText.match(/(\d+)\s*ngay/)?.[1]) || 1,
+  }
+}
+
+function buildMultiDayBriefParse(inputText = '', context = {}) {
+  const sections = parseDaySections(inputText)
+  if (!sections.length) return null
+
+  const parsedSections = sections.map(section => ({
+    ...section,
+    parsed: buildDeterministicBriefItems(section.text, context, section.group),
+  }))
+  const items = parsedSections.flatMap(section => section.parsed.items)
+  if (!items.length) return null
+
+  const durations = parsedSections
+    .map(section => Number(section.parsed.duration_hours))
+    .filter(duration => Number.isFinite(duration) && duration > 0)
+  const locations = parsedSections.map(section => section.parsed.location).filter(Boolean)
+  const tierCode = parsedSections.find(section => section.parsed.tier_code)?.parsed.tier_code || 'TIER_2'
+
+  return {
+    items,
+    location: locations[0] || getDefaultLocation(context),
+    duration_hours: durations.length ? Math.max(...durations) : getDefaultDurationHours(context),
+    tier_code: tierCode,
+    num_days: sections.length,
+  }
+}
+
+function applyMultiDayBriefGroups(result, inputText = '', context = {}) {
+  const multiDayParse = buildMultiDayBriefParse(inputText, context)
+  if (!multiDayParse) return result
+  const multiDayReasoningLine = 'Đã tách hạng mục theo từng ngày trong sales brief.'
+  const existingReasoning = String(result?.ai_reasoning || '').trim()
+
+  const existingPostItems = (Array.isArray(result?.parsed?.items) ? result.parsed.items : [])
+    .filter(item => itemLooksLikeRecapEdit(item))
+    .map(applyPostProductionGroup)
+
+  return {
+    ...result,
+    parsed: {
+      ...result.parsed,
+      ...multiDayParse,
+      event_date: result?.parsed?.event_date ?? null,
+      event_name: result?.parsed?.event_name ?? null,
+      items: [
+        ...multiDayParse.items,
+        ...existingPostItems,
+      ],
+    },
+    ai_reasoning: existingReasoning.includes(multiDayReasoningLine)
+      ? existingReasoning
+      : [existingReasoning, multiDayReasoningLine].filter(Boolean).join('\n'),
+  }
+}
+
+export function deterministicParseQuoteInput(inputText = '', context = {}, reason = '') {
+  const parseResult = buildMultiDayBriefParse(inputText, context) || buildDeterministicBriefItems(inputText, context)
+  const items = parseResult.items
 
   const parsed = {
     items,
-    location: parseLocation(inputText, normalizedText, context),
-    duration_hours: parseDurationHours(normalizedText, context),
-    tier_code: parseTierCode(normalizedText),
+    location: parseResult.location,
+    duration_hours: parseResult.duration_hours,
+    tier_code: parseResult.tier_code,
     event_date: null,
     event_name: null,
-    num_days: Number(normalizedText.match(/(\d+)\s*ngay/)?.[1]) || 1,
+    num_days: parseResult.num_days,
   }
 
   const missingFields = []
@@ -507,7 +650,7 @@ async function callOpenAI({ apiKey, inputText, context }) {
     return callOpenAIChatCompletions({ apiKey, inputText, context, baseUrl, model, userMessage })
   }
 
-  const response = await fetch(`${baseUrl}/v1/responses`, {
+  const response = await fetchAiProvider(`${baseUrl}/v1/responses`, {
     method: 'POST',
     headers: {
       'authorization': `Bearer ${apiKey}`,
@@ -601,7 +744,7 @@ async function callOpenAI({ apiKey, inputText, context }) {
 
 async function callOpenAIChatCompletions({ apiKey, inputText, context, baseUrl, model, userMessage, previousError }) {
   const message = userMessage || buildQuoteParseUserMessage(inputText, context)
-  const response = await fetch(`${baseUrl}/v1/chat/completions`, {
+  const response = await fetchAiProvider(`${baseUrl}/v1/chat/completions`, {
     method: 'POST',
     headers: {
       'authorization': `Bearer ${apiKey}`,
@@ -637,7 +780,7 @@ async function callOpenAIChatCompletions({ apiKey, inputText, context, baseUrl, 
 async function repairOpenAIJson({ apiKey, baseUrl, model, rawText, parseError }) {
   if (!rawText) return fallbackParseResult('AI chưa trả về nội dung để phân tích.')
 
-  const response = await fetch(`${baseUrl}/v1/chat/completions`, {
+  const response = await fetchAiProvider(`${baseUrl}/v1/chat/completions`, {
     method: 'POST',
     headers: {
       'authorization': `Bearer ${apiKey}`,
@@ -669,7 +812,7 @@ async function repairOpenAIJson({ apiKey, baseUrl, model, rawText, parseError })
 }
 
 async function callAnthropic({ apiKey, inputText, context }) {
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
+  const response = await fetchAiProvider('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
