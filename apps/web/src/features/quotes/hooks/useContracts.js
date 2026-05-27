@@ -10,6 +10,11 @@ import {
   normalizeContractTemplate,
   sectionsToTermsText,
 } from '../lib/contractDefaults'
+import {
+  mergeDefaultDocumentTemplates,
+  normalizeDocumentTemplate,
+  sectionsToDocumentTermsText,
+} from '../lib/contractDocumentTemplates'
 
 async function requestContractApi(path = '', { method = 'GET', body } = {}) {
   const response = await fetch(`/api/contracts${path}`, {
@@ -131,6 +136,47 @@ export async function deleteContractTemplate(id) {
   await requestContractApi(`?resource=template&id=${encodeURIComponent(id)}`, { method: 'DELETE' })
 }
 
+export async function listContractDocumentTemplates(documentType = '') {
+  const query = new URLSearchParams({ resource: 'document_templates' })
+  if (documentType) query.set('document_type', documentType)
+  const result = await requestContractApi(`?${query.toString()}`)
+  return mergeDefaultDocumentTemplates(result.templates || [])
+}
+
+export async function getContractDocumentTemplate(id) {
+  if (!id) return null
+  const result = await requestContractApi(`?resource=document_template&id=${encodeURIComponent(id)}`)
+  return result.template || null
+}
+
+export async function saveContractDocumentTemplate(payload = {}) {
+  const normalized = normalizeDocumentTemplate(payload)
+  const cleanPayload = {
+    ...normalized,
+    name: String(payload.name || normalized.name || '').trim(),
+    description: String(payload.description || '').trim() || null,
+    terms_text: String(payload.terms_text || sectionsToDocumentTermsText(normalized.content_sections)).trim(),
+    id: payload.id || undefined,
+  }
+
+  if (!cleanPayload.name) throw new Error('Tên mẫu chứng từ là bắt buộc.')
+  if (!cleanPayload.document_type) throw new Error('Loại chứng từ là bắt buộc.')
+
+  const result = await requestContractApi('', {
+    method: 'POST',
+    body: {
+      resource: 'document_template',
+      template: cleanPayload,
+    },
+  })
+  return result.template || null
+}
+
+export async function deleteContractDocumentTemplate(id) {
+  if (!id) return
+  await requestContractApi(`?resource=document_template&id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+}
+
 export async function getContractByQuoteId(quoteId) {
   if (!quoteId) return null
   const result = await requestContractApi(`?resource=contract&quote_id=${encodeURIComponent(quoteId)}`)
@@ -172,6 +218,42 @@ export async function getPublicContractByToken(shareToken) {
   if (!shareToken) return null
   const result = await requestContractApi(`?resource=public_contract&token=${encodeURIComponent(shareToken)}`)
   return result.contract || null
+}
+
+export async function listContractDocuments(contractId, { documentType = '' } = {}) {
+  if (!contractId) return []
+  const query = new URLSearchParams({ resource: 'documents', contract_id: contractId })
+  if (documentType) query.set('document_type', documentType)
+  const result = await requestContractApi(`?${query.toString()}`)
+  return result.documents || []
+}
+
+export async function getContractDocument(id) {
+  if (!id) return null
+  const result = await requestContractApi(`?resource=document&id=${encodeURIComponent(id)}`)
+  return result.document || null
+}
+
+export async function saveContractDocument(payload = {}) {
+  const result = await requestContractApi('', {
+    method: 'POST',
+    body: {
+      resource: 'document',
+      document: payload,
+    },
+  })
+  return result.document || null
+}
+
+export async function deleteContractDocument(id) {
+  if (!id) return
+  await requestContractApi(`?resource=document&id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+}
+
+export async function getPublicContractDocumentByToken(shareToken) {
+  if (!shareToken) return null
+  const result = await requestContractApi(`?resource=public_document&token=${encodeURIComponent(shareToken)}`)
+  return result.document || null
 }
 
 export async function listSharedCustomers(search = '') {

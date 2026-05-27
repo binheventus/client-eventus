@@ -38,6 +38,7 @@ import {
 } from '../lib/contractDefaults'
 import { getQuoteActorPayload, getQuoteUserContext } from '../lib/quoteAuth'
 import ContractDocumentDownloads from './ContractDocumentDownloads'
+import ContractDocumentsPanel from './ContractDocumentsPanel'
 import ContractPaymentSummary from './ContractPaymentSummary'
 import QuoteBreadcrumb from './QuoteBreadcrumb'
 import QuotePreview from './QuotePreview'
@@ -1390,6 +1391,8 @@ export default function ContractEditorModal({
                       <LegalNoteList title="Lưu ý về thanh toán:" items={paymentNotes} />
                     </div>
                   </section>
+
+                  <ContractDocumentsPanel contract={savedContract || (draft?.id ? draft : null)} />
 
                   <SectionCard title="Nội dung từ ĐIỀU 3 trở đi">
                     <Textarea

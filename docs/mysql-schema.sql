@@ -133,12 +133,93 @@ create table if not exists client_contracts (
   terms_text longtext not null,
   quote_snapshot json not null,
   source_snapshot json null,
+  deleted_at datetime(3) null,
   created_at datetime(3) not null default current_timestamp(3),
   updated_at datetime(3) not null default current_timestamp(3) on update current_timestamp(3),
   key client_contracts_quote_id_idx (quote_id),
+  key client_contracts_deleted_at_idx (deleted_at),
+  key client_contracts_deleted_updated_idx (deleted_at, updated_at),
   unique key client_contracts_share_token_unique (share_token),
   unique key client_contracts_source_job_unique (source_type, external_job_id),
   constraint client_contracts_quote_id_fk foreign key (quote_id) references client_quotes (id) on delete set null
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create table if not exists client_contract_document_templates (
+  id varchar(120) primary key,
+  document_type varchar(60) not null,
+  name varchar(255) not null,
+  description text null,
+  title varchar(255) not null default '',
+  seller_entity_code varchar(80) null,
+  document_number_pattern varchar(255) null,
+  fields_config json not null,
+  numbering_config json not null,
+  content_sections json not null,
+  terms_text longtext null,
+  is_default tinyint(1) not null default 0,
+  is_active tinyint(1) not null default 1,
+  sort_order int not null default 100,
+  deleted_at datetime(3) null,
+  created_at datetime(3) not null default current_timestamp(3),
+  updated_at datetime(3) not null default current_timestamp(3) on update current_timestamp(3),
+  key client_contract_doc_templates_type_idx (document_type, is_active, sort_order),
+  key client_contract_doc_templates_deleted_idx (deleted_at)
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create table if not exists client_contract_documents (
+  id varchar(64) primary key,
+  contract_id varchar(64) not null,
+  document_type varchar(60) not null,
+  document_number varchar(160) not null,
+  document_number_pattern varchar(255) null,
+  sequence_year int not null,
+  sequence_number int not null,
+  status varchar(40) not null default 'draft',
+  template_id varchar(120) null,
+  title varchar(255) not null default '',
+  seller_entity_code varchar(80) not null,
+  issued_date date null,
+  finalized_at datetime(3) null,
+  share_token varchar(32) not null,
+  template_snapshot json not null,
+  contract_snapshot json not null,
+  document_data json not null,
+  content_sections json not null,
+  terms_text longtext null,
+  auto_sync_contract tinyint(1) not null default 1,
+  deleted_at datetime(3) null,
+  created_at datetime(3) not null default current_timestamp(3),
+  updated_at datetime(3) not null default current_timestamp(3) on update current_timestamp(3),
+  key client_contract_documents_contract_idx (contract_id, deleted_at, created_at),
+  key client_contract_documents_type_idx (document_type, status, deleted_at),
+  key client_contract_documents_sequence_idx (seller_entity_code, document_type, sequence_year, sequence_number),
+  unique key client_contract_documents_share_unique (share_token),
+  constraint client_contract_documents_contract_fk foreign key (contract_id) references client_contracts (id) on delete cascade
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create table if not exists client_contract_document_number_counters (
+  id varchar(180) primary key,
+  seller_entity_code varchar(80) not null,
+  document_type varchar(60) not null,
+  sequence_year int not null,
+  last_sequence int not null default 0,
+  created_at datetime(3) not null default current_timestamp(3),
+  updated_at datetime(3) not null default current_timestamp(3) on update current_timestamp(3),
+  unique key client_contract_doc_no_counters_scope_unique (seller_entity_code, document_type, sequence_year)
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create table if not exists client_contract_document_number_ledger (
+  id varchar(64) primary key,
+  document_id varchar(64) not null,
+  seller_entity_code varchar(80) not null,
+  document_type varchar(60) not null,
+  sequence_year int not null,
+  sequence_number int not null,
+  document_number varchar(160) not null,
+  created_at datetime(3) not null default current_timestamp(3),
+  unique key client_contract_doc_no_ledger_scope_unique (seller_entity_code, document_type, sequence_year, sequence_number),
+  unique key client_contract_doc_no_ledger_doc_unique (document_id),
+  key client_contract_doc_no_ledger_number_idx (document_number)
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 
 create table if not exists client_pages (

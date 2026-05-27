@@ -4,8 +4,10 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 const ClientPortalPage = lazy(() => import('./pages/ClientPortalPage'))
 const QuotePublicPage = lazy(() => import('./features/quotes/pages/QuotePublicPage'))
 const ContractPublicPage = lazy(() => import('./features/quotes/pages/ContractPublicPage'))
+const ContractDocumentPublicPage = lazy(() => import('./features/quotes/pages/ContractDocumentPublicPage'))
 const ContractListPage = lazy(() => import('./features/quotes/pages/ContractListPage'))
 const ContractTemplatesPage = lazy(() => import('./features/quotes/pages/ContractTemplatesPage'))
+const ContractDocumentTemplatesPage = lazy(() => import('./features/quotes/pages/ContractDocumentTemplatesPage'))
 
 function AppLoading() {
   return <div className="flex min-h-screen items-center justify-center bg-slate-50 text-[13px] font-semibold text-slate-500">Đang tải...</div>
@@ -24,9 +26,11 @@ export default function App() {
           <Route path="/quotes/:id" element={<ClientPortalPage />} />
           <Route path="/contracts" element={<ContractListPage />} />
           <Route path="/contracts/contract-templates" element={<ContractTemplatesPage />} />
+          <Route path="/contracts/document-templates" element={<ContractDocumentTemplatesPage />} />
           <Route path="/contracts/:id" element={<ContractListPage />} />
           <Route path="/q/:share_token" element={<QuotePublicPage />} />
           <Route path="/c/:share_token" element={<ContractPublicPage />} />
+          <Route path="/d/:share_token" element={<ContractDocumentPublicPage />} />
           <Route path="/position/:positionId" element={<ClientPortalPage />} />
           <Route path="/position/:positionId/level/:levelIndex" element={<ClientPortalPage />} />
           <Route path="*" element={<ClientPortalPage />} />

@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { AlertTriangle, BriefcaseBusiness, FileSignature, Plus, ScrollText, Search, Trash2, X } from 'lucide-react'
+import { AlertTriangle, BriefcaseBusiness, FileSignature, FileText, Plus, ScrollText, Search, Trash2, X } from 'lucide-react'
 import { useEscapeToClose } from '../../../hooks/useEscapeToClose'
 import QuoteBreadcrumb from '../components/QuoteBreadcrumb'
 import {
@@ -602,6 +602,14 @@ export default function ContractListPage() {
           >
             <ScrollText className="h-4 w-4" />
             Mẫu hợp đồng
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/contracts/document-templates')}
+            className="inline-flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+          >
+            <FileText className="h-4 w-4" />
+            Mẫu chứng từ
           </button>
           <button
             type="button"

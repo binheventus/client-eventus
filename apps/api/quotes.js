@@ -346,7 +346,7 @@ async function getQuoteById(id) {
   const rows = await query(
     `select q.*, c.id as contract_id, case when c.id is null then 0 else 1 end as has_saved_contract
      from ${tables.quotes} q
-     left join ${tables.contracts} c on c.quote_id = q.id
+     left join ${tables.contracts} c on c.quote_id = q.id and c.deleted_at is null
      where q.id = ?
      limit 1`,
     [id],
@@ -458,7 +458,7 @@ async function listQuotes(queryParams = {}) {
   const rows = await query(
     `select ${LIST_QUOTE_COLUMNS}
      from ${tables.quotes} q
-     left join ${tables.contracts} c on c.quote_id = q.id
+     left join ${tables.contracts} c on c.quote_id = q.id and c.deleted_at is null
      ${whereSql}
      order by q.${orderColumn} desc
      limit ${pageSize} offset ${offset}`,
@@ -600,6 +600,12 @@ async function deleteQuote(id, { hard = false } = {}) {
   await withTransaction(async connection => {
     await connection.query(`delete from ${tables.quoteViews} where quote_id = ?`, [id])
     await connection.query(`delete from ${tables.quoteItems} where quote_id = ?`, [id])
+    await connection.query(
+      `delete d from ${tables.contractDocuments} d
+       inner join ${tables.contracts} c on c.id = d.contract_id
+       where c.quote_id = ?`,
+      [id],
+    )
     await connection.query(`delete from ${tables.contracts} where quote_id = ?`, [id])
     await connection.query(`delete from ${tables.quotes} where id = ?`, [id])
   })

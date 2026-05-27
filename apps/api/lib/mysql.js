@@ -11,6 +11,10 @@ export const tables = {
   quoteViews: 'client_quote_views',
   contracts: 'client_contracts',
   contractTemplates: 'client_contract_templates',
+  contractDocumentTemplates: 'client_contract_document_templates',
+  contractDocuments: 'client_contract_documents',
+  contractDocumentNumberCounters: 'client_contract_document_number_counters',
+  contractDocumentNumberLedger: 'client_contract_document_number_ledger',
   pages: 'client_pages',
   jobs: 'jobs',
 }

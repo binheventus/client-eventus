@@ -9,7 +9,7 @@
     "build": "vite --config apps/web/vite.config.js build",
     "db:migrate": "node scripts/migrate-mysql.mjs",
     "pricing:export": "node scripts/export-pricing-from-google-sheet.mjs",
-    "test:quotes": "node --test apps/web/src/features/quotes/lib/*.test.js apps/api/parse-quote.test.js",
+    "test:quotes": "node --test apps/web/src/features/quotes/lib/*.test.js apps/api/parse-quote.test.js apps/api/contracts.test.js",
     "preview": "vite --config apps/web/vite.config.js preview",
     "start": "node apps/api/server.js",
     "start:api": "node apps/api/server.js"

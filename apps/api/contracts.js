@@ -2,17 +2,166 @@ import { randomUUID } from 'node:crypto'
 import {
   emptyToNull,
   fromJson,
-  insertRow,
+  insertRow as mysqlInsertRow,
   normalizeBoolean,
-  query,
+  query as mysqlQuery,
   tables,
   toJson,
-  updateRow,
-  withTransaction,
+  toMysqlDateTime,
+  updateRow as mysqlUpdateRow,
+  withTransaction as mysqlWithTransaction,
 } from './lib/mysql.js'
-import { requireEventusAuth } from './lib/eventus-auth.js'
+import { requireEventusAuth as defaultRequireEventusAuth } from './lib/eventus-auth.js'
+
+const defaultContractsApiDeps = {
+  insertRow: mysqlInsertRow,
+  query: mysqlQuery,
+  requireEventusAuth: defaultRequireEventusAuth,
+  updateRow: mysqlUpdateRow,
+  withTransaction: mysqlWithTransaction,
+}
+let contractsApiDeps = defaultContractsApiDeps
+
+export function configureContractsApiForTest(overrides = {}) {
+  contractsApiDeps = { ...defaultContractsApiDeps, ...overrides }
+  return () => {
+    contractsApiDeps = defaultContractsApiDeps
+  }
+}
+
+function runQuery(sql, params = []) {
+  return contractsApiDeps.query(sql, params)
+}
+
+function runTransaction(callback) {
+  return contractsApiDeps.withTransaction(callback)
+}
+
+function insertDataRow(connection, tableName, payload = {}) {
+  return contractsApiDeps.insertRow(connection, tableName, payload)
+}
+
+function updateDataRow(connection, tableName, payload = {}, whereSql, whereParams = []) {
+  return contractsApiDeps.updateRow(connection, tableName, payload, whereSql, whereParams)
+}
 
 const PROTECTED_CONTRACT_TEMPLATE_IDS = new Set(['system-mediamonster-service-contract'])
+const CONTRACT_DOCUMENT_TYPES = new Set([
+  'advance_request',
+  'acceptance_liquidation',
+  'payment_request',
+])
+const CONTRACT_DOCUMENT_TYPE_CODES = {
+  advance_request: 'DNTU',
+  acceptance_liquidation: 'BBNTTL',
+  payment_request: 'DNTT',
+}
+const DEFAULT_DOCUMENT_NUMBER_PATTERN = '{{sequence}}/{{document_type_code}}-{{seller}}/{{customer}}/{{year}}'
+const DEFAULT_CONTRACT_DOCUMENT_TEMPLATES = [
+  {
+    id: 'system-advance-request-template',
+    document_type: 'advance_request',
+    name: 'Mau de nghi tam ung mac dinh',
+    description: 'Mau co ban de de nghi khach hang thanh toan tam ung theo hop dong.',
+    title: 'De nghi tam ung',
+    seller_entity_code: 'EVT',
+    document_number_pattern: DEFAULT_DOCUMENT_NUMBER_PATTERN,
+    fields_config: {
+      amount_field: 'advance_amount',
+      required_fields: ['amount', 'issued_date'],
+      suggested_amount_source: 'contract.payment_config.deposit_percent',
+    },
+    numbering_config: {
+      sequence_scope: 'seller_entity_code + document_type + sequence_year',
+      sequence_token: '{{sequence}}',
+    },
+    content_sections: [
+      {
+        id: 'advance-summary',
+        title: 'Noi dung de nghi',
+        body: 'Can cu Hop dong da ky, Ben B kinh de nghi Ben A thanh toan khoan tam ung theo gia tri va tien do da thoa thuan.',
+      },
+      {
+        id: 'advance-payment-info',
+        title: 'Thong tin thanh toan',
+        body: 'So tien tam ung, thoi han thanh toan va thong tin chuyen khoan duoc ghi nhan theo du lieu chung tu khi lap.',
+      },
+    ],
+    terms_text: 'Ben A thanh toan khoan tam ung theo hop dong sau khi nhan duoc de nghi tam ung hop le tu Ben B.',
+    is_default: true,
+    is_active: true,
+    sort_order: 10,
+  },
+  {
+    id: 'system-acceptance-liquidation-template',
+    document_type: 'acceptance_liquidation',
+    name: 'Mau BBNT kiem thanh ly mac dinh',
+    description: 'Mau nghiem thu ket qua dich vu va xac nhan thanh ly nghia vu theo hop dong.',
+    title: 'Bien ban nghiem thu kiem thanh ly',
+    seller_entity_code: 'EVT',
+    document_number_pattern: DEFAULT_DOCUMENT_NUMBER_PATTERN,
+    fields_config: {
+      amount_field: 'acceptance_amount',
+      required_fields: ['amount', 'issued_date'],
+      suggested_amount_source: 'contract.total_amount',
+    },
+    numbering_config: {
+      sequence_scope: 'seller_entity_code + document_type + sequence_year',
+      sequence_token: '{{sequence}}',
+    },
+    content_sections: [
+      {
+        id: 'acceptance-scope',
+        title: 'Noi dung nghiem thu',
+        body: 'Hai ben xac nhan Ben B da hoan thanh pham vi dich vu theo hop dong va cac phu luc/thoa thuan lien quan.',
+      },
+      {
+        id: 'liquidation-confirmation',
+        title: 'Xac nhan thanh ly',
+        body: 'Sau khi hoan tat cac nghia vu thanh toan con lai, hai ben thong nhat thanh ly hop dong theo noi dung bien ban nay.',
+      },
+    ],
+    terms_text: 'Hai ben thong nhat nghiem thu khoi luong dich vu da hoan thanh va lam co so thanh toan/thanh ly hop dong.',
+    is_default: true,
+    is_active: true,
+    sort_order: 20,
+  },
+  {
+    id: 'system-payment-request-template',
+    document_type: 'payment_request',
+    name: 'Mau de nghi thanh toan mac dinh',
+    description: 'Mau de nghi thanh toan phan gia tri con lai, bat buoc lien ket voi BBNT.',
+    title: 'De nghi thanh toan',
+    seller_entity_code: 'EVT',
+    document_number_pattern: DEFAULT_DOCUMENT_NUMBER_PATTERN,
+    fields_config: {
+      amount_field: 'payment_amount',
+      required_fields: ['amount', 'issued_date', 'acceptance_document_id'],
+      related_document_type: 'acceptance_liquidation',
+    },
+    numbering_config: {
+      sequence_scope: 'seller_entity_code + document_type + sequence_year',
+      sequence_token: '{{sequence}}',
+    },
+    content_sections: [
+      {
+        id: 'payment-basis',
+        title: 'Co so thanh toan',
+        body: 'Can cu hop dong va bien ban nghiem thu da duoc hai ben xac nhan, Ben B de nghi Ben A thanh toan gia tri con lai.',
+      },
+      {
+        id: 'payment-request-detail',
+        title: 'Chi tiet de nghi',
+        body: 'Gia tri thanh toan, chung tu lien quan va ghi chu bo sung duoc lay tu du lieu chung tu khi lap.',
+      },
+    ],
+    terms_text: 'De nghi thanh toan nay duoc lap tren co so BBNT da lien ket va cac dieu khoan thanh toan trong hop dong.',
+    is_default: true,
+    is_active: true,
+    sort_order: 30,
+  },
+]
+const OPEN_DOCUMENT_STATUSES = new Set(['draft', 'open'])
 const JSON_TEMPLATE_COLUMNS = [
   'party_role_config',
   'preamble',
@@ -32,6 +181,17 @@ const JSON_CONTRACT_COLUMNS = [
   'content_sections',
   'quote_snapshot',
   'source_snapshot',
+]
+const JSON_DOCUMENT_TEMPLATE_COLUMNS = [
+  'fields_config',
+  'numbering_config',
+  'content_sections',
+]
+const JSON_DOCUMENT_COLUMNS = [
+  'template_snapshot',
+  'contract_snapshot',
+  'document_data',
+  'content_sections',
 ]
 const CUSTOMER_COLUMNS = [
   'customer_code',
@@ -57,6 +217,13 @@ function sendError(res, error, fallback = 'Khong xu ly duoc hop dong.') {
   })
 }
 
+function makeHttpError(message, statusCode = 400, code) {
+  const error = new Error(message)
+  error.statusCode = statusCode
+  if (code) error.code = code
+  return error
+}
+
 function getRequestBody(req) {
   if (!req.body) return {}
   if (typeof req.body === 'string') {
@@ -76,7 +243,7 @@ function getQueryValue(value, fallback = '') {
 
 function isPublicContractRequest(req) {
   if (req.method !== 'GET') return false
-  return getQueryValue(req.query?.resource, 'templates') === 'public_contract'
+  return ['public_contract', 'public_document'].includes(getQueryValue(req.query?.resource, 'templates'))
 }
 
 function makeId(prefix = '') {
@@ -119,6 +286,67 @@ function normalizeSourceType(value = 'quote') {
   return ['quote', 'job', 'manual'].includes(sourceType) ? sourceType : 'quote'
 }
 
+function normalizeDocumentType(value = '') {
+  const documentType = String(value || '').trim().toLowerCase()
+  if (CONTRACT_DOCUMENT_TYPES.has(documentType)) return documentType
+
+  const aliases = {
+    advance: 'advance_request',
+    advance_payment: 'advance_request',
+    tam_ung: 'advance_request',
+    de_nghi_tam_ung: 'advance_request',
+    acceptance: 'acceptance_liquidation',
+    liquidation: 'acceptance_liquidation',
+    bbnt: 'acceptance_liquidation',
+    nghiem_thu_thanh_ly: 'acceptance_liquidation',
+    payment: 'payment_request',
+    final_payment: 'payment_request',
+    dntt: 'payment_request',
+    de_nghi_thanh_toan: 'payment_request',
+  }
+  return aliases[documentType] || ''
+}
+
+function normalizeDocumentStatus(value = 'draft') {
+  const status = String(value || 'draft').trim().toLowerCase()
+  return ['draft', 'open', 'finalized', 'cancelled'].includes(status) ? status : 'draft'
+}
+
+function normalizeSequenceYear(value) {
+  const number = Number(value)
+  if (Number.isInteger(number) && number >= 2000 && number <= 9999) return number
+  const date = value ? new Date(value) : new Date()
+  return Number.isNaN(date.getTime()) ? new Date().getFullYear() : date.getFullYear()
+}
+
+function formatSequenceNumber(value) {
+  return String(Number(value || 0)).padStart(4, '0')
+}
+
+function getContractCustomerCode(contract = {}) {
+  return String(
+    contract.customer_snapshot?.customer_code
+      || contract.customer_snapshot?.company_name
+      || contract.quote_snapshot?.client_name
+      || 'CUSTOMER',
+  ).trim().replace(/\s+/g, '-').toUpperCase().slice(0, 48)
+}
+
+function getDocumentNumberPattern(documentType) {
+  return DEFAULT_DOCUMENT_NUMBER_PATTERN
+}
+
+function renderDocumentNumber(pattern, values = {}) {
+  return String(pattern || getDocumentNumberPattern(values.document_type || ''))
+    .replace(/\{\{\s*sequence\s*\}\}/gi, values.sequence || '')
+    .replace(/\{\{\s*document_type\s*\}\}/gi, values.document_type || '')
+    .replace(/\{\{\s*document_type_code\s*\}\}/gi, values.document_type_code || '')
+    .replace(/\{\{\s*seller\s*\}\}/gi, values.seller || '')
+    .replace(/\{\{\s*seller_entity_code\s*\}\}/gi, values.seller || '')
+    .replace(/\{\{\s*customer\s*\}\}/gi, values.customer || '')
+    .replace(/\{\{\s*year\s*\}\}/gi, values.year || '')
+}
+
 function normalizeTemplateRow(row = {}) {
   if (!row) return row
   const normalized = { ...row }
@@ -139,6 +367,48 @@ function normalizeContractRow(row = {}) {
     normalized[column] = fromJson(normalized[column], fallback)
   })
   normalized.signing_date = normalized.signing_date || normalized.quote_table_config?.signing_date || ''
+  return normalized
+}
+
+function normalizeDocumentTemplateRow(row = {}) {
+  if (!row) return row
+  const normalized = { ...row }
+  JSON_DOCUMENT_TEMPLATE_COLUMNS.forEach(column => {
+    const fallback = column === 'content_sections' ? [] : {}
+    normalized[column] = fromJson(normalized[column], fallback)
+  })
+  normalized.is_default = normalizeBoolean(normalized.is_default)
+  normalized.is_active = normalizeBoolean(normalized.is_active)
+  return normalized
+}
+
+function mergeDefaultDocumentTemplates(rows = []) {
+  const byId = new Map(rows.map(row => [row.id, normalizeDocumentTemplateRow(row)]))
+  DEFAULT_CONTRACT_DOCUMENT_TEMPLATES.forEach(template => {
+    const existing = byId.get(template.id)
+    byId.set(template.id, normalizeDocumentTemplateRow({
+      ...template,
+      ...(existing || {}),
+      is_system_default: true,
+    }))
+  })
+
+  return Array.from(byId.values()).sort((left, right) => {
+    if (left.document_type !== right.document_type) return left.document_type.localeCompare(right.document_type)
+    return Number(left.sort_order || 100) - Number(right.sort_order || 100)
+  })
+}
+
+function normalizeDocumentRow(row = {}) {
+  if (!row) return row
+  const normalized = { ...row }
+  JSON_DOCUMENT_COLUMNS.forEach(column => {
+    const fallback = column === 'content_sections' ? [] : {}
+    normalized[column] = fromJson(normalized[column], fallback)
+  })
+  normalized.auto_sync_contract = normalizeBoolean(normalized.auto_sync_contract)
+  normalized.sequence_number = Number(normalized.sequence_number || 0)
+  normalized.sequence_year = Number(normalized.sequence_year || 0)
   return normalized
 }
 
@@ -246,7 +516,7 @@ function buildJobQuoteSnapshot(job = {}) {
 }
 
 async function getQuoteById(id) {
-  const rows = await query(`select * from ${tables.quotes} where id = ? limit 1`, [id])
+  const rows = await runQuery(`select * from ${tables.quotes} where id = ? limit 1`, [id])
   const quote = rows?.[0]
   if (!quote) {
     const error = new Error('Khong tim thay bao gia.')
@@ -257,7 +527,7 @@ async function getQuoteById(id) {
 }
 
 async function getQuoteByShareToken(shareToken) {
-  const rows = await query(
+  const rows = await runQuery(
     `select id, deleted_at from ${tables.quotes} where share_token = ? limit 1`,
     [shareToken],
   )
@@ -267,11 +537,39 @@ async function getQuoteByShareToken(shareToken) {
 }
 
 async function listTemplates() {
-  const rows = await query(
+  const rows = await runQuery(
     `select * from ${tables.contractTemplates}
      order by sort_order asc, created_at desc`,
   )
   return rows.map(normalizeTemplateRow)
+}
+
+async function listDocumentTemplates(queryParams = {}) {
+  const documentType = normalizeDocumentType(getQueryValue(queryParams.document_type, ''))
+  const where = ['deleted_at is null']
+  const params = []
+
+  if (documentType) {
+    where.push('document_type = ?')
+    params.push(documentType)
+  }
+
+  const rows = await runQuery(
+    `select * from ${tables.contractDocumentTemplates}
+     where ${where.join(' and ')}
+     order by document_type asc, sort_order asc, created_at desc`,
+    params,
+  )
+  const mergedRows = mergeDefaultDocumentTemplates(rows)
+  return documentType ? mergedRows.filter(row => row.document_type === documentType) : mergedRows
+}
+
+async function getDocumentTemplateById(id, { includeDeleted = false } = {}) {
+  const where = includeDeleted ? 'id = ?' : 'id = ? and deleted_at is null'
+  const rows = await runQuery(`select * from ${tables.contractDocumentTemplates} where ${where} limit 1`, [id])
+  if (rows?.[0]) return normalizeDocumentTemplateRow(rows[0])
+  const defaultTemplate = DEFAULT_CONTRACT_DOCUMENT_TEMPLATES.find(template => template.id === id)
+  return defaultTemplate ? normalizeDocumentTemplateRow({ ...defaultTemplate, is_system_default: true }) : null
 }
 
 async function listContracts(queryParams = {}) {
@@ -280,7 +578,7 @@ async function listContracts(queryParams = {}) {
   const offset = (page - 1) * pageSize
   const sourceType = getQueryValue(queryParams.source_type, '')
   const search = String(getQueryValue(queryParams.search, '') || '').trim()
-  const where = []
+  const where = ['c.deleted_at is null']
   const params = []
 
   if (sourceType) {
@@ -300,8 +598,8 @@ async function listContracts(queryParams = {}) {
   }
 
   const whereSql = where.length ? `where ${where.join(' and ')}` : ''
-  const countRows = await query(`select count(*) as count from ${tables.contracts} c ${whereSql}`, params)
-  const rows = await query(
+  const countRows = await runQuery(`select count(*) as count from ${tables.contracts} c ${whereSql}`, params)
+  const rows = await runQuery(
     `select c.*
      from ${tables.contracts} c
      ${whereSql}
@@ -338,8 +636,8 @@ async function listContractJobs(queryParams = {}) {
   }
 
   const whereSql = `where ${where.join(' and ')}`
-  const countRows = await query(`select count(*) as count from ${tables.jobs} j left join ${tables.customers} customers on customers.id = j.customer_id ${whereSql}`, params)
-  const rows = await query(
+  const countRows = await runQuery(`select count(*) as count from ${tables.jobs} j left join ${tables.customers} customers on customers.id = j.customer_id ${whereSql}`, params)
+  const rows = await runQuery(
     `select
        j.id, j.job_title, j.job_date, j.start_time, j.end_time, j.job_description,
        j.ekip, j.price, j.customer_id, j.customer_name as customer_name_snapshot,
@@ -355,7 +653,7 @@ async function listContractJobs(queryParams = {}) {
        case when c.id is null then 0 else 1 end as has_saved_contract
      from ${tables.jobs} j
      left join ${tables.customers} customers on customers.id = j.customer_id
-     left join ${tables.contracts} c on c.source_type = 'job' and c.external_job_id = j.id
+     left join ${tables.contracts} c on c.source_type = 'job' and c.external_job_id = j.id and c.deleted_at is null
      ${whereSql}
      order by j.job_date desc, j.id desc
      limit ${pageSize} offset ${offset}`,
@@ -371,7 +669,7 @@ async function listContractJobs(queryParams = {}) {
 }
 
 async function getContractJobById(jobId) {
-  const rows = await query(
+  const rows = await runQuery(
     `select
        j.id, j.job_title, j.job_date, j.start_time, j.end_time, j.job_description,
        j.ekip, j.price, j.customer_id, j.customer_name as customer_name_snapshot,
@@ -387,7 +685,7 @@ async function getContractJobById(jobId) {
        case when c.id is null then 0 else 1 end as has_saved_contract
      from ${tables.jobs} j
      left join ${tables.customers} customers on customers.id = j.customer_id
-     left join ${tables.contracts} c on c.source_type = 'job' and c.external_job_id = j.id
+     left join ${tables.contracts} c on c.source_type = 'job' and c.external_job_id = j.id and c.deleted_at is null
      where j.id = ? and j.deleted_at is null
      limit 1`,
     [jobId],
@@ -434,6 +732,180 @@ function cleanTemplatePayload(template = {}) {
   }
 }
 
+function cleanDocumentTemplatePayload(template = {}) {
+  const documentType = normalizeDocumentType(template.document_type)
+  return {
+    id: template.id || makeId('doc_template'),
+    document_type: documentType,
+    name: String(template.name || '').trim(),
+    description: String(template.description || '').trim() || null,
+    title: String(template.title || '').trim() || '',
+    seller_entity_code: emptyToNull(template.seller_entity_code || template.entity_code),
+    document_number_pattern: template.document_number_pattern || getDocumentNumberPattern(documentType),
+    fields_config: toJson(template.fields_config || {}, {}),
+    numbering_config: toJson(template.numbering_config || {}, {}),
+    content_sections: toJson(Array.isArray(template.content_sections) ? template.content_sections : [], []),
+    terms_text: String(template.terms_text || '').trim(),
+    is_default: Boolean(template.is_default),
+    is_active: template.is_active !== false,
+    sort_order: Number(template.sort_order || 100),
+  }
+}
+
+function buildDocumentTemplateSnapshot(template = null) {
+  if (!template) return {}
+  const {
+    deleted_at: _deletedAt,
+    created_at,
+    updated_at,
+    ...snapshot
+  } = normalizeDocumentTemplateRow(template)
+  return {
+    ...snapshot,
+    snapshot_created_at: new Date().toISOString(),
+    template_created_at: created_at || null,
+    template_updated_at: updated_at || null,
+  }
+}
+
+function buildDocumentContractSnapshot(contract = {}) {
+  if (!contract) return {}
+  return {
+    id: contract.id,
+    quote_id: contract.quote_id || null,
+    quote_number: contract.quote_number || null,
+    source_type: contract.source_type || 'manual',
+    external_job_id: contract.external_job_id || null,
+    contract_number: contract.contract_number || '',
+    status: contract.status || 'draft',
+    title: contract.title || '',
+    seller_entity_code: contract.seller_entity_code || '',
+    seller_snapshot: contract.seller_snapshot || {},
+    customer_snapshot: contract.customer_snapshot || {},
+    party_role_config: contract.party_role_config || {},
+    service_scope: contract.service_scope || '',
+    schedule_rows: contract.schedule_rows || [],
+    quote_table_config: contract.quote_table_config || {},
+    payment_config: contract.payment_config || {},
+    quote_snapshot: contract.quote_snapshot || {},
+    source_snapshot: contract.source_snapshot || {},
+    updated_at: contract.updated_at || null,
+  }
+}
+
+const PUBLIC_PROFILE_FIELDS = [
+  'customer_code',
+  'company_name',
+  'entity_name_full',
+  'legal_name',
+  'name',
+  'tax_code',
+  'address',
+  'representative',
+  'position',
+  'authorization_number',
+  'authorization_date',
+  'bank_account',
+  'account_number',
+  'bank_name',
+  'account_holder',
+]
+
+function pickPublicProfile(profile = {}) {
+  return PUBLIC_PROFILE_FIELDS.reduce((payload, key) => {
+    if (profile?.[key] !== undefined && profile?.[key] !== null) payload[key] = profile[key]
+    return payload
+  }, {})
+}
+
+function buildPublicQuoteSnapshot(snapshot = {}) {
+  return {
+    has_vat: snapshot.has_vat !== false,
+    vat_mode: snapshot.vat_mode || '',
+    vat_rate: snapshot.vat_rate ?? null,
+    subtotal: Number(snapshot.subtotal || 0),
+    vat_amount: Number(snapshot.vat_amount || 0),
+    total_amount: Number(snapshot.total_amount || 0),
+  }
+}
+
+function buildPublicContractSnapshot(snapshot = {}) {
+  return {
+    contract_number: snapshot.contract_number || '',
+    status: snapshot.status || '',
+    title: snapshot.title || '',
+    seller_entity_code: snapshot.seller_entity_code || '',
+    seller_snapshot: pickPublicProfile(snapshot.seller_snapshot || {}),
+    customer_snapshot: pickPublicProfile(snapshot.customer_snapshot || {}),
+    party_role_config: snapshot.party_role_config || {},
+    service_scope: snapshot.service_scope || '',
+    schedule_rows: Array.isArray(snapshot.schedule_rows) ? snapshot.schedule_rows : [],
+    quote_table_config: snapshot.quote_table_config || {},
+    payment_config: snapshot.payment_config || {},
+    quote_snapshot: buildPublicQuoteSnapshot(snapshot.quote_snapshot || {}),
+    updated_at: snapshot.updated_at || null,
+  }
+}
+
+function sanitizePublicDeductionRows(rows = []) {
+  return (Array.isArray(rows) ? rows : []).map(row => ({
+    document_number: row.document_number || '',
+    document_title: row.document_title || row.title || '',
+    original_amount: Number(row.original_amount ?? row.advance_amount ?? 0),
+    deduction_amount: Number(row.deduction_amount ?? row.original_amount ?? row.advance_amount ?? 0),
+  }))
+}
+
+function sanitizePublicDocumentData(data = {}) {
+  const formData = { ...(data.form_data || {}) }
+  const amountConfig = { ...(data.amount_config || {}) }
+  delete formData.acceptance_document_id
+  delete amountConfig.acceptance_document_id
+  if (formData.advance_deductions) formData.advance_deductions = sanitizePublicDeductionRows(formData.advance_deductions)
+  if (data.advance_deductions) formData.advance_deductions = sanitizePublicDeductionRows(data.advance_deductions)
+  if (amountConfig.linked_advance_documents) {
+    amountConfig.linked_advance_documents = sanitizePublicDeductionRows(amountConfig.linked_advance_documents)
+  }
+
+  return {
+    form_data: formData,
+    amount_config: amountConfig,
+    amount: Number(data.amount || 0),
+    advance_amount: Number(data.advance_amount || 0),
+    acceptance_amount: Number(data.acceptance_amount || 0),
+    payment_amount: Number(data.payment_amount || 0),
+    note: data.note || '',
+    bank_account: data.bank_account || '',
+    advance_deductions: sanitizePublicDeductionRows(data.advance_deductions || formData.advance_deductions || []),
+  }
+}
+
+function buildPublicTemplateSnapshot(snapshot = {}) {
+  return {
+    document_type: snapshot.document_type || '',
+    name: snapshot.name || '',
+    title: snapshot.title || '',
+  }
+}
+
+function buildPublicDocumentDto(document = {}) {
+  if (!document) return null
+  const normalized = normalizeDocumentRow(document)
+  return {
+    document_type: normalized.document_type,
+    document_number: normalized.document_number,
+    title: normalized.title,
+    issued_date: normalized.issued_date,
+    created_at: normalized.created_at,
+    updated_at: normalized.updated_at,
+    template_snapshot: buildPublicTemplateSnapshot(normalized.template_snapshot || {}),
+    contract_snapshot: buildPublicContractSnapshot(normalized.contract_snapshot || {}),
+    document_data: sanitizePublicDocumentData(normalized.document_data || {}),
+    content_sections: Array.isArray(normalized.content_sections) ? normalized.content_sections : [],
+    terms_text: normalized.terms_text || '',
+  }
+}
+
 function normalizeCustomerRow(row = {}) {
   if (!row) return row
   return {
@@ -474,7 +946,7 @@ async function listCustomers(search = '') {
     params.push(`%${value}%`, `%${value}%`, `%${value}%`)
   }
 
-  const rows = await query(
+  const rows = await runQuery(
     `select id, ${CUSTOMER_COLUMNS.join(', ')}
      from ${tables.customers}
      ${whereSql}
@@ -489,7 +961,7 @@ async function getCustomerByCode(customerCode = '') {
   const code = String(customerCode || '').trim()
   if (!code) return null
 
-  const rows = await query(
+  const rows = await runQuery(
     `select id, ${CUSTOMER_COLUMNS.join(', ')}
      from ${tables.customers}
      where customer_code = ?
@@ -515,8 +987,8 @@ async function createCustomer(customer = {}) {
     throw error
   }
 
-  await withTransaction(async connection => {
-    await insertRow(connection, tables.customers, payload)
+  await runTransaction(async connection => {
+    await insertDataRow(connection, tables.customers, payload)
   })
 
   return getCustomerByCode(payload.customer_code)
@@ -537,7 +1009,7 @@ async function saveTemplate(template = {}) {
     throw error
   }
 
-  await withTransaction(async connection => {
+  await runTransaction(async connection => {
     if (payload.is_default) {
       await connection.query(
         `update ${tables.contractTemplates} set is_default = 0 where is_default = 1 and id <> ?`,
@@ -591,13 +1063,394 @@ async function saveTemplate(template = {}) {
     )
   })
 
-  const rows = await query(`select * from ${tables.contractTemplates} where id = ? limit 1`, [payload.id])
+  const rows = await runQuery(`select * from ${tables.contractTemplates} where id = ? limit 1`, [payload.id])
   return normalizeTemplateRow(rows?.[0])
 }
 
+async function saveDocumentTemplate(template = {}) {
+  const payload = cleanDocumentTemplatePayload(template)
+
+  if (!payload.document_type) {
+    const error = new Error('Loai chung tu khong hop le.')
+    error.statusCode = 400
+    throw error
+  }
+
+  if (!payload.name) {
+    const error = new Error('Thieu ten mau chung tu.')
+    error.statusCode = 400
+    throw error
+  }
+
+  await runTransaction(async connection => {
+    if (payload.is_default) {
+      await connection.query(
+        `update ${tables.contractDocumentTemplates}
+         set is_default = 0
+         where deleted_at is null and document_type = ? and is_default = 1 and id <> ?`,
+        [payload.document_type, payload.id],
+      )
+    }
+
+    await connection.query(
+      `insert into ${tables.contractDocumentTemplates}
+       (id, document_type, name, description, title, seller_entity_code, document_number_pattern,
+        fields_config, numbering_config, content_sections, terms_text, is_default, is_active, sort_order)
+       values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       on duplicate key update
+        document_type = values(document_type),
+        name = values(name),
+        description = values(description),
+        title = values(title),
+        seller_entity_code = values(seller_entity_code),
+        document_number_pattern = values(document_number_pattern),
+        fields_config = values(fields_config),
+        numbering_config = values(numbering_config),
+        content_sections = values(content_sections),
+        terms_text = values(terms_text),
+        is_default = values(is_default),
+        is_active = values(is_active),
+        sort_order = values(sort_order),
+        deleted_at = null,
+        updated_at = current_timestamp(3)`,
+      [
+        payload.id,
+        payload.document_type,
+        payload.name,
+        payload.description,
+        payload.title,
+        payload.seller_entity_code,
+        payload.document_number_pattern,
+        payload.fields_config,
+        payload.numbering_config,
+        payload.content_sections,
+        payload.terms_text,
+        payload.is_default,
+        payload.is_active,
+        payload.sort_order,
+      ],
+    )
+  })
+
+  return getDocumentTemplateById(payload.id)
+}
+
 async function deleteTemplate(id) {
-  await query(`delete from ${tables.contractTemplates} where id = ?`, [id])
+  await runQuery(`delete from ${tables.contractTemplates} where id = ?`, [id])
   return { ok: true }
+}
+
+async function deleteDocumentTemplate(id) {
+  await runQuery(
+    `update ${tables.contractDocumentTemplates}
+     set deleted_at = current_timestamp(3), is_active = 0
+     where id = ? and deleted_at is null`,
+    [id],
+  )
+  return { ok: true }
+}
+
+async function getContractForDocument(contractId) {
+  const contract = await getContractById(contractId)
+  if (!contract?.id) {
+    const error = new Error('Khong tim thay hop dong.')
+    error.statusCode = 404
+    throw error
+  }
+  return contract
+}
+
+async function getDocumentById(id, { includeDeleted = false } = {}) {
+  const where = includeDeleted ? 'id = ?' : 'id = ? and deleted_at is null'
+  const rows = await runQuery(`select * from ${tables.contractDocuments} where ${where} limit 1`, [id])
+  return rows?.[0] ? normalizeDocumentRow(rows[0]) : null
+}
+
+async function getDocumentByShareToken(shareToken) {
+  const rows = await runQuery(
+    `select d.*
+     from ${tables.contractDocuments} d
+     inner join ${tables.contracts} c on c.id = d.contract_id and c.deleted_at is null
+     where d.share_token = ? and d.deleted_at is null
+     limit 1`,
+    [shareToken],
+  )
+  return rows?.[0] ? buildPublicDocumentDto(rows[0]) : null
+}
+
+async function getActiveDocumentReference(id) {
+  if (!id) return null
+  const rows = await runQuery(
+    `select id, contract_id, document_type, document_number, title
+     from ${tables.contractDocuments}
+     where id = ? and deleted_at is null
+     limit 1`,
+    [id],
+  )
+  return rows?.[0] || null
+}
+
+function getPaymentDocumentLinks(documentData = {}) {
+  const formData = documentData.form_data || {}
+  const amountConfig = documentData.amount_config || {}
+  const acceptanceDocumentId = formData.acceptance_document_id
+    || documentData.acceptance_document_id
+    || amountConfig.acceptance_document_id
+    || ''
+  const advanceDeductions = Array.isArray(formData.advance_deductions)
+    ? formData.advance_deductions
+    : Array.isArray(documentData.advance_deductions)
+      ? documentData.advance_deductions
+      : Array.isArray(amountConfig.linked_advance_documents)
+        ? amountConfig.linked_advance_documents
+        : []
+
+  return {
+    acceptanceDocumentId,
+    advanceDocumentIds: [...new Set(advanceDeductions.map(row => row.document_id || row.id).filter(Boolean))],
+  }
+}
+
+async function validatePaymentDocumentLinks({ contractId, documentData, currentDocumentId }) {
+  const { acceptanceDocumentId, advanceDocumentIds } = getPaymentDocumentLinks(documentData)
+  if (!acceptanceDocumentId) {
+    throw makeHttpError('De nghi thanh toan can lien ket voi mot BBNT.', 400, 'PAYMENT_ACCEPTANCE_REQUIRED')
+  }
+
+  const acceptance = await getActiveDocumentReference(acceptanceDocumentId)
+  if (
+    !acceptance
+    || acceptance.id === currentDocumentId
+    || acceptance.contract_id !== contractId
+    || acceptance.document_type !== 'acceptance_liquidation'
+  ) {
+    throw makeHttpError('BBNT lien ket khong hop le hoac da bi xoa.', 400, 'PAYMENT_ACCEPTANCE_INVALID')
+  }
+
+  for (const advanceDocumentId of advanceDocumentIds) {
+    const advance = await getActiveDocumentReference(advanceDocumentId)
+    if (
+      !advance
+      || advance.id === currentDocumentId
+      || advance.contract_id !== contractId
+      || advance.document_type !== 'advance_request'
+    ) {
+      throw makeHttpError('De nghi tam ung khau tru khong hop le hoac da bi xoa.', 400, 'PAYMENT_ADVANCE_INVALID')
+    }
+  }
+}
+
+async function listDocumentsByContract(queryParams = {}) {
+  const contractId = getQueryValue(queryParams.contract_id, '')
+  if (!contractId) {
+    const error = new Error('Thieu contract id.')
+    error.statusCode = 400
+    throw error
+  }
+
+  const documentType = normalizeDocumentType(getQueryValue(queryParams.document_type, ''))
+  const where = ['contract_id = ?', 'deleted_at is null']
+  const params = [contractId]
+  if (documentType) {
+    where.push('document_type = ?')
+    params.push(documentType)
+  }
+
+  const rows = await runQuery(
+    `select * from ${tables.contractDocuments}
+     where ${where.join(' and ')}
+     order by issued_date desc, created_at desc`,
+    params,
+  )
+  return rows.map(normalizeDocumentRow)
+}
+
+async function allocateDocumentNumber(connection, {
+  documentId,
+  documentType,
+  sellerEntityCode,
+  customerCode,
+  sequenceYear,
+  pattern,
+}) {
+  const counterId = `${sellerEntityCode}:${documentType}:${sequenceYear}`
+  await connection.query(
+    `insert into ${tables.contractDocumentNumberCounters}
+     (id, seller_entity_code, document_type, sequence_year, last_sequence)
+     values (?, ?, ?, ?, 1)
+     on duplicate key update last_sequence = last_sequence + 1, updated_at = current_timestamp(3)`,
+    [counterId, sellerEntityCode, documentType, sequenceYear],
+  )
+  const [counterRows] = await connection.query(
+    `select last_sequence from ${tables.contractDocumentNumberCounters} where id = ? limit 1`,
+    [counterId],
+  )
+  const sequenceNumber = Number(counterRows?.[0]?.last_sequence || 1)
+  const documentNumber = renderDocumentNumber(pattern, {
+    sequence: formatSequenceNumber(sequenceNumber),
+    document_type: documentType,
+    document_type_code: CONTRACT_DOCUMENT_TYPE_CODES[documentType] || documentType.toUpperCase(),
+    seller: sellerEntityCode,
+    customer: customerCode,
+    year: String(sequenceYear),
+  })
+  const ledgerId = makeId('doc_no')
+  await insertDataRow(connection, tables.contractDocumentNumberLedger, {
+    id: ledgerId,
+    document_id: documentId,
+    seller_entity_code: sellerEntityCode,
+    document_type: documentType,
+    sequence_year: sequenceYear,
+    sequence_number: sequenceNumber,
+    document_number: documentNumber,
+  })
+  return { sequenceNumber, documentNumber }
+}
+
+async function cleanDocumentPayload(document = {}, existing = null) {
+  const contractId = document.contract_id || existing?.contract_id
+  const contract = await getContractForDocument(contractId)
+  const documentType = normalizeDocumentType(document.document_type || existing?.document_type)
+  const status = normalizeDocumentStatus(document.status || existing?.status || 'draft')
+  const documentData = document.document_data || document.data || existing?.document_data || {}
+
+  if (!documentType) {
+    const error = new Error('Loai chung tu khong hop le.')
+    error.statusCode = 400
+    throw error
+  }
+
+  if (existing?.id && existing.document_type !== documentType) {
+    const error = new Error('Khong doi loai chung tu sau khi da tao so.')
+    error.statusCode = 400
+    throw error
+  }
+
+  const explicitTemplateSnapshot = document.template_snapshot && Object.keys(document.template_snapshot).length
+    ? document.template_snapshot
+    : null
+  const templateId = document.template_id || existing?.template_id || null
+  const template = templateId ? await getDocumentTemplateById(templateId) : null
+  const templateSnapshot = existing?.template_snapshot && !document.refresh_template_snapshot
+    ? existing.template_snapshot
+    : explicitTemplateSnapshot || buildDocumentTemplateSnapshot(template)
+  const autoSyncContract = document.auto_sync_contract ?? existing?.auto_sync_contract ?? true
+  const contractSnapshot = autoSyncContract && OPEN_DOCUMENT_STATUSES.has(status)
+    ? buildDocumentContractSnapshot(contract)
+    : document.contract_snapshot || existing?.contract_snapshot || buildDocumentContractSnapshot(contract)
+  const sellerEntityCode = String(
+    existing?.seller_entity_code
+      || document.seller_entity_code
+      || template?.seller_entity_code
+      || contract.seller_entity_code
+      || 'EVT',
+  ).trim()
+  const sequenceYear = existing?.sequence_year || normalizeSequenceYear(document.sequence_year || document.issued_date)
+  const documentNumberPattern = existing?.document_number_pattern
+    || document.document_number_pattern
+    || template?.document_number_pattern
+    || getDocumentNumberPattern(documentType)
+
+  if (documentType === 'payment_request') {
+    await validatePaymentDocumentLinks({
+      contractId: contract.id,
+      documentData,
+      currentDocumentId: existing?.id || document.id || '',
+    })
+  }
+
+  return {
+    contract,
+    payload: {
+      contract_id: contract.id,
+      document_type: documentType,
+      status,
+      template_id: templateId,
+      title: String(document.title || existing?.title || template?.title || '').trim(),
+      seller_entity_code: sellerEntityCode,
+      document_number_pattern: documentNumberPattern,
+      sequence_year: sequenceYear,
+      issued_date: emptyToNull(document.issued_date || existing?.issued_date),
+      finalized_at: status === 'finalized'
+        ? toMysqlDateTime(document.finalized_at || existing?.finalized_at || new Date())
+        : toMysqlDateTime(document.finalized_at || existing?.finalized_at),
+      share_token: document.share_token || existing?.share_token || makeShareToken(),
+      template_snapshot: toJson(templateSnapshot, {}),
+      contract_snapshot: toJson(contractSnapshot, {}),
+      document_data: toJson(documentData, {}),
+      content_sections: toJson(
+        Array.isArray(document.content_sections)
+          ? document.content_sections
+          : existing?.content_sections || template?.content_sections || [],
+        [],
+      ),
+      terms_text: document.terms_text ?? existing?.terms_text ?? template?.terms_text ?? '',
+      auto_sync_contract: Boolean(autoSyncContract),
+    },
+    customerCode: getContractCustomerCode(contract),
+  }
+}
+
+async function saveDocument(document = {}) {
+  let existing = null
+  if (document.id) existing = await getDocumentById(document.id)
+  const id = existing?.id || document.id || makeId('doc')
+  const { payload, customerCode } = await cleanDocumentPayload(document, existing)
+
+  await runTransaction(async connection => {
+    let sequenceNumber = existing?.sequence_number || Number(document.sequence_number || 0)
+    let documentNumber = existing?.document_number || document.document_number || ''
+
+    if (!existing?.id) {
+      const allocated = await allocateDocumentNumber(connection, {
+        documentId: id,
+        documentType: payload.document_type,
+        sellerEntityCode: payload.seller_entity_code,
+        customerCode,
+        sequenceYear: payload.sequence_year,
+        pattern: payload.document_number_pattern,
+      })
+      sequenceNumber = allocated.sequenceNumber
+      documentNumber = allocated.documentNumber
+    }
+
+    const rowPayload = {
+      ...payload,
+      sequence_number: sequenceNumber,
+      document_number: documentNumber,
+    }
+
+    if (existing?.id) {
+      await updateDataRow(connection, tables.contractDocuments, rowPayload, 'id = ?', [existing.id])
+    } else {
+      await insertDataRow(connection, tables.contractDocuments, { id, ...rowPayload })
+    }
+  })
+
+  return getDocumentById(id)
+}
+
+async function deleteDocument(id) {
+  await runQuery(
+    `update ${tables.contractDocuments}
+     set deleted_at = current_timestamp(3)
+     where id = ? and deleted_at is null`,
+    [id],
+  )
+  return { ok: true }
+}
+
+async function syncOpenContractDocuments(connection, contract = {}) {
+  if (!contract?.id) return
+  await connection.query(
+    `update ${tables.contractDocuments}
+     set contract_snapshot = ?, updated_at = current_timestamp(3)
+     where contract_id = ?
+       and deleted_at is null
+       and auto_sync_contract = 1
+       and status in ('draft', 'open')`,
+    [toJson(buildDocumentContractSnapshot(contract), {}), contract.id],
+  )
 }
 
 async function deleteContract({ id, quoteId } = {}) {
@@ -607,13 +1460,39 @@ async function deleteContract({ id, quoteId } = {}) {
     throw error
   }
 
-  if (id) await query(`delete from ${tables.contracts} where id = ?`, [id])
-  else await query(`delete from ${tables.contracts} where quote_id = ?`, [quoteId])
+  await runTransaction(async connection => {
+    const whereSql = id ? 'id = ?' : 'quote_id = ?'
+    const params = [id || quoteId]
+    const [rows] = await connection.query(
+      `select id from ${tables.contracts} where ${whereSql} and deleted_at is null`,
+      params,
+    )
+    const contractIds = rows.map(row => row.id)
+    if (!contractIds.length) return
+
+    await connection.query(
+      `update ${tables.contracts}
+       set deleted_at = current_timestamp(3), updated_at = current_timestamp(3)
+       where ${whereSql}`,
+      params,
+    )
+    await connection.query(
+      `update ${tables.contractDocuments}
+       set deleted_at = current_timestamp(3), updated_at = current_timestamp(3)
+       where contract_id in (${contractIds.map(() => '?').join(', ')}) and deleted_at is null`,
+      contractIds,
+    )
+  })
   return { ok: true }
 }
 
 async function getContractById(id) {
-  const rows = await query(`select * from ${tables.contracts} where id = ? limit 1`, [id])
+  const rows = await runQuery(`select * from ${tables.contracts} where id = ? and deleted_at is null limit 1`, [id])
+  return rows?.[0] ? normalizeContractRow(rows[0]) : null
+}
+
+async function getContractByIdIncludingDeleted(id) {
+  const rows = await runQuery(`select * from ${tables.contracts} where id = ? limit 1`, [id])
   return rows?.[0] ? normalizeContractRow(rows[0]) : null
 }
 
@@ -628,21 +1507,47 @@ async function getContractByIdOrShareToken(identifier) {
 }
 
 async function getContractByQuoteId(quoteId) {
-  const rows = await query(`select * from ${tables.contracts} where quote_id = ? limit 1`, [quoteId])
+  const rows = await runQuery(`select * from ${tables.contracts} where quote_id = ? and deleted_at is null limit 1`, [quoteId])
   return rows?.[0] ? normalizeContractRow(rows[0]) : null
 }
 
 async function getContractByJobId(jobId) {
-  const rows = await query(
-    `select * from ${tables.contracts} where source_type = 'job' and external_job_id = ? limit 1`,
+  const rows = await runQuery(
+    `select * from ${tables.contracts}
+     where source_type = 'job' and external_job_id = ? and deleted_at is null
+     limit 1`,
     [jobId],
   )
   return rows?.[0] ? normalizeContractRow(rows[0]) : null
 }
 
 async function getContractByShareToken(shareToken) {
-  const rows = await query(`select * from ${tables.contracts} where share_token = ? limit 1`, [shareToken])
+  const rows = await runQuery(
+    `select * from ${tables.contracts} where share_token = ? and deleted_at is null limit 1`,
+    [shareToken],
+  )
   return rows?.[0] ? normalizeContractRow(rows[0]) : null
+}
+
+async function getDeletedContractBySource({ id, quoteId, sourceType, externalJobId } = {}) {
+  if (id) return getContractByIdIncludingDeleted(id)
+  if (quoteId) {
+    const rows = await runQuery(
+      `select * from ${tables.contracts} where quote_id = ? and deleted_at is not null limit 1`,
+      [quoteId],
+    )
+    return rows?.[0] ? normalizeContractRow(rows[0]) : null
+  }
+  if (sourceType === 'job' && externalJobId) {
+    const rows = await runQuery(
+      `select * from ${tables.contracts}
+       where source_type = 'job' and external_job_id = ? and deleted_at is not null
+       limit 1`,
+      [externalJobId],
+    )
+    return rows?.[0] ? normalizeContractRow(rows[0]) : null
+  }
+  return null
 }
 
 async function getPublicContractByToken(shareToken) {
@@ -686,6 +1591,7 @@ function cleanContractPayload(contract = {}) {
     terms_text: contract.terms_text || '',
     quote_snapshot: toJson(contract.quote_snapshot || {}, {}),
     source_snapshot: toJson(contract.source_snapshot || {}, {}),
+    deleted_at: null,
   }
 }
 
@@ -711,9 +1617,16 @@ async function saveContract(contract = {}) {
   }
 
   let existing = null
-  if (contract.id) existing = await getContractById(contract.id)
+  if (contract.id) existing = await getContractByIdIncludingDeleted(contract.id)
   if (!existing && payload.quote_id) existing = await getContractByQuoteId(payload.quote_id)
   if (!existing && payload.source_type === 'job') existing = await getContractByJobId(payload.external_job_id)
+  if (!existing) {
+    existing = await getDeletedContractBySource({
+      quoteId: payload.quote_id,
+      sourceType: payload.source_type,
+      externalJobId: payload.external_job_id,
+    })
+  }
 
   if (!existing && payload.quote_id) {
     const quote = await getQuoteById(payload.quote_id)
@@ -732,27 +1645,51 @@ async function saveContract(contract = {}) {
   }
 
   if (existing?.id) {
-    await withTransaction(async connection => {
-      await updateRow(connection, tables.contracts, payload, 'id = ?', [existing.id])
+    await runTransaction(async connection => {
+      await updateDataRow(connection, tables.contracts, payload, 'id = ?', [existing.id])
     })
-    return getContractById(existing.id)
+    const saved = await getContractById(existing.id)
+    await runTransaction(async connection => {
+      await syncOpenContractDocuments(connection, saved)
+    })
+    return saved
   }
 
   const id = contract.id || makeId('contract')
-  await withTransaction(async connection => {
-    await insertRow(connection, tables.contracts, { id, ...payload })
+  await runTransaction(async connection => {
+    await insertDataRow(connection, tables.contracts, { id, ...payload })
   })
   return getContractById(id)
 }
 
+export const __contractsTestInternals = Object.freeze({
+  deleteContract,
+  deleteDocument,
+  getDocumentById,
+  getDocumentByShareToken,
+  listDocumentsByContract,
+  saveContract,
+  saveDocument,
+})
+
 export default async function handler(req, res) {
   try {
-    if (!isPublicContractRequest(req) && !await requireEventusAuth(req, res)) return
+    if (!isPublicContractRequest(req) && !await contractsApiDeps.requireEventusAuth(req, res)) return
 
     if (req.method === 'GET') {
       const resource = getQueryValue(req.query?.resource, 'templates')
       if (resource === 'templates') {
         return res.status(200).json({ templates: await listTemplates() })
+      }
+
+      if (resource === 'document_templates') {
+        return res.status(200).json({ templates: await listDocumentTemplates(req.query || {}) })
+      }
+
+      if (resource === 'document_template') {
+        const id = getQueryValue(req.query?.id, '')
+        if (!id) return res.status(400).json({ error: 'Thieu template id.' })
+        return res.status(200).json({ template: await getDocumentTemplateById(id) })
       }
 
       if (resource === 'contracts') {
@@ -785,6 +1722,22 @@ export default async function handler(req, res) {
         return res.status(200).json({ contract: await getPublicContractByToken(token) })
       }
 
+      if (resource === 'documents' || resource === 'contract_documents') {
+        return res.status(200).json({ documents: await listDocumentsByContract(req.query || {}) })
+      }
+
+      if (resource === 'document' || resource === 'contract_document') {
+        const id = getQueryValue(req.query?.id, '')
+        if (!id) return res.status(400).json({ error: 'Thieu document id.' })
+        return res.status(200).json({ document: await getDocumentById(id) })
+      }
+
+      if (resource === 'public_document') {
+        const token = getQueryValue(req.query?.token || req.query?.share_token, '')
+        if (!token) return res.status(400).json({ error: 'Thieu share token.' })
+        return res.status(200).json({ document: await getDocumentByShareToken(token) })
+      }
+
       if (resource === 'customers') {
         const search = getQueryValue(req.query?.search, '')
         return res.status(200).json({ customers: await listCustomers(search) })
@@ -805,8 +1758,16 @@ export default async function handler(req, res) {
         return res.status(200).json({ template: await saveTemplate(body.template || {}) })
       }
 
+      if (body.resource === 'document_template') {
+        return res.status(200).json({ template: await saveDocumentTemplate(body.template || {}) })
+      }
+
       if (body.resource === 'contract') {
         return res.status(200).json({ contract: await saveContract(body.contract || {}) })
+      }
+
+      if (body.resource === 'document' || body.resource === 'contract_document') {
+        return res.status(200).json({ document: await saveDocument(body.document || {}) })
       }
 
       if (body.resource === 'customer') {
@@ -824,9 +1785,19 @@ export default async function handler(req, res) {
         return res.status(200).json(await deleteTemplate(id))
       }
 
+      if (resource === 'document_template') {
+        if (!id) return res.status(400).json({ error: 'Thieu template id.' })
+        return res.status(200).json(await deleteDocumentTemplate(id))
+      }
+
       if (resource === 'contract') {
         const quoteId = getQueryValue(req.query?.quote_id, '')
         return res.status(200).json(await deleteContract({ id, quoteId }))
+      }
+
+      if (resource === 'document' || resource === 'contract_document') {
+        if (!id) return res.status(400).json({ error: 'Thieu document id.' })
+        return res.status(200).json(await deleteDocument(id))
       }
 
       return res.status(400).json({ error: 'Resource khong hop le.' })

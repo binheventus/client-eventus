@@ -1,0 +1,1359 @@
+import { useEffect, useMemo, useState } from 'react'
+import { AlertTriangle, Check, Copy, Edit3, FileText, Link, Plus, RefreshCw, Trash2, X } from 'lucide-react'
+import ContractDocumentDocxDownloadButton from './ContractDocumentDocxDownloadButton'
+import ContractDocumentPDFDownloadButton from './ContractDocumentPDFDownloadButton'
+import {
+  deleteContractDocument,
+  listContractDocumentTemplates,
+  listContractDocuments,
+  saveContractDocument,
+} from '../hooks/useContracts'
+import {
+  buildDocumentTemplateSnapshot,
+  CONTRACT_DOCUMENT_TYPES as DOCUMENT_TYPES,
+  getDefaultDocumentTemplate,
+} from '../lib/contractDocumentTemplates'
+import {
+  buildContractValueRows,
+  calculateAdvanceAmount,
+  calculateAdvancePercent,
+  calculatePaymentSummary,
+  calculateTableTotals,
+  getContractTotal,
+  getContractVatConfig,
+  getCustomerValidationWarnings,
+  normalizeAmountRows,
+  roundDocumentCurrency,
+  toDocumentNumber,
+} from '../lib/contractDocumentEditor'
+import { getContractDocumentValidationWarnings } from '../lib/contractDocumentRender'
+import { formatQuoteCurrency, formatQuoteDate } from '../lib/quoteList'
+
+function Field({ label, children, className = '' }) {
+  return (
+    <label className={`block ${className}`}>
+      <span className="mb-1.5 block text-[12px] font-semibold text-slate-600">{label}</span>
+      {children}
+    </label>
+  )
+}
+
+function TextInput(props) {
+  return (
+    <input
+      {...props}
+      className={`w-full rounded-xl border border-slate-200 px-3 py-2.5 text-[13px] outline-none transition placeholder:text-slate-300 focus:border-[#f8981d] focus:ring-2 focus:ring-orange-100 disabled:bg-slate-50 disabled:text-slate-400 ${props.className || ''}`}
+    />
+  )
+}
+
+function Textarea(props) {
+  return (
+    <textarea
+      {...props}
+      className={`w-full rounded-xl border border-slate-200 px-3 py-3 text-[13px] leading-6 outline-none transition placeholder:text-slate-300 focus:border-[#f8981d] focus:ring-2 focus:ring-orange-100 ${props.className || ''}`}
+    />
+  )
+}
+
+function Select(props) {
+  return (
+    <select
+      {...props}
+      className={`w-full rounded-xl border border-slate-200 px-3 py-2.5 text-[13px] outline-none transition focus:border-[#f8981d] focus:ring-2 focus:ring-orange-100 disabled:bg-slate-50 disabled:text-slate-400 ${props.className || ''}`}
+    />
+  )
+}
+
+function getTodayInputDate() {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function toDateInputValue(value) {
+  if (!value) return ''
+  const text = String(value)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text
+  const date = new Date(text)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toISOString().slice(0, 10)
+}
+
+function parseCurrencyInput(value) {
+  const clean = String(value || '').replace(/[^\d]/g, '')
+  return clean ? Number(clean) : 0
+}
+
+function parseSignedCurrencyInput(value) {
+  const text = String(value || '').trim()
+  const clean = text.replace(/[^\d]/g, '')
+  if (!clean) return 0
+  const negative = text.startsWith('-') || /^\(.*\)$/.test(text)
+  return negative ? -Number(clean) : Number(clean)
+}
+
+function formatCurrencyInput(value) {
+  const number = Number(value || 0)
+  if (!number) return ''
+  return formatQuoteCurrency(number)
+}
+
+function getDefaultBankAccount(contract = {}) {
+  const seller = contract.seller_snapshot || {}
+  const accountNumber = seller.bank_account || seller.account_number || ''
+  const bankName = seller.bank_name || ''
+  const accountHolder = seller.account_holder || seller.entity_name_full || seller.legal_name || seller.name || ''
+  return [accountNumber, bankName, accountHolder].filter(Boolean).join(' - ')
+}
+
+function getOpenSyncedContract(document = null, contract = {}) {
+  const status = String(document?.status || 'draft')
+  const canSync = !document?.id || (document?.auto_sync_contract !== false && ['draft', 'open'].includes(status))
+  return canSync ? contract || document?.contract_snapshot || {} : document?.contract_snapshot || contract || {}
+}
+
+function makeAmountRow(prefix = 'row') {
+  return {
+    id: `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+    description: '',
+    unit: 'Gói',
+    quantity: 1,
+    unit_price: 0,
+    amount: 0,
+  }
+}
+
+function getDocumentAmount(document = {}) {
+  const data = document?.document_data || {}
+  const amountConfig = data.amount_config || {}
+  return Number(
+    amountConfig.payment_amount ??
+    amountConfig.acceptance_actual_total ??
+    amountConfig.advance_amount ??
+    data.payment_amount ??
+    data.acceptance_amount ??
+    data.advance_amount ??
+    data.amount ??
+    0
+  )
+}
+
+function getAcceptanceDocumentTotal(document = {}) {
+  const data = document?.document_data || {}
+  const amountConfig = data.amount_config || {}
+  return Number(
+    amountConfig.acceptance_actual_total ??
+    amountConfig.acceptance_amount ??
+    data.acceptance_amount ??
+    data.amount ??
+    0
+  )
+}
+
+function getAdvanceDocumentAmount(document = {}) {
+  const data = document?.document_data || {}
+  const amountConfig = data.amount_config || {}
+  return Number(
+    amountConfig.advance_amount ??
+    data.advance_amount ??
+    data.amount ??
+    0
+  )
+}
+
+function getDocumentDisplayName(document = {}) {
+  return document.document_number || document.title || document.id || 'Chứng từ'
+}
+
+function getPublicDocumentUrl(document = {}) {
+  if (!document.share_token) return ''
+  return `${window.location.origin}/d/${encodeURIComponent(document.share_token)}`
+}
+
+function normalizePaymentDeductions(rows = [], advanceDocuments = []) {
+  const byId = new Map(advanceDocuments.map(row => [row.id, row]))
+  return (Array.isArray(rows) ? rows : [])
+    .map(row => {
+      const documentId = row.document_id || row.id || ''
+      const linkedDocument = byId.get(documentId)
+      const originalAmount = linkedDocument ? getAdvanceDocumentAmount(linkedDocument) : Number(row.original_amount || row.advance_amount || 0)
+      return {
+        document_id: documentId,
+        document_number: linkedDocument?.document_number || row.document_number || '',
+        document_title: linkedDocument?.title || row.document_title || row.title || '',
+        original_amount: originalAmount,
+        deduction_amount: Number(row.deduction_amount ?? originalAmount),
+      }
+    })
+    .filter(row => row.document_id)
+}
+
+function buildAdvanceFormData(document = null, contract = {}) {
+  const data = document?.document_data || {}
+  const savedFormData = data.form_data || {}
+  const amountConfig = data.amount_config || {}
+  const syncContractValue = savedFormData.sync_contract_value ?? amountConfig.sync_contract_value ?? true
+  const liveContractValue = getContractTotal(contract)
+  const contractValue = syncContractValue
+    ? liveContractValue
+    : roundDocumentCurrency(savedFormData.contract_value ?? amountConfig.contract_value ?? liveContractValue)
+  const defaultPercent = Number(contract.payment_config?.deposit_percent ?? 0)
+  const savedAmount = savedFormData.advance_amount ?? amountConfig.advance_amount ?? data.advance_amount ?? data.amount
+  const advancePercent = Number(savedFormData.advance_percent ?? amountConfig.advance_percent ?? (savedAmount ? calculateAdvancePercent(contractValue, savedAmount) : defaultPercent))
+  const advanceAmount = roundDocumentCurrency(savedAmount ?? calculateAdvanceAmount(contractValue, advancePercent))
+
+  return {
+    contract_value: contractValue,
+    sync_contract_value: syncContractValue,
+    advance_percent: advancePercent,
+    advance_amount: advanceAmount,
+    request_content: savedFormData.request_content || data.note || 'Kính đề nghị Quý khách hàng thanh toán khoản tạm ứng theo điều khoản thanh toán của hợp đồng.',
+    bank_account: savedFormData.bank_account || data.bank_account || getDefaultBankAccount(contract),
+  }
+}
+
+function buildAcceptanceFormData(document = null, contract = {}) {
+  const data = document?.document_data || {}
+  const savedFormData = data.form_data || {}
+  const amountConfig = data.amount_config || {}
+  const fallbackRows = buildContractValueRows(contract)
+  const syncContractRows = savedFormData.sync_contract_rows ?? amountConfig.sync_contract_rows ?? true
+  const contractRows = syncContractRows
+    ? normalizeAmountRows(fallbackRows)
+    : normalizeAmountRows(savedFormData.contract_rows || data.contract_rows, fallbackRows)
+  const syncActualRows = savedFormData.sync_actual_rows ?? amountConfig.sync_actual_rows ?? true
+  const actualRows = syncActualRows
+    ? normalizeAmountRows(contractRows)
+    : normalizeAmountRows(savedFormData.actual_rows || data.actual_rows, contractRows)
+
+  return {
+    contract_rows: contractRows,
+    actual_rows: actualRows,
+    sync_contract_rows: syncContractRows,
+    sync_actual_rows: syncActualRows,
+    acceptance_note: savedFormData.acceptance_note || data.note || 'Hai bên xác nhận khối lượng công việc đã hoàn thành, nghiệm thu đạt và làm cơ sở thanh toán/thanh lý hợp đồng.',
+    acceptance_result: savedFormData.acceptance_result || 'accepted',
+  }
+}
+
+function buildPaymentFormData(document = null, contract = {}, documents = []) {
+  const data = document?.document_data || {}
+  const savedFormData = data.form_data || {}
+  const amountConfig = data.amount_config || {}
+  const acceptanceDocuments = documents.filter(row => row.document_type === 'acceptance_liquidation' && row.id !== document?.id)
+  const advanceDocuments = documents.filter(row => row.document_type === 'advance_request' && row.id !== document?.id)
+  const defaultAcceptanceId = acceptanceDocuments.length === 1 ? acceptanceDocuments[0].id : ''
+  const acceptanceDocumentId = savedFormData.acceptance_document_id || data.acceptance_document_id || amountConfig.acceptance_document_id || defaultAcceptanceId
+  const selectedAcceptance = acceptanceDocuments.find(row => row.id === acceptanceDocumentId)
+  const acceptanceTotal = selectedAcceptance
+    ? getAcceptanceDocumentTotal(selectedAcceptance)
+    : Number(savedFormData.acceptance_total ?? amountConfig.acceptance_total ?? 0)
+
+  return {
+    acceptance_document_id: acceptanceDocumentId,
+    acceptance_total: acceptanceTotal,
+    advance_deductions: normalizePaymentDeductions(
+      savedFormData.advance_deductions || data.advance_deductions || amountConfig.linked_advance_documents || [],
+      advanceDocuments,
+    ),
+    request_content: savedFormData.request_content || data.note || 'Kính đề nghị Quý khách hàng thanh toán giá trị còn lại theo BBNT đã liên kết và các khoản tạm ứng đã khấu trừ.',
+    bank_account: savedFormData.bank_account || data.bank_account || getDefaultBankAccount(contract),
+  }
+}
+
+function buildDocumentFormData(document = null, documentType = 'advance_request', contract = {}, documents = []) {
+  if (documentType === 'acceptance_liquidation') return buildAcceptanceFormData(document, contract)
+  if (documentType === 'payment_request') return buildPaymentFormData(document, contract, documents)
+  return buildAdvanceFormData(document, contract)
+}
+
+function buildDocumentAmountConfig(draft = {}, documents = []) {
+  const contractSource = draft.contract_source || {}
+  const vatConfig = getContractVatConfig(contractSource)
+  const formData = draft.form_data || {}
+
+  if (draft.document_type === 'acceptance_liquidation') {
+    const contractTotals = calculateTableTotals(formData.contract_rows || [], vatConfig)
+    const actualTotals = calculateTableTotals(formData.actual_rows || [], vatConfig)
+    return {
+      ...vatConfig,
+      sync_contract_rows: formData.sync_contract_rows !== false,
+      sync_actual_rows: formData.sync_actual_rows !== false,
+      contract_subtotal: contractTotals.subtotal,
+      contract_vat_amount: contractTotals.vat_amount,
+      contract_total: contractTotals.total_amount,
+      acceptance_subtotal: actualTotals.subtotal,
+      acceptance_vat_amount: actualTotals.vat_amount,
+      acceptance_actual_total: actualTotals.total_amount,
+      acceptance_amount: actualTotals.total_amount,
+      amount: actualTotals.total_amount,
+    }
+  }
+
+  if (draft.document_type === 'payment_request') {
+    const selectedAcceptance = documents.find(row => row.id === formData.acceptance_document_id)
+    const acceptanceTotal = selectedAcceptance
+      ? getAcceptanceDocumentTotal(selectedAcceptance)
+      : Number(formData.acceptance_total || 0)
+    const summary = calculatePaymentSummary(acceptanceTotal, formData.advance_deductions || [])
+    return {
+      ...vatConfig,
+      acceptance_document_id: formData.acceptance_document_id || '',
+      linked_advance_documents: formData.advance_deductions || [],
+      ...summary,
+      amount: summary.payment_amount,
+    }
+  }
+
+  const contractValue = roundDocumentCurrency(formData.contract_value ?? getContractTotal(contractSource))
+  const advancePercent = Number(formData.advance_percent || 0)
+  const advanceAmount = roundDocumentCurrency(formData.advance_amount ?? calculateAdvanceAmount(contractValue, advancePercent))
+  return {
+    ...vatConfig,
+    sync_contract_value: formData.sync_contract_value !== false,
+    contract_value: contractValue,
+    advance_percent: advancePercent,
+    advance_amount: advanceAmount,
+    amount: advanceAmount,
+  }
+}
+
+function buildDocumentData(draft = {}, documents = []) {
+  const amountConfig = buildDocumentAmountConfig(draft, documents)
+  const formData = { ...(draft.form_data || {}) }
+
+  if (draft.document_type === 'payment_request') {
+    formData.acceptance_total = amountConfig.acceptance_total
+  }
+
+  const baseData = {
+    form_data: formData,
+    amount_config: amountConfig,
+    amount: amountConfig.amount || 0,
+  }
+
+  if (draft.document_type === 'acceptance_liquidation') {
+    return {
+      ...baseData,
+      acceptance_amount: amountConfig.acceptance_actual_total || 0,
+      note: String(formData.acceptance_note || '').trim(),
+    }
+  }
+
+  if (draft.document_type === 'payment_request') {
+    return {
+      ...baseData,
+      payment_amount: amountConfig.payment_amount || 0,
+      acceptance_document_id: formData.acceptance_document_id || '',
+      advance_deductions: formData.advance_deductions || [],
+      note: String(formData.request_content || '').trim(),
+      bank_account: formData.bank_account || '',
+    }
+  }
+
+  return {
+    ...baseData,
+    advance_amount: amountConfig.advance_amount || 0,
+    note: String(formData.request_content || '').trim(),
+    bank_account: formData.bank_account || '',
+  }
+}
+
+function buildEditorDraft(document = null, documentType = 'advance_request', contract = {}, templates = [], documents = []) {
+  const config = DOCUMENT_TYPES[document?.document_type || documentType] || DOCUMENT_TYPES.advance_request
+  const template = document?.id
+    ? null
+    : getDefaultDocumentTemplate(templates, documentType)
+  const sourceContract = getOpenSyncedContract(document, contract)
+  const resolvedDocumentType = document?.document_type || documentType
+  return {
+    id: document?.id || '',
+    contract_id: document?.contract_id || contract.id || '',
+    document_type: resolvedDocumentType,
+    status: document?.status || 'draft',
+    template_id: document?.template_id || template?.id || '',
+    title: document?.title || template?.title || config.defaultTitle,
+    seller_entity_code: document?.seller_entity_code || template?.seller_entity_code || contract.seller_entity_code || 'EVT',
+    document_number_pattern: document?.document_number_pattern || template?.document_number_pattern || '',
+    document_number: document?.document_number || '',
+    issued_date: toDateInputValue(document?.issued_date) || getTodayInputDate(),
+    form_data: buildDocumentFormData(document, resolvedDocumentType, sourceContract, documents),
+    contract_source: sourceContract,
+    content_sections: Array.isArray(document?.content_sections) ? document.content_sections : template?.content_sections || [],
+    terms_text: document?.terms_text ?? template?.terms_text ?? '',
+    auto_sync_contract: document?.auto_sync_contract !== false,
+    share_token: document?.share_token || '',
+  }
+}
+
+function buildDocumentPayload(draft = {}, templates = [], documents = []) {
+  const selectedTemplate = templates.find(template => template.id === draft.template_id)
+  return {
+    id: draft.id || undefined,
+    contract_id: draft.contract_id,
+    document_type: draft.document_type,
+    status: draft.status || 'draft',
+    template_id: draft.template_id || undefined,
+    title: draft.title,
+    seller_entity_code: draft.seller_entity_code || undefined,
+    document_number_pattern: draft.document_number_pattern || undefined,
+    issued_date: draft.issued_date || null,
+    auto_sync_contract: draft.auto_sync_contract,
+    share_token: draft.share_token || undefined,
+    template_snapshot: !draft.id && selectedTemplate ? buildDocumentTemplateSnapshot(selectedTemplate) : undefined,
+    content_sections: Array.isArray(draft.content_sections) ? draft.content_sections : undefined,
+    terms_text: draft.terms_text,
+    document_data: buildDocumentData(draft, documents),
+  }
+}
+
+function CustomerValidationBanner({ contract }) {
+  const warnings = getCustomerValidationWarnings(contract)
+  if (!warnings.length) return null
+
+  return (
+    <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-[12px] leading-5 text-amber-800">
+      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+      <div>
+        <span className="font-semibold">Thiếu thông tin khách hàng: </span>
+        <span>{warnings.join(', ')}.</span>
+        <span> Vẫn có thể lưu, phần export sẽ cảnh báo kỹ hơn.</span>
+      </div>
+    </div>
+  )
+}
+
+function VatModeNotice({ vatConfig }) {
+  const vatRate = Math.round(Number(vatConfig.vat_rate || 0) * 100)
+  const label = vatConfig.has_vat === false
+    ? 'Không áp VAT theo cấu hình hợp đồng.'
+    : `VAT ${vatRate}% áp dụng chung cho toàn bảng theo hợp đồng.`
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] font-semibold text-slate-600">
+      {label}
+    </div>
+  )
+}
+
+function MoneySummary({ rows = [], vatConfig = {}, totalLabel = 'Tổng cộng' }) {
+  const totals = calculateTableTotals(rows, vatConfig)
+  return (
+    <div className="grid gap-2 text-[13px] sm:grid-cols-3">
+      <div className="rounded-xl bg-slate-50 px-3 py-2">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Trước VAT</p>
+        <p className="mt-1 font-bold text-slate-900">{formatQuoteCurrency(totals.subtotal)}đ</p>
+      </div>
+      <div className="rounded-xl bg-slate-50 px-3 py-2">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">VAT</p>
+        <p className="mt-1 font-bold text-slate-900">{formatQuoteCurrency(totals.vat_amount)}đ</p>
+      </div>
+      <div className="rounded-xl bg-orange-50 px-3 py-2">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-orange-500">{totalLabel}</p>
+        <p className="mt-1 font-bold text-orange-700">{formatQuoteCurrency(totals.total_amount)}đ</p>
+      </div>
+    </div>
+  )
+}
+
+function AmountRowsEditor({
+  title,
+  rows,
+  vatConfig,
+  allowNegative = false,
+  addLabel = 'Thêm dòng',
+  resetLabel = '',
+  onReset,
+  onChange,
+}) {
+  const safeRows = Array.isArray(rows) ? rows : []
+
+  function updateRow(index, patch) {
+    onChange(safeRows.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row))
+  }
+
+  function updateQuantity(index, value) {
+    const row = safeRows[index] || {}
+    const quantity = Math.max(0, Number(value || 0))
+    const unitPrice = toDocumentNumber(row.unit_price, 0)
+    updateRow(index, {
+      quantity,
+      amount: roundDocumentCurrency(quantity * unitPrice),
+    })
+  }
+
+  function updateUnitPrice(index, value) {
+    const row = safeRows[index] || {}
+    const unitPrice = allowNegative ? parseSignedCurrencyInput(value) : parseCurrencyInput(value)
+    const quantity = toDocumentNumber(row.quantity, 0) || 1
+    updateRow(index, {
+      unit_price: unitPrice,
+      amount: roundDocumentCurrency(quantity * unitPrice),
+    })
+  }
+
+  function updateAmount(index, value) {
+    const amount = allowNegative ? parseSignedCurrencyInput(value) : parseCurrencyInput(value)
+    updateRow(index, { amount })
+  }
+
+  return (
+    <section className="space-y-3 border-t border-slate-100 pt-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h3 className="text-[14px] font-semibold text-slate-900">{title}</h3>
+          {allowNegative ? <p className="mt-1 text-[12px] text-slate-500">Dòng phát sinh có thể nhập số âm ở cột thành tiền.</p> : null}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {resetLabel && onReset ? (
+            <button type="button" onClick={onReset} className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 px-3 text-[12px] font-semibold text-slate-700 hover:bg-slate-50">
+              <RefreshCw className="h-3.5 w-3.5" />
+              {resetLabel}
+            </button>
+          ) : null}
+          <button type="button" onClick={() => onChange([...safeRows, makeAmountRow('line')])} className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 px-3 text-[12px] font-semibold text-slate-700 hover:bg-slate-50">
+            <Plus className="h-3.5 w-3.5" />
+            {addLabel}
+          </button>
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-xl border border-slate-200">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[840px] text-left text-[13px]">
+            <thead className="bg-slate-50 text-[11px] uppercase tracking-[0.1em] text-slate-500">
+              <tr>
+                <th className="px-3 py-3">Nội dung</th>
+                <th className="w-[100px] px-3 py-3">ĐVT</th>
+                <th className="w-[90px] px-3 py-3 text-right">SL</th>
+                <th className="w-[150px] px-3 py-3 text-right">Đơn giá</th>
+                <th className="w-[160px] px-3 py-3 text-right">Thành tiền</th>
+                <th className="w-[56px] px-3 py-3" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 bg-white">
+              {safeRows.length ? safeRows.map((row, index) => (
+                <tr key={row.id || index}>
+                  <td className="px-2 py-2">
+                    <TextInput value={row.description || ''} onChange={event => updateRow(index, { description: event.target.value })} placeholder="Tên hạng mục" />
+                  </td>
+                  <td className="px-2 py-2">
+                    <TextInput value={row.unit || ''} onChange={event => updateRow(index, { unit: event.target.value })} />
+                  </td>
+                  <td className="px-2 py-2">
+                    <TextInput type="number" min="0" value={row.quantity ?? 1} onChange={event => updateQuantity(index, event.target.value)} className="text-right" />
+                  </td>
+                  <td className="px-2 py-2">
+                    <TextInput inputMode="numeric" value={formatCurrencyInput(row.unit_price)} onChange={event => updateUnitPrice(index, event.target.value)} className="text-right" />
+                  </td>
+                  <td className="px-2 py-2">
+                    <TextInput inputMode="numeric" value={formatCurrencyInput(row.amount)} onChange={event => updateAmount(index, event.target.value)} className={`text-right font-semibold ${Number(row.amount || 0) < 0 ? 'text-red-600' : 'text-slate-900'}`} />
+                  </td>
+                  <td className="px-2 py-2 text-right">
+                    <button type="button" onClick={() => onChange(safeRows.filter((_, rowIndex) => rowIndex !== index))} className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label="Xóa dòng">
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </td>
+                </tr>
+              )) : (
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-slate-400">Chưa có dòng giá trị.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <MoneySummary rows={safeRows} vatConfig={vatConfig} totalLabel={allowNegative ? 'Tổng nghiệm thu' : 'Tổng theo hợp đồng'} />
+    </section>
+  )
+}
+
+function AdvanceRequestEditor({ draft, updateFormData }) {
+  const formData = draft.form_data || {}
+  const contractValue = Number(formData.contract_value || 0)
+  const advanceAmount = Number(formData.advance_amount || 0)
+
+  function updateContractValue(value) {
+    const nextValue = parseCurrencyInput(value)
+    const percent = Number(formData.advance_percent || 0)
+    updateFormData({
+      contract_value: nextValue,
+      sync_contract_value: false,
+      advance_amount: calculateAdvanceAmount(nextValue, percent),
+    })
+  }
+
+  function updateAdvancePercent(value) {
+    const percent = Number(value || 0)
+    updateFormData({
+      advance_percent: percent,
+      advance_amount: calculateAdvanceAmount(contractValue, percent),
+    })
+  }
+
+  function updateAdvanceAmount(value) {
+    const amount = parseCurrencyInput(value)
+    updateFormData({
+      advance_amount: amount,
+      advance_percent: calculateAdvancePercent(contractValue, amount),
+    })
+  }
+
+  function resetContractValue() {
+    const value = getContractTotal(draft.contract_source || {})
+    const percent = Number(formData.advance_percent || draft.contract_source?.payment_config?.deposit_percent || 0)
+    updateFormData({
+      contract_value: value,
+      sync_contract_value: true,
+      advance_percent: percent,
+      advance_amount: calculateAdvanceAmount(value, percent),
+    })
+  }
+
+  return (
+    <section className="space-y-4">
+      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_130px_minmax(0,1fr)]">
+        <Field label="Giá trị hợp đồng">
+          <div className="flex gap-2">
+            <TextInput inputMode="numeric" value={formatCurrencyInput(contractValue)} onChange={event => updateContractValue(event.target.value)} />
+            <button type="button" onClick={resetContractValue} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50" aria-label="Đồng bộ giá trị hợp đồng">
+              <RefreshCw className="h-4 w-4" />
+            </button>
+          </div>
+        </Field>
+        <Field label="Tỷ lệ tạm ứng (%)">
+          <TextInput type="number" min="0" step="0.01" value={formData.advance_percent ?? 0} onChange={event => updateAdvancePercent(event.target.value)} />
+        </Field>
+        <Field label="Số tiền tạm ứng">
+          <TextInput inputMode="numeric" value={formatCurrencyInput(advanceAmount)} onChange={event => updateAdvanceAmount(event.target.value)} className="font-semibold text-slate-900" />
+        </Field>
+      </div>
+
+      <div className="grid gap-3 rounded-xl bg-slate-50 px-3 py-3 text-[13px] sm:grid-cols-2">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Giá trị hợp đồng</p>
+          <p className="mt-1 font-bold text-slate-900">{formatQuoteCurrency(contractValue)}đ</p>
+        </div>
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-orange-500">Đề nghị tạm ứng</p>
+          <p className="mt-1 font-bold text-orange-700">{formatQuoteCurrency(advanceAmount)}đ</p>
+        </div>
+      </div>
+
+      <Field label="Nội dung đề nghị">
+        <Textarea rows={4} value={formData.request_content || ''} onChange={event => updateFormData({ request_content: event.target.value })} />
+      </Field>
+      <Field label="Tài khoản nhận tiền">
+        <TextInput value={formData.bank_account || ''} onChange={event => updateFormData({ bank_account: event.target.value })} placeholder="Số tài khoản - ngân hàng - chủ tài khoản" />
+      </Field>
+    </section>
+  )
+}
+
+function AcceptanceLiquidationEditor({ draft, updateFormData }) {
+  const formData = draft.form_data || {}
+  const vatConfig = getContractVatConfig(draft.contract_source || {})
+
+  function resetContractRows() {
+    updateFormData({
+      contract_rows: normalizeAmountRows(buildContractValueRows(draft.contract_source || {})),
+      sync_contract_rows: true,
+    })
+  }
+
+  function resetActualRows() {
+    updateFormData({
+      actual_rows: normalizeAmountRows(formData.contract_rows || buildContractValueRows(draft.contract_source || {})),
+      sync_actual_rows: true,
+    })
+  }
+
+  return (
+    <section className="space-y-4">
+      <VatModeNotice vatConfig={vatConfig} />
+      <AmountRowsEditor
+        title="Bảng giá trị theo hợp đồng"
+        rows={formData.contract_rows || []}
+        vatConfig={vatConfig}
+        resetLabel="Lấy lại từ hợp đồng"
+        onReset={resetContractRows}
+        onChange={rows => updateFormData({ contract_rows: rows, sync_contract_rows: false })}
+      />
+      <AmountRowsEditor
+        title="Bảng giá trị nghiệm thu/thực tế"
+        rows={formData.actual_rows || []}
+        vatConfig={vatConfig}
+        allowNegative
+        addLabel="Thêm phát sinh"
+        resetLabel="Copy bảng hợp đồng"
+        onReset={resetActualRows}
+        onChange={rows => updateFormData({ actual_rows: rows, sync_actual_rows: false })}
+      />
+      <Field label="Ghi chú nghiệm thu/thanh lý">
+        <Textarea rows={4} value={formData.acceptance_note || ''} onChange={event => updateFormData({ acceptance_note: event.target.value })} />
+      </Field>
+    </section>
+  )
+}
+
+function PaymentRequestEditor({ draft, documents, updateFormData }) {
+  const formData = draft.form_data || {}
+  const acceptanceDocuments = documents.filter(row => row.document_type === 'acceptance_liquidation' && row.id !== draft.id)
+  const advanceDocuments = documents.filter(row => row.document_type === 'advance_request' && row.id !== draft.id)
+  const amountConfig = buildDocumentAmountConfig(draft, documents)
+  const selectedDeductions = new Map((formData.advance_deductions || []).map(row => [row.document_id, row]))
+
+  function selectAcceptance(documentId) {
+    const selected = acceptanceDocuments.find(row => row.id === documentId)
+    updateFormData({
+      acceptance_document_id: documentId,
+      acceptance_total: selected ? getAcceptanceDocumentTotal(selected) : 0,
+    })
+  }
+
+  function toggleAdvance(document, checked) {
+    const currentRows = formData.advance_deductions || []
+    if (!checked) {
+      updateFormData({ advance_deductions: currentRows.filter(row => row.document_id !== document.id) })
+      return
+    }
+
+    const amount = getAdvanceDocumentAmount(document)
+    updateFormData({
+      advance_deductions: [
+        ...currentRows,
+        {
+          document_id: document.id,
+          document_number: document.document_number || '',
+          document_title: document.title || '',
+          original_amount: amount,
+          deduction_amount: amount,
+        },
+      ],
+    })
+  }
+
+  function updateDeduction(documentId, value) {
+    const amount = parseCurrencyInput(value)
+    updateFormData({
+      advance_deductions: (formData.advance_deductions || []).map(row => (
+        row.document_id === documentId ? { ...row, deduction_amount: amount } : row
+      )),
+    })
+  }
+
+  return (
+    <section className="space-y-4">
+      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
+        <Field label="BBNT liên quan">
+          <Select value={formData.acceptance_document_id || ''} onChange={event => selectAcceptance(event.target.value)} disabled={!acceptanceDocuments.length}>
+            <option value="">{acceptanceDocuments.length ? 'Chọn BBNT' : 'Chưa có BBNT để liên kết'}</option>
+            {acceptanceDocuments.map(row => (
+              <option key={row.id} value={row.id}>
+                {getDocumentDisplayName(row)}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Tổng nghiệm thu từ BBNT">
+          <TextInput readOnly value={formatCurrencyInput(amountConfig.acceptance_total)} className="bg-slate-50 font-semibold text-slate-900" />
+        </Field>
+      </div>
+
+      {!acceptanceDocuments.length ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-[12px] font-semibold text-amber-800">
+          Cần tạo BBNT trước khi lập đề nghị thanh toán.
+        </div>
+      ) : null}
+
+      <section className="space-y-3 border-t border-slate-100 pt-4">
+        <div>
+          <h3 className="text-[14px] font-semibold text-slate-900">Khấu trừ tạm ứng</h3>
+          <p className="mt-1 text-[12px] text-slate-500">Chọn các đề nghị tạm ứng liên quan và sửa số tiền khấu trừ nếu cần.</p>
+        </div>
+        <div className="overflow-hidden rounded-xl border border-slate-200">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] text-left text-[13px]">
+              <thead className="bg-slate-50 text-[11px] uppercase tracking-[0.1em] text-slate-500">
+                <tr>
+                  <th className="w-[56px] px-3 py-3" />
+                  <th className="px-3 py-3">Đề nghị tạm ứng</th>
+                  <th className="w-[170px] px-3 py-3 text-right">Số tiền tạm ứng</th>
+                  <th className="w-[190px] px-3 py-3 text-right">Số tiền khấu trừ</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 bg-white">
+                {advanceDocuments.length ? advanceDocuments.map(row => {
+                  const deduction = selectedDeductions.get(row.id)
+                  const checked = Boolean(deduction)
+                  return (
+                    <tr key={row.id}>
+                      <td className="px-3 py-3 text-center">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={event => toggleAdvance(row, event.target.checked)}
+                          className="h-4 w-4 rounded border-slate-300 text-[#f8981d] focus:ring-orange-100"
+                        />
+                      </td>
+                      <td className="px-3 py-3 font-semibold text-slate-800">{getDocumentDisplayName(row)}</td>
+                      <td className="px-3 py-3 text-right tabular-nums text-slate-600">{formatQuoteCurrency(getAdvanceDocumentAmount(row))}đ</td>
+                      <td className="px-3 py-2">
+                        <TextInput
+                          inputMode="numeric"
+                          value={checked ? formatCurrencyInput(deduction?.deduction_amount) : ''}
+                          onChange={event => updateDeduction(row.id, event.target.value)}
+                          disabled={!checked}
+                          className="text-right font-semibold text-slate-900"
+                        />
+                      </td>
+                    </tr>
+                  )
+                }) : (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-8 text-center text-slate-400">Chưa có đề nghị tạm ứng để khấu trừ.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <div className="grid gap-2 text-[13px] sm:grid-cols-3">
+        <div className="rounded-xl bg-slate-50 px-3 py-2">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Tổng nghiệm thu</p>
+          <p className="mt-1 font-bold text-slate-900">{formatQuoteCurrency(amountConfig.acceptance_total)}đ</p>
+        </div>
+        <div className="rounded-xl bg-slate-50 px-3 py-2">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Khấu trừ tạm ứng</p>
+          <p className="mt-1 font-bold text-slate-900">{formatQuoteCurrency(amountConfig.advance_deduction_total)}đ</p>
+        </div>
+        <div className="rounded-xl bg-orange-50 px-3 py-2">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-orange-500">Còn thanh toán</p>
+          <p className="mt-1 font-bold text-orange-700">{formatQuoteCurrency(amountConfig.payment_amount)}đ</p>
+        </div>
+      </div>
+
+      {amountConfig.over_deduction_amount ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-[12px] font-semibold text-red-700">
+          Số khấu trừ đang vượt tổng nghiệm thu {formatQuoteCurrency(amountConfig.over_deduction_amount)}đ. Số tiền đề nghị thanh toán được tạm tính bằng 0đ.
+        </div>
+      ) : null}
+
+      <Field label="Nội dung đề nghị thanh toán">
+        <Textarea rows={4} value={formData.request_content || ''} onChange={event => updateFormData({ request_content: event.target.value })} />
+      </Field>
+      <Field label="Tài khoản nhận tiền">
+        <TextInput value={formData.bank_account || ''} onChange={event => updateFormData({ bank_account: event.target.value })} placeholder="Số tài khoản - ngân hàng - chủ tài khoản" />
+      </Field>
+    </section>
+  )
+}
+
+function DocumentEditorModal({
+  contract,
+  documents,
+  templates,
+  document,
+  documentType,
+  saving,
+  error,
+  onClose,
+  onSave,
+}) {
+  const [draft, setDraft] = useState(() => buildEditorDraft(document, documentType, contract, templates, documents))
+  const availableTemplates = templates.filter(template => template.document_type === draft.document_type && template.is_active !== false)
+  const isExistingDocument = Boolean(document?.id)
+  const dateLabel = draft.document_type === 'acceptance_liquidation' ? 'Ngày nghiệm thu' : 'Ngày lập'
+
+  function updateDraft(patch) {
+    setDraft(prev => ({ ...prev, ...patch }))
+  }
+
+  function updateFormData(patch) {
+    setDraft(prev => ({ ...prev, form_data: { ...(prev.form_data || {}), ...patch } }))
+  }
+
+  function applyTemplate(templateId) {
+    const template = availableTemplates.find(row => row.id === templateId)
+    if (!template) {
+      updateDraft({ template_id: '' })
+      return
+    }
+    updateDraft({
+      template_id: template.id,
+      title: template.title || draft.title,
+      seller_entity_code: template.seller_entity_code || draft.seller_entity_code,
+      document_number_pattern: template.document_number_pattern || draft.document_number_pattern,
+      content_sections: Array.isArray(template.content_sections) ? template.content_sections : [],
+      terms_text: template.terms_text || '',
+    })
+  }
+
+  function renderTypeEditor() {
+    if (draft.document_type === 'acceptance_liquidation') {
+      return <AcceptanceLiquidationEditor draft={draft} updateFormData={updateFormData} />
+    }
+    if (draft.document_type === 'payment_request') {
+      return <PaymentRequestEditor draft={draft} documents={documents} updateFormData={updateFormData} />
+    }
+    return <AdvanceRequestEditor draft={draft} updateFormData={updateFormData} />
+  }
+
+  function submit(event) {
+    event.preventDefault()
+    onSave(draft)
+  }
+
+  const title = document?.id
+    ? `Sửa ${DOCUMENT_TYPES[draft.document_type]?.label || 'chứng từ'}`
+    : DOCUMENT_TYPES[draft.document_type]?.actionLabel || 'Tạo chứng từ'
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/45 px-4 py-6">
+      <form onSubmit={submit} className="flex max-h-[88vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <header className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
+          <div>
+            <h2 className="text-[18px] font-semibold text-slate-950">{title}</h2>
+            <p className="mt-1 text-[12px] font-semibold text-slate-500">{draft.document_number || 'Số chứng từ sẽ được cấp khi lưu lần đầu.'}</p>
+          </div>
+          <button type="button" onClick={onClose} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50" aria-label="Đóng">
+            <X className="h-4 w-4" />
+          </button>
+        </header>
+
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
+          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_170px_minmax(0,1fr)_150px]">
+            <Field label="Loại chứng từ">
+              <Select value={draft.document_type} disabled>
+                {Object.entries(DOCUMENT_TYPES).map(([value, config]) => (
+                  <option key={value} value={value}>{config.label}</option>
+                ))}
+              </Select>
+            </Field>
+            <Field label={dateLabel}>
+              <TextInput type="date" value={draft.issued_date || ''} onChange={event => updateDraft({ issued_date: event.target.value })} />
+            </Field>
+            <Field label="Số chứng từ">
+              <TextInput value={draft.document_number || 'Tự cấp khi lưu'} readOnly className="bg-slate-50 font-semibold text-slate-700" />
+            </Field>
+            <Field label="Trạng thái">
+              <Select value={draft.status || 'draft'} onChange={event => updateDraft({ status: event.target.value })}>
+                <option value="draft">Nháp</option>
+                <option value="open">Đang mở</option>
+                <option value="finalized">Đã chốt</option>
+              </Select>
+            </Field>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+            <Field label="Mẫu chứng từ">
+              <Select
+                value={draft.template_id || ''}
+                onChange={event => applyTemplate(event.target.value)}
+                disabled={isExistingDocument || !availableTemplates.length}
+              >
+                <option value="">{availableTemplates.length ? 'Không dùng mẫu' : 'Chưa có mẫu đang bật'}</option>
+                {availableTemplates.map(template => (
+                  <option key={template.id} value={template.id}>
+                    {template.name}{template.is_default ? ' (Default)' : ''}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Tiêu đề">
+              <TextInput value={draft.title || ''} onChange={event => updateDraft({ title: event.target.value })} />
+            </Field>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-[150px_minmax(0,1fr)]">
+            <Field label="Mã pháp nhân">
+              <TextInput value={draft.seller_entity_code || ''} onChange={event => updateDraft({ seller_entity_code: event.target.value })} />
+            </Field>
+            <Field label="Pattern số chứng từ">
+              <TextInput value={draft.document_number_pattern || ''} onChange={event => updateDraft({ document_number_pattern: event.target.value })} />
+            </Field>
+          </div>
+
+          <CustomerValidationBanner contract={draft.contract_source || contract} />
+          {renderTypeEditor()}
+
+          <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-[12px] font-semibold text-slate-600">
+            <input
+              type="checkbox"
+              checked={draft.auto_sync_contract}
+              onChange={event => updateDraft({
+                auto_sync_contract: event.target.checked,
+                contract_source: event.target.checked ? getOpenSyncedContract(document, contract) : draft.contract_source,
+              })}
+              className="h-4 w-4 rounded border-slate-300 text-[#f8981d] focus:ring-orange-100"
+            />
+            Tự đồng bộ thông tin hợp đồng khi chứng từ còn nháp/đang mở
+          </label>
+
+          {error ? <p className="rounded-xl bg-red-50 px-4 py-3 text-[13px] text-red-700">{error}</p> : null}
+        </div>
+
+        <footer className="flex justify-end gap-2 border-t border-slate-200 bg-white px-5 py-4">
+          <button type="button" onClick={onClose} disabled={saving} className="rounded-xl border border-slate-200 px-4 py-2.5 text-[13px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+            Hủy
+          </button>
+          <button type="submit" disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-[#f8981d] px-4 py-2.5 text-[13px] font-semibold text-white shadow-sm hover:bg-orange-500 disabled:opacity-50">
+            <FileText className="h-4 w-4" />
+            {saving ? 'Đang lưu...' : 'Lưu chứng từ'}
+          </button>
+        </footer>
+      </form>
+    </div>
+  )
+}
+
+function DeleteDocumentConfirmModal({ document, deleting, error, onCancel, onConfirm }) {
+  if (!document) return null
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/45 px-4 py-6">
+      <section className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl">
+        <div className="flex items-start gap-3">
+          <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-600">
+            <AlertTriangle className="h-5 w-5" />
+          </span>
+          <div>
+            <h2 className="text-[18px] font-semibold text-slate-950">Xóa chứng từ</h2>
+            <p className="mt-2 text-[13px] leading-6 text-slate-600">
+              Chứng từ <span className="font-semibold text-slate-950">{document.document_number || document.title || 'này'}</span> sẽ bị xóa khỏi hợp đồng. Số chứng từ đã cấp vẫn được giữ trong ledger.
+            </p>
+          </div>
+        </div>
+        {error ? <p className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-[13px] text-red-700">{error}</p> : null}
+        <div className="mt-5 flex justify-end gap-2">
+          <button type="button" onClick={onCancel} disabled={deleting} className="rounded-xl border border-slate-200 px-4 py-2.5 text-[13px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+            Hủy
+          </button>
+          <button type="button" onClick={onConfirm} disabled={deleting} className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-[13px] font-semibold text-white shadow-sm hover:bg-red-700 disabled:opacity-50">
+            <Trash2 className="h-4 w-4" />
+            {deleting ? 'Đang xóa...' : 'Xóa chứng từ'}
+          </button>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+export default function ContractDocumentsPanel({ contract }) {
+  const [documents, setDocuments] = useState([])
+  const [templates, setTemplates] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [editorState, setEditorState] = useState(null)
+  const [documentToDelete, setDocumentToDelete] = useState(null)
+  const [error, setError] = useState('')
+  const [editorError, setEditorError] = useState('')
+  const [deleteError, setDeleteError] = useState('')
+  const [notice, setNotice] = useState('')
+
+  const canManageDocuments = Boolean(contract?.id)
+  const acceptanceDocumentCount = useMemo(
+    () => documents.filter(row => row.document_type === 'acceptance_liquidation').length,
+    [documents],
+  )
+
+  async function loadDocuments() {
+    if (!contract?.id) return
+    setLoading(true)
+    setError('')
+    try {
+      const rows = await listContractDocuments(contract.id)
+      setDocuments(rows)
+    } catch (err) {
+      setError(err?.message || 'Không tải được chứng từ hợp đồng.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    let mounted = true
+    if (!contract?.id) {
+      setDocuments([])
+      return
+    }
+
+    async function load() {
+      setLoading(true)
+      setError('')
+      try {
+        const rows = await listContractDocuments(contract.id)
+        if (mounted) setDocuments(rows)
+      } catch (err) {
+        if (mounted) setError(err?.message || 'Không tải được chứng từ hợp đồng.')
+      } finally {
+        if (mounted) setLoading(false)
+      }
+    }
+
+    load()
+    return () => {
+      mounted = false
+    }
+  }, [contract?.id])
+
+  useEffect(() => {
+    let mounted = true
+    async function loadTemplates() {
+      try {
+        const rows = await listContractDocumentTemplates()
+        if (mounted) setTemplates(rows)
+      } catch (err) {
+        if (mounted) setError(err?.message || 'Không tải được mẫu chứng từ hợp đồng.')
+      }
+    }
+
+    loadTemplates()
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  function openNewDocument(documentType) {
+    setMenuOpen(false)
+    setNotice('')
+    setEditorError('')
+    setEditorState({ documentType, document: null })
+  }
+
+  function openEditDocument(document) {
+    setNotice('')
+    setEditorError('')
+    setEditorState({ documentType: document.document_type, document })
+  }
+
+  async function handleSaveDocument(draft) {
+    if (!draft.contract_id) {
+      setEditorError('Cần lưu hợp đồng trước khi tạo chứng từ.')
+      return
+    }
+    if (!String(draft.title || '').trim()) {
+      setEditorError('Cần nhập tiêu đề chứng từ.')
+      return
+    }
+    if (draft.document_type === 'payment_request' && !draft.form_data?.acceptance_document_id) {
+      setEditorError('Đề nghị thanh toán cần liên kết với một BBNT.')
+      return
+    }
+
+    setSaving(true)
+    setEditorError('')
+    try {
+      const saved = await saveContractDocument(buildDocumentPayload(draft, templates, documents))
+      await loadDocuments()
+      setEditorState(null)
+      setNotice(`Đã lưu chứng từ ${saved?.document_number || saved?.title || ''}.`)
+    } catch (err) {
+      setEditorError(err?.message || 'Không lưu được chứng từ.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleCopyLink(document) {
+    const url = getPublicDocumentUrl(document)
+    if (!url) return
+    try {
+      await navigator.clipboard?.writeText(url)
+      setNotice('Đã copy public link chứng từ.')
+    } catch {
+      setNotice('Không copy tự động được, bạn có thể mở link từ dòng chứng từ.')
+    }
+  }
+
+  async function confirmDeleteDocument() {
+    if (!documentToDelete?.id) return
+    setDeleting(true)
+    setDeleteError('')
+    try {
+      await deleteContractDocument(documentToDelete.id)
+      setDocumentToDelete(null)
+      await loadDocuments()
+      setNotice('Đã xóa chứng từ.')
+    } catch (err) {
+      setDeleteError(err?.message || 'Không xóa được chứng từ.')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-orange-50 text-[#d97706]">
+            <FileText className="h-4 w-4" />
+          </span>
+          <div>
+            <h2 className="text-[16px] font-semibold text-slate-900">Chứng từ</h2>
+            <p className="mt-1 text-[12px] text-slate-500">Quản lý chứng từ phát sinh theo hợp đồng.</p>
+          </div>
+        </div>
+        <div className="relative">
+          <button
+            type="button"
+            disabled={!canManageDocuments}
+            onClick={() => setMenuOpen(prev => !prev)}
+            className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#f8981d] px-4 text-[13px] font-semibold text-white shadow-sm hover:bg-orange-500 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+          >
+            <Plus className="h-4 w-4" />
+            Tạo chứng từ
+          </button>
+          {menuOpen ? (
+            <div className="absolute right-0 z-20 mt-2 w-[240px] overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+              {Object.entries(DOCUMENT_TYPES).map(([documentType, config]) => (
+                <button
+                  key={documentType}
+                  type="button"
+                  onClick={() => openNewDocument(documentType)}
+                  className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] font-semibold text-slate-700 hover:bg-orange-50 hover:text-orange-700"
+                >
+                  <FileText className="h-4 w-4 text-slate-400" />
+                  {config.actionLabel}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      {!canManageDocuments ? (
+        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] font-semibold text-amber-800">
+          Lưu hợp đồng trước khi tạo chứng từ.
+        </div>
+      ) : null}
+
+      {notice ? <p className="mt-4 rounded-xl bg-emerald-50 px-4 py-3 text-[13px] text-emerald-700">{notice}</p> : null}
+      {error ? <p className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-[13px] text-red-700">{error}</p> : null}
+
+      <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[960px] text-left text-[13px]">
+            <thead className="bg-slate-50 text-[11px] uppercase tracking-[0.12em] text-slate-500">
+              <tr>
+                <th className="px-4 py-3">Loại chứng từ</th>
+                <th className="px-4 py-3">Số chứng từ</th>
+                <th className="px-4 py-3">Ngày lập</th>
+                <th className="px-4 py-3 text-right">Giá trị</th>
+                <th className="px-4 py-3">Public link</th>
+                <th className="px-4 py-3">Cập nhật</th>
+                <th className="px-4 py-3 text-right">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 bg-white">
+              {loading ? (
+                <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-400">Đang tải chứng từ...</td></tr>
+              ) : documents.length ? documents.map(document => {
+                const publicUrl = getPublicDocumentUrl(document)
+                const amount = getDocumentAmount(document)
+                const exportWarnings = getContractDocumentValidationWarnings(document)
+                return (
+                  <tr key={document.id} className="hover:bg-orange-50/40">
+                    <td className="px-4 py-3 font-semibold text-slate-800">{DOCUMENT_TYPES[document.document_type]?.label || document.document_type}</td>
+                    <td className="px-4 py-3 text-slate-700">{document.document_number || '-'}</td>
+                    <td className="px-4 py-3 text-slate-600">{formatQuoteDate(document.issued_date)}</td>
+                    <td className="px-4 py-3 text-right font-semibold tabular-nums text-slate-800">{amount ? `${formatQuoteCurrency(amount)}đ` : '-'}</td>
+                    <td className="px-4 py-3">
+                      {publicUrl ? (
+                        <div className="flex min-w-0 items-center gap-2">
+                          <a href={publicUrl} target="_blank" rel="noopener noreferrer" className="inline-flex max-w-[180px] items-center gap-1 truncate rounded-lg bg-slate-50 px-2 py-1 text-[12px] font-semibold text-blue-700 hover:bg-blue-50">
+                            <Link className="h-3.5 w-3.5 shrink-0" />
+                            <span className="truncate">{document.share_token}</span>
+                          </a>
+                          <button type="button" onClick={() => handleCopyLink(document)} className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-blue-50 hover:text-blue-700" aria-label="Copy public link">
+                            <Copy className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ) : '-'}
+                    </td>
+                    <td className="px-4 py-3 text-slate-500">{formatQuoteDate(document.updated_at || document.created_at)}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex justify-end gap-1.5">
+                        <ContractDocumentPDFDownloadButton
+                          document={document}
+                          warnBeforeDownload
+                          className={`inline-flex h-8 w-8 items-center justify-center rounded-lg ${exportWarnings.length ? 'text-amber-600 hover:bg-amber-50' : 'text-slate-500 hover:bg-orange-50 hover:text-orange-700'}`}
+                          aria-label="Tải PDF chứng từ"
+                          title={exportWarnings.length ? `Thiếu trước export: ${exportWarnings.join(', ')}` : 'Tải PDF'}
+                        >
+                          <span className="sr-only">Tải PDF</span>
+                        </ContractDocumentPDFDownloadButton>
+                        <ContractDocumentDocxDownloadButton
+                          document={document}
+                          warnBeforeDownload
+                          className={`inline-flex h-8 w-8 items-center justify-center rounded-lg ${exportWarnings.length ? 'text-amber-600 hover:bg-amber-50' : 'text-slate-500 hover:bg-orange-50 hover:text-orange-700'}`}
+                          aria-label="Tải DOCX chứng từ"
+                          title={exportWarnings.length ? `Thiếu trước export: ${exportWarnings.join(', ')}` : 'Tải DOCX'}
+                        >
+                          <span className="sr-only">Tải DOCX</span>
+                        </ContractDocumentDocxDownloadButton>
+                        <button type="button" onClick={() => openEditDocument(document)} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-orange-50 hover:text-orange-700" aria-label="Xem/sửa chứng từ">
+                          <Edit3 className="h-4 w-4" />
+                        </button>
+                        <button type="button" onClick={() => {
+                          setDeleteError('')
+                          setDocumentToDelete(document)
+                        }} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label="Xóa chứng từ">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              }) : (
+                <tr>
+                  <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
+                    {canManageDocuments ? 'Chưa có chứng từ cho hợp đồng này.' : 'Chứng từ sẽ hiển thị sau khi hợp đồng được lưu.'}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-[12px] text-slate-500">
+        <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 font-semibold text-slate-600">
+          <Check className="h-3.5 w-3.5" />
+          Public link riêng cho từng chứng từ
+        </span>
+        <span>{acceptanceDocumentCount ? `${acceptanceDocumentCount} BBNT có thể liên kết với đề nghị thanh toán.` : 'Tạo BBNT trước khi tạo đề nghị thanh toán.'}</span>
+      </div>
+
+      {editorState ? (
+        <DocumentEditorModal
+          contract={contract}
+          documents={documents}
+          templates={templates}
+          document={editorState.document}
+          documentType={editorState.documentType}
+          saving={saving}
+          error={editorError}
+          onClose={() => setEditorState(null)}
+          onSave={handleSaveDocument}
+        />
+      ) : null}
+
+      {documentToDelete ? (
+        <DeleteDocumentConfirmModal
+          document={documentToDelete}
+          deleting={deleting}
+          error={deleteError}
+          onCancel={() => {
+            setDocumentToDelete(null)
+            setDeleteError('')
+          }}
+          onConfirm={confirmDeleteDocument}
+        />
+      ) : null}
+    </section>
+  )
+}

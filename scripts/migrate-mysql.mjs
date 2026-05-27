@@ -102,9 +102,24 @@ const contractColumns = [
     columnName: 'source_snapshot',
     definition: 'json null after `quote_snapshot`',
   },
+  {
+    tableName: 'client_contracts',
+    columnName: 'deleted_at',
+    definition: 'datetime(3) null after `source_snapshot`',
+  },
 ]
 
 const contractIndexes = [
+  {
+    tableName: 'client_contracts',
+    indexName: 'client_contracts_deleted_at_idx',
+    columns: ['deleted_at'],
+  },
+  {
+    tableName: 'client_contracts',
+    indexName: 'client_contracts_deleted_updated_idx',
+    columns: ['deleted_at', 'updated_at'],
+  },
   {
     tableName: 'client_contracts',
     indexName: 'client_contracts_share_token_unique',
@@ -237,11 +252,17 @@ try {
     if (await ensureConfiguredIndex(pool, indexConfig)) createdIndexes.push(indexConfig.indexName)
   }
 
-  await pool.query('set foreign_key_checks = 0')
-  for (const tableName of legacyAiLabTables) {
-    await pool.query(`drop table if exists \`${tableName}\``)
+  const shouldDropLegacyTables = process.env.DROP_LEGACY_AI_LAB_TABLES === '1'
+  if (shouldDropLegacyTables) {
+    await pool.query('set foreign_key_checks = 0')
+    try {
+      for (const tableName of legacyAiLabTables) {
+        await pool.query(`drop table if exists \`${tableName}\``)
+      }
+    } finally {
+      await pool.query('set foreign_key_checks = 1')
+    }
   }
-  await pool.query('set foreign_key_checks = 1')
 
   console.log(JSON.stringify({
     ok: true,
@@ -249,7 +270,7 @@ try {
     statements: splitSqlStatements(schemaSql).length,
     created_columns: createdColumns,
     created_indexes: createdIndexes,
-    dropped_legacy_tables: legacyAiLabTables.length,
+    dropped_legacy_tables: shouldDropLegacyTables ? legacyAiLabTables.length : 0,
   }, null, 2))
 } finally {
   await pool.end()

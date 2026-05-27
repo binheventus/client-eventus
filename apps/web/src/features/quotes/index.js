@@ -5,6 +5,7 @@ export { default as QuotePublicPage } from './pages/QuotePublicPage'
 export { default as ContractPublicPage } from './pages/ContractPublicPage'
 export { default as QuoteTrashPage } from './pages/QuoteTrashPage'
 export { default as ContractTemplatesPage } from './pages/ContractTemplatesPage'
+export { default as ContractDocumentTemplatesPage } from './pages/ContractDocumentTemplatesPage'
 
 export { default as QuoteChatInput } from './components/QuoteChatInput'
 export { default as QuoteItemsTable } from './components/QuoteItemsTable'
