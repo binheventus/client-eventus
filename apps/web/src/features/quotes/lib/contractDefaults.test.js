@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  applySellerEntityToContractNumber,
+  applySellerEntityToContractNumberPattern,
   buildInitialContractDraftFromSource,
   buildSingleLineQuoteSnapshot,
   generateContractNumber,
@@ -78,6 +80,30 @@ test('generateContractNumber can use job source code without a quote id', () => 
   )
 
   assert.equal(contractNumber, '2405/HD-JOB42/TM/2026')
+})
+
+test('applySellerEntityToContractNumberPattern switches entity prefixes', () => {
+  const pattern = '{{dd}}{{mm}}/HDMMT-{{customer_short_code}}/{{yyyy}}'
+
+  assert.equal(
+    applySellerEntityToContractNumberPattern(pattern, 'EVENTUS'),
+    '{{dd}}{{mm}}/HDEVT-{{customer_short_code}}/{{yyyy}}',
+  )
+  assert.equal(
+    applySellerEntityToContractNumberPattern('{{dd}}{{mm}}/HDEVT-{{customer_short_code}}/{{yyyy}}', 'MEDIAMONSTER'),
+    pattern,
+  )
+})
+
+test('applySellerEntityToContractNumber switches existing contract number prefixes', () => {
+  assert.equal(
+    applySellerEntityToContractNumber('1805/HDMMT-ABC/2026', 'EVENTUS'),
+    '1805/HDEVT-ABC/2026',
+  )
+  assert.equal(
+    applySellerEntityToContractNumber('1805/HDEVT-ABC/2026', 'MEDIAMONSTER'),
+    '1805/HDMMT-ABC/2026',
+  )
 })
 
 test('buildSingleLineQuoteSnapshot treats excluded VAT input as pre-tax amount', () => {

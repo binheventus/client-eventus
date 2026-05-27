@@ -66,6 +66,11 @@ function cleanSellerSnapshot(snapshot = {}) {
 
 function cleanContractPayload(payload = {}) {
   const normalized = normalizeContractTemplate(payload)
+  const quoteTableConfig = {
+    ...normalized.quote_table_config,
+    signing_date: payload.signing_date || normalized.quote_table_config?.signing_date || '',
+  }
+
   return {
     quote_id: payload.quote_id,
     quote_number: payload.quote_number || null,
@@ -84,7 +89,7 @@ function cleanContractPayload(payload = {}) {
     preamble: normalized.preamble,
     service_scope: payload.service_scope || normalized.service_scope,
     schedule_rows: Array.isArray(payload.schedule_rows) ? payload.schedule_rows : normalized.schedule_rows,
-    quote_table_config: normalized.quote_table_config,
+    quote_table_config: quoteTableConfig,
     payment_config: normalized.payment_config,
     content_sections: normalized.content_sections,
     terms_text: payload.terms_text || sectionsToTermsText(normalized.content_sections),

@@ -138,7 +138,7 @@ export default function QuoteListPage() {
             className="inline-flex items-center gap-2 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-[13px] font-semibold text-orange-700 shadow-sm hover:bg-orange-100"
           >
             <FileSignature className="h-4 w-4" />
-            Tạo hợp đồng mới
+            Quản lý hợp đồng
           </button>
           <button
             type="button"

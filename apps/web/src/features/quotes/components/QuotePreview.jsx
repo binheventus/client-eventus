@@ -159,7 +159,7 @@ function QuoteEndNotes({ quote = {}, items = [] }) {
   ]
 
   return (
-    <section className="space-y-2.5 rounded-lg border border-slate-300 bg-white px-3 py-3 text-[10px] leading-[1.22] text-black">
+    <section className="space-y-2.5 rounded-lg border border-slate-300 bg-slate-100 px-3 py-3 text-[10px] leading-[1.22] text-black">
       {equipmentRules.length ? (
         <div>
           <h3 className="text-[10px] font-bold uppercase tracking-[0.04em] text-black">THIẾT BỊ SỬ DỤNG</h3>
@@ -210,7 +210,7 @@ function QuoteItemsMobileCards({ items = [] }) {
             <div className="border-b border-slate-200 bg-slate-50 px-3.5 py-2.5">
               <div className="flex flex-wrap items-center justify-between gap-2 text-[12px] font-bold uppercase tracking-[0.04em] text-black">
                 <span className="min-w-0">{group.label}</span>
-                <span className="shrink-0 rounded-full border border-slate-300 bg-white px-2 py-0.5 text-[10px] tracking-normal">
+                <span className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] tracking-normal text-amber-800">
                   {formatCurrency(getGroupTotal(group.items))}đ
                 </span>
               </div>
@@ -310,7 +310,7 @@ export default function QuotePreview({
           <table className="w-full table-fixed text-left text-[13px]">
             <thead className="bg-slate-50 text-[9px] uppercase tracking-[0.08em] text-black">
               <tr>
-                <th className="w-[39%] px-3 py-2.5 font-semibold">Hạng mục</th>
+                <th className={`w-[39%] ${showGroupHeaders ? 'pl-6' : 'pl-3'} py-2.5 pr-3 font-semibold`}>Hạng mục</th>
                 <th className="w-[12%] whitespace-nowrap px-1 py-2.5 text-center font-semibold">ĐVT</th>
                 <th className="w-[10%] whitespace-nowrap px-1 py-2.5 text-center font-semibold">Số lượng</th>
                 <th className="w-[8%] whitespace-nowrap px-1 py-2.5 text-center font-semibold">Số buổi</th>
@@ -326,7 +326,7 @@ export default function QuotePreview({
                       <td colSpan={6} className="bg-slate-100 px-3 py-2 text-[9px] font-bold uppercase tracking-[0.05em] text-black">
                         <div className="flex items-center gap-2">
                           <span>{group.label}</span>
-                          <span className="inline-flex shrink-0 rounded-full border border-slate-300 bg-white px-2 py-0.5 text-[9px] font-bold tracking-normal text-black">
+                          <span className="inline-flex shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[9px] font-bold tracking-normal text-amber-800">
                             {formatCurrency(getGroupTotal(group.items))}đ
                           </span>
                         </div>

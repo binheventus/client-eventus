@@ -138,6 +138,7 @@ function normalizeContractRow(row = {}) {
     const fallback = ['preamble', 'schedule_rows', 'content_sections'].includes(column) ? [] : {}
     normalized[column] = fromJson(normalized[column], fallback)
   })
+  normalized.signing_date = normalized.signing_date || normalized.quote_table_config?.signing_date || ''
   return normalized
 }
 
@@ -179,6 +180,7 @@ function normalizeJobRow(row = {}) {
     },
     has_saved_contract: normalizeBoolean(row.has_saved_contract),
     contract_id: row.contract_id || null,
+    contract_share_token: row.contract_share_token || '',
     contract_number: row.contract_number || '',
   }
 }
@@ -349,7 +351,7 @@ async function listContractJobs(queryParams = {}) {
        customers.authorization_date as customer_authorization_date,
        customers.phone_number as customer_phone_number,
        customers.email as customer_email,
-       c.id as contract_id, c.contract_number,
+       c.id as contract_id, c.share_token as contract_share_token, c.contract_number,
        case when c.id is null then 0 else 1 end as has_saved_contract
      from ${tables.jobs} j
      left join ${tables.customers} customers on customers.id = j.customer_id
@@ -381,7 +383,7 @@ async function getContractJobById(jobId) {
        customers.authorization_date as customer_authorization_date,
        customers.phone_number as customer_phone_number,
        customers.email as customer_email,
-       c.id as contract_id, c.contract_number,
+       c.id as contract_id, c.share_token as contract_share_token, c.contract_number,
        case when c.id is null then 0 else 1 end as has_saved_contract
      from ${tables.jobs} j
      left join ${tables.customers} customers on customers.id = j.customer_id
@@ -615,6 +617,16 @@ async function getContractById(id) {
   return rows?.[0] ? normalizeContractRow(rows[0]) : null
 }
 
+async function getContractByIdOrShareToken(identifier) {
+  const id = String(identifier || '').trim()
+  if (!id) return null
+
+  const byId = await getContractById(id)
+  if (byId?.id) return byId
+
+  return getContractByShareToken(id)
+}
+
 async function getContractByQuoteId(quoteId) {
   const rows = await query(`select * from ${tables.contracts} where quote_id = ? limit 1`, [quoteId])
   return rows?.[0] ? normalizeContractRow(rows[0]) : null
@@ -645,6 +657,10 @@ async function getPublicContractByToken(shareToken) {
 function cleanContractPayload(contract = {}) {
   const { email, phone, ...sellerSnapshot } = contract.seller_snapshot || {}
   const sourceType = normalizeSourceType(contract.source_type || (contract.quote_id ? 'quote' : 'manual'))
+  const quoteTableConfig = {
+    ...(contract.quote_table_config || {}),
+    signing_date: contract.signing_date || contract.quote_table_config?.signing_date || '',
+  }
 
   return {
     quote_id: emptyToNull(contract.quote_id),
@@ -664,7 +680,7 @@ function cleanContractPayload(contract = {}) {
     preamble: toJson(Array.isArray(contract.preamble) ? contract.preamble : [], []),
     service_scope: contract.service_scope || '',
     schedule_rows: toJson(Array.isArray(contract.schedule_rows) ? contract.schedule_rows : [], []),
-    quote_table_config: toJson(contract.quote_table_config || {}, {}),
+    quote_table_config: toJson(quoteTableConfig, {}),
     payment_config: toJson(contract.payment_config || {}, {}),
     content_sections: toJson(Array.isArray(contract.content_sections) ? contract.content_sections : [], []),
     terms_text: contract.terms_text || '',
@@ -747,7 +763,7 @@ export default async function handler(req, res) {
         const id = getQueryValue(req.query?.id, '')
         const quoteId = getQueryValue(req.query?.quote_id, '')
         const jobId = getQueryValue(req.query?.job_id || req.query?.external_job_id, '')
-        if (id) return res.status(200).json({ contract: await getContractById(id) })
+        if (id) return res.status(200).json({ contract: await getContractByIdOrShareToken(id) })
         if (quoteId) return res.status(200).json({ contract: await getContractByQuoteId(quoteId) })
         if (jobId) return res.status(200).json({ contract: await getContractByJobId(jobId) })
         return res.status(400).json({ error: 'Thieu contract id, quote id hoac job id.' })

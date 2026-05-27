@@ -415,7 +415,7 @@ function documentXml(contract = {}) {
     ${paragraph(contract.title || 'HỢP ĐỒNG CUNG CẤP DỊCH VỤ', { style: 'Title', align: 'center', bold: true })}
     ${paragraph(`Số: ${contract.contract_number || ''}`, { align: 'center', bold: true, italic: true })}
     ${preambleLines.map(line => paragraph(line)).join('')}
-    ${paragraph(`Hợp đồng cung cấp dịch vụ (sau đây gọi tắt là “Hợp đồng”) được lập và ký kết ngày ${formatDate(contract.updated_at || contract.created_at)} giữa các bên gồm:`)}
+    ${paragraph(`Hợp đồng cung cấp dịch vụ (sau đây gọi tắt là “Hợp đồng”) được lập và ký kết ngày ${formatDate(contract.signing_date || contract.updated_at || contract.created_at)} giữa các bên gồm:`)}
     ${partyTable(contract)}
     ${paragraph('Sau khi thỏa thuận, Các Bên đồng ý ký kết Hợp Đồng này theo các điều khoản sau:')}
     ${serviceArticleXml(contract)}

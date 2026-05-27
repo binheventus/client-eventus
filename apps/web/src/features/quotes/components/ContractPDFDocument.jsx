@@ -485,7 +485,7 @@ export default function ContractPDFDocument({ contract = {} }) {
         <Text style={styles.title}>{contract.title || 'HỢP ĐỒNG CUNG CẤP DỊCH VỤ'}</Text>
         <Text style={styles.subtitle}>Số: {contract.contract_number || '-'}</Text>
         {preambleLines.map(line => <Text key={line} style={styles.paragraph}>{line}</Text>)}
-        <Text style={styles.paragraph}>Hợp đồng cung cấp dịch vụ (sau đây gọi tắt là “Hợp đồng”) được lập và ký kết ngày {formatDate(contract.updated_at || contract.created_at)} giữa các bên gồm:</Text>
+        <Text style={styles.paragraph}>Hợp đồng cung cấp dịch vụ (sau đây gọi tắt là “Hợp đồng”) được lập và ký kết ngày {formatDate(contract.signing_date || contract.updated_at || contract.created_at)} giữa các bên gồm:</Text>
 
         <View style={styles.parties}>
           <PartyCard heading="BÊN A:" profile={partyA} role={getPartyRole(contract, 'party_a')} />

@@ -197,7 +197,7 @@ export function ContractPreviewDocument({ contract = {} }) {
   const preambleLines = getContractPreamble(contract)
   const partyA = getPartyProfile(contract, 'party_a')
   const partyB = getPartyProfile(contract, 'party_b')
-  const signingDate = formatContractDate(contract.updated_at || contract.created_at)
+  const signingDate = formatContractDate(contract.signing_date || contract.updated_at || contract.created_at)
 
   return (
     <div className="mx-auto max-w-4xl space-y-5 rounded-2xl border border-slate-200 bg-slate-50 p-5 pb-7">

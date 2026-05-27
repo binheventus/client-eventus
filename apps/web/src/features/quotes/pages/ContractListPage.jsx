@@ -68,6 +68,11 @@ const SCHEDULE_CONTRACT_QUERY_KEYS = [
   'contract_value',
 ]
 
+function getContractRoute(contract = {}) {
+  const identifier = contract?.share_token || contract?.contract_share_token || contract?.id || contract?.contract_id
+  return identifier ? `/contracts/${encodeURIComponent(identifier)}` : '/contracts'
+}
+
 function compactText(value = '') {
   return String(value || '').trim()
 }
@@ -383,7 +388,7 @@ function NewContractModal({ onClose, onCreateManual, onCreateFromJob }) {
                         <td className="px-4 py-3 text-right">
                           <button
                             type="button"
-                            onClick={() => job.contract_id ? navigate(`/contracts/${job.contract_id}`) : onCreateFromJob(job.id)}
+                            onClick={() => job.contract_id ? navigate(getContractRoute(job)) : onCreateFromJob(job.id)}
                             className={`inline-flex h-9 items-center justify-center rounded-lg px-3 text-[12px] font-semibold ${job.contract_id ? 'border border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100' : 'bg-[#f8981d] text-white hover:bg-orange-500'}`}
                           >
                             {job.contract_id ? 'Mở hợp đồng' : 'Tạo hợp đồng'}
@@ -515,7 +520,7 @@ export default function ContractListPage() {
         if (!mounted) return
 
         if (job.contract_id) {
-          navigate(`/contracts/${job.contract_id}`)
+          navigate(getContractRoute(job))
           return
         }
 
@@ -547,7 +552,7 @@ export default function ContractListPage() {
     setNewModalOpen(false)
     const job = await getContractJob(jobId)
     if (job.contract_id) {
-      navigate(`/contracts/${job.contract_id}`)
+      navigate(getContractRoute(job))
       return
     }
     setEditorState({
@@ -656,7 +661,7 @@ export default function ContractListPage() {
                   <td className="px-4 py-3">
                     <button
                       type="button"
-                      onClick={() => navigate(`/contracts/${contract.id}`)}
+                      onClick={() => navigate(getContractRoute(contract))}
                       className="rounded-lg px-1 py-0.5 text-left font-semibold text-blue-700 hover:bg-blue-50 hover:text-blue-800"
                     >
                       {contract.contract_number || '-'}

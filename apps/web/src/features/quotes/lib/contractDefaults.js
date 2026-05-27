@@ -228,6 +228,34 @@ function getCustomerShortCode(quote = {}) {
   return initials || 'KH'
 }
 
+export function getTodayInputDate() {
+  const date = new Date()
+  const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
+  return offsetDate.toISOString().slice(0, 10)
+}
+
+export function applySellerEntityToContractNumberPattern(pattern = 'HD-{{quote_code}}', entityCode = '') {
+  const prefixByEntity = {
+    EVENTUS: 'HDEVT',
+    MEDIAMONSTER: 'HDMMT',
+  }
+  const prefix = prefixByEntity[String(entityCode || '').toUpperCase()]
+  const normalizedPattern = String(pattern || 'HD-{{quote_code}}')
+
+  return prefix ? normalizedPattern.replace(/HD(?:EVT|MMT)(?=-)/g, prefix) : normalizedPattern
+}
+
+export function applySellerEntityToContractNumber(contractNumber = '', entityCode = '') {
+  const prefixByEntity = {
+    EVENTUS: 'HDEVT',
+    MEDIAMONSTER: 'HDMMT',
+  }
+  const prefix = prefixByEntity[String(entityCode || '').toUpperCase()]
+  const normalizedContractNumber = String(contractNumber || '')
+
+  return prefix ? normalizedContractNumber.replace(/HD(?:EVT|MMT)(?=-)/g, prefix) : normalizedContractNumber
+}
+
 export function generateContractNumber(pattern = 'HD-{{quote_code}}', quote = {}, dateValue = new Date()) {
   const date = dateValue ? new Date(dateValue) : new Date()
   const sourceCode = quote.source_code || (quote.external_job_id ? `JOB${quote.external_job_id}` : getQuoteCode(quote))
@@ -384,6 +412,7 @@ export function getContractPaymentNotes(paymentConfig = {}) {
 
 export function normalizeContractTemplate(template = {}) {
   const contentSections = normalizeArray(template.content_sections, null) || termsTextToSections(template.terms_text)
+  const sellerEntityCode = template.seller_entity_code || template.entity_code || 'EVENTUS'
   const quoteTableConfig = {
     ...DEFAULT_QUOTE_TABLE_CONFIG,
     ...(template.quote_table_config || {}),
@@ -395,12 +424,12 @@ export function normalizeContractTemplate(template = {}) {
 
   return {
     ...template,
-    seller_entity_code: template.seller_entity_code || template.entity_code || 'EVENTUS',
+    seller_entity_code: sellerEntityCode,
     party_role_config: {
       ...DEFAULT_PARTY_ROLE_CONFIG,
       ...(template.party_role_config || {}),
     },
-    contract_number_pattern: template.contract_number_pattern || 'HD-{{quote_code}}',
+    contract_number_pattern: applySellerEntityToContractNumberPattern(template.contract_number_pattern || 'HD-{{quote_code}}', sellerEntityCode),
     preamble: getContractPreamble(template),
     service_scope: template.service_scope || 'cung cấp dịch vụ theo nội dung báo giá đính kèm',
     schedule_rows: normalizeArray(template.schedule_rows, []),
@@ -564,7 +593,8 @@ export function buildInitialContractDraft(quote = {}, templateInput = DEFAULT_CO
     seller_snapshot: getEntityProfile(sellerEntityCode),
     customer_snapshot: getCustomerProfileFromQuote(quote),
     party_role_config: template.party_role_config,
-    contract_number_pattern: template.contract_number_pattern,
+    contract_number_pattern: applySellerEntityToContractNumberPattern(template.contract_number_pattern, sellerEntityCode),
+    signing_date: quote.signing_date || quote.quote_table_config?.signing_date || getTodayInputDate(),
     preamble: template.preamble,
     service_scope: inferServiceScope(quote, template),
     schedule_rows: buildScheduleRows(quote, template),
@@ -606,7 +636,8 @@ export function buildInitialContractDraftFromSource(source = {}, templateInput =
     seller_snapshot: getEntityProfile(sellerEntityCode),
     customer_snapshot: customerSnapshot,
     party_role_config: template.party_role_config,
-    contract_number_pattern: template.contract_number_pattern,
+    contract_number_pattern: applySellerEntityToContractNumberPattern(template.contract_number_pattern, sellerEntityCode),
+    signing_date: source.signing_date || source.quote_table_config?.signing_date || getTodayInputDate(),
     preamble: template.preamble,
     service_scope: source.service_scope || inferServiceScope(quoteSnapshot, template),
     schedule_rows: Array.isArray(source.schedule_rows) && source.schedule_rows.length

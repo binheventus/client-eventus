@@ -79,6 +79,8 @@ export default defineConfig(({ mode }) => {
     root: webRoot,
     plugins: [react(), localApiPlugin()],
     server: {
+      host: '::',
+      strictPort: true,
       allowedHosts: ['client-eventus.test'],
     },
     build: {

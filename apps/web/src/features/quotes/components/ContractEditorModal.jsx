@@ -16,6 +16,8 @@ import {
   saveContract,
 } from '../hooks/useContracts'
 import {
+  applySellerEntityToContractNumber,
+  applySellerEntityToContractNumberPattern,
   buildQuoteSnapshot,
   canCreateContractFromQuote,
   buildSingleLineQuoteSnapshot,
@@ -29,6 +31,7 @@ import {
   getContractWorkProgressNotes,
   getDefaultTemplate,
   getEntityProfile,
+  getTodayInputDate,
   normalizeContractTemplate,
   sectionsToTermsText,
   termsTextToSections,
@@ -455,16 +458,55 @@ function ProfileFields({
   )
 }
 
+function getHydratedContractNumberSource(contract = {}, quoteSnapshot = {}, customerSnapshot = {}) {
+  return {
+    ...quoteSnapshot,
+    external_job_id: contract.external_job_id,
+    source_code: contract.external_job_id ? `JOB${contract.external_job_id}` : '',
+    client_name: customerSnapshot.company_name || quoteSnapshot.client_name,
+  }
+}
+
+function syncHydratedContractNumber(contractNumber, contractNumberPattern, contract = {}, quoteSnapshot = {}, customerSnapshot = {}) {
+  const current = String(contractNumber || '').trim()
+  if (!current) return current
+
+  const nextPattern = applySellerEntityToContractNumberPattern(contractNumberPattern, contract.seller_entity_code)
+  const source = getHydratedContractNumberSource(contract, quoteSnapshot, customerSnapshot)
+  const nextGenerated = generateContractNumber(nextPattern, source)
+  const candidatePatterns = [
+    contract.contract_number_pattern,
+    contractNumberPattern,
+    nextPattern,
+    applySellerEntityToContractNumberPattern(nextPattern, 'EVENTUS'),
+    applySellerEntityToContractNumberPattern(nextPattern, 'MEDIAMONSTER'),
+  ].filter(Boolean)
+  const wasGenerated = Array.from(new Set(candidatePatterns))
+    .some(pattern => generateContractNumber(pattern, source) === current)
+
+  return wasGenerated ? nextGenerated : applySellerEntityToContractNumber(current, contract.seller_entity_code)
+}
+
 function hydrateContract(contract, quote) {
   const normalized = normalizeContractTemplate(contract)
+  const customerSnapshot = normalizeCustomerProfile(contract.customer_snapshot || {})
+  const quoteSnapshot = contract.quote_snapshot || buildQuoteSnapshot(quote)
+  const signingDate = contract.signing_date || contract.quote_table_config?.signing_date || getTodayInputDate()
+
   return {
     ...contract,
     ...normalized,
     quote_id: contract.quote_id || quote?.id || '',
     quote_number: contract.quote_number || quote?.quote_number || '',
     seller_snapshot: contract.seller_snapshot || getEntityProfile(contract.seller_entity_code || quote?.entity_code),
-    customer_snapshot: normalizeCustomerProfile(contract.customer_snapshot || {}),
-    quote_snapshot: contract.quote_snapshot || buildQuoteSnapshot(quote),
+    customer_snapshot: customerSnapshot,
+    contract_number: syncHydratedContractNumber(contract.contract_number, normalized.contract_number_pattern, { ...contract, seller_entity_code: normalized.seller_entity_code }, quoteSnapshot, customerSnapshot),
+    signing_date: signingDate,
+    quote_table_config: {
+      ...normalized.quote_table_config,
+      signing_date: signingDate,
+    },
+    quote_snapshot: quoteSnapshot,
   }
 }
 
@@ -749,9 +791,17 @@ export default function ContractEditorModal({
   }
 
   function handleSellerEntityChange(entityCode) {
-    updateDraft({
+    const nextPattern = applySellerEntityToContractNumberPattern(draft.contract_number_pattern, entityCode)
+    const nextDraft = {
+      ...draft,
       seller_entity_code: entityCode,
       seller_snapshot: getEntityProfile(entityCode),
+      contract_number_pattern: nextPattern,
+    }
+
+    updateDraft({
+      ...nextDraft,
+      contract_number: getSyncedContractNumber(draft.contract_number, draft.contract_number_pattern, nextPattern, nextDraft),
     })
   }
 
@@ -760,15 +810,15 @@ export default function ContractEditorModal({
     if (!template) return
     const normalizedTemplate = normalizeContractTemplate(template)
     const sellerEntityCode = draft.seller_entity_code || quote?.entity_code || normalizedTemplate.seller_entity_code
-
-    updateDraft({
+    const nextPattern = applySellerEntityToContractNumberPattern(normalizedTemplate.contract_number_pattern, sellerEntityCode)
+    const nextDraft = {
+      ...draft,
       template_id: normalizedTemplate.id,
       title: normalizedTemplate.title || draft.title,
       seller_entity_code: sellerEntityCode,
       seller_snapshot: getEntityProfile(sellerEntityCode),
       party_role_config: normalizedTemplate.party_role_config,
-      contract_number_pattern: normalizedTemplate.contract_number_pattern,
-      contract_number: draft.contract_number || '',
+      contract_number_pattern: nextPattern,
       preamble: normalizedTemplate.preamble,
       service_scope: normalizedTemplate.service_scope || draft.service_scope,
       schedule_rows: normalizedTemplate.schedule_rows.length ? normalizedTemplate.schedule_rows : draft.schedule_rows,
@@ -776,6 +826,11 @@ export default function ContractEditorModal({
       payment_config: normalizedTemplate.payment_config,
       content_sections: normalizedTemplate.content_sections,
       terms_text: normalizedTemplate.terms_text || sectionsToTermsText(normalizedTemplate.content_sections),
+    }
+
+    updateDraft({
+      ...nextDraft,
+      contract_number: getSyncedContractNumber(draft.contract_number, draft.contract_number_pattern, nextPattern, nextDraft),
     })
   }
 
@@ -854,18 +909,18 @@ export default function ContractEditorModal({
     try {
       const termsText = String(draft.terms_text ?? sectionsToTermsText(draft.content_sections)).trim()
       const finalQuoteSnapshot = quote ? quoteSnapshot : buildSingleLineQuoteSnapshot(draft.quote_snapshot || {})
-      const finalContractNumber = draft.contract_number || generateContractNumber(
+      const finalContractNumberPattern = applySellerEntityToContractNumberPattern(draft.contract_number_pattern, draft.seller_entity_code)
+      const finalContractNumber = getSyncedContractNumber(
+        draft.contract_number,
         draft.contract_number_pattern,
-        {
-          ...finalQuoteSnapshot,
-          external_job_id: draft.external_job_id,
-          source_code: draft.external_job_id ? `JOB${draft.external_job_id}` : '',
-          client_name: draft.customer_snapshot?.company_name || finalQuoteSnapshot.client_name,
-        },
+        finalContractNumberPattern,
+        { ...draft, quote_snapshot: finalQuoteSnapshot },
       )
       const saved = await saveContract({
         ...draft,
         contract_number: finalContractNumber,
+        contract_number_pattern: finalContractNumberPattern,
+        signing_date: draft.signing_date || getTodayInputDate(),
         status: draft.status === 'draft' ? 'generated' : draft.status,
         terms_text: termsText,
         content_sections: termsTextToSections(termsText),
@@ -959,10 +1014,86 @@ export default function ContractEditorModal({
     (contractVatMode === 'included'
       ? Number(baseQuoteSnapshot.total_amount || 0)
       : Number(baseQuoteSnapshot.subtotal || baseQuoteSnapshot.total_amount || 0))
+  const quoteLinkId = quote?.id || draft?.quote_id || summaryQuote.id || baseQuoteSnapshot.id || ''
+  const quoteDisplayText = summaryQuote.quote_number || draft?.quote_number || quoteLinkId
+  const quoteSummaryValue = quoteLinkId ? (
+    <a
+      href={`/quotes/${encodeURIComponent(quoteLinkId)}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-[#d97706] underline-offset-2 hover:underline"
+    >
+      {quoteDisplayText || quoteLinkId}
+    </a>
+  ) : 'Chưa tạo'
+
+  function getContractNumberSource(sourceDraft = draft) {
+    const sourceSnapshot = quote
+      ? quoteSnapshot
+      : buildSingleLineQuoteSnapshot(sourceDraft?.quote_snapshot || {})
+
+    return {
+      ...sourceSnapshot,
+      external_job_id: sourceDraft?.external_job_id,
+      source_code: sourceDraft?.external_job_id ? `JOB${sourceDraft.external_job_id}` : '',
+      client_name: sourceDraft?.customer_snapshot?.company_name || sourceSnapshot.client_name,
+    }
+  }
+
+  function getGeneratedContractNumber(pattern, sourceDraft = draft) {
+    return generateContractNumber(pattern, getContractNumberSource(sourceDraft))
+  }
+
+  function getSyncedContractNumber(currentNumber, previousPattern, nextPattern, sourceDraft = draft) {
+    const current = String(currentNumber || '').trim()
+    const normalizedNextPattern = String(nextPattern || '').trim()
+    const nextGenerated = getGeneratedContractNumber(normalizedNextPattern, sourceDraft)
+
+    if (!current) return nextGenerated
+
+    const candidatePatterns = [
+      previousPattern,
+      normalizedNextPattern,
+      applySellerEntityToContractNumberPattern(normalizedNextPattern, 'EVENTUS'),
+      applySellerEntityToContractNumberPattern(normalizedNextPattern, 'MEDIAMONSTER'),
+    ].filter(Boolean)
+
+    const wasGenerated = Array.from(new Set(candidatePatterns))
+      .some(pattern => getGeneratedContractNumber(pattern, sourceDraft) === current)
+
+    return wasGenerated ? nextGenerated : applySellerEntityToContractNumber(current, sourceDraft?.seller_entity_code)
+  }
+
+  function renderContractSetupControls() {
+    if (!draft) return null
+
+    return (
+      <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
+        <Field label="Số hợp đồng">
+          <TextInput value={draft.contract_number || ''} onChange={event => updateDraft({ contract_number: event.target.value })} />
+        </Field>
+        <Field label="Ngày ký hợp đồng">
+          <TextInput type="date" value={draft.signing_date || getTodayInputDate()} onChange={event => updateDraft({ signing_date: event.target.value })} />
+        </Field>
+        <Field label="Mẫu hợp đồng">
+          <Select value={draft.template_id || ''} onChange={event => handleTemplateChange(event.target.value)}>
+            {templates.map(template => (
+              <option key={template.id} value={template.id}>{template.name}</option>
+            ))}
+          </Select>
+        </Field>
+      </div>
+    )
+  }
 
   function renderActionPanel() {
     return (
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm xl:shadow-none">
+        {dirty ? (
+          <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] font-semibold text-amber-800">
+            Có thay đổi chưa lưu
+          </div>
+        ) : null}
         <p className="text-[12px] leading-5 text-slate-400">
           {savedContractMetaText}
         </p>
@@ -1026,31 +1157,11 @@ export default function ContractEditorModal({
             <div className="sticky top-0 space-y-4">
               <section className="rounded-2xl border border-slate-200 p-4">
                 <dl>
-                  <SummaryRow label="Hợp đồng" value={draft?.contract_number || 'Tạo hợp đồng'} strong />
-                  <SummaryRow label={isQuoteSource ? 'Báo giá' : 'Nguồn'} value={isQuoteSource ? (summaryQuote.quote_number || summaryQuote.id) : (draft?.source_type === 'job' ? `JOB${draft.external_job_id}` : 'Thủ công')} strong />
+                  <SummaryRow label="Báo giá" value={quoteSummaryValue} strong />
                   <SummaryRow label="Sự kiện" value={summaryQuote.event_name} />
-                  <SummaryRow label="Khách hàng" value={summaryQuote.client_name || summaryQuote.customer_name} />
-                  <SummaryRow label="Ngày sự kiện" value={formatDate(summaryQuote.event_date)} />
-                  <SummaryRow label="Địa điểm" value={summaryQuote.location} />
-                  <SummaryRow label="Tổng tiền" value={`${formatCurrency(baseQuoteSnapshot.total_amount)}đ`} strong />
+                  <SummaryRow label="Tổng giá trị hợp đồng" value={`${formatCurrency(baseQuoteSnapshot.total_amount)}đ`} strong />
                 </dl>
-              </section>
-
-              <section className="rounded-2xl border border-slate-200 p-4">
-                <div className="space-y-2 text-[13px]">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-slate-500">Trạng thái</span>
-                    <span className="font-semibold text-slate-900">{savedContract ? 'Đã lưu' : 'Chưa lưu'}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-slate-500">Thay đổi</span>
-                    <span className={`font-semibold ${dirty ? 'text-amber-700' : 'text-emerald-700'}`}>{dirty ? 'Chưa lưu' : 'Đã đồng bộ'}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-slate-500">Hạng mục</span>
-                    <span className="font-semibold text-slate-900">{baseQuoteSnapshot.items?.length || 0}</span>
-                  </div>
-                </div>
+                {renderContractSetupControls()}
               </section>
 
               {renderActionPanel()}
@@ -1058,7 +1169,7 @@ export default function ContractEditorModal({
           </aside>
 
           <main className="min-h-0 overflow-y-auto px-4 pb-5 pt-0 xl:px-5">
-            <div className="space-y-5">
+            <div className="flex flex-col gap-5">
               {loading && <p className="rounded-xl bg-white px-4 py-3 text-[13px] text-slate-500">Đang tải hợp đồng...</p>}
               {!quoteIsReady && !savedContract && (
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] font-semibold text-amber-800">
@@ -1073,30 +1184,12 @@ export default function ContractEditorModal({
                   <section className="grid gap-3 xl:hidden">
                     <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                       <div className="grid gap-3 sm:grid-cols-2">
-                        <SummaryRow label="Hợp đồng" value={draft?.contract_number || 'Tạo hợp đồng'} strong />
-                        <SummaryRow label={isQuoteSource ? 'Báo giá' : 'Nguồn'} value={isQuoteSource ? (summaryQuote.quote_number || summaryQuote.id) : (draft?.source_type === 'job' ? `JOB${draft.external_job_id}` : 'Thủ công')} strong />
-                        <SummaryRow label="Tổng tiền" value={`${formatCurrency(baseQuoteSnapshot.total_amount)}đ`} strong />
+                        <SummaryRow label="Báo giá" value={quoteSummaryValue} strong />
+                        <SummaryRow label="Tổng giá trị hợp đồng" value={`${formatCurrency(baseQuoteSnapshot.total_amount)}đ`} strong />
                       </div>
+                      {renderContractSetupControls()}
                     </div>
                     {renderActionPanel()}
-                  </section>
-
-                  <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <div className="grid gap-3 lg:grid-cols-[minmax(180px,0.75fr)_minmax(260px,1.25fr)_minmax(260px,1fr)]">
-                      <Field label="Số hợp đồng">
-                        <TextInput value={draft.contract_number || ''} onChange={event => updateDraft({ contract_number: event.target.value })} />
-                      </Field>
-                      <Field label="Format số hợp đồng">
-                        <TextInput value={draft.contract_number_pattern || ''} onChange={event => updateDraft({ contract_number_pattern: event.target.value })} />
-                      </Field>
-                      <Field label="Mẫu hợp đồng">
-                        <Select value={draft.template_id || ''} onChange={event => handleTemplateChange(event.target.value)}>
-                          {templates.map(template => (
-                            <option key={template.id} value={template.id}>{template.name}</option>
-                          ))}
-                        </Select>
-                      </Field>
-                    </div>
                   </section>
 
                   <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -1107,7 +1200,7 @@ export default function ContractEditorModal({
                       <p className="mt-1 text-center text-[13px] font-semibold text-slate-700">Số: {draft.contract_number || 'Số hợp đồng'}</p>
                       <div className="mt-3 space-y-1 text-[13px] leading-6 text-slate-700">
                         {preambleLines.map(line => <p key={line}>{line}</p>)}
-                        <p className="pt-1">Hợp đồng cung cấp dịch vụ (sau đây gọi tắt là “Hợp đồng”) được lập và ký kết ngày <span className="font-semibold text-red-600">Ngày ký hợp đồng</span> giữa các bên gồm:</p>
+                        <p className="pt-1">Hợp đồng cung cấp dịch vụ (sau đây gọi tắt là “Hợp đồng”) được lập và ký kết ngày <span className="font-semibold text-slate-950">{formatDate(draft.signing_date || getTodayInputDate())}</span> giữa các bên gồm:</p>
                       </div>
                     </div>
                   </section>
@@ -1136,7 +1229,7 @@ export default function ContractEditorModal({
                       headerAction={(
                         <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-5">
                           <span className="shrink-0 text-[12px] font-semibold text-slate-600">Chọn pháp nhân bên B</span>
-                          <Select className="appearance-none border-orange-300 bg-orange-50 text-center font-semibold text-orange-700 focus:border-[#f8981d] sm:max-w-[108px]" value={draft.seller_entity_code || quote?.entity_code || 'EVENTUS'} onChange={event => handleSellerEntityChange(event.target.value)}>
+                          <Select className="appearance-none border-orange-300 bg-orange-50 text-center font-semibold text-orange-700 focus:border-[#f8981d] sm:max-w-[132px]" value={draft.seller_entity_code || quote?.entity_code || 'EVENTUS'} onChange={event => handleSellerEntityChange(event.target.value)}>
                             {legalEntities.map(entity => {
                               const code = entity.entity_code || entity.code
                               return <option key={code} value={code}>{entity.display_name || entity.legal_name || code}</option>
