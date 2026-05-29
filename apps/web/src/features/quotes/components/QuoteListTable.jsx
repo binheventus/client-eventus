@@ -1,4 +1,4 @@
-import { FileSignature, Trash2 } from 'lucide-react'
+import { CopyPlus, FileSignature, Trash2 } from 'lucide-react'
 import {
   canOpenContractFromQuote,
   formatQuoteCurrency,
@@ -31,7 +31,7 @@ function EmptyRow({ children }) {
   )
 }
 
-function QuoteActions({ quote, onOpenContract, onDeleteQuote }) {
+function QuoteActions({ quote, duplicating, onOpenContract, onDuplicateQuote, onDeleteQuote }) {
   const canOpenContract = canOpenContractFromQuote(quote)
   const savedContract = hasSavedContract(quote)
   const contractActionLabel = savedContract ? 'Xem hợp đồng' : 'Tạo hợp đồng'
@@ -56,10 +56,20 @@ function QuoteActions({ quote, onOpenContract, onDeleteQuote }) {
         </ActionButton>
         <button
           type="button"
+          disabled={duplicating}
+          onClick={() => onDuplicateQuote(quote)}
+          title={duplicating ? 'Đang nhân bản báo giá...' : 'Nhân bản báo giá'}
+          aria-label={`Nhân bản báo giá ${quote.quote_number || ''}`.trim()}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-orange-200 bg-orange-50 text-orange-700 shadow-sm transition hover:bg-orange-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-200 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 disabled:shadow-none"
+        >
+          <CopyPlus className={`h-4 w-4 ${duplicating ? 'animate-pulse' : ''}`} />
+        </button>
+        <button
+          type="button"
           onClick={() => onDeleteQuote(quote)}
           title="Xóa báo giá"
           aria-label={`Xóa báo giá ${quote.quote_number || ''}`.trim()}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-100 bg-white text-red-600 shadow-sm transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-orange-200 bg-orange-50 text-orange-700 shadow-sm transition hover:bg-orange-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-200"
         >
           <Trash2 className="h-4 w-4" />
         </button>
@@ -85,7 +95,7 @@ function QuoteOpenButton({ quote, children, className = '', align = 'left', labe
   )
 }
 
-function QuoteRow({ quote, userContext, onOpenQuote, onOpenContract, onDeleteQuote }) {
+function QuoteRow({ quote, userContext, duplicatingQuoteId, onOpenQuote, onOpenContract, onDuplicateQuote, onDeleteQuote }) {
   const formattedTotal = `${formatQuoteCurrency(quote.total_amount)}đ`
 
   return (
@@ -114,7 +124,9 @@ function QuoteRow({ quote, userContext, onOpenQuote, onOpenContract, onDeleteQuo
       <td className="px-4 py-3 whitespace-nowrap">
         <QuoteActions
           quote={quote}
+          duplicating={duplicatingQuoteId === quote.id}
           onOpenContract={onOpenContract}
+          onDuplicateQuote={onDuplicateQuote}
           onDeleteQuote={onDeleteQuote}
         />
       </td>
@@ -122,7 +134,7 @@ function QuoteRow({ quote, userContext, onOpenQuote, onOpenContract, onDeleteQuo
   )
 }
 
-export default function QuoteListTable({ quotes, loading, userContext, onOpenQuote, onOpenContract, onDeleteQuote }) {
+export default function QuoteListTable({ quotes, loading, userContext, duplicatingQuoteId, onOpenQuote, onOpenContract, onDuplicateQuote, onDeleteQuote }) {
   return (
     <div className="overflow-x-auto">
       <table className="min-w-[980px] w-full text-left text-[13px]">
@@ -146,8 +158,10 @@ export default function QuoteListTable({ quotes, loading, userContext, onOpenQuo
               key={quote.id}
               quote={quote}
               userContext={userContext}
+              duplicatingQuoteId={duplicatingQuoteId}
               onOpenQuote={onOpenQuote}
               onOpenContract={onOpenContract}
+              onDuplicateQuote={onDuplicateQuote}
               onDeleteQuote={onDeleteQuote}
             />
           )) : (

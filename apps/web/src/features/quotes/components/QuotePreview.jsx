@@ -247,7 +247,7 @@ export default function QuotePreview({
   client,
   sticky = true,
   tableOnly = false,
-  showStamp = true,
+  showStamp,
 }) {
   const entityRows = entities.length ? entities : legalEntitiesData
   const entity = getEntity(quote.entity_code, entityRows)
@@ -263,6 +263,7 @@ export default function QuotePreview({
   const displayedQuoteCode = quoteCode ? `#${String(quoteCode).replace(/^#/, '')}` : ''
   const itemGroups = groupQuoteItems(items)
   const showGroupHeaders = itemGroups.length > 1
+  const shouldShowStamp = showStamp ?? quote.show_stamp !== false
 
   return (
     <div className={`${sticky ? 'sticky top-6' : ''} w-full min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm`}>
@@ -389,7 +390,7 @@ export default function QuotePreview({
             <div className="mt-2">
               <QuoteEndNotes quote={quote} items={items} />
             </div>
-            <SignatureBlock quote={quote} showStamp={showStamp} />
+            <SignatureBlock quote={quote} showStamp={shouldShowStamp} />
           </>
         ) : null}
       </div>

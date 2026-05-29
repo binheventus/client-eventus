@@ -788,12 +788,15 @@ function Notes({ quote, items = [], dense = false, spacious = false }) {
 
 function SignatureBlock({ quote, dense = false, spacious = false }) {
   const stampImageSrc = getStampImageSrc(quote?.entity_code)
+  const showStamp = quote?.show_stamp !== false
 
   return (
     <View style={[styles.signature, dense ? styles.signatureDense : null, spacious ? styles.signatureSpacious : null]}>
       <Text style={[styles.signatureDate, dense ? styles.signatureDateDense : null, spacious ? styles.signatureDateSpacious : null]}>Ngày lập: {formatQuoteDate(quote?.created_at)}</Text>
       <View style={[styles.signatureImageWrap, dense ? styles.signatureImageWrapDense : null, spacious ? styles.signatureImageWrapSpacious : null]}>
-        <Image src={stampImageSrc} style={[styles.stampImage, dense ? styles.stampImageDense : null, spacious ? styles.stampImageSpacious : null]} />
+        {showStamp ? (
+          <Image src={stampImageSrc} style={[styles.stampImage, dense ? styles.stampImageDense : null, spacious ? styles.stampImageSpacious : null]} />
+        ) : null}
         <Image src={SIGNATURE_IMAGE_SRC} style={[styles.signatureImage, dense ? styles.signatureImageDense : null, spacious ? styles.signatureImageSpacious : null]} />
       </View>
       <Text style={[styles.signatureName, dense ? styles.signatureNameDense : null, spacious ? styles.signatureNameSpacious : null]}>Nguyễn Thu Huyền</Text>

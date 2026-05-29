@@ -79,6 +79,11 @@ const quoteColumns = [
     columnName: 'terms_text',
     definition: 'longtext null after `has_vat`',
   },
+  {
+    tableName: 'client_quotes',
+    columnName: 'show_stamp',
+    definition: 'tinyint(1) not null default 1 after `has_vat`',
+  },
 ]
 
 const contractColumns = [

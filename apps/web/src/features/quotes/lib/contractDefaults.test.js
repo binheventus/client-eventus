@@ -136,6 +136,23 @@ test('buildSingleLineQuoteSnapshot treats included VAT input as total amount and
   assert.equal(snapshot.items[0].total_price, 10000000)
 })
 
+test('buildSingleLineQuoteSnapshot preserves manual amount when switching VAT mode', () => {
+  const includedSnapshot = buildSingleLineQuoteSnapshot({}, {
+    amount: 6000000,
+    vat_mode: 'included',
+  })
+  const excludedSnapshot = buildSingleLineQuoteSnapshot(includedSnapshot, {
+    vat_mode: 'excluded',
+  })
+
+  assert.equal(excludedSnapshot.contract_value_input, 6000000)
+  assert.equal(excludedSnapshot.subtotal, 6000000)
+  assert.equal(excludedSnapshot.vat_amount, 480000)
+  assert.equal(excludedSnapshot.total_amount, 6480000)
+  assert.equal(excludedSnapshot.items[0].unit_price, 6000000)
+  assert.equal(excludedSnapshot.items[0].total_price, 6000000)
+})
+
 test('contract work duration text can be overridden for progress notes', () => {
   const contract = {
     quote_snapshot: { duration_hours: 8 },

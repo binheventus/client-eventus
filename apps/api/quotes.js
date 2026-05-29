@@ -1,4 +1,5 @@
 import { randomBytes, randomUUID } from 'node:crypto'
+import { createRequire } from 'node:module'
 import {
   emptyToNull,
   insertRow,
@@ -12,6 +13,12 @@ import {
   withTransaction,
 } from './lib/mysql.js'
 import { requireEventusAuth } from './lib/eventus-auth.js'
+import { calculateQuotePricing } from '../web/src/features/quotes/lib/pricingCalculator.js'
+
+const require = createRequire(import.meta.url)
+const servicesPricingData = require('../web/src/data/pricing/services.json')
+const travelFeesPricingData = require('../web/src/data/pricing/travel_fees.json')
+const businessRulesPricingData = require('../web/src/data/pricing/business_rules.json')
 
 const SHARE_TOKEN_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 const SHARE_TOKEN_LENGTH = 7
@@ -54,6 +61,7 @@ const QUOTE_COLUMNS = [
   'duration_hours',
   'validity_days',
   'has_vat',
+  'show_stamp',
   'terms_text',
   'status',
   'sent_at',
@@ -190,6 +198,36 @@ function normalizeCode(value) {
   return String(value || '').trim().toUpperCase()
 }
 
+function getRuleCode(row = {}) {
+  return row?.rule_code || row?.code || row?.key
+}
+
+function getRuleValue(row = {}) {
+  return row?.rule_value ?? row?.value ?? row?.config_value ?? null
+}
+
+function getActivePricingRows(rows = []) {
+  return [...rows]
+    .filter(row => row?.is_active !== false)
+    .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0))
+}
+
+function getBusinessRulesMap(rows = []) {
+  return rows.reduce((acc, row) => {
+    const code = getRuleCode(row)
+    if (code) acc[code] = getRuleValue(row)
+    return acc
+  }, {})
+}
+
+function getCurrentQuotePricingContext() {
+  return {
+    services: getActivePricingRows(servicesPricingData),
+    travelFees: getActivePricingRows(travelFeesPricingData),
+    businessRules: getBusinessRulesMap(businessRulesPricingData),
+  }
+}
+
 function normalizeEntityCode(value) {
   const code = normalizeCode(value || DEFAULT_ENTITY_CODE)
   if (['EVENTUS', 'EVT', 'EVENTUS VIET NAM', 'CONG TY TNHH EVENTUS VIET NAM'].includes(code)) return 'EVENTUS'
@@ -230,6 +268,7 @@ function normalizeQuoteRow(row = {}) {
     duration_hours: normalizeNumber(row.duration_hours),
     validity_days: normalizeNumber(row.validity_days),
     has_vat: normalizeBoolean(row.has_vat),
+    show_stamp: normalizeBoolean(row.show_stamp),
     subtotal: normalizeNumber(row.subtotal),
     travel_fee_total: normalizeNumber(row.travel_fee_total),
     overtime_fee_total: normalizeNumber(row.overtime_fee_total),
@@ -267,6 +306,7 @@ function normalizeQuotePayload(payload = {}) {
     duration_hours: emptyToNull(payload.duration_hours),
     validity_days: payload.validity_days ?? 15,
     has_vat: payload.has_vat === undefined ? true : Boolean(payload.has_vat),
+    show_stamp: payload.show_stamp === undefined ? true : Boolean(payload.show_stamp),
     sent_at: toMysqlDateTime(payload.sent_at),
     deleted_at: toMysqlDateTime(payload.deleted_at),
   }, QUOTE_COLUMNS)
@@ -538,6 +578,110 @@ async function createQuote(body = {}) {
   return getQuoteById(quoteId)
 }
 
+function getDuplicateEventName(quote = {}) {
+  const sourceName = String(quote.event_name || '').trim() || quote.quote_number || 'báo giá'
+  return `Bản sao của ${sourceName}`
+}
+
+function removeDuplicatedQuoteItemMetadata(item = {}) {
+  const {
+    id: _itemId,
+    quote_id: _quoteId,
+    created_at: _itemCreatedAt,
+    updated_at: _itemUpdatedAt,
+    service: _service,
+    resolved_service_code: _resolvedServiceCode,
+    overtime_unit_add_on: _overtimeUnitAddOn,
+    ...itemPayload
+  } = item
+  return itemPayload
+}
+
+function prepareDuplicateItemForPricing(item = {}) {
+  const normalizedServiceCode = normalizeCode(item.service_code)
+  const isCustom = Boolean(item.is_custom || normalizedServiceCode === 'CUSTOM')
+  if (isCustom) return { ...item, service_code: 'CUSTOM', is_custom: true, is_overridden: true }
+
+  return {
+    ...item,
+    is_overridden: false,
+    original_unit_price: null,
+    override_reason: '',
+  }
+}
+
+function getServiceDisplayName(service = {}) {
+  return service?.quote_display_name || service?.service_name || service?.name || service?.service_code || service?.code || ''
+}
+
+function normalizeDuplicatedCalculatedItem(item = {}, index = 0) {
+  const isCustom = Boolean(item.is_custom || normalizeCode(item.service_code) === 'CUSTOM')
+  const serviceName = getServiceDisplayName(item.service)
+  const unitPrice = Number(item.unit_price) || 0
+
+  return {
+    ...item,
+    service_code: isCustom ? 'CUSTOM' : (item.resolved_service_code || item.service_code || null),
+    service_name: isCustom ? item.service_name : (serviceName || item.service_name),
+    service_name_raw: isCustom ? (item.service_name_raw || item.service_name) : (serviceName || item.service_name_raw || item.service_name),
+    unit: item.unit || item.pricing_unit || item.service?.unit || 'Người',
+    unit_price: unitPrice,
+    total_price: Number(item.total_price) || 0,
+    is_custom: isCustom,
+    is_overridden: isCustom,
+    original_unit_price: isCustom ? (item.original_unit_price ?? unitPrice) : unitPrice,
+    override_reason: isCustom ? item.override_reason : '',
+    sort_order: index + 1,
+  }
+}
+
+function buildDuplicatedQuotePayload(quote = {}, actorPayload = {}, pricingContext = getCurrentQuotePricingContext()) {
+  const {
+    id: _id,
+    quote_number: _quoteNumber,
+    share_token: _shareToken,
+    created_at: _createdAt,
+    updated_at: _updatedAt,
+    deleted_at: _deletedAt,
+    sent_at: _sentAt,
+    created_by: _createdBy,
+    created_by_name: _createdByName,
+    sales_name: _salesName,
+    contract_id: _contractId,
+    has_saved_contract: _hasSavedContract,
+    items = [],
+    ...quotePayload
+  } = quote
+
+  const duplicateItems = items
+    .map(removeDuplicatedQuoteItemMetadata)
+    .map(prepareDuplicateItemForPricing)
+  const pricing = calculateQuotePricing({
+    items: duplicateItems,
+    services: pricingContext.services,
+    travelFees: pricingContext.travelFees,
+    businessRules: pricingContext.businessRules,
+    location: quotePayload.location,
+    customer_tier: quotePayload.tier_code,
+    has_vat: quotePayload.has_vat,
+    duration_hours: quotePayload.duration_hours,
+  })
+
+  return {
+    ...quotePayload,
+    ...actorPayload,
+    status: 'draft',
+    sent_at: null,
+    event_name: getDuplicateEventName(quote),
+    subtotal: pricing.subtotal,
+    travel_fee_total: pricing.travel_fee_total,
+    overtime_fee_total: pricing.overtime_fee_total,
+    vat_amount: pricing.vat_amount,
+    total_amount: pricing.total_amount,
+    items: (pricing.items_with_calculated_price || []).map(normalizeDuplicatedCalculatedItem),
+  }
+}
+
 async function updateQuote(id, patch = {}) {
   const { items, ...quotePatch } = patch
 
@@ -563,35 +707,15 @@ async function updateQuote(id, patch = {}) {
   return getQuoteById(id)
 }
 
-async function duplicateQuote(id) {
+async function duplicateQuote(id, actorPayload = {}) {
   const quote = await getQuoteById(id)
-  const {
-    id: _id,
-    quote_number: _quoteNumber,
-    share_token: _shareToken,
-    created_at: _createdAt,
-    updated_at: _UpdatedAt,
-    deleted_at: _deletedAt,
-    sent_at: _sentAt,
-    items = [],
-    ...quotePayload
-  } = quote
+  if (quote.deleted_at) {
+    const error = new Error('Khong the nhan ban bao gia da xoa.')
+    error.statusCode = 400
+    throw error
+  }
 
-  return createQuote({
-    ...quotePayload,
-    status: 'draft',
-    event_name: `${quote.event_name || 'Bao gia'} (copy)`,
-    items: items.map(item => {
-      const {
-        id: _itemId,
-        quote_id: _quoteId,
-        created_at: _itemCreatedAt,
-        updated_at: _itemUpdatedAt,
-        ...itemPayload
-      } = item
-      return itemPayload
-    }),
-  })
+  return createQuote(buildDuplicatedQuotePayload(quote, actorPayload))
 }
 
 async function deleteQuote(id, { hard = false } = {}) {
@@ -649,7 +773,7 @@ export default async function handler(req, res) {
       const body = getRequestBody(req)
       if (body.action === 'duplicate') {
         if (!body.id) return res.status(400).json({ error: 'Thieu quote id.' })
-        return res.status(200).json({ quote: await duplicateQuote(body.id) })
+        return res.status(200).json({ quote: await duplicateQuote(body.id, getAuthenticatedActorPayload(req)) })
       }
 
       if (body.action === 'view') {
@@ -680,3 +804,8 @@ export default async function handler(req, res) {
     return sendError(res, error)
   }
 }
+
+export const __quotesTestInternals = Object.freeze({
+  buildDuplicatedQuotePayload,
+  getDuplicateEventName,
+})

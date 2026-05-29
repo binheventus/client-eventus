@@ -515,9 +515,10 @@ export function buildSingleLineQuoteSnapshot(snapshot = {}, patch = {}) {
   const quantity = Number(patch.quantity ?? firstItem.quantity ?? 1) || 1
   const numSessions = Number(patch.num_sessions ?? firstItem.num_sessions ?? 1) || 1
   const vatRate = 0.08
+  const currentVatMode = getContractVatMode(snapshot)
   const vatMode = getContractVatMode(snapshot, patch)
   const fallbackInputAmount = Number(snapshot.contract_value_input || 0) ||
-    (vatMode === 'included'
+    (currentVatMode === 'included'
       ? Number(snapshot.total_amount || firstItem.total_price || firstItem.unit_price || 0)
       : Number(snapshot.subtotal || firstItem.total_price || firstItem.unit_price || snapshot.total_amount || 0))
   const inputAmount = Number(patch.amount ?? patch.unit_price ?? fallbackInputAmount) || 0

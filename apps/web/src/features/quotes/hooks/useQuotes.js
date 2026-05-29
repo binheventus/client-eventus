@@ -79,6 +79,7 @@ export async function softDeleteQuote(id) {
 }
 
 export async function duplicateQuote(id) {
+  if (!id) throw new Error('Thiếu quote id.')
   const result = await requestQuoteApi('', {
     method: 'POST',
     body: { action: 'duplicate', id },

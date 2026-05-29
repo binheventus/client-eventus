@@ -30,6 +30,7 @@ const DEFAULT_QUOTE = {
   client_name: 'Mr. ',
   validity_days: 15,
   has_vat: true,
+  show_stamp: true,
   terms_text: '',
 }
 
@@ -809,7 +810,7 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
   const [clientInputFocused, setClientInputFocused] = useState(false)
   const [showTermsModal, setShowTermsModal] = useState(false)
   const [termsDraft, setTermsDraft] = useState('')
-  const [showStamp, setShowStamp] = useState(false)
+  const [showStamp, setShowStamp] = useState(DEFAULT_QUOTE.show_stamp)
 
   useEffect(() => {
     if (isEditMode) return
@@ -848,9 +849,11 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
           client_name: existingQuote.client_name || DEFAULT_QUOTE.client_name,
           validity_days: normalizeQuoteValidityDays(existingQuote.validity_days),
           has_vat: existingQuote.has_vat !== false,
+          show_stamp: existingQuote.show_stamp !== false,
           terms_text: existingQuote.terms_text || '',
         }
         setQuote(nextQuote)
+        setShowStamp(nextQuote.show_stamp)
         setClientQuery(existingQuote.client_name || DEFAULT_QUOTE.client_name)
         setInputText(existingQuote.ai_input || '')
         setItems((existingQuote.items || []).map((item, index) => hydrateSavedQuoteItem(item, index, nextQuote.duration_hours)))
@@ -1205,6 +1208,7 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
         duration_hours: derivedDurationHours,
         validity_days: normalizeQuoteValidityDays(quote.validity_days),
         has_vat: Boolean(quote.has_vat),
+        show_stamp: Boolean(showStamp),
         terms_text: normalizeQuoteTermsText(quote.terms_text) || null,
         ...(!isEditMode ? {
           status,
