@@ -2,14 +2,16 @@ import { Document, Font, Page, StyleSheet, Text, View } from '@react-pdf/rendere
 import {
   formatDocumentCurrency,
   formatDocumentDate,
+  getAcceptanceLiquidationContent,
   getAcceptanceSummary,
-  getAdvanceSummary,
+  getAdvanceRequestContent,
+  getBankAccountDetails,
   getContractDocumentFilename,
   getContractFromDocument,
   getCustomerProfile,
   getDocumentTitle,
   getDocumentTypeLabel,
-  getPaymentSummary,
+  getPaymentRequestContent,
   getProfileName,
   getSellerProfile,
   getVatLabel,
@@ -217,9 +219,53 @@ const styles = StyleSheet.create({
     fontSize: 8,
     color: '#94a3b8',
   },
+  paymentHeader: {
+    textAlign: 'center',
+    fontSize: 11,
+    fontWeight: 700,
+    marginBottom: 2,
+  },
+  paymentDate: {
+    marginTop: 18,
+    marginBottom: 20,
+    textAlign: 'right',
+    fontSize: 10.5,
+  },
+  paymentTitle: {
+    textAlign: 'center',
+    fontSize: 13.5,
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    marginBottom: 3,
+  },
+  paymentNumber: {
+    textAlign: 'center',
+    fontSize: 10.5,
+    marginBottom: 22,
+  },
+  paymentParagraph: {
+    marginBottom: 9,
+    fontSize: 10.5,
+    lineHeight: 1.55,
+    color: '#111827',
+  },
+  paymentSignatureWrap: {
+    marginTop: 28,
+    alignItems: 'flex-end',
+    paddingRight: 46,
+  },
+  paymentSignature: {
+    width: 170,
+    textAlign: 'center',
+    fontSize: 10.5,
+    fontWeight: 700,
+  },
+  paymentSignatureSpace: {
+    height: 58,
+  },
 })
 
-function PartyCard({ title, profile = {} }) {
+function PartyCard({ title, profile = {}, bank = null }) {
   return (
     <View style={styles.partyCard}>
       <Text style={styles.partyTitle}>{title}</Text>
@@ -228,7 +274,42 @@ function PartyCard({ title, profile = {} }) {
       <Text style={styles.partyLine}>Chức vụ: {profile.position || '-'}</Text>
       <Text style={styles.partyLine}>Địa chỉ: {profile.address || '-'}</Text>
       <Text style={styles.partyLine}>Mã số thuế: {profile.tax_code || '-'}</Text>
+      {bank?.account_number ? (
+        <Text style={styles.partyLine}>Số tài khoản: {bank.account_number}</Text>
+      ) : null}
+      {bank?.bank_name ? (
+        <Text style={styles.partyLine}>Ngân hàng: {bank.bank_name}</Text>
+      ) : null}
     </View>
+  )
+}
+
+function getBankDetailLineParts(line = '') {
+  const match = String(line || '').match(/^(\s*(?:Tài khoản chuyển khoản|Ngân hàng|Chủ tài khoản)\s*:\s*)(.+)$/i)
+  if (!match) return null
+  return {
+    label: match[1],
+    value: match[2],
+  }
+}
+
+function BankAwarePdfParagraph({ line = '', style }) {
+  const bankLine = getBankDetailLineParts(line)
+  if (!bankLine) return <Text style={style}>{line}</Text>
+
+  return (
+    <Text style={style}>
+      {bankLine.label}
+      <Text style={styles.strong}>{bankLine.value}</Text>
+    </Text>
+  )
+}
+
+function BankPaymentLine({ label, value }) {
+  return (
+    <Text style={styles.paymentParagraph}>
+      {label}: <Text style={styles.strong}>{value || '-'}</Text>
+    </Text>
   )
 }
 
@@ -245,37 +326,39 @@ function SummaryRows({ rows = [] }) {
   )
 }
 
-function AmountTable({ title, rows = [], totals = {}, vatConfig = {} }) {
+function PdfAcceptanceAmountTable({ title, rows = [], totals = {}, vatConfig = {} }) {
   return (
     <View style={styles.section} wrap={false}>
       <Text style={styles.sectionTitle}>{title}</Text>
       <View style={styles.table}>
         <View style={styles.headerRow} fixed>
-          <Text style={[styles.cell, styles.headerCell, styles.desc]}>Nội dung</Text>
-          <Text style={[styles.cell, styles.headerCell, styles.unit]}>ĐVT</Text>
-          <Text style={[styles.cell, styles.headerCell, styles.qty]}>SL</Text>
-          <Text style={[styles.cell, styles.headerCell, styles.price]}>Đơn giá</Text>
-          <Text style={[styles.cell, styles.headerCell, styles.amount]}>Thành tiền</Text>
+          <Text style={[styles.cell, styles.headerCell, { width: '8%', textAlign: 'center' }]}>STT</Text>
+          <Text style={[styles.cell, styles.headerCell, { width: '34%' }]}>Hạng mục</Text>
+          <Text style={[styles.cell, styles.headerCell, { width: '10%' }]}>ĐVT</Text>
+          <Text style={[styles.cell, styles.headerCell, { width: '12%', textAlign: 'right' }]}>SL</Text>
+          <Text style={[styles.cell, styles.headerCell, { width: '18%', textAlign: 'right' }]}>Đơn giá</Text>
+          <Text style={[styles.cell, styles.headerCell, { width: '18%', textAlign: 'right' }]}>Thành tiền</Text>
         </View>
         {rows.length ? rows.map((row, index) => (
           <View key={row.id || index} style={styles.row} wrap={false}>
-            <Text style={[styles.cell, styles.desc]}>{row.description || '-'}</Text>
-            <Text style={[styles.cell, styles.unit]}>{row.unit || '-'}</Text>
-            <Text style={[styles.cell, styles.qty]}>{row.quantity || 0}</Text>
-            <Text style={[styles.cell, styles.price]}>{formatDocumentCurrency(row.unit_price, '')}</Text>
-            <Text style={[styles.cell, styles.amount]}>{formatDocumentCurrency(row.amount, '')}</Text>
+            <Text style={[styles.cell, { width: '8%', textAlign: 'center' }]}>{index + 1}</Text>
+            <Text style={[styles.cell, { width: '34%' }]}>{row.description || '-'}</Text>
+            <Text style={[styles.cell, { width: '10%' }]}>{row.unit || '-'}</Text>
+            <Text style={[styles.cell, { width: '12%', textAlign: 'right' }]}>{row.quantity || 0}</Text>
+            <Text style={[styles.cell, { width: '18%', textAlign: 'right' }]}>{formatDocumentCurrency(row.unit_price, '')}</Text>
+            <Text style={[styles.cell, { width: '18%', textAlign: 'right' }]}>{formatDocumentCurrency(row.amount, '')}</Text>
           </View>
         )) : (
-          <View style={styles.row}><Text style={[styles.cell, { width: '100%', textAlign: 'center' }]}>Chưa có dòng giá trị.</Text></View>
+          <View style={styles.row}><Text style={[styles.cell, { width: '100%', textAlign: 'center' }]}>Chưa có hạng mục.</Text></View>
         )}
         {[
-          ['Trước VAT', totals.subtotal],
+          ['Tổng (chưa bao gồm thuế GTGT)', totals.subtotal],
           [getVatLabel(vatConfig), totals.vat_amount],
-          ['Tổng cộng', totals.total_amount],
+          ['Tổng chi phí (Đã bao gồm VAT)', totals.total_amount],
         ].map(([label, value]) => (
           <View key={label} style={styles.row}>
-            <Text style={[styles.cell, styles.totalLabel]}>{label}</Text>
-            <Text style={[styles.cell, styles.amount]}>{formatDocumentCurrency(value, '')}</Text>
+            <Text style={[styles.cell, { width: '82%', textAlign: 'right', fontWeight: 700 }]}>{label}</Text>
+            <Text style={[styles.cell, { width: '18%', textAlign: 'right', fontWeight: 700 }]}>{formatDocumentCurrency(value, '')}</Text>
           </View>
         ))}
       </View>
@@ -307,67 +390,60 @@ function Sections({ document = {} }) {
 }
 
 function AdvanceBody({ document }) {
-  const contract = getContractFromDocument(document)
-  const summary = getAdvanceSummary(document)
+  const bank = getBankAccountDetails(document)
+  const content = getAdvanceRequestContent(document)
   return (
     <View style={styles.section}>
-      <Text style={styles.paragraph}>Căn cứ Hợp đồng số {contract.contract_number || '-'}, Bên B kính đề nghị Bên A thanh toán khoản tạm ứng như sau:</Text>
-      {summary.request_content ? <Text style={styles.paragraph}>{summary.request_content}</Text> : null}
-      <SummaryRows rows={[
-        ['Giá trị hợp đồng', formatDocumentCurrency(summary.contract_value)],
-        ['Tỷ lệ tạm ứng', `${summary.advance_percent}%`],
-        ['Số tiền tạm ứng', formatDocumentCurrency(summary.advance_amount)],
-      ]} />
-      {summary.amount_words ? <Text style={styles.paragraph}>Bằng chữ: {summary.amount_words}.</Text> : null}
-      <Text style={styles.paragraph}>Tài khoản nhận tiền: {summary.bank_account || '-'}</Text>
+      {content.greeting ? <Text style={styles.paymentParagraph}>{content.greeting}</Text> : null}
+      {content.basis ? <Text style={styles.paymentParagraph}>{content.basis}</Text> : null}
+      {content.request ? <Text style={styles.paymentParagraph}>{content.request}</Text> : null}
+      {content.amount_words ? <Text style={styles.paymentParagraph}>{content.amount_words}</Text> : null}
+      {content.method ? <Text style={styles.paymentParagraph}>{content.method}</Text> : null}
+      {content.bank_intro ? <Text style={styles.paymentParagraph}>{content.bank_intro}</Text> : null}
+      <BankPaymentLine label="Tài khoản chuyển khoản" value={bank.account_number} />
+      <BankPaymentLine label="Ngân hàng" value={bank.bank_name} />
+      <BankPaymentLine label="Chủ tài khoản" value={bank.account_holder} />
+      {content.closing ? <Text style={styles.paymentParagraph}>{content.closing}</Text> : null}
     </View>
   )
 }
 
 function AcceptanceBody({ document }) {
-  const contract = getContractFromDocument(document)
-  const summary = getAcceptanceSummary(document)
+  const content = getAcceptanceLiquidationContent(document)
   return (
     <View>
-      <Text style={styles.paragraph}>Hai bên cùng nghiệm thu khối lượng dịch vụ theo Hợp đồng số {contract.contract_number || '-'}.</Text>
-      <AmountTable title="Giá trị theo hợp đồng" rows={summary.contract_rows} totals={summary.contract_totals} vatConfig={summary.vat_config} />
-      <AmountTable title="Giá trị nghiệm thu/thực tế" rows={summary.actual_rows} totals={summary.actual_totals} vatConfig={summary.vat_config} />
-      {summary.amount_words ? <Text style={styles.paragraph}>Tổng giá trị nghiệm thu bằng chữ: {summary.amount_words}.</Text> : null}
-      {summary.acceptance_note ? <Text style={styles.paragraph}>{summary.acceptance_note}</Text> : null}
+      {content.basis_contract ? <Text style={styles.paragraph}>{content.basis_contract}</Text> : null}
+      {content.basis_completed ? <Text style={styles.paragraph}>{content.basis_completed}</Text> : null}
+      {content.party_intro ? <Text style={styles.paragraph}>{content.party_intro}</Text> : null}
+      {content.signing_intro ? <Text style={styles.paragraph}>{content.signing_intro}</Text> : null}
+      {content.articles.map(section => (
+        <View key={section.id} style={styles.section}>
+          <Text style={styles.sectionTitle}>{section.title}</Text>
+          {String(section.body || '').split(/\n+/).filter(Boolean).map((line, index) => (
+            <Text key={`${section.id}-${index}`} style={styles.paragraph}>{line}</Text>
+          ))}
+        </View>
+      ))}
     </View>
   )
 }
 
 function PaymentBody({ document }) {
-  const contract = getContractFromDocument(document)
-  const summary = getPaymentSummary(document)
+  const bank = getBankAccountDetails(document)
+  const content = getPaymentRequestContent(document)
+
   return (
     <View style={styles.section}>
-      <Text style={styles.paragraph}>Căn cứ Hợp đồng số {contract.contract_number || '-'} và BBNT đã liên kết, Bên B kính đề nghị Bên A thanh toán giá trị còn lại.</Text>
-      {summary.request_content ? <Text style={styles.paragraph}>{summary.request_content}</Text> : null}
-      <SummaryRows rows={[
-        ['Tổng nghiệm thu', formatDocumentCurrency(summary.acceptance_total)],
-        ['Khấu trừ tạm ứng', formatDocumentCurrency(summary.advance_deduction_total)],
-        ['Số tiền thanh toán', formatDocumentCurrency(summary.payment_amount)],
-      ]} />
-      {summary.advance_deductions.length ? (
-        <View style={styles.table}>
-          <View style={styles.headerRow} fixed>
-            <Text style={[styles.cell, styles.headerCell, { width: '50%' }]}>Đề nghị tạm ứng</Text>
-            <Text style={[styles.cell, styles.headerCell, { width: '25%', textAlign: 'right' }]}>Số tiền gốc</Text>
-            <Text style={[styles.cell, styles.headerCell, { width: '25%', textAlign: 'right' }]}>Khấu trừ</Text>
-          </View>
-          {summary.advance_deductions.map(row => (
-            <View key={row.document_id} style={styles.row}>
-              <Text style={[styles.cell, { width: '50%' }]}>{row.document_number || row.document_title || '-'}</Text>
-              <Text style={[styles.cell, { width: '25%', textAlign: 'right' }]}>{formatDocumentCurrency(row.original_amount, '')}</Text>
-              <Text style={[styles.cell, { width: '25%', textAlign: 'right', fontWeight: 700 }]}>{formatDocumentCurrency(row.deduction_amount, '')}</Text>
-            </View>
-          ))}
-        </View>
-      ) : null}
-      {summary.amount_words ? <Text style={styles.paragraph}>Bằng chữ: {summary.amount_words}.</Text> : null}
-      <Text style={styles.paragraph}>Tài khoản nhận tiền: {summary.bank_account || '-'}</Text>
+      {content.greeting ? <Text style={styles.paymentParagraph}>{content.greeting}</Text> : null}
+      {content.basis ? <Text style={styles.paymentParagraph}>{content.basis}</Text> : null}
+      {content.request ? <Text style={styles.paymentParagraph}>{content.request}</Text> : null}
+      {content.amount_words ? <Text style={styles.paymentParagraph}>{content.amount_words}</Text> : null}
+      {content.method ? <Text style={styles.paymentParagraph}>{content.method}</Text> : null}
+      {content.bank_intro ? <Text style={styles.paymentParagraph}>{content.bank_intro}</Text> : null}
+      <BankPaymentLine label="Tài khoản chuyển khoản" value={bank.account_number} />
+      <BankPaymentLine label="Ngân hàng" value={bank.bank_name} />
+      <BankPaymentLine label="Chủ tài khoản" value={bank.account_holder} />
+      {content.closing ? <Text style={styles.paymentParagraph}>{content.closing}</Text> : null}
     </View>
   )
 }
@@ -382,11 +458,79 @@ export default function ContractDocumentPDFDocument({ document = {} }) {
   const contract = getContractFromDocument(document)
   const customer = getCustomerProfile(document)
   const seller = getSellerProfile(document)
+  const bank = getBankAccountDetails(document)
   const issuedDate = formatDocumentDate(document.issued_date || document.created_at)
+  const acceptanceContent = document.document_type === 'acceptance_liquidation'
+    ? getAcceptanceLiquidationContent(document)
+    : null
+  const acceptanceSummary = document.document_type === 'acceptance_liquidation'
+    ? getAcceptanceSummary(document)
+    : null
 
   return (
     <Document title={document.document_number || getDocumentTitle(document)}>
       <Page size="A4" style={styles.page}>
+        {document.document_type === 'advance_request' || document.document_type === 'payment_request' ? (
+          <>
+            <Text style={styles.paymentHeader}>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</Text>
+            <Text style={styles.paymentHeader}>Độc lập - Tự do - Hạnh phúc</Text>
+            <Text style={styles.paymentDate}>Ngày {issuedDate || '-'}</Text>
+            <Text style={styles.paymentTitle}>{getDocumentTitle(document)}</Text>
+            <Text style={styles.paymentNumber}>Số: {document.document_number || '-'}</Text>
+            {document.document_type === 'payment_request' ? <PaymentBody document={document} /> : <AdvanceBody document={document} />}
+            <View style={styles.paymentSignatureWrap}>
+              <View style={styles.paymentSignature}>
+                <Text>ĐẠI DIỆN</Text>
+                <View style={styles.paymentSignatureSpace} />
+                <Text>{seller.representative || ''}</Text>
+              </View>
+            </View>
+            <Text style={styles.pageNumber} render={({ pageNumber, totalPages }) => `Trang ${pageNumber}/${totalPages}`} fixed />
+          </>
+        ) : document.document_type === 'acceptance_liquidation' ? (
+          <>
+            <Text style={[styles.national, styles.strong]}>CỘNG HOÀ XÃ HỘI CHỦ NGHĨA VIỆT NAM</Text>
+            <Text style={[styles.national, styles.strong]}>Độc lập - Tự do - Hạnh phúc</Text>
+            <Text style={styles.title}>BIÊN BẢN NGHIỆM THU VÀ THANH LÝ HỢP ĐỒNG</Text>
+            {acceptanceContent?.basis_contract ? <Text style={styles.paragraph}>{acceptanceContent.basis_contract}</Text> : null}
+            {acceptanceContent?.basis_completed ? <Text style={styles.paragraph}>{acceptanceContent.basis_completed}</Text> : null}
+            {acceptanceContent?.party_intro ? <Text style={styles.paragraph}>{acceptanceContent.party_intro}</Text> : null}
+
+            <View style={styles.parties}>
+              <PartyCard title="BÊN A" profile={customer} />
+              <PartyCard title="BÊN B" profile={seller} bank={bank} />
+            </View>
+            {acceptanceContent?.signing_intro ? <Text style={styles.paragraph}>{acceptanceContent.signing_intro}</Text> : null}
+            {acceptanceContent?.articles.map(section => (
+              <View key={section.id} style={styles.section}>
+                <Text style={styles.sectionTitle}>{section.title}</Text>
+                {String(section.body || '').split(/\n+/).filter(Boolean).map((line, index) => (
+                  <BankAwarePdfParagraph key={`${section.id}-${index}`} line={line} style={styles.paragraph} />
+                ))}
+                {acceptanceContent?.has_cost_difference && section.id === 'acceptance-article-2' ? (
+                  <>
+                    <PdfAcceptanceAmountTable title="Chi tiết hạng mục trên hợp đồng" rows={acceptanceSummary?.contract_rows || []} totals={acceptanceSummary?.contract_totals || {}} vatConfig={acceptanceSummary?.vat_config || {}} />
+                    <PdfAcceptanceAmountTable title="Chi tiết hạng mục nghiệm thu" rows={acceptanceSummary?.actual_rows || []} totals={acceptanceSummary?.actual_totals || {}} vatConfig={acceptanceSummary?.vat_config || {}} />
+                    {acceptanceContent.cost_difference_note ? <Text style={styles.paragraph}>{acceptanceContent.cost_difference_note}</Text> : null}
+                  </>
+                ) : null}
+              </View>
+            ))}
+
+            <View style={styles.signatureWrap}>
+              <View style={styles.signature}>
+                <Text style={styles.signatureHeading}>ĐẠI DIỆN BÊN A</Text>
+                <Text style={styles.signatureName}>{customer.representative || ''}</Text>
+              </View>
+              <View style={styles.signature}>
+                <Text style={styles.signatureHeading}>ĐẠI DIỆN BÊN B</Text>
+                <Text style={styles.signatureName}>{seller.representative || ''}</Text>
+              </View>
+            </View>
+            <Text style={styles.pageNumber} render={({ pageNumber, totalPages }) => `Trang ${pageNumber}/${totalPages}`} fixed />
+          </>
+        ) : (
+          <>
         <Text style={styles.national}>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</Text>
         <Text style={styles.national}>Độc lập - Tự do - Hạnh phúc</Text>
         <Text style={styles.title}>{getDocumentTitle(document)}</Text>
@@ -416,6 +560,8 @@ export default function ContractDocumentPDFDocument({ document = {} }) {
           </View>
         </View>
         <Text style={styles.pageNumber} render={({ pageNumber, totalPages }) => `Trang ${pageNumber}/${totalPages}`} fixed />
+          </>
+        )}
       </Page>
     </Document>
   )

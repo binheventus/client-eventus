@@ -6,7 +6,13 @@ import {
   roundDocumentCurrency,
   toDocumentNumber,
 } from './contractDocumentEditor'
-import { CONTRACT_DOCUMENT_TYPES } from './contractDocumentTemplates'
+import {
+  ADVANCE_REQUEST_TEMPLATE_BLOCKS,
+  ACCEPTANCE_LIQUIDATION_TEMPLATE_BLOCKS,
+  ACCEPTANCE_LIQUIDATION_WITH_DIFFERENCE_TEMPLATE_BLOCKS,
+  CONTRACT_DOCUMENT_TYPES,
+  PAYMENT_REQUEST_TEMPLATE_BLOCKS,
+} from './contractDocumentTemplates'
 
 export function hasDocumentText(value) {
   return String(value ?? '').trim().length > 0
@@ -82,6 +88,42 @@ export function getBankAccountText(document = {}) {
     || [seller.bank_account || seller.account_number, seller.bank_name, seller.account_holder || getProfileName(seller)].filter(Boolean).join(' - ')
 }
 
+function splitBankAccountText(value = '') {
+  const parts = String(value || '').split(/\s+-\s+/).map(part => part.trim()).filter(Boolean)
+  return {
+    account_number: parts[0] || '',
+    bank_name: parts[1] || '',
+    account_holder: parts[2] || '',
+  }
+}
+
+export function getBankAccountDetails(document = {}) {
+  const formData = getDocumentFormData(document)
+  const data = getDocumentData(document)
+  const seller = getSellerProfile(document)
+  const fallback = splitBankAccountText(formData.bank_account || data.bank_account || '')
+
+  return {
+    account_number: formData.bank_account_number
+      || data.bank_account_number
+      || fallback.account_number
+      || seller.bank_account
+      || seller.account_number
+      || '',
+    bank_name: formData.bank_name
+      || data.bank_name
+      || fallback.bank_name
+      || seller.bank_name
+      || '',
+    account_holder: formData.account_holder
+      || data.account_holder
+      || fallback.account_holder
+      || seller.account_holder
+      || getProfileName(seller)
+      || '',
+  }
+}
+
 function normalizeRows(rows = []) {
   return (Array.isArray(rows) ? rows : []).map((row, index) => {
     const quantity = toDocumentNumber(row.quantity, 0) || 1
@@ -118,6 +160,67 @@ export function getAdvanceSummary(document = {}) {
   }
 }
 
+function getContractProjectEventName(contract = {}) {
+  return String(
+    contract.quote_snapshot?.event_name
+      || contract.source_snapshot?.job_title
+      || contract.source_snapshot?.event_name
+      || contract.service_scope
+      || '',
+  ).trim()
+}
+
+function getAdvanceTemplateSection(document = {}, sectionId = '') {
+  const sections = Array.isArray(document.content_sections) ? document.content_sections : []
+  const section = sections.find(row => row.id === sectionId)
+  const fallback = ADVANCE_REQUEST_TEMPLATE_BLOCKS.find(row => row.id === sectionId)
+  return String(section?.body ?? fallback?.body ?? '').trim()
+}
+
+function getAdvanceTemplateTokenValues(document = {}) {
+  const contract = getContractFromDocument(document)
+  const customer = getCustomerProfile(document)
+  const summary = getAdvanceSummary(document)
+  const bank = getBankAccountDetails(document)
+  const issuedDate = formatDocumentDate(document.issued_date || document.created_at)
+  const signingDate = formatDocumentDate(contract.signing_date || contract.quote_table_config?.signing_date)
+
+  return {
+    '{{issued_date}}': issuedDate || '-',
+    '{{customer_name}}': getProfileName(customer) || '-',
+    '{{project_event_name}}': getContractProjectEventName(contract) || '-',
+    '{{service_scope}}': contract.service_scope || '-',
+    '{{contract_number}}': contract.contract_number || '-',
+    '{{contract_signing_date}}': signingDate || '-',
+    '{{advance_percent}}': Number.isFinite(summary.advance_percent) ? String(summary.advance_percent) : '-',
+    '{{advance_amount}}': formatDocumentCurrency(summary.advance_amount, ''),
+    '{{advance_amount_words}}': summary.amount_words || '-',
+    '{{seller_bank_account}}': bank.account_number || '-',
+    '{{seller_bank_name}}': bank.bank_name || '-',
+    '{{seller_account_holder}}': bank.account_holder || '-',
+  }
+}
+
+export function renderAdvanceRequestTemplateText(value = '', document = {}) {
+  const tokens = getAdvanceTemplateTokenValues(document)
+  return Object.entries(tokens).reduce(
+    (text, [token, replacement]) => text.split(token).join(replacement),
+    String(value || ''),
+  )
+}
+
+export function getAdvanceRequestContent(document = {}) {
+  return {
+    greeting: renderAdvanceRequestTemplateText(getAdvanceTemplateSection(document, 'advance-greeting'), document),
+    basis: renderAdvanceRequestTemplateText(getAdvanceTemplateSection(document, 'advance-basis'), document),
+    request: renderAdvanceRequestTemplateText(getAdvanceTemplateSection(document, 'advance-request'), document),
+    amount_words: renderAdvanceRequestTemplateText(getAdvanceTemplateSection(document, 'advance-amount-words'), document),
+    method: renderAdvanceRequestTemplateText(getAdvanceTemplateSection(document, 'advance-method'), document),
+    bank_intro: renderAdvanceRequestTemplateText(getAdvanceTemplateSection(document, 'advance-bank-intro'), document),
+    closing: renderAdvanceRequestTemplateText(getAdvanceTemplateSection(document, 'advance-closing'), document),
+  }
+}
+
 export function getAcceptanceSummary(document = {}) {
   const formData = getDocumentFormData(document)
   const amountConfig = getDocumentAmountConfig(document)
@@ -151,7 +254,103 @@ export function getAcceptanceSummary(document = {}) {
     actual_totals: actualTotals,
     acceptance_note: formData.acceptance_note || getDocumentData(document).note || '',
     acceptance_result: formData.acceptance_result || 'accepted',
+    advance_paid: roundDocumentCurrency(formData.advance_paid ?? amountConfig.advance_paid ?? 0),
+    remaining_amount: roundDocumentCurrency(
+      formData.remaining_amount ??
+      amountConfig.remaining_amount ??
+      Math.max(0, actualTotals.total_amount - roundDocumentCurrency(formData.advance_paid ?? amountConfig.advance_paid ?? 0)),
+    ),
+    payment_due_days: formData.payment_due_days || amountConfig.payment_due_days || '07 ngày',
     amount_words: actualTotals.total_amount > 0 ? numberToVietnameseWords(actualTotals.total_amount) : '',
+  }
+}
+
+function getAcceptanceTemplateSection(document = {}, sectionId = '') {
+  const sections = Array.isArray(document.content_sections) ? document.content_sections : []
+  const section = sections.find(row => row.id === sectionId)
+  const fallbackSections = hasAcceptanceCostDifference(document)
+    ? ACCEPTANCE_LIQUIDATION_WITH_DIFFERENCE_TEMPLATE_BLOCKS
+    : ACCEPTANCE_LIQUIDATION_TEMPLATE_BLOCKS
+  const fallback = fallbackSections.find(row => row.id === sectionId)
+  return String(section?.body ?? fallback?.body ?? '').trim()
+}
+
+function getAcceptanceTemplateSections(document = {}) {
+  const sections = Array.isArray(document.content_sections) ? document.content_sections : []
+  if (sections.length) return sections
+  return hasAcceptanceCostDifference(document)
+    ? ACCEPTANCE_LIQUIDATION_WITH_DIFFERENCE_TEMPLATE_BLOCKS
+    : ACCEPTANCE_LIQUIDATION_TEMPLATE_BLOCKS
+}
+
+export function hasAcceptanceCostDifference(document = {}) {
+  const sections = Array.isArray(document.content_sections) ? document.content_sections : []
+  return Boolean(
+    document.template_snapshot?.fields_config?.acceptance_cost_difference ||
+    document.fields_config?.acceptance_cost_difference ||
+    sections.some(section => section.id === 'acceptance-cost-difference-note')
+  )
+}
+
+function getAcceptanceTemplateTokenValues(document = {}) {
+  const contract = getContractFromDocument(document)
+  const customer = getCustomerProfile(document)
+  const seller = getSellerProfile(document)
+  const summary = getAcceptanceSummary(document)
+  const bank = getBankAccountDetails(document)
+  const issuedDate = formatDocumentDate(document.issued_date || document.created_at)
+  const signingDate = formatDocumentDate(contract.signing_date || contract.quote_table_config?.signing_date)
+
+  return {
+    '{{issued_date}}': issuedDate || '-',
+    '{{contract_number}}': contract.contract_number || '-',
+    '{{contract_signing_date}}': signingDate || '-',
+    '{{customer_name}}': getProfileName(customer) || '-',
+    '{{customer_representative}}': customer.representative || '-',
+    '{{customer_position}}': customer.position || '-',
+    '{{customer_address}}': customer.address || '-',
+    '{{customer_tax_code}}': customer.tax_code || '-',
+    '{{seller_name}}': getProfileName(seller) || '-',
+    '{{seller_representative}}': seller.representative || '-',
+    '{{seller_position}}': seller.position || '-',
+    '{{seller_address}}': seller.address || '-',
+    '{{seller_tax_code}}': seller.tax_code || '-',
+    '{{seller_bank_account}}': bank.account_number || '-',
+    '{{seller_bank_name}}': bank.bank_name || '-',
+    '{{seller_account_holder}}': bank.account_holder || '-',
+    '{{contract_total}}': formatDocumentCurrency(summary.contract_totals.total_amount, ''),
+    '{{acceptance_total}}': formatDocumentCurrency(summary.actual_totals.total_amount, ''),
+    '{{advance_paid}}': formatDocumentCurrency(summary.advance_paid, ''),
+    '{{remaining_amount}}': formatDocumentCurrency(summary.remaining_amount, ''),
+    '{{payment_due_days}}': summary.payment_due_days || '07 ngày',
+  }
+}
+
+export function renderAcceptanceLiquidationTemplateText(value = '', document = {}) {
+  const tokens = getAcceptanceTemplateTokenValues(document)
+  return Object.entries(tokens).reduce(
+    (text, [token, replacement]) => text.split(token).join(replacement),
+    String(value || ''),
+  )
+}
+
+export function getAcceptanceLiquidationContent(document = {}) {
+  const sections = getAcceptanceTemplateSections(document)
+  const costDifferenceNote = sections.find(section => section.id === 'acceptance-cost-difference-note')
+  return {
+    basis_contract: renderAcceptanceLiquidationTemplateText(getAcceptanceTemplateSection(document, 'acceptance-basis-contract'), document),
+    basis_completed: renderAcceptanceLiquidationTemplateText(getAcceptanceTemplateSection(document, 'acceptance-basis-completed'), document),
+    party_intro: renderAcceptanceLiquidationTemplateText(getAcceptanceTemplateSection(document, 'acceptance-party-intro'), document),
+    signing_intro: renderAcceptanceLiquidationTemplateText(getAcceptanceTemplateSection(document, 'acceptance-signing-intro'), document),
+    has_cost_difference: hasAcceptanceCostDifference(document),
+    cost_difference_note: renderAcceptanceLiquidationTemplateText(costDifferenceNote?.body || '', document),
+    articles: sections
+      .filter(section => section.id.startsWith('acceptance-article-'))
+      .map(section => ({
+        id: section.id,
+        title: section.title,
+        body: renderAcceptanceLiquidationTemplateText(getAcceptanceTemplateSection(document, section.id), document),
+      })),
   }
 }
 
@@ -174,6 +373,8 @@ export function getPaymentSummary(document = {}) {
 
   return {
     acceptance_document_id: formData.acceptance_document_id || getDocumentData(document).acceptance_document_id || amountConfig.acceptance_document_id || '',
+    acceptance_document_number: formData.acceptance_document_number || getDocumentData(document).acceptance_document_number || amountConfig.acceptance_document_number || '',
+    acceptance_issued_date: formData.acceptance_issued_date || getDocumentData(document).acceptance_issued_date || amountConfig.acceptance_issued_date || '',
     acceptance_total: acceptanceTotal,
     advance_deductions: deductions.map((row, index) => ({
       document_id: row.document_id || row.id || `advance-${index + 1}`,
@@ -189,6 +390,58 @@ export function getPaymentSummary(document = {}) {
     request_content: formData.request_content || getDocumentData(document).note || '',
     bank_account: getBankAccountText(document),
     amount_words: paymentAmount > 0 ? numberToVietnameseWords(paymentAmount) : '',
+  }
+}
+
+function getPaymentTemplateSection(document = {}, sectionId = '') {
+  const sections = Array.isArray(document.content_sections) ? document.content_sections : []
+  const section = sections.find(row => row.id === sectionId)
+  const fallback = PAYMENT_REQUEST_TEMPLATE_BLOCKS.find(row => row.id === sectionId)
+  return String(section?.body ?? fallback?.body ?? '').trim()
+}
+
+function getPaymentTemplateTokenValues(document = {}) {
+  const contract = getContractFromDocument(document)
+  const customer = getCustomerProfile(document)
+  const summary = getPaymentSummary(document)
+  const bank = getBankAccountDetails(document)
+  const issuedDate = formatDocumentDate(document.issued_date || document.created_at)
+  const signingDate = formatDocumentDate(contract.signing_date || contract.quote_table_config?.signing_date)
+  const acceptanceDate = formatDocumentDate(summary.acceptance_issued_date)
+
+  return {
+    '{{issued_date}}': issuedDate || '-',
+    '{{customer_name}}': getProfileName(customer) || '-',
+    '{{service_scope}}': contract.service_scope || '-',
+    '{{contract_number}}': contract.contract_number || '-',
+    '{{contract_signing_date}}': signingDate || '-',
+    '{{acceptance_document_number}}': summary.acceptance_document_number || '-',
+    '{{acceptance_issued_date}}': acceptanceDate || '-',
+    '{{payment_amount}}': formatDocumentCurrency(summary.payment_amount, ''),
+    '{{payment_amount_words}}': summary.amount_words || '-',
+    '{{seller_bank_account}}': bank.account_number || '-',
+    '{{seller_bank_name}}': bank.bank_name || '-',
+    '{{seller_account_holder}}': bank.account_holder || '-',
+  }
+}
+
+export function renderPaymentRequestTemplateText(value = '', document = {}) {
+  const tokens = getPaymentTemplateTokenValues(document)
+  return Object.entries(tokens).reduce(
+    (text, [token, replacement]) => text.split(token).join(replacement),
+    String(value || ''),
+  )
+}
+
+export function getPaymentRequestContent(document = {}) {
+  return {
+    greeting: renderPaymentRequestTemplateText(getPaymentTemplateSection(document, 'payment-greeting'), document),
+    basis: renderPaymentRequestTemplateText(getPaymentTemplateSection(document, 'payment-basis'), document),
+    request: renderPaymentRequestTemplateText(getPaymentTemplateSection(document, 'payment-request'), document),
+    amount_words: renderPaymentRequestTemplateText(getPaymentTemplateSection(document, 'payment-amount-words'), document),
+    method: renderPaymentRequestTemplateText(getPaymentTemplateSection(document, 'payment-method'), document),
+    bank_intro: renderPaymentRequestTemplateText(getPaymentTemplateSection(document, 'payment-bank-intro'), document),
+    closing: renderPaymentRequestTemplateText(getPaymentTemplateSection(document, 'payment-closing'), document),
   }
 }
 

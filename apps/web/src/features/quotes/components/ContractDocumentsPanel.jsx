@@ -8,6 +8,15 @@ import {
   listContractDocuments,
   saveContractDocument,
 } from '../hooks/useContracts'
+import { useLegalEntities } from '../hooks/useLegalEntities'
+import {
+  findLegalEntityByCode,
+  formatEntityBankDetails,
+  getEntityBankDetails,
+  getEntityProfile,
+  getLegalEntityCode,
+  getLegalEntityLabel,
+} from '../lib/contractDefaults'
 import {
   buildDocumentTemplateSnapshot,
   CONTRACT_DOCUMENT_TYPES as DOCUMENT_TYPES,
@@ -97,12 +106,61 @@ function formatCurrencyInput(value) {
   return formatQuoteCurrency(number)
 }
 
-function getDefaultBankAccount(contract = {}) {
+function splitBankAccountText(value = '') {
+  const parts = String(value || '').split(/\s+-\s+/).map(part => part.trim()).filter(Boolean)
+  return {
+    account_number: parts[0] || '',
+    bank_name: parts[1] || '',
+    account_holder: parts[2] || '',
+  }
+}
+
+function getSellerProfileForCode(entityCode = '', legalEntities = []) {
+  const entity = findLegalEntityByCode(entityCode, legalEntities)
+  const fallback = getEntityProfile(entityCode || 'EVENTUS')
+  const source = entity || fallback
+  const label = getLegalEntityLabel(source)
+
+  return {
+    ...fallback,
+    ...source,
+    entity_code: getLegalEntityCode(source) || entityCode || fallback.entity_code || 'EVENTUS',
+    company_name: label,
+    legal_name: source.legal_name || fallback.legal_name || label,
+    account_holder: source.account_holder || fallback.account_holder || label,
+  }
+}
+
+function getDefaultBankDetails(contract = {}, sellerEntityCode = '', legalEntities = []) {
+  const sellerProfile = getSellerProfileForCode(sellerEntityCode || contract.seller_entity_code, legalEntities)
+  const seller = contract.seller_snapshot || {}
+  const profileBank = getEntityBankDetails(sellerProfile)
+
+  return {
+    account_number: profileBank.account_number || seller.bank_account || seller.account_number || '',
+    bank_name: profileBank.bank_name || seller.bank_name || '',
+    account_holder: profileBank.account_holder || seller.account_holder || seller.entity_name_full || seller.legal_name || seller.name || '',
+  }
+}
+
+function getDefaultBankAccount(contract = {}, sellerEntityCode = '', legalEntities = []) {
+  const details = getDefaultBankDetails(contract, sellerEntityCode, legalEntities)
+  if (details.account_number || details.bank_name || details.account_holder) return formatEntityBankDetails(details)
+
   const seller = contract.seller_snapshot || {}
   const accountNumber = seller.bank_account || seller.account_number || ''
   const bankName = seller.bank_name || ''
   const accountHolder = seller.account_holder || seller.entity_name_full || seller.legal_name || seller.name || ''
   return [accountNumber, bankName, accountHolder].filter(Boolean).join(' - ')
+}
+
+function getBankDetailsFromFormData(formData = {}, seller = {}) {
+  const fallback = splitBankAccountText(formData.bank_account || '')
+  return {
+    account_number: formData.bank_account_number || fallback.account_number || seller.bank_account || seller.account_number || '',
+    bank_name: formData.bank_name || fallback.bank_name || seller.bank_name || '',
+    account_holder: formData.account_holder || fallback.account_holder || seller.account_holder || seller.company_name || seller.legal_name || seller.entity_name_full || seller.name || '',
+  }
 }
 
 function getOpenSyncedContract(document = null, contract = {}) {
@@ -187,10 +245,11 @@ function normalizePaymentDeductions(rows = [], advanceDocuments = []) {
     .filter(row => row.document_id)
 }
 
-function buildAdvanceFormData(document = null, contract = {}) {
+function buildAdvanceFormData(document = null, contract = {}, sellerEntityCode = '', legalEntities = []) {
   const data = document?.document_data || {}
   const savedFormData = data.form_data || {}
   const amountConfig = data.amount_config || {}
+  const bankDetails = getDefaultBankDetails(contract, sellerEntityCode || document?.seller_entity_code || contract.seller_entity_code, legalEntities)
   const syncContractValue = savedFormData.sync_contract_value ?? amountConfig.sync_contract_value ?? true
   const liveContractValue = getContractTotal(contract)
   const contractValue = syncContractValue
@@ -206,8 +265,11 @@ function buildAdvanceFormData(document = null, contract = {}) {
     sync_contract_value: syncContractValue,
     advance_percent: advancePercent,
     advance_amount: advanceAmount,
-    request_content: savedFormData.request_content || data.note || 'Kính đề nghị Quý khách hàng thanh toán khoản tạm ứng theo điều khoản thanh toán của hợp đồng.',
-    bank_account: savedFormData.bank_account || data.bank_account || getDefaultBankAccount(contract),
+    request_content: savedFormData.request_content || data.note || '',
+    bank_account: savedFormData.bank_account || data.bank_account || formatEntityBankDetails(bankDetails),
+    bank_account_number: savedFormData.bank_account_number || data.bank_account_number || bankDetails.account_number,
+    bank_name: savedFormData.bank_name || data.bank_name || bankDetails.bank_name,
+    account_holder: savedFormData.account_holder || data.account_holder || bankDetails.account_holder,
   }
 }
 
@@ -235,10 +297,11 @@ function buildAcceptanceFormData(document = null, contract = {}) {
   }
 }
 
-function buildPaymentFormData(document = null, contract = {}, documents = []) {
+function buildPaymentFormData(document = null, contract = {}, documents = [], sellerEntityCode = '', legalEntities = []) {
   const data = document?.document_data || {}
   const savedFormData = data.form_data || {}
   const amountConfig = data.amount_config || {}
+  const bankDetails = getDefaultBankDetails(contract, sellerEntityCode || document?.seller_entity_code || contract.seller_entity_code, legalEntities)
   const acceptanceDocuments = documents.filter(row => row.document_type === 'acceptance_liquidation' && row.id !== document?.id)
   const advanceDocuments = documents.filter(row => row.document_type === 'advance_request' && row.id !== document?.id)
   const defaultAcceptanceId = acceptanceDocuments.length === 1 ? acceptanceDocuments[0].id : ''
@@ -247,23 +310,29 @@ function buildPaymentFormData(document = null, contract = {}, documents = []) {
   const acceptanceTotal = selectedAcceptance
     ? getAcceptanceDocumentTotal(selectedAcceptance)
     : Number(savedFormData.acceptance_total ?? amountConfig.acceptance_total ?? 0)
+  const acceptanceIssuedDate = selectedAcceptance?.issued_date || savedFormData.acceptance_issued_date || data.acceptance_issued_date || amountConfig.acceptance_issued_date || ''
 
   return {
     acceptance_document_id: acceptanceDocumentId,
+    acceptance_document_number: selectedAcceptance?.document_number || savedFormData.acceptance_document_number || data.acceptance_document_number || amountConfig.acceptance_document_number || '',
+    acceptance_issued_date: acceptanceIssuedDate,
     acceptance_total: acceptanceTotal,
     advance_deductions: normalizePaymentDeductions(
       savedFormData.advance_deductions || data.advance_deductions || amountConfig.linked_advance_documents || [],
       advanceDocuments,
     ),
-    request_content: savedFormData.request_content || data.note || 'Kính đề nghị Quý khách hàng thanh toán giá trị còn lại theo BBNT đã liên kết và các khoản tạm ứng đã khấu trừ.',
-    bank_account: savedFormData.bank_account || data.bank_account || getDefaultBankAccount(contract),
+    request_content: savedFormData.request_content || data.note || '',
+    bank_account: savedFormData.bank_account || data.bank_account || formatEntityBankDetails(bankDetails),
+    bank_account_number: savedFormData.bank_account_number || data.bank_account_number || bankDetails.account_number,
+    bank_name: savedFormData.bank_name || data.bank_name || bankDetails.bank_name,
+    account_holder: savedFormData.account_holder || data.account_holder || bankDetails.account_holder,
   }
 }
 
-function buildDocumentFormData(document = null, documentType = 'advance_request', contract = {}, documents = []) {
+function buildDocumentFormData(document = null, documentType = 'advance_request', contract = {}, documents = [], sellerEntityCode = '', legalEntities = []) {
   if (documentType === 'acceptance_liquidation') return buildAcceptanceFormData(document, contract)
-  if (documentType === 'payment_request') return buildPaymentFormData(document, contract, documents)
-  return buildAdvanceFormData(document, contract)
+  if (documentType === 'payment_request') return buildPaymentFormData(document, contract, documents, sellerEntityCode, legalEntities)
+  return buildAdvanceFormData(document, contract, sellerEntityCode, legalEntities)
 }
 
 function buildDocumentAmountConfig(draft = {}, documents = []) {
@@ -298,6 +367,8 @@ function buildDocumentAmountConfig(draft = {}, documents = []) {
     return {
       ...vatConfig,
       acceptance_document_id: formData.acceptance_document_id || '',
+      acceptance_document_number: selectedAcceptance?.document_number || formData.acceptance_document_number || '',
+      acceptance_issued_date: selectedAcceptance?.issued_date || formData.acceptance_issued_date || '',
       linked_advance_documents: formData.advance_deductions || [],
       ...summary,
       amount: summary.payment_amount,
@@ -340,31 +411,50 @@ function buildDocumentData(draft = {}, documents = []) {
   }
 
   if (draft.document_type === 'payment_request') {
+    const bank = getBankDetailsFromFormData(formData, draft.contract_source?.seller_snapshot || {})
     return {
       ...baseData,
       payment_amount: amountConfig.payment_amount || 0,
       acceptance_document_id: formData.acceptance_document_id || '',
+      acceptance_document_number: amountConfig.acceptance_document_number || formData.acceptance_document_number || '',
+      acceptance_issued_date: amountConfig.acceptance_issued_date || formData.acceptance_issued_date || '',
       advance_deductions: formData.advance_deductions || [],
       note: String(formData.request_content || '').trim(),
-      bank_account: formData.bank_account || '',
+      bank_account: formData.bank_account || formatEntityBankDetails(bank),
+      bank_account_number: bank.account_number || '',
+      bank_name: bank.bank_name || '',
+      account_holder: bank.account_holder || '',
     }
   }
 
   return {
     ...baseData,
+    form_data: {
+      ...formData,
+      bank_account: formData.bank_account || formatEntityBankDetails(getBankDetailsFromFormData(formData, draft.contract_source?.seller_snapshot || {})),
+    },
     advance_amount: amountConfig.advance_amount || 0,
     note: String(formData.request_content || '').trim(),
-    bank_account: formData.bank_account || '',
+    bank_account: formData.bank_account || formatEntityBankDetails(getBankDetailsFromFormData(formData, draft.contract_source?.seller_snapshot || {})),
+    bank_account_number: getBankDetailsFromFormData(formData, draft.contract_source?.seller_snapshot || {}).account_number || '',
+    bank_name: getBankDetailsFromFormData(formData, draft.contract_source?.seller_snapshot || {}).bank_name || '',
+    account_holder: getBankDetailsFromFormData(formData, draft.contract_source?.seller_snapshot || {}).account_holder || '',
   }
 }
 
-function buildEditorDraft(document = null, documentType = 'advance_request', contract = {}, templates = [], documents = []) {
+function buildEditorDraft(document = null, documentType = 'advance_request', contract = {}, templates = [], documents = [], legalEntities = []) {
   const config = DOCUMENT_TYPES[document?.document_type || documentType] || DOCUMENT_TYPES.advance_request
   const template = document?.id
     ? null
     : getDefaultDocumentTemplate(templates, documentType)
-  const sourceContract = getOpenSyncedContract(document, contract)
   const resolvedDocumentType = document?.document_type || documentType
+  const sellerEntityCode = document?.seller_entity_code || contract.seller_entity_code || template?.seller_entity_code || 'EVENTUS'
+  const sellerProfile = getSellerProfileForCode(sellerEntityCode, legalEntities)
+  const sourceContract = {
+    ...getOpenSyncedContract(document, contract),
+    seller_entity_code: sellerProfile.entity_code || sellerEntityCode,
+    seller_snapshot: sellerProfile,
+  }
   return {
     id: document?.id || '',
     contract_id: document?.contract_id || contract.id || '',
@@ -372,11 +462,11 @@ function buildEditorDraft(document = null, documentType = 'advance_request', con
     status: document?.status || 'draft',
     template_id: document?.template_id || template?.id || '',
     title: document?.title || template?.title || config.defaultTitle,
-    seller_entity_code: document?.seller_entity_code || template?.seller_entity_code || contract.seller_entity_code || 'EVT',
+    seller_entity_code: sellerProfile.entity_code || sellerEntityCode,
     document_number_pattern: document?.document_number_pattern || template?.document_number_pattern || '',
     document_number: document?.document_number || '',
     issued_date: toDateInputValue(document?.issued_date) || getTodayInputDate(),
-    form_data: buildDocumentFormData(document, resolvedDocumentType, sourceContract, documents),
+    form_data: buildDocumentFormData(document, resolvedDocumentType, sourceContract, documents, sellerProfile.entity_code || sellerEntityCode, legalEntities),
     contract_source: sourceContract,
     content_sections: Array.isArray(document?.content_sections) ? document.content_sections : template?.content_sections || [],
     terms_text: document?.terms_text ?? template?.terms_text ?? '',
@@ -571,6 +661,7 @@ function AdvanceRequestEditor({ draft, updateFormData }) {
   const formData = draft.form_data || {}
   const contractValue = Number(formData.contract_value || 0)
   const advanceAmount = Number(formData.advance_amount || 0)
+  const bank = getBankDetailsFromFormData(formData, draft.contract_source?.seller_snapshot || {})
 
   function updateContractValue(value) {
     const nextValue = parseCurrencyInput(value)
@@ -639,12 +730,20 @@ function AdvanceRequestEditor({ draft, updateFormData }) {
         </div>
       </div>
 
-      <Field label="Nội dung đề nghị">
-        <Textarea rows={4} value={formData.request_content || ''} onChange={event => updateFormData({ request_content: event.target.value })} />
-      </Field>
-      <Field label="Tài khoản nhận tiền">
-        <TextInput value={formData.bank_account || ''} onChange={event => updateFormData({ bank_account: event.target.value })} placeholder="Số tài khoản - ngân hàng - chủ tài khoản" />
-      </Field>
+      <section className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+        <h3 className="text-[14px] font-semibold text-slate-900">Thông tin chuyển khoản theo pháp nhân</h3>
+        <div className="mt-3 grid gap-3 md:grid-cols-[180px_minmax(0,1fr)_minmax(0,1fr)]">
+          <Field label="Tài khoản chuyển khoản">
+            <TextInput readOnly value={bank.account_number || ''} className="bg-white font-semibold text-slate-900" />
+          </Field>
+          <Field label="Ngân hàng">
+            <TextInput readOnly value={bank.bank_name || ''} className="bg-white font-semibold text-slate-900" />
+          </Field>
+          <Field label="Chủ tài khoản">
+            <TextInput readOnly value={bank.account_holder || ''} className="bg-white font-semibold text-slate-900" />
+          </Field>
+        </div>
+      </section>
     </section>
   )
 }
@@ -701,11 +800,14 @@ function PaymentRequestEditor({ draft, documents, updateFormData }) {
   const advanceDocuments = documents.filter(row => row.document_type === 'advance_request' && row.id !== draft.id)
   const amountConfig = buildDocumentAmountConfig(draft, documents)
   const selectedDeductions = new Map((formData.advance_deductions || []).map(row => [row.document_id, row]))
+  const bank = getBankDetailsFromFormData(formData, draft.contract_source?.seller_snapshot || {})
 
   function selectAcceptance(documentId) {
     const selected = acceptanceDocuments.find(row => row.id === documentId)
     updateFormData({
       acceptance_document_id: documentId,
+      acceptance_document_number: selected?.document_number || '',
+      acceptance_issued_date: selected?.issued_date || '',
       acceptance_total: selected ? getAcceptanceDocumentTotal(selected) : 0,
     })
   }
@@ -843,9 +945,20 @@ function PaymentRequestEditor({ draft, documents, updateFormData }) {
       <Field label="Nội dung đề nghị thanh toán">
         <Textarea rows={4} value={formData.request_content || ''} onChange={event => updateFormData({ request_content: event.target.value })} />
       </Field>
-      <Field label="Tài khoản nhận tiền">
-        <TextInput value={formData.bank_account || ''} onChange={event => updateFormData({ bank_account: event.target.value })} placeholder="Số tài khoản - ngân hàng - chủ tài khoản" />
-      </Field>
+      <section className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+        <h3 className="text-[14px] font-semibold text-slate-900">Thông tin chuyển khoản theo pháp nhân</h3>
+        <div className="mt-3 grid gap-3 md:grid-cols-[180px_minmax(0,1fr)_minmax(0,1fr)]">
+          <Field label="Tài khoản chuyển khoản">
+            <TextInput readOnly value={bank.account_number || ''} className="bg-white font-semibold text-slate-900" />
+          </Field>
+          <Field label="Ngân hàng">
+            <TextInput readOnly value={bank.bank_name || ''} className="bg-white font-semibold text-slate-900" />
+          </Field>
+          <Field label="Chủ tài khoản">
+            <TextInput readOnly value={bank.account_holder || ''} className="bg-white font-semibold text-slate-900" />
+          </Field>
+        </div>
+      </section>
     </section>
   )
 }
@@ -861,8 +974,9 @@ function DocumentEditorModal({
   onClose,
   onSave,
 }) {
-  const [draft, setDraft] = useState(() => buildEditorDraft(document, documentType, contract, templates, documents))
-  const availableTemplates = templates.filter(template => template.document_type === draft.document_type && template.is_active !== false)
+  const { legalEntities } = useLegalEntities()
+  const [draft, setDraft] = useState(() => buildEditorDraft(document, documentType, contract, templates, documents, legalEntities))
+  const availableTemplates = templates.filter(template => template.document_type === draft.document_type)
   const isExistingDocument = Boolean(document?.id)
   const dateLabel = draft.document_type === 'acceptance_liquidation' ? 'Ngày nghiệm thu' : 'Ngày lập'
 
@@ -874,16 +988,41 @@ function DocumentEditorModal({
     setDraft(prev => ({ ...prev, form_data: { ...(prev.form_data || {}), ...patch } }))
   }
 
+  function buildSellerEntityPatch(entityCode) {
+    const sellerProfile = getSellerProfileForCode(entityCode, legalEntities)
+    const bank = getEntityBankDetails(sellerProfile)
+    return {
+      seller_entity_code: sellerProfile.entity_code || entityCode,
+      contract_source: {
+        ...(draft.contract_source || {}),
+        seller_entity_code: sellerProfile.entity_code || entityCode,
+        seller_snapshot: sellerProfile,
+      },
+      form_data: {
+        ...(draft.form_data || {}),
+        bank_account: formatEntityBankDetails(bank),
+        bank_account_number: bank.account_number,
+        bank_name: bank.bank_name,
+        account_holder: bank.account_holder,
+      },
+    }
+  }
+
+  function handleSellerEntityChange(entityCode) {
+    updateDraft(buildSellerEntityPatch(entityCode))
+  }
+
   function applyTemplate(templateId) {
     const template = availableTemplates.find(row => row.id === templateId)
     if (!template) {
       updateDraft({ template_id: '' })
       return
     }
+    const sellerPatch = buildSellerEntityPatch(template.seller_entity_code || draft.seller_entity_code)
     updateDraft({
       template_id: template.id,
       title: template.title || draft.title,
-      seller_entity_code: template.seller_entity_code || draft.seller_entity_code,
+      ...sellerPatch,
       document_number_pattern: template.document_number_pattern || draft.document_number_pattern,
       content_sections: Array.isArray(template.content_sections) ? template.content_sections : [],
       terms_text: template.terms_text || '',
@@ -966,9 +1105,19 @@ function DocumentEditorModal({
             </Field>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-[150px_minmax(0,1fr)]">
-            <Field label="Mã pháp nhân">
-              <TextInput value={draft.seller_entity_code || ''} onChange={event => updateDraft({ seller_entity_code: event.target.value })} />
+          <div className="grid gap-3 md:grid-cols-[240px_minmax(0,1fr)]">
+            <Field label="Pháp nhân">
+              <Select value={draft.seller_entity_code || ''} onChange={event => handleSellerEntityChange(event.target.value)}>
+                {!legalEntities.length ? <option value={draft.seller_entity_code || ''}>{draft.seller_entity_code || 'EVENTUS'}</option> : null}
+                {legalEntities.map(entity => {
+                  const code = getLegalEntityCode(entity)
+                  return (
+                    <option key={code} value={code}>
+                      {getLegalEntityLabel(entity)}
+                    </option>
+                  )
+                })}
+              </Select>
             </Field>
             <Field label="Pattern số chứng từ">
               <TextInput value={draft.document_number_pattern || ''} onChange={event => updateDraft({ document_number_pattern: event.target.value })} />
@@ -984,7 +1133,13 @@ function DocumentEditorModal({
               checked={draft.auto_sync_contract}
               onChange={event => updateDraft({
                 auto_sync_contract: event.target.checked,
-                contract_source: event.target.checked ? getOpenSyncedContract(document, contract) : draft.contract_source,
+                contract_source: event.target.checked
+                  ? {
+                    ...getOpenSyncedContract(document, contract),
+                    seller_entity_code: draft.seller_entity_code,
+                    seller_snapshot: getSellerProfileForCode(draft.seller_entity_code, legalEntities),
+                  }
+                  : draft.contract_source,
               })}
               className="h-4 w-4 rounded border-slate-300 text-[#f8981d] focus:ring-orange-100"
             />

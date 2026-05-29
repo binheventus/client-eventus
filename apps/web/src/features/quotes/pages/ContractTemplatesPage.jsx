@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CopyPlus, Eye, Plus, Save, Trash2 } from 'lucide-react'
 import { useEscapeToClose } from '../../../hooks/useEscapeToClose'
 import QuoteBreadcrumb from '../components/QuoteBreadcrumb'
@@ -188,7 +188,7 @@ function DeleteConfirmModal({ templateName, saving, onCancel, onConfirm }) {
   )
 }
 
-export default function ContractTemplatesPage() {
+export default function ContractTemplatesPage({ embedded = false, onCreateNewReady = null } = {}) {
   const [templates, setTemplates] = useState([])
   const [selectedId, setSelectedId] = useState('')
   const [draft, setDraft] = useState(EMPTY_TEMPLATE)
@@ -306,7 +306,7 @@ export default function ContractTemplatesPage() {
     })
   }
 
-  function createNew() {
+  const createNew = useCallback(function createNew() {
     setSelectedId('')
     setDraft(normalizeContractTemplate(withFixedContractTitle({
       ...EMPTY_TEMPLATE,
@@ -318,7 +318,14 @@ export default function ContractTemplatesPage() {
     setError('')
     setPreviewOpen(false)
     setDeleteConfirmOpen(false)
-  }
+  }, [templates.length])
+
+  useEffect(() => {
+    if (!embedded || !onCreateNewReady) return undefined
+    onCreateNewReady(createNew)
+
+    return () => onCreateNewReady(null)
+  }, [createNew, embedded, onCreateNewReady])
 
   async function saveDraft() {
     if (!draft.name.trim()) {
@@ -376,7 +383,8 @@ export default function ContractTemplatesPage() {
   }
 
   return (
-    <div className="mx-auto max-w-[1500px] space-y-5">
+    <div className={embedded ? 'space-y-5' : 'mx-auto max-w-[1500px] space-y-5'}>
+      {embedded ? null : (
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <QuoteBreadcrumb root={{ label: 'Hợp đồng', to: '/contracts' }} items={[{ label: 'Mẫu hợp đồng' }]} />
@@ -395,13 +403,14 @@ export default function ContractTemplatesPage() {
           Mẫu mới
         </button>
       </div>
+      )}
 
       {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-[13px] text-red-700">{error}</p>}
       {notice && <p className="rounded-xl bg-emerald-50 px-4 py-3 text-[13px] text-emerald-700">{notice}</p>}
 
       <div className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
         <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-          <div className="px-2 py-2 text-[12px] font-semibold uppercase tracking-[0.12em] text-slate-400">Danh sách Form Hợp đồng</div>
+          <div className="px-2 py-2 text-[12px] font-semibold text-slate-400">Danh sách mẫu hợp đồng</div>
           <div className="mt-2 space-y-2">
             {loading ? (
               <p className="px-2 py-6 text-center text-[13px] text-slate-400">Đang tải...</p>

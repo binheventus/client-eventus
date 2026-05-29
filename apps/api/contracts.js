@@ -89,7 +89,6 @@ const DEFAULT_CONTRACT_DOCUMENT_TEMPLATES = [
     ],
     terms_text: 'Ben A thanh toan khoan tam ung theo hop dong sau khi nhan duoc de nghi tam ung hop le tu Ben B.',
     is_default: true,
-    is_active: true,
     sort_order: 10,
   },
   {
@@ -123,7 +122,6 @@ const DEFAULT_CONTRACT_DOCUMENT_TEMPLATES = [
     ],
     terms_text: 'Hai ben thong nhat nghiem thu khoi luong dich vu da hoan thanh va lam co so thanh toan/thanh ly hop dong.',
     is_default: true,
-    is_active: true,
     sort_order: 20,
   },
   {
@@ -157,7 +155,6 @@ const DEFAULT_CONTRACT_DOCUMENT_TEMPLATES = [
     ],
     terms_text: 'De nghi thanh toan nay duoc lap tren co so BBNT da lien ket va cac dieu khoan thanh toan trong hop dong.',
     is_default: true,
-    is_active: true,
     sort_order: 30,
   },
 ]
@@ -355,7 +352,6 @@ function normalizeTemplateRow(row = {}) {
     normalized[column] = fromJson(normalized[column], fallback)
   })
   normalized.is_default = normalizeBoolean(normalized.is_default)
-  normalized.is_active = normalizeBoolean(normalized.is_active)
   return normalized
 }
 
@@ -378,7 +374,6 @@ function normalizeDocumentTemplateRow(row = {}) {
     normalized[column] = fromJson(normalized[column], fallback)
   })
   normalized.is_default = normalizeBoolean(normalized.is_default)
-  normalized.is_active = normalizeBoolean(normalized.is_active)
   return normalized
 }
 
@@ -747,7 +742,6 @@ function cleanDocumentTemplatePayload(template = {}) {
     content_sections: toJson(Array.isArray(template.content_sections) ? template.content_sections : [], []),
     terms_text: String(template.terms_text || '').trim(),
     is_default: Boolean(template.is_default),
-    is_active: template.is_active !== false,
     sort_order: Number(template.sort_order || 100),
   }
 }
@@ -1095,8 +1089,8 @@ async function saveDocumentTemplate(template = {}) {
     await connection.query(
       `insert into ${tables.contractDocumentTemplates}
        (id, document_type, name, description, title, seller_entity_code, document_number_pattern,
-        fields_config, numbering_config, content_sections, terms_text, is_default, is_active, sort_order)
-       values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        fields_config, numbering_config, content_sections, terms_text, is_default, sort_order)
+       values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        on duplicate key update
         document_type = values(document_type),
         name = values(name),
@@ -1109,7 +1103,6 @@ async function saveDocumentTemplate(template = {}) {
         content_sections = values(content_sections),
         terms_text = values(terms_text),
         is_default = values(is_default),
-        is_active = values(is_active),
         sort_order = values(sort_order),
         deleted_at = null,
         updated_at = current_timestamp(3)`,
@@ -1126,7 +1119,6 @@ async function saveDocumentTemplate(template = {}) {
         payload.content_sections,
         payload.terms_text,
         payload.is_default,
-        payload.is_active,
         payload.sort_order,
       ],
     )
@@ -1143,7 +1135,7 @@ async function deleteTemplate(id) {
 async function deleteDocumentTemplate(id) {
   await runQuery(
     `update ${tables.contractDocumentTemplates}
-     set deleted_at = current_timestamp(3), is_active = 0
+     set deleted_at = current_timestamp(3)
      where id = ? and deleted_at is null`,
     [id],
   )

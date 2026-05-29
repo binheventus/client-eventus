@@ -281,13 +281,47 @@ export function canCreateContractFromQuote(quote = {}) {
   return Boolean(quote?.id) && !quote.deleted_at && String(quote.status || 'draft').toLowerCase() !== 'draft'
 }
 
+function normalizeEntityCode(value = '') {
+  return String(value || '').trim().toUpperCase()
+}
+
+export function getLegalEntityCode(entity = {}) {
+  return entity.entity_code || entity.code || entity.source_entity_code || ''
+}
+
+export function getLegalEntityLabel(entity = {}) {
+  return entity.display_name || entity.legal_name || entity.entity_name_full || entity.name || getLegalEntityCode(entity)
+}
+
+export function findLegalEntityByCode(entityCode = '', legalEntities = legalEntitiesData) {
+  const normalizedCode = normalizeEntityCode(entityCode || 'EVENTUS')
+  return (Array.isArray(legalEntities) ? legalEntities : []).find(row => (
+    [row?.entity_code, row?.code, row?.source_entity_code]
+      .filter(Boolean)
+      .map(normalizeEntityCode)
+      .includes(normalizedCode)
+  )) || null
+}
+
+export function getEntityBankDetails(entity = {}) {
+  return {
+    account_number: entity.bank_account || entity.account_number || '',
+    bank_name: entity.bank_name || '',
+    account_holder: entity.account_holder || entity.legal_name || entity.entity_name_full || entity.company_name || entity.name || '',
+  }
+}
+
+export function formatEntityBankDetails(details = {}) {
+  return [details.account_number, details.bank_name, details.account_holder].filter(Boolean).join(' - ')
+}
+
 export function getEntityProfile(entityCode = 'EVENTUS') {
   const code = entityCode || 'EVENTUS'
-  const entity = legalEntitiesData.find(row => (row.entity_code || row.code) === code) || legalEntitiesData[0] || {}
+  const entity = findLegalEntityByCode(code, legalEntitiesData) || legalEntitiesData[0] || {}
 
   return {
-    entity_code: entity.entity_code || entity.code || code,
-    company_name: entity.legal_name || entity.entity_name_full || entity.name || '',
+    entity_code: getLegalEntityCode(entity) || code,
+    company_name: getLegalEntityLabel(entity),
     tax_code: entity.tax_code || '',
     address: entity.address || '',
     website: entity.website || '',
@@ -295,6 +329,7 @@ export function getEntityProfile(entityCode = 'EVENTUS') {
     position: entity.position || '',
     bank_account: entity.bank_account || '',
     bank_name: entity.bank_name || '',
+    account_holder: entity.account_holder || entity.legal_name || entity.entity_name_full || entity.name || '',
   }
 }
 

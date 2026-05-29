@@ -1,14 +1,16 @@
 import {
   formatDocumentCurrency,
   formatDocumentDate,
+  getAcceptanceLiquidationContent,
   getAcceptanceSummary,
-  getAdvanceSummary,
+  getAdvanceRequestContent,
+  getBankAccountDetails,
   getContractDocumentFilename,
   getContractFromDocument,
   getCustomerProfile,
   getDocumentTitle,
   getDocumentTypeLabel,
-  getPaymentSummary,
+  getPaymentRequestContent,
   getProfileName,
   getSellerProfile,
   getVatLabel,
@@ -151,6 +153,32 @@ function richParagraph(runs = [], options = {}) {
   return `<w:p>${paragraphProps(options)}${runs.map(run => textRun(run.text, run)).join('')}</w:p>`
 }
 
+function bankParagraph(label, value = '') {
+  return richParagraph([
+    { text: `${label}: ` },
+    { text: value || '', bold: true },
+  ])
+}
+
+function getBankDetailLineParts(line = '') {
+  const match = String(line || '').match(/^(\s*(?:Tài khoản chuyển khoản|Ngân hàng|Chủ tài khoản)\s*:\s*)(.+)$/i)
+  if (!match) return null
+  return {
+    label: match[1],
+    value: match[2],
+  }
+}
+
+function bankAwareParagraph(line = '') {
+  const bankLine = getBankDetailLineParts(line)
+  if (!bankLine) return paragraph(line)
+
+  return richParagraph([
+    { text: bankLine.label },
+    { text: bankLine.value, bold: true },
+  ])
+}
+
 function tableCell(content = '', width = 2400, options = {}) {
   const shading = options.shading ? `<w:shd w:fill="${options.shading}"/>` : ''
   const gridSpan = options.colSpan ? `<w:gridSpan w:val="${options.colSpan}"/>` : ''
@@ -172,40 +200,51 @@ function simpleTable(rows = [], options = {}) {
 function partyTable(document = {}) {
   const customer = getCustomerProfile(document)
   const seller = getSellerProfile(document)
-  const rowsFor = (heading, profile) => [
+  const bank = getBankAccountDetails(document)
+  const rowsFor = (heading, profile, bankDetails = null) => [
     tableRow([tableCell(heading, 1800, { bold: true }), tableCell(getProfileName(profile), 7200, { bold: true })]),
     tableRow([tableCell('Đại diện', 1800), tableCell(profile.representative || '', 7200)]),
     tableRow([tableCell('Chức vụ', 1800), tableCell(profile.position || '', 7200)]),
     tableRow([tableCell('Địa chỉ', 1800), tableCell(profile.address || '', 7200)]),
     tableRow([tableCell('Mã số thuế', 1800), tableCell(profile.tax_code || '', 7200)]),
+    bankDetails?.account_number ? tableRow([tableCell('Số tài khoản', 1800), tableCell(bankDetails.account_number, 7200)]) : '',
+    bankDetails?.bank_name ? tableRow([tableCell('Ngân hàng', 1800), tableCell(bankDetails.bank_name, 7200)]) : '',
   ].join('')
 
   return simpleTable([
     rowsFor(document.document_type === 'acceptance_liquidation' ? 'BÊN A' : 'KÍNH GỬI', customer),
-    rowsFor(document.document_type === 'acceptance_liquidation' ? 'BÊN B' : 'BÊN ĐỀ NGHỊ', seller),
+    rowsFor(document.document_type === 'acceptance_liquidation' ? 'BÊN B' : 'BÊN ĐỀ NGHỊ', seller, document.document_type === 'acceptance_liquidation' ? bank : null),
   ], { width: 9000, fixed: true, borders: false })
 }
 
-function amountTable(title, rows = [], totals = {}, vatConfig = {}) {
+function acceptanceAmountTable(title, rows = [], totals = {}, vatConfig = {}) {
   const tableRows = [
-    tableRow([tableCell('Nội dung', 3400, { bold: true, shading: 'F8FAFC' }), tableCell('ĐVT', 1000, { bold: true, shading: 'F8FAFC', align: 'center' }), tableCell('SL', 800, { bold: true, shading: 'F8FAFC', align: 'right' }), tableCell('Đơn giá', 1800, { bold: true, shading: 'F8FAFC', align: 'right' }), tableCell('Thành tiền', 2000, { bold: true, shading: 'F8FAFC', align: 'right' })]),
-    ...(rows.length ? rows.map(row => tableRow([
-      tableCell(row.description || '', 3400),
-      tableCell(row.unit || '', 1000, { align: 'center' }),
-      tableCell(String(row.quantity || 0), 800, { align: 'right' }),
-      tableCell(formatDocumentCurrency(row.unit_price, ''), 1800, { align: 'right' }),
+    tableRow([
+      tableCell('STT', 600, { bold: true, shading: 'F8FAFC', align: 'center' }),
+      tableCell('Hạng mục', 2800, { bold: true, shading: 'F8FAFC' }),
+      tableCell('ĐVT', 900, { bold: true, shading: 'F8FAFC' }),
+      tableCell('Số lượng', 1000, { bold: true, shading: 'F8FAFC', align: 'right' }),
+      tableCell('Đơn giá (VNĐ)', 1700, { bold: true, shading: 'F8FAFC', align: 'right' }),
+      tableCell('Thành tiền (VNĐ)', 2000, { bold: true, shading: 'F8FAFC', align: 'right' }),
+    ]),
+    ...(rows.length ? rows.map((row, index) => tableRow([
+      tableCell(String(index + 1), 600, { align: 'center' }),
+      tableCell(row.description || '', 2800),
+      tableCell(row.unit || '', 900),
+      tableCell(String(row.quantity || 0), 1000, { align: 'right' }),
+      tableCell(formatDocumentCurrency(row.unit_price, ''), 1700, { align: 'right' }),
       tableCell(formatDocumentCurrency(row.amount, ''), 2000, { align: 'right' }),
-    ])) : [tableRow([tableCell('Chưa có dòng giá trị.', 9000, { colSpan: 5, align: 'center' })])]),
+    ])) : [tableRow([tableCell('Chưa có hạng mục.', 9000, { colSpan: 6, align: 'center' })])]),
     ...[
-      ['Trước VAT', totals.subtotal],
+      ['Tổng (chưa bao gồm thuế GTGT)', totals.subtotal],
       [getVatLabel(vatConfig), totals.vat_amount],
-      ['Tổng cộng', totals.total_amount],
+      ['Tổng chi phí (Đã bao gồm VAT)', totals.total_amount],
     ].map(([label, value]) => tableRow([
-      tableCell(label, 7000, { bold: true, align: 'right', colSpan: 4 }),
+      tableCell(label, 7000, { bold: true, align: 'right', colSpan: 5 }),
       tableCell(formatDocumentCurrency(value, ''), 2000, { bold: true, align: 'right' }),
     ])),
   ]
-  return paragraph(title, { bold: true }) + simpleTable(tableRows, { width: 9000 })
+  return paragraph(`${title}:`, { bold: true }) + simpleTable(tableRows, { width: 9000 })
 }
 
 function sectionsXml(document = {}) {
@@ -221,56 +260,60 @@ function sectionsXml(document = {}) {
 }
 
 function advanceXml(document = {}) {
-  const contract = getContractFromDocument(document)
-  const summary = getAdvanceSummary(document)
+  const bank = getBankAccountDetails(document)
+  const content = getAdvanceRequestContent(document)
   return [
-    paragraph(`Căn cứ Hợp đồng số ${contract.contract_number || ''}, Bên B kính đề nghị Bên A thanh toán khoản tạm ứng như sau:`),
-    summary.request_content ? paragraph(summary.request_content) : '',
-    simpleTable([
-      tableRow([tableCell('Giá trị hợp đồng', 4200, { bold: true, shading: 'F8FAFC' }), tableCell(formatDocumentCurrency(summary.contract_value), 4800, { bold: true, align: 'right' })]),
-      tableRow([tableCell('Tỷ lệ tạm ứng', 4200, { bold: true, shading: 'F8FAFC' }), tableCell(`${summary.advance_percent}%`, 4800, { bold: true, align: 'right' })]),
-      tableRow([tableCell('Số tiền đề nghị tạm ứng', 4200, { bold: true, shading: 'F8FAFC' }), tableCell(formatDocumentCurrency(summary.advance_amount), 4800, { bold: true, align: 'right' })]),
-    ], { width: 9000 }),
-    summary.amount_words ? paragraph(`Bằng chữ: ${summary.amount_words}.`, { italic: true }) : '',
-    paragraph(`Tài khoản nhận tiền: ${summary.bank_account || ''}`),
+    content.greeting ? paragraph(content.greeting) : '',
+    content.basis ? paragraph(content.basis) : '',
+    content.request ? paragraph(content.request) : '',
+    content.amount_words ? paragraph(content.amount_words) : '',
+    content.method ? paragraph(content.method) : '',
+    content.bank_intro ? paragraph(content.bank_intro) : '',
+    bankParagraph('Tài khoản chuyển khoản', bank.account_number),
+    bankParagraph('Ngân hàng', bank.bank_name),
+    bankParagraph('Chủ tài khoản', bank.account_holder),
+    ...String(content.closing || '').split(/\n+/).filter(Boolean).map(line => paragraph(line)),
   ].join('')
 }
 
 function acceptanceXml(document = {}) {
-  const contract = getContractFromDocument(document)
+  const content = getAcceptanceLiquidationContent(document)
   const summary = getAcceptanceSummary(document)
   return [
-    paragraph(`Hai bên cùng nghiệm thu khối lượng dịch vụ theo Hợp đồng số ${contract.contract_number || ''}.`),
-    amountTable('Giá trị theo hợp đồng', summary.contract_rows, summary.contract_totals, summary.vat_config),
-    amountTable('Giá trị nghiệm thu/thực tế', summary.actual_rows, summary.actual_totals, summary.vat_config),
-    summary.amount_words ? paragraph(`Tổng giá trị nghiệm thu bằng chữ: ${summary.amount_words}.`, { italic: true }) : '',
-    summary.acceptance_note ? paragraph(summary.acceptance_note) : '',
+    content.basis_contract ? paragraph(content.basis_contract) : '',
+    content.basis_completed ? paragraph(content.basis_completed) : '',
+    content.party_intro ? paragraph(content.party_intro) : '',
+    partyTable(document),
+    content.signing_intro ? paragraph(content.signing_intro) : '',
+    ...content.articles.map(section => [
+      paragraph(section.title, { bold: true }),
+      ...String(section.body || '').split(/\n+/).filter(Boolean).map(line => bankAwareParagraph(line)),
+      content.has_cost_difference && section.id === 'acceptance-article-2'
+        ? [
+            acceptanceAmountTable('Chi tiết hạng mục trên hợp đồng', summary.contract_rows, summary.contract_totals, summary.vat_config),
+            acceptanceAmountTable('Chi tiết hạng mục nghiệm thu', summary.actual_rows, summary.actual_totals, summary.vat_config),
+            content.cost_difference_note ? paragraph(content.cost_difference_note) : '',
+          ].join('')
+        : '',
+    ].join('')),
   ].join('')
 }
 
 function paymentXml(document = {}) {
-  const contract = getContractFromDocument(document)
-  const summary = getPaymentSummary(document)
-  const deductionRows = summary.advance_deductions.length ? simpleTable([
-    tableRow([tableCell('Đề nghị tạm ứng', 5000, { bold: true, shading: 'F8FAFC' }), tableCell('Số tiền gốc', 2000, { bold: true, shading: 'F8FAFC', align: 'right' }), tableCell('Khấu trừ', 2000, { bold: true, shading: 'F8FAFC', align: 'right' })]),
-    ...summary.advance_deductions.map(row => tableRow([
-      tableCell(row.document_number || row.document_title || '', 5000),
-      tableCell(formatDocumentCurrency(row.original_amount, ''), 2000, { align: 'right' }),
-      tableCell(formatDocumentCurrency(row.deduction_amount, ''), 2000, { align: 'right' }),
-    ])),
-  ], { width: 9000 }) : ''
+  const bank = getBankAccountDetails(document)
+  const content = getPaymentRequestContent(document)
 
   return [
-    paragraph(`Căn cứ Hợp đồng số ${contract.contract_number || ''} và BBNT đã liên kết, Bên B kính đề nghị Bên A thanh toán giá trị còn lại.`),
-    summary.request_content ? paragraph(summary.request_content) : '',
-    simpleTable([
-      tableRow([tableCell('Tổng nghiệm thu', 4200, { bold: true, shading: 'F8FAFC' }), tableCell(formatDocumentCurrency(summary.acceptance_total), 4800, { bold: true, align: 'right' })]),
-      tableRow([tableCell('Khấu trừ tạm ứng', 4200, { bold: true, shading: 'F8FAFC' }), tableCell(formatDocumentCurrency(summary.advance_deduction_total), 4800, { bold: true, align: 'right' })]),
-      tableRow([tableCell('Số tiền đề nghị thanh toán', 4200, { bold: true, shading: 'F8FAFC' }), tableCell(formatDocumentCurrency(summary.payment_amount), 4800, { bold: true, align: 'right' })]),
-    ], { width: 9000 }),
-    deductionRows,
-    summary.amount_words ? paragraph(`Bằng chữ: ${summary.amount_words}.`, { italic: true }) : '',
-    paragraph(`Tài khoản nhận tiền: ${summary.bank_account || ''}`),
+    content.greeting ? paragraph(content.greeting) : '',
+    content.basis ? paragraph(content.basis) : '',
+    content.request ? paragraph(content.request) : '',
+    content.amount_words ? paragraph(content.amount_words) : '',
+    content.method ? paragraph(content.method) : '',
+    content.bank_intro ? paragraph(content.bank_intro) : '',
+    bankParagraph('Tài khoản chuyển khoản', bank.account_number),
+    bankParagraph('Ngân hàng', bank.bank_name),
+    bankParagraph('Chủ tài khoản', bank.account_holder),
+    ...String(content.closing || '').split(/\n+/).filter(Boolean).map(line => paragraph(line)),
   ].join('')
 }
 
@@ -285,6 +328,48 @@ function documentXml(document = {}) {
   const customer = getCustomerProfile(document)
   const seller = getSellerProfile(document)
   const issuedDate = formatDocumentDate(document.issued_date || document.created_at)
+
+  if (document.document_type === 'advance_request' || document.document_type === 'payment_request') {
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:body>
+    ${paragraph('CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM', { align: 'center', bold: true })}
+    ${paragraph('Độc lập - Tự do - Hạnh phúc', { align: 'center', bold: true })}
+    ${paragraph(`Ngày ${issuedDate}`, { align: 'right', italic: true })}
+    ${paragraph(getDocumentTitle(document), { style: 'Title', align: 'center', bold: true })}
+    ${paragraph(`Số: ${document.document_number || ''}`, { align: 'center' })}
+    ${document.document_type === 'payment_request' ? paymentXml(document) : advanceXml(document)}
+    ${paragraph('ĐẠI DIỆN', { align: 'right', bold: true })}
+    ${paragraph('', { align: 'right' })}
+    ${paragraph('', { align: 'right' })}
+    ${paragraph(seller.representative || '', { align: 'right', bold: true })}
+    <w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr>
+  </w:body>
+</w:document>`
+  }
+
+  if (document.document_type === 'acceptance_liquidation') {
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:body>
+    ${paragraph('CỘNG HOÀ XÃ HỘI CHỦ NGHĨA VIỆT NAM', { align: 'center', bold: true })}
+    ${paragraph('Độc lập - Tự do - Hạnh phúc', { align: 'center', bold: true })}
+    ${paragraph('BIÊN BẢN NGHIỆM THU VÀ THANH LÝ HỢP ĐỒNG', { style: 'Title', align: 'center', bold: true })}
+    ${acceptanceXml(document)}
+    ${simpleTable([
+      tableRow([
+        tableCell('ĐẠI DIỆN BÊN A', 4500, { bold: true, align: 'center' }),
+        tableCell('ĐẠI DIỆN BÊN B', 4500, { bold: true, align: 'center' }),
+      ]),
+      tableRow([
+        tableCell(customer.representative || '', 4500, { bold: true, align: 'center' }),
+        tableCell(seller.representative || '', 4500, { bold: true, align: 'center' }),
+      ]),
+    ], { width: 9000, borders: false })}
+    <w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr>
+  </w:body>
+</w:document>`
+  }
 
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
