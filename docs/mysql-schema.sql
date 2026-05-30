@@ -86,6 +86,19 @@ create table if not exists client_quote_views (
   constraint client_quote_views_quote_id_fk foreign key (quote_id) references client_quotes (id) on delete cascade
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 
+create table if not exists client_quote_survey_responses (
+  id varchar(64) primary key,
+  quote_id varchar(32) not null,
+  response_type varchar(60) not null,
+  response_label varchar(255) not null,
+  selected_tag text null,
+  user_agent text null,
+  created_at datetime(3) not null default current_timestamp(3),
+  key client_quote_survey_responses_quote_created_idx (quote_id, created_at),
+  key client_quote_survey_responses_type_idx (response_type),
+  constraint client_quote_survey_responses_quote_id_fk foreign key (quote_id) references client_quotes (id) on delete cascade
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
 create table if not exists client_contract_templates (
   id varchar(120) primary key,
   name varchar(255) not null,

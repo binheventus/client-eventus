@@ -26,6 +26,12 @@ const SYSTEM_ACTOR_ID = '00000000-0000-0000-0000-000000000000'
 const DEFAULT_ENTITY_CODE = 'EVENTUS'
 const DEFAULT_TIER_CODE = 'TIER_2'
 const VALID_TIER_CODES = new Set(['TIER_1', 'TIER_2', 'TIER_3', 'TIER_4', 'TIER_5'])
+const SURVEY_RESPONSE_TYPES = new Set(['budget_fit', 'optimize_cost', 'premium_upgrade'])
+const SURVEY_RESPONSE_LABELS = {
+  budget_fit: 'Khá hợp lý, tôi cần tư vấn thêm',
+  optimize_cost: 'Giá hơi cao, tôi muốn tối ưu chi phí',
+  premium_upgrade: 'Thấp hơn dự kiến, tôi cần gói cao cấp hơn',
+}
 const LIST_QUOTE_COLUMNS = [
   'q.id',
   'q.quote_number',
@@ -159,7 +165,7 @@ function isPublicQuoteRequest(req) {
 
   if (req.method === 'POST') {
     const body = getRequestBody(req)
-    return body?.action === 'view'
+    return body?.action === 'view' || body?.action === 'survey_response'
   }
 
   return false
@@ -441,6 +447,46 @@ function normalizeQuoteDocumentBadge(row = {}) {
   }
 }
 
+function normalizeSurveyResponseRow(row = {}) {
+  if (!row?.id) return null
+
+  return {
+    id: row.id,
+    quote_id: row.quote_id,
+    response_type: row.response_type || '',
+    response_label: row.response_label || SURVEY_RESPONSE_LABELS[row.response_type] || '',
+    selected_tag: row.selected_tag || '',
+    created_at: row.created_at || null,
+  }
+}
+
+async function getLatestSurveyResponses(quoteIds = []) {
+  const ids = [...new Set(quoteIds.filter(Boolean))]
+  if (!ids.length) return new Map()
+
+  const rows = await query(
+    `select id, quote_id, response_type, response_label, selected_tag, created_at
+     from ${tables.quoteSurveyResponses}
+     where quote_id in (${ids.map(() => '?').join(', ')})
+     order by quote_id asc, created_at desc, id desc`,
+    ids,
+  )
+
+  const responses = new Map()
+  for (const row of rows || []) {
+    if (!responses.has(row.quote_id)) responses.set(row.quote_id, normalizeSurveyResponseRow(row))
+  }
+  return responses
+}
+
+async function attachQuoteSurveyResponses(quotes = []) {
+  const responses = await getLatestSurveyResponses(quotes.map(quote => quote.id))
+  return quotes.map(quote => ({
+    ...quote,
+    survey_response: responses.get(quote.id) || null,
+  }))
+}
+
 async function attachQuoteDocuments(quotes = []) {
   const contractIds = [...new Set(quotes.map(quote => quote.contract_id).filter(Boolean))]
   if (!contractIds.length) {
@@ -504,7 +550,12 @@ async function getQuoteById(id) {
     `select * from ${tables.quoteItems} where quote_id = ? order by sort_order asc, created_at asc`,
     [id],
   )
-  return { ...normalizeQuoteRow(quote), items: items.map(normalizeQuoteItemRow) }
+  const responses = await getLatestSurveyResponses([id])
+  return {
+    ...normalizeQuoteRow(quote),
+    survey_response: responses.get(id) || null,
+    items: items.map(normalizeQuoteItemRow),
+  }
 }
 
 async function getQuoteByShareToken(shareToken) {
@@ -519,7 +570,9 @@ async function getQuoteByShareToken(shareToken) {
     throw error
   }
 
-  return getQuoteById(quote.id)
+  const publicQuote = await getQuoteById(quote.id)
+  const { survey_response: _surveyResponse, ...safeQuote } = publicQuote
+  return safeQuote
 }
 
 function getFilters(queryParams = {}) {
@@ -607,7 +660,8 @@ async function listQuotes(queryParams = {}) {
     params,
   )
 
-  const quotes = await attachQuoteDocuments(rows.map(normalizeQuoteRow))
+  const quotesWithDocuments = await attachQuoteDocuments(rows.map(normalizeQuoteRow))
+  const quotes = await attachQuoteSurveyResponses(quotesWithDocuments)
 
   return {
     quotes,
@@ -850,6 +904,60 @@ async function logQuoteView(quoteId, userAgent) {
   return { ok: true }
 }
 
+function getTruncatedText(value, maxLength = 255) {
+  const text = String(value || '').trim()
+  if (!text) return ''
+  return text.length > maxLength ? text.slice(0, maxLength) : text
+}
+
+async function createQuoteSurveyResponse(body = {}, userAgent) {
+  const shareToken = getTruncatedText(body.share_token || body.token, 32)
+  const responseType = getTruncatedText(body.response_type, 60)
+  const selectedTag = getTruncatedText(body.selected_tag, 1000)
+
+  if (!shareToken) {
+    const error = new Error('Thieu share token.')
+    error.statusCode = 400
+    throw error
+  }
+
+  if (!SURVEY_RESPONSE_TYPES.has(responseType)) {
+    const error = new Error('Loai survey response khong hop le.')
+    error.statusCode = 400
+    throw error
+  }
+
+  if (responseType === 'optimize_cost' && !selectedTag) {
+    const error = new Error('Thieu tag toi uu chi phi.')
+    error.statusCode = 400
+    throw error
+  }
+
+  const rows = await query(
+    `select id from ${tables.quotes} where share_token = ? and deleted_at is null limit 1`,
+    [shareToken],
+  )
+  const quote = rows?.[0]
+  if (!quote?.id) {
+    const error = new Error('Khong tim thay bao gia.')
+    error.statusCode = 404
+    throw error
+  }
+
+  const responseLabel = getTruncatedText(body.response_label, 255) || SURVEY_RESPONSE_LABELS[responseType]
+  const responseId = makeId('survey')
+
+  await query(
+    `insert into ${tables.quoteSurveyResponses}
+       (id, quote_id, response_type, response_label, selected_tag, user_agent, created_at)
+     values (?, ?, ?, ?, ?, ?, current_timestamp(3))`,
+    [responseId, quote.id, responseType, responseLabel, selectedTag || null, userAgent || null],
+  )
+
+  const latestResponses = await getLatestSurveyResponses([quote.id])
+  return latestResponses.get(quote.id) || null
+}
+
 export default async function handler(req, res) {
   try {
     if (!isPublicQuoteRequest(req) && !await requireEventusAuth(req, res)) return
@@ -885,6 +993,12 @@ export default async function handler(req, res) {
       if (body.action === 'view') {
         if (!body.quote_id) return res.status(400).json({ error: 'Thieu quote id.' })
         return res.status(200).json(await logQuoteView(body.quote_id, req.headers?.['user-agent']))
+      }
+
+      if (body.action === 'survey_response') {
+        return res.status(200).json({
+          response: await createQuoteSurveyResponse(body, req.headers?.['user-agent']),
+        })
       }
 
       return res.status(201).json({ quote: await createQuote({ ...body, ...getAuthenticatedActorPayload(req) }) })

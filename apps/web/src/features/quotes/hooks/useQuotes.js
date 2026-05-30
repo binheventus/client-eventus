@@ -116,6 +116,17 @@ export async function logQuoteView(quoteId) {
   })
 }
 
+export async function submitQuoteSurveyResponse(payload = {}) {
+  const result = await requestQuoteApi('', {
+    method: 'POST',
+    body: {
+      action: 'survey_response',
+      ...payload,
+    },
+  })
+  return result.response
+}
+
 export function useQuotes({ role } = {}) {
   const [quotes, setQuotes] = useState([])
   const [selectedQuote, setSelectedQuote] = useState(null)

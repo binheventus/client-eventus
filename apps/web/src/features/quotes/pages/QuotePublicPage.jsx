@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
+import QuoteMicroSurvey from '../components/QuoteMicroSurvey'
 import QuotePreview from '../components/QuotePreview'
 import { getPublicQuoteByToken, logQuoteView } from '../hooks/useQuotes'
 import { useLegalEntities } from '../hooks/useLegalEntities'
@@ -101,12 +102,13 @@ export default function QuotePublicPage() {
     <main className="min-h-screen bg-slate-100 px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-4xl space-y-4">
         <QuotePreview quote={quote} items={quote.items || []} totals={quote} entities={legalEntities} sticky={false} />
+        <QuoteMicroSurvey quote={quote} />
         <div className="flex justify-center pb-4">
           <Suspense fallback={<span className="inline-flex min-w-[220px] justify-center rounded-xl bg-[#f8981d] px-7 py-3 text-[14px] font-semibold text-white shadow-sm">Đang tải PDF...</span>}>
             <QuotePDFDownloadButton
               quote={quote}
               items={quote.items || []}
-              className="inline-flex min-w-[220px] justify-center rounded-xl bg-[#f8981d] px-7 py-3 text-[14px] font-semibold text-white shadow-sm hover:bg-orange-500"
+              className="inline-flex min-w-[220px] justify-center rounded-xl bg-[#f8981d] px-7 py-3 text-[14px] font-semibold text-white shadow-sm hover:bg-[#ffad32]"
             >
               Tải báo giá PDF
             </QuotePDFDownloadButton>

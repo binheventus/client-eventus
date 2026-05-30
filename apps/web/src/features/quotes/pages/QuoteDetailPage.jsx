@@ -13,6 +13,12 @@ import {
 import { useLegalEntities } from '../hooks/useLegalEntities'
 import { canCreateContractFromQuote } from '../lib/contractDefaults'
 import { canOpenContractFromQuote, hasSavedContract } from '../lib/quoteList'
+import {
+  getQuoteSurveyResponseLabel,
+  getQuoteSurveyResponseTone,
+  getQuoteSurveySuggestion,
+  hasQuoteSurveyResponse,
+} from '../lib/quoteSurvey'
 import { getContractRoute, getNewContractRoute } from '../lib/contractRouting'
 import { normalizeQuoteValidityDays } from '../lib/quoteValidity'
 
@@ -102,6 +108,40 @@ function DuplicateQuoteConfirmModal({ quote, duplicating, error, onCancel, onCon
           </button>
         </div>
       </section>
+    </div>
+  )
+}
+
+function QuoteSurveyResponseSummary({ response }) {
+  if (!hasQuoteSurveyResponse(response)) {
+    return (
+      <p className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-[13px] text-slate-400">
+        Chưa có phản hồi survey.
+      </p>
+    )
+  }
+
+  const suggestion = getQuoteSurveySuggestion(response)
+
+  return (
+    <div className="mt-4 rounded-xl border border-orange-100 bg-orange-50/50 px-4 py-3 text-[13px]">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-semibold text-slate-700">Survey response:</span>
+        <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${getQuoteSurveyResponseTone(response)}`}>
+          {getQuoteSurveyResponseLabel(response)}
+        </span>
+      </div>
+      {response.selected_tag ? (
+        <p className="mt-2 leading-5 text-slate-700">
+          {response.selected_tag}
+        </p>
+      ) : null}
+      {suggestion ? (
+        <p className="mt-2 leading-5 text-slate-700">
+          <span className="font-semibold">Gợi ý:</span> {suggestion}
+        </p>
+      ) : null}
+      <p className="mt-2 text-[11px] text-slate-400">Gửi lúc: {formatDateTime(response.created_at)}</p>
     </div>
   )
 }
@@ -286,6 +326,7 @@ export default function QuoteDetailPage() {
             <p className="mt-3 text-[14px] text-slate-700">
               Khách đã xem <span className="font-bold text-slate-950">{viewStats.count}</span> lần, lần cuối: <span className="font-semibold">{relativeTime(viewStats.lastViewedAt)}</span>
             </p>
+            <QuoteSurveyResponseSummary response={quote.survey_response} />
           </section>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

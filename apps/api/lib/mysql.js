@@ -9,6 +9,7 @@ export const tables = {
   quotes: 'client_quotes',
   quoteItems: 'client_quote_items',
   quoteViews: 'client_quote_views',
+  quoteSurveyResponses: 'client_quote_survey_responses',
   contracts: 'client_contracts',
   contractTemplates: 'client_contract_templates',
   contractDocumentTemplates: 'client_contract_document_templates',
