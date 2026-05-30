@@ -14,6 +14,7 @@ import {
   getQuoteClientName,
   getQuoteCreatorName,
 } from '../lib/quoteList'
+import { getContractRoute, getNewContractRoute } from '../lib/contractRouting'
 
 function DeleteQuoteConfirmModal({ quote, userContext, deleting, error, onCancel, onConfirm }) {
   useEscapeToClose(() => {
@@ -109,7 +110,7 @@ function DuplicateQuoteConfirmModal({ quote, userContext, duplicating, error, on
           <div>
             <h2 className="text-[18px] font-semibold text-slate-950">Nhân bản báo giá</h2>
             <p className="mt-2 text-[13px] leading-6 text-slate-600">
-              Bạn có muốn nhân bản báo giá này không? Bản sao sẽ được tạo ở trạng thái nháp.
+              Bạn có muốn nhân bản báo giá này không? Bản sao sẽ được tạo kèm link gửi khách mới.
             </p>
           </div>
         </div>
@@ -176,7 +177,11 @@ export default function QuoteListPage() {
 
   function openContractPage(quote) {
     if (!canOpenContractFromQuote(quote)) return
-    navigate(`/quotes/${quote.id}?contract=1`)
+    if (quote.contract_id) {
+      navigate(getContractRoute(quote))
+      return
+    }
+    navigate(getNewContractRoute({ source: 'quote', quoteId: quote.id }))
   }
 
   function openDuplicateConfirm(quote) {
@@ -194,7 +199,7 @@ export default function QuoteListPage() {
       const duplicated = await duplicateQuote(quoteToDuplicate.id)
       setDuplicatingQuoteId('')
       setQuoteToDuplicate(null)
-      navigate(`/quotes/${duplicated.id}?mode=edit`)
+      navigate(`/quotes/${duplicated.id}/edit`)
     } catch (err) {
       setDuplicateError(err?.message || 'Không nhân bản được báo giá.')
       setDuplicatingQuoteId('')

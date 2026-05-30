@@ -58,7 +58,7 @@ test('applyRemoteQuoteFilters maps supported filters to the existing query opera
 test('applyLocalQuoteFilters preserves active quote filtering semantics', () => {
   const quotes = [
     { id: '1', quote_number: 'BG-0001', client_name: 'Alpha', event_name: 'Kickoff', status: 'sent', created_at: '2026-05-10' },
-    { id: '2', quote_number: 'BG-0002', client_name: 'Beta', event_name: 'Summit', status: 'draft', created_at: '2026-05-12' },
+    { id: '2', quote_number: 'BG-0002', client_name: 'Beta', event_name: 'Summit', status: 'rejected', created_at: '2026-05-12' },
     { id: '3', quote_number: 'BG-0003', client_name: 'Alpha', event_name: 'Deleted', status: 'sent', created_at: '2026-05-12', deleted_at: '2026-05-13' },
   ]
 

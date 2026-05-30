@@ -24,7 +24,7 @@ create table if not exists client_quotes (
   has_vat tinyint(1) not null default 1,
   show_stamp tinyint(1) not null default 1,
   terms_text longtext null,
-  status varchar(40) not null default 'draft',
+  status varchar(40) not null default 'sent',
   sent_at datetime(3) null,
   subtotal decimal(18,2) not null default 0,
   travel_fee_total decimal(18,2) not null default 0,

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, Copy, Plus, Search, Trash2, X } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Copy, Plus, Search, Trash2, X } from 'lucide-react'
 import { useEscapeToClose } from '../../../hooks/useEscapeToClose'
 import { useLegalEntities } from '../hooks/useLegalEntities'
 import {
@@ -38,7 +38,7 @@ import {
 } from '../lib/contractDefaults'
 import { getQuoteActorPayload, getQuoteUserContext } from '../lib/quoteAuth'
 import ContractDocumentDownloads from './ContractDocumentDownloads'
-import ContractDocumentsPanel from './ContractDocumentsPanel'
+import { ContractDocumentsSidebarCard } from './ContractDocumentsPanel'
 import ContractPaymentSummary from './ContractPaymentSummary'
 import QuoteBreadcrumb from './QuoteBreadcrumb'
 import QuotePreview from './QuotePreview'
@@ -146,7 +146,18 @@ function todayInputDate() {
   return offsetDate.toISOString().slice(0, 10)
 }
 
-function SummaryRow({ label, value, strong = false }) {
+function SummaryRow({ label, value, strong = false, compact = false }) {
+  if (compact) {
+    return (
+      <div className="flex items-center justify-between gap-3 border-b border-slate-100 py-2 last:border-b-0">
+        <dt className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400">{label}</dt>
+        <dd className={`min-w-0 truncate text-right text-[13px] leading-5 ${strong ? 'font-semibold text-slate-950' : 'text-slate-700'}`}>
+          {hasText(value) ? value : '-'}
+        </dd>
+      </div>
+    )
+  }
+
   return (
     <div className="border-b border-slate-100 py-2 last:border-b-0">
       <dt className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400">{label}</dt>
@@ -561,9 +572,14 @@ export default function ContractEditorModal({
   sourceType = 'quote',
   sourceDraft = null,
   contractId = '',
+  initialContract = null,
+  variant = 'modal',
   onClose,
+  onSaved,
+  onDeleted,
 }) {
-  useEscapeToClose(onClose, open)
+  const isPage = variant === 'page'
+  useEscapeToClose(onClose, open && !isPage)
 
   const { legalEntities } = useLegalEntities()
   const userContext = useMemo(() => getQuoteUserContext(), [])
@@ -593,7 +609,7 @@ export default function ContractEditorModal({
   const savedContractTimeText = formatSavedContractTime(savedContract?.updated_at || savedContract?.created_at)
   const savedContractMetaText = savedContract && savedContractTimeText
     ? `Đã lưu lúc ${savedContractTimeText} bởi ${previewSavedByName}`
-    : 'Bấm Lưu & Preview để cập nhật bản gửi khách trước khi lấy link hoặc tải file.'
+    : ''
 
   useEffect(() => {
     if (!open) return
@@ -609,7 +625,7 @@ export default function ContractEditorModal({
 
       try {
         const existingLoader = contractId
-          ? getContractById(contractId)
+          ? (initialContract ? Promise.resolve(initialContract) : getContractById(contractId))
           : sourceType === 'job'
             ? getContractByJobId(sourceDraft.external_job_id)
             : isQuoteSource && quote?.id
@@ -646,7 +662,7 @@ export default function ContractEditorModal({
     return () => {
       mounted = false
     }
-  }, [open, quote?.id, sourceType, sourceDraft?.external_job_id, contractId])
+  }, [open, quote?.id, sourceType, sourceDraft?.external_job_id, contractId, initialContract?.id])
 
   function updateDraft(patch) {
     setDraft(prev => normalizeContractTemplate({ ...prev, ...patch }))
@@ -889,7 +905,7 @@ export default function ContractEditorModal({
 
   function validate() {
     if (!draft) return 'Chưa có dữ liệu hợp đồng.'
-    if (!draft.id && !quoteIsReady) return 'Chỉ báo giá đã lưu hoàn thiện mới được tạo hợp đồng.'
+    if (!draft.id && !quoteIsReady) return 'Không thể tạo hợp đồng từ báo giá này.'
     if (!String(draft.customer_snapshot?.company_name || '').trim()) return 'Cần nhập tên công ty khách hàng.'
     if (!String(draft.service_scope || '').trim()) return 'Cần nhập nội dung dịch vụ.'
     if (!String(draft.terms_text ?? sectionsToTermsText(draft.content_sections)).trim()) return 'Cần nhập nội dung từ ĐIỀU 3 trở đi.'
@@ -932,6 +948,7 @@ export default function ContractEditorModal({
       setSavedContract(hydrated)
       setDirty(false)
       setNotice('Đã lưu hợp đồng. Bạn có thể tải PDF hoặc DOCX.')
+      onSaved?.(hydrated)
       return hydrated
     } catch (err) {
       setError(err?.message || 'Không lưu được hợp đồng.')
@@ -961,6 +978,7 @@ export default function ContractEditorModal({
       setDirty(false)
       setDeleteConfirmOpen(false)
       setNotice('Đã xoá hợp đồng. Bạn có thể tạo lại hợp đồng mới từ báo giá này.')
+      onDeleted?.()
     } catch (err) {
       setError(err?.message || 'Không xoá được hợp đồng.')
     } finally {
@@ -988,6 +1006,7 @@ export default function ContractEditorModal({
     share_token: savedContract?.share_token || draft.share_token,
     quote_snapshot: savedContract ? currentQuoteSnapshot : baseQuoteSnapshot,
   } : null
+  const documentContract = savedContract || (draft?.id ? draft : null)
   const serviceScopeDetail = getServiceScopeDetail(draft?.service_scope)
   const termsText = draft?.terms_text ?? sectionsToTermsText(draft?.content_sections || [])
   const preambleLines = getContractPreamble(draft || {})
@@ -1095,10 +1114,12 @@ export default function ContractEditorModal({
             Có thay đổi chưa lưu
           </div>
         ) : null}
-        <p className="text-[12px] leading-5 text-slate-400">
-          {savedContractMetaText}
-        </p>
-        <div className="mt-4 space-y-2">
+        {savedContractMetaText ? (
+          <p className="text-[12px] leading-5 text-slate-400">
+            {savedContractMetaText}
+          </p>
+        ) : null}
+        <div className={savedContractMetaText ? 'mt-4 space-y-2' : 'space-y-2'}>
           <ContractDocumentDownloads
             contract={downloadableContract}
             previewContract={previewContract}
@@ -1127,9 +1148,16 @@ export default function ContractEditorModal({
     )
   }
 
+  const shellClass = isPage
+    ? 'min-h-screen bg-slate-50'
+    : 'fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45'
+  const panelClass = isPage
+    ? 'flex min-h-screen w-full flex-col overflow-hidden bg-slate-50'
+    : 'flex h-screen max-h-screen w-full flex-col overflow-hidden bg-slate-50 shadow-2xl'
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45">
-      <section className="flex h-screen max-h-screen w-full flex-col overflow-hidden bg-slate-50 shadow-2xl">
+    <div className={shellClass}>
+      <section className={panelClass}>
         <header className="border-b border-slate-200 bg-white px-5 py-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -1141,14 +1169,28 @@ export default function ContractEditorModal({
                   { label: draft?.contract_number || savedContract?.contract_number || 'Hợp đồng' },
                 ]}
               />
+              {isPage ? (
+                <h1 className="mt-2 text-[24px] font-semibold tracking-tight text-slate-950">
+                  {draft?.contract_number || savedContract?.contract_number || 'Hợp đồng'}
+                </h1>
+              ) : null}
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
-              aria-label="Đóng"
+              className={isPage
+                ? 'inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-[13px] font-semibold text-slate-600 hover:bg-slate-50'
+                : 'inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50'}
+              aria-label={isPage ? 'Quay lại danh sách hợp đồng' : 'Đóng'}
             >
-              <X className="h-4 w-4" />
+              {isPage ? (
+                <>
+                  <ArrowLeft className="h-4 w-4" />
+                  Quay lại
+                </>
+              ) : (
+                <X className="h-4 w-4" />
+              )}
             </button>
           </div>
         </header>
@@ -1158,14 +1200,14 @@ export default function ContractEditorModal({
             <div className="sticky top-0 space-y-4">
               <section className="rounded-2xl border border-slate-200 p-4">
                 <dl>
-                  <SummaryRow label="Báo giá" value={quoteSummaryValue} strong />
-                  <SummaryRow label="Sự kiện" value={summaryQuote.event_name} />
-                  <SummaryRow label="Tổng giá trị hợp đồng" value={`${formatCurrency(baseQuoteSnapshot.total_amount)}đ`} strong />
+                  <SummaryRow label="Báo giá" value={quoteSummaryValue} strong compact />
+                  <SummaryRow label="Tổng giá trị hợp đồng" value={`${formatCurrency(baseQuoteSnapshot.total_amount)}đ`} strong compact />
                 </dl>
                 {renderContractSetupControls()}
               </section>
 
               {renderActionPanel()}
+              <ContractDocumentsSidebarCard contract={documentContract} />
             </div>
           </aside>
 
@@ -1174,7 +1216,7 @@ export default function ContractEditorModal({
               {loading && <p className="rounded-xl bg-white px-4 py-3 text-[13px] text-slate-500">Đang tải hợp đồng...</p>}
               {!quoteIsReady && !savedContract && (
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] font-semibold text-amber-800">
-                  Báo giá đang ở trạng thái nháp. Hãy lưu hoàn thiện hoặc tạo link gửi khách trước khi tạo hợp đồng.
+                  Không thể tạo hợp đồng từ báo giá này.
                 </div>
               )}
               {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-[13px] text-red-700">{error}</p>}
@@ -1191,6 +1233,7 @@ export default function ContractEditorModal({
                       {renderContractSetupControls()}
                     </div>
                     {renderActionPanel()}
+                    <ContractDocumentsSidebarCard contract={documentContract} />
                   </section>
 
                   <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -1391,8 +1434,6 @@ export default function ContractEditorModal({
                       <LegalNoteList title="Lưu ý về thanh toán:" items={paymentNotes} />
                     </div>
                   </section>
-
-                  <ContractDocumentsPanel contract={savedContract || (draft?.id ? draft : null)} />
 
                   <SectionCard title="Nội dung từ ĐIỀU 3 trở đi">
                     <Textarea

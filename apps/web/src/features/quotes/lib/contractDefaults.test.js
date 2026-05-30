@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   applySellerEntityToContractNumber,
   applySellerEntityToContractNumberPattern,
+  buildInitialContractDraft,
   buildInitialContractDraftFromSource,
   buildSingleLineQuoteSnapshot,
   generateContractNumber,
@@ -22,6 +23,19 @@ const template = {
   content_sections: [],
   terms_text: 'ĐIỀU 3: NỘI DUNG\nNội dung hợp đồng',
 }
+
+test('buildInitialContractDraft generates a contract number for new quote contracts', () => {
+  const draft = buildInitialContractDraft({
+    id: 'quote-1',
+    client_name: 'Công ty Minh Anh',
+    entity_code: 'EVENTUS',
+  }, {
+    ...template,
+    contract_number_pattern: '{{dd}}{{mm}}/HDEVT-{{customer_short_code}}/{{yyyy}}',
+  })
+
+  assert.match(draft.contract_number, /^\d{4}\/HDEVT-MA\/\d{4}$/)
+})
 
 test('buildInitialContractDraftFromSource preserves job source snapshots and totals', () => {
   const draft = buildInitialContractDraftFromSource({
@@ -66,6 +80,7 @@ test('buildInitialContractDraftFromSource preserves job source snapshots and tot
   assert.equal(draft.quote_snapshot.total_amount, 12000000)
   assert.equal(draft.quote_snapshot.items[0].service_name, 'Dịch vụ media theo job Year End Party')
   assert.equal(draft.schedule_rows[0].location, 'Hà Nội')
+  assert.match(draft.contract_number, /^\d{4}\/HD-JOB42\/TM\/\d{4}$/)
 })
 
 test('generateContractNumber can use job source code without a quote id', () => {

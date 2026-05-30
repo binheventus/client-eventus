@@ -1,14 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, Check, Copy, Edit3, FileText, Link, Plus, RefreshCw, Trash2, X } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { AlertTriangle, ArrowLeft, Check, Copy, ExternalLink, FileText, Link, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import ContractDocumentDocxDownloadButton from './ContractDocumentDocxDownloadButton'
 import ContractDocumentPDFDownloadButton from './ContractDocumentPDFDownloadButton'
 import {
   deleteContractDocument,
-  listContractDocumentTemplates,
   listContractDocuments,
-  saveContractDocument,
 } from '../hooks/useContracts'
 import { useLegalEntities } from '../hooks/useLegalEntities'
+import {
+  getContractDocumentsRoute,
+  getContractDocumentEditRoute,
+  getNewContractDocumentRoute,
+} from '../lib/contractRouting'
 import {
   findLegalEntityByCode,
   formatEntityBankDetails,
@@ -475,7 +479,7 @@ function buildEditorDraft(document = null, documentType = 'advance_request', con
   }
 }
 
-function buildDocumentPayload(draft = {}, templates = [], documents = []) {
+export function buildDocumentPayload(draft = {}, templates = [], documents = []) {
   const selectedTemplate = templates.find(template => template.id === draft.template_id)
   return {
     id: draft.id || undefined,
@@ -607,50 +611,56 @@ function AmountRowsEditor({
       </div>
 
       <div className="overflow-hidden rounded-xl border border-slate-200">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[840px] text-left text-[13px]">
-            <thead className="bg-slate-50 text-[11px] uppercase tracking-[0.1em] text-slate-500">
-              <tr>
-                <th className="px-3 py-3">Nội dung</th>
-                <th className="w-[100px] px-3 py-3">ĐVT</th>
-                <th className="w-[90px] px-3 py-3 text-right">SL</th>
-                <th className="w-[150px] px-3 py-3 text-right">Đơn giá</th>
-                <th className="w-[160px] px-3 py-3 text-right">Thành tiền</th>
-                <th className="w-[56px] px-3 py-3" />
+        <table className="w-full table-fixed text-left text-[12px]">
+          <colgroup>
+            <col className="w-[39%]" />
+            <col className="w-[10%]" />
+            <col className="w-[9%]" />
+            <col className="w-[18%]" />
+            <col className="w-[18%]" />
+            <col className="w-[6%]" />
+          </colgroup>
+          <thead className="bg-slate-50 text-[10px] uppercase tracking-[0.06em] text-slate-500">
+            <tr>
+              <th className="break-words px-2 py-3">Nội dung</th>
+              <th className="break-words px-2 py-3">ĐVT</th>
+              <th className="break-words px-2 py-3 text-right">SL</th>
+              <th className="break-words px-2 py-3 text-right">Đơn giá</th>
+              <th className="break-words px-2 py-3 text-right">Thành tiền</th>
+              <th className="px-0.5 py-3" />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 bg-white">
+            {safeRows.length ? safeRows.map((row, index) => (
+              <tr key={row.id || index} className="align-top">
+                <td className="min-w-0 px-1.5 py-2">
+                  <Textarea rows={1} value={row.description || ''} onChange={event => updateRow(index, { description: event.target.value })} placeholder="Tên hạng mục" className="min-h-10 resize-y break-words px-2 py-2 text-[12px] leading-5" />
+                </td>
+                <td className="min-w-0 px-1.5 py-2">
+                  <TextInput value={row.unit || ''} onChange={event => updateRow(index, { unit: event.target.value })} className="min-w-0 px-2 py-2 text-[12px]" />
+                </td>
+                <td className="min-w-0 px-1.5 py-2">
+                  <TextInput type="number" min="0" value={row.quantity ?? 1} onChange={event => updateQuantity(index, event.target.value)} className="min-w-0 px-2 py-2 text-right text-[12px]" />
+                </td>
+                <td className="min-w-0 px-1.5 py-2">
+                  <TextInput inputMode="numeric" value={formatCurrencyInput(row.unit_price)} onChange={event => updateUnitPrice(index, event.target.value)} className="min-w-0 px-2 py-2 text-right text-[12px]" />
+                </td>
+                <td className="min-w-0 px-1.5 py-2">
+                  <TextInput inputMode="numeric" value={formatCurrencyInput(row.amount)} onChange={event => updateAmount(index, event.target.value)} className={`min-w-0 px-2 py-2 text-right text-[12px] font-semibold ${Number(row.amount || 0) < 0 ? 'text-red-600' : 'text-slate-900'}`} />
+                </td>
+                <td className="px-0.5 py-2 text-center">
+                  <button type="button" onClick={() => onChange(safeRows.filter((_, rowIndex) => rowIndex !== index))} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label="Xóa dòng">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 bg-white">
-              {safeRows.length ? safeRows.map((row, index) => (
-                <tr key={row.id || index}>
-                  <td className="px-2 py-2">
-                    <TextInput value={row.description || ''} onChange={event => updateRow(index, { description: event.target.value })} placeholder="Tên hạng mục" />
-                  </td>
-                  <td className="px-2 py-2">
-                    <TextInput value={row.unit || ''} onChange={event => updateRow(index, { unit: event.target.value })} />
-                  </td>
-                  <td className="px-2 py-2">
-                    <TextInput type="number" min="0" value={row.quantity ?? 1} onChange={event => updateQuantity(index, event.target.value)} className="text-right" />
-                  </td>
-                  <td className="px-2 py-2">
-                    <TextInput inputMode="numeric" value={formatCurrencyInput(row.unit_price)} onChange={event => updateUnitPrice(index, event.target.value)} className="text-right" />
-                  </td>
-                  <td className="px-2 py-2">
-                    <TextInput inputMode="numeric" value={formatCurrencyInput(row.amount)} onChange={event => updateAmount(index, event.target.value)} className={`text-right font-semibold ${Number(row.amount || 0) < 0 ? 'text-red-600' : 'text-slate-900'}`} />
-                  </td>
-                  <td className="px-2 py-2 text-right">
-                    <button type="button" onClick={() => onChange(safeRows.filter((_, rowIndex) => rowIndex !== index))} className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label="Xóa dòng">
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </td>
-                </tr>
-              )) : (
-                <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-slate-400">Chưa có dòng giá trị.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+            )) : (
+              <tr>
+                <td colSpan={6} className="px-4 py-8 text-center text-slate-400">Chưa có dòng giá trị.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
       <MoneySummary rows={safeRows} vatConfig={vatConfig} totalLabel={allowNegative ? 'Tổng nghiệm thu' : 'Tổng theo hợp đồng'} />
     </section>
@@ -661,7 +671,6 @@ function AdvanceRequestEditor({ draft, updateFormData }) {
   const formData = draft.form_data || {}
   const contractValue = Number(formData.contract_value || 0)
   const advanceAmount = Number(formData.advance_amount || 0)
-  const bank = getBankDetailsFromFormData(formData, draft.contract_source?.seller_snapshot || {})
 
   function updateContractValue(value) {
     const nextValue = parseCurrencyInput(value)
@@ -704,10 +713,10 @@ function AdvanceRequestEditor({ draft, updateFormData }) {
     <section className="space-y-4">
       <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_130px_minmax(0,1fr)]">
         <Field label="Giá trị hợp đồng">
-          <div className="flex gap-2">
-            <TextInput inputMode="numeric" value={formatCurrencyInput(contractValue)} onChange={event => updateContractValue(event.target.value)} />
-            <button type="button" onClick={resetContractValue} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50" aria-label="Đồng bộ giá trị hợp đồng">
-              <RefreshCw className="h-4 w-4" />
+          <div className="relative">
+            <TextInput inputMode="numeric" value={formatCurrencyInput(contractValue)} onChange={event => updateContractValue(event.target.value)} className="pr-20" />
+            <button type="button" onClick={resetContractValue} className="absolute right-2 top-1/2 inline-flex h-7 -translate-y-1/2 items-center justify-center rounded-lg bg-slate-100 px-2.5 text-[11px] font-semibold text-slate-600 hover:bg-orange-50 hover:text-orange-700" aria-label="Reset giá trị hợp đồng">
+              Reset
             </button>
           </div>
         </Field>
@@ -729,21 +738,6 @@ function AdvanceRequestEditor({ draft, updateFormData }) {
           <p className="mt-1 font-bold text-orange-700">{formatQuoteCurrency(advanceAmount)}đ</p>
         </div>
       </div>
-
-      <section className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-        <h3 className="text-[14px] font-semibold text-slate-900">Thông tin chuyển khoản theo pháp nhân</h3>
-        <div className="mt-3 grid gap-3 md:grid-cols-[180px_minmax(0,1fr)_minmax(0,1fr)]">
-          <Field label="Tài khoản chuyển khoản">
-            <TextInput readOnly value={bank.account_number || ''} className="bg-white font-semibold text-slate-900" />
-          </Field>
-          <Field label="Ngân hàng">
-            <TextInput readOnly value={bank.bank_name || ''} className="bg-white font-semibold text-slate-900" />
-          </Field>
-          <Field label="Chủ tài khoản">
-            <TextInput readOnly value={bank.account_holder || ''} className="bg-white font-semibold text-slate-900" />
-          </Field>
-        </div>
-      </section>
     </section>
   )
 }
@@ -800,7 +794,6 @@ function PaymentRequestEditor({ draft, documents, updateFormData }) {
   const advanceDocuments = documents.filter(row => row.document_type === 'advance_request' && row.id !== draft.id)
   const amountConfig = buildDocumentAmountConfig(draft, documents)
   const selectedDeductions = new Map((formData.advance_deductions || []).map(row => [row.document_id, row]))
-  const bank = getBankDetailsFromFormData(formData, draft.contract_source?.seller_snapshot || {})
 
   function selectAcceptance(documentId) {
     const selected = acceptanceDocuments.find(row => row.id === documentId)
@@ -945,25 +938,11 @@ function PaymentRequestEditor({ draft, documents, updateFormData }) {
       <Field label="Nội dung đề nghị thanh toán">
         <Textarea rows={4} value={formData.request_content || ''} onChange={event => updateFormData({ request_content: event.target.value })} />
       </Field>
-      <section className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-        <h3 className="text-[14px] font-semibold text-slate-900">Thông tin chuyển khoản theo pháp nhân</h3>
-        <div className="mt-3 grid gap-3 md:grid-cols-[180px_minmax(0,1fr)_minmax(0,1fr)]">
-          <Field label="Tài khoản chuyển khoản">
-            <TextInput readOnly value={bank.account_number || ''} className="bg-white font-semibold text-slate-900" />
-          </Field>
-          <Field label="Ngân hàng">
-            <TextInput readOnly value={bank.bank_name || ''} className="bg-white font-semibold text-slate-900" />
-          </Field>
-          <Field label="Chủ tài khoản">
-            <TextInput readOnly value={bank.account_holder || ''} className="bg-white font-semibold text-slate-900" />
-          </Field>
-        </div>
-      </section>
     </section>
   )
 }
 
-function DocumentEditorModal({
+export function ContractDocumentEditorForm({
   contract,
   documents,
   templates,
@@ -971,14 +950,18 @@ function DocumentEditorModal({
   documentType,
   saving,
   error,
-  onClose,
+  onCancel,
   onSave,
+  onDraftChange,
+  footerActions = null,
+  variant = 'page',
 }) {
   const { legalEntities } = useLegalEntities()
   const [draft, setDraft] = useState(() => buildEditorDraft(document, documentType, contract, templates, documents, legalEntities))
   const availableTemplates = templates.filter(template => template.document_type === draft.document_type)
   const isExistingDocument = Boolean(document?.id)
   const dateLabel = draft.document_type === 'acceptance_liquidation' ? 'Ngày nghiệm thu' : 'Ngày lập'
+  const isPage = variant === 'page'
 
   function updateDraft(patch) {
     setDraft(prev => ({ ...prev, ...patch }))
@@ -987,6 +970,10 @@ function DocumentEditorModal({
   function updateFormData(patch) {
     setDraft(prev => ({ ...prev, form_data: { ...(prev.form_data || {}), ...patch } }))
   }
+
+  useEffect(() => {
+    if (onDraftChange) onDraftChange(draft)
+  }, [draft])
 
   function buildSellerEntityPatch(entityCode) {
     const sellerProfile = getSellerProfileForCode(entityCode, legalEntities)
@@ -1049,43 +1036,20 @@ function DocumentEditorModal({
     : DOCUMENT_TYPES[draft.document_type]?.actionLabel || 'Tạo chứng từ'
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/45 px-4 py-6">
-      <form onSubmit={submit} className="flex max-h-[88vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-        <header className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
+    <form onSubmit={submit} className={isPage ? 'overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm' : 'flex max-h-[88vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl'}>
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
           <div>
             <h2 className="text-[18px] font-semibold text-slate-950">{title}</h2>
             <p className="mt-1 text-[12px] font-semibold text-slate-500">{draft.document_number || 'Số chứng từ sẽ được cấp khi lưu lần đầu.'}</p>
           </div>
-          <button type="button" onClick={onClose} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50" aria-label="Đóng">
-            <X className="h-4 w-4" />
+          <button type="button" onClick={onCancel} className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-[13px] font-semibold text-slate-600 hover:bg-slate-50">
+            <ArrowLeft className="h-4 w-4" />
+            Quay lại
           </button>
         </header>
 
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
-          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_170px_minmax(0,1fr)_150px]">
-            <Field label="Loại chứng từ">
-              <Select value={draft.document_type} disabled>
-                {Object.entries(DOCUMENT_TYPES).map(([value, config]) => (
-                  <option key={value} value={value}>{config.label}</option>
-                ))}
-              </Select>
-            </Field>
-            <Field label={dateLabel}>
-              <TextInput type="date" value={draft.issued_date || ''} onChange={event => updateDraft({ issued_date: event.target.value })} />
-            </Field>
-            <Field label="Số chứng từ">
-              <TextInput value={draft.document_number || 'Tự cấp khi lưu'} readOnly className="bg-slate-50 font-semibold text-slate-700" />
-            </Field>
-            <Field label="Trạng thái">
-              <Select value={draft.status || 'draft'} onChange={event => updateDraft({ status: event.target.value })}>
-                <option value="draft">Nháp</option>
-                <option value="open">Đang mở</option>
-                <option value="finalized">Đã chốt</option>
-              </Select>
-            </Field>
-          </div>
-
-          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <div className={isPage ? 'space-y-4 p-5' : 'min-h-0 flex-1 space-y-4 overflow-y-auto p-5'}>
+          <div className="grid gap-3 md:grid-cols-2">
             <Field label="Mẫu chứng từ">
               <Select
                 value={draft.template_id || ''}
@@ -1100,12 +1064,15 @@ function DocumentEditorModal({
                 ))}
               </Select>
             </Field>
+            <Field label="Pattern số chứng từ">
+              <TextInput value={draft.document_number_pattern || ''} onChange={event => updateDraft({ document_number_pattern: event.target.value })} />
+            </Field>
             <Field label="Tiêu đề">
               <TextInput value={draft.title || ''} onChange={event => updateDraft({ title: event.target.value })} />
             </Field>
-          </div>
-
-          <div className="grid gap-3 md:grid-cols-[240px_minmax(0,1fr)]">
+            <Field label="Số chứng từ">
+              <TextInput value={draft.document_number || 'Tự cấp khi lưu'} readOnly className="bg-slate-50 font-semibold text-slate-700" />
+            </Field>
             <Field label="Pháp nhân">
               <Select value={draft.seller_entity_code || ''} onChange={event => handleSellerEntityChange(event.target.value)}>
                 {!legalEntities.length ? <option value={draft.seller_entity_code || ''}>{draft.seller_entity_code || 'EVENTUS'}</option> : null}
@@ -1119,8 +1086,8 @@ function DocumentEditorModal({
                 })}
               </Select>
             </Field>
-            <Field label="Pattern số chứng từ">
-              <TextInput value={draft.document_number_pattern || ''} onChange={event => updateDraft({ document_number_pattern: event.target.value })} />
+            <Field label={dateLabel}>
+              <TextInput type="date" value={draft.issued_date || ''} onChange={event => updateDraft({ issued_date: event.target.value })} />
             </Field>
           </div>
 
@@ -1143,23 +1110,23 @@ function DocumentEditorModal({
               })}
               className="h-4 w-4 rounded border-slate-300 text-[#f8981d] focus:ring-orange-100"
             />
-            Tự đồng bộ thông tin hợp đồng khi chứng từ còn nháp/đang mở
+            Tự đồng bộ thông tin hợp đồng khi cập nhật chứng từ
           </label>
 
           {error ? <p className="rounded-xl bg-red-50 px-4 py-3 text-[13px] text-red-700">{error}</p> : null}
         </div>
 
         <footer className="flex justify-end gap-2 border-t border-slate-200 bg-white px-5 py-4">
-          <button type="button" onClick={onClose} disabled={saving} className="rounded-xl border border-slate-200 px-4 py-2.5 text-[13px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+          <button type="button" onClick={onCancel} disabled={saving} className="rounded-xl border border-slate-200 px-4 py-2.5 text-[13px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
             Hủy
           </button>
-          <button type="submit" disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-[#f8981d] px-4 py-2.5 text-[13px] font-semibold text-white shadow-sm hover:bg-orange-500 disabled:opacity-50">
+          {footerActions}
+          <button type="submit" disabled={saving} className="inline-flex min-w-[150px] items-center justify-center gap-2 rounded-xl bg-[#f8981d] px-6 py-2.5 text-[13px] font-semibold text-white shadow-sm hover:bg-orange-500 disabled:opacity-50">
             <FileText className="h-4 w-4" />
-            {saving ? 'Đang lưu...' : 'Lưu chứng từ'}
+            {saving ? 'Đang lưu...' : 'Lưu'}
           </button>
         </footer>
-      </form>
-    </div>
+    </form>
   )
 }
 
@@ -1195,17 +1162,160 @@ function DeleteDocumentConfirmModal({ document, deleting, error, onCancel, onCon
   )
 }
 
-export default function ContractDocumentsPanel({ contract }) {
+export function ContractDocumentsSidebarCard({ contract }) {
+  const navigate = useNavigate()
   const [documents, setDocuments] = useState([])
-  const [templates, setTemplates] = useState([])
   const [loading, setLoading] = useState(false)
-  const [saving, setSaving] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+
+  const canManageDocuments = Boolean(contract?.id)
+  const linkedDocuments = useMemo(
+    () => documents.filter(document => Boolean(getPublicDocumentUrl(document))),
+    [documents],
+  )
+
+  useEffect(() => {
+    let mounted = true
+    if (!contract?.id) {
+      setDocuments([])
+      setLoading(false)
+      return
+    }
+
+    async function load() {
+      setLoading(true)
+      setError('')
+      try {
+        const rows = await listContractDocuments(contract.id)
+        if (mounted) setDocuments(rows)
+      } catch (err) {
+        if (mounted) setError(err?.message || 'Không tải được chứng từ hợp đồng.')
+      } finally {
+        if (mounted) setLoading(false)
+      }
+    }
+
+    load()
+    return () => {
+      mounted = false
+    }
+  }, [contract?.id])
+
+  function openNewDocument(documentType) {
+    setMenuOpen(false)
+    setNotice('')
+    navigate(getNewContractDocumentRoute(contract, documentType))
+  }
+
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-[#d97706]">
+            <FileText className="h-4 w-4" />
+          </span>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h2 className="truncate text-[14px] font-semibold text-slate-900">Chứng từ</h2>
+              {linkedDocuments.length ? (
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+                  {linkedDocuments.length}
+                </span>
+              ) : null}
+            </div>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <button
+            type="button"
+            disabled={!canManageDocuments}
+            onClick={() => navigate(getContractDocumentsRoute(contract))}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+            aria-label="Mở danh sách chứng từ"
+          >
+            <ExternalLink className="h-4 w-4" />
+          </button>
+          <div className="relative">
+            <button
+              type="button"
+              disabled={!canManageDocuments}
+              onClick={() => setMenuOpen(prev => !prev)}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[#f8981d] text-white shadow-sm hover:bg-orange-500 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+              aria-label="Tạo chứng từ"
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+            {menuOpen ? (
+              <div className="absolute right-0 z-30 mt-2 w-[240px] overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+                {Object.entries(DOCUMENT_TYPES).map(([documentType, config]) => (
+                  <button
+                    key={documentType}
+                    type="button"
+                    onClick={() => openNewDocument(documentType)}
+                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] font-semibold text-slate-700 hover:bg-orange-50 hover:text-orange-700"
+                  >
+                    <FileText className="h-4 w-4 text-slate-400" />
+                    {config.actionLabel}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      {!canManageDocuments ? (
+        <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] font-semibold text-amber-800">
+          Bạn cần lưu hợp đồng trước khi tạo chứng từ.
+        </p>
+      ) : null}
+
+      {notice ? <p className="mt-3 rounded-xl bg-emerald-50 px-3 py-2 text-[12px] text-emerald-700">{notice}</p> : null}
+      {error ? <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-[12px] text-red-700">{error}</p> : null}
+
+      <div className="mt-3 space-y-2">
+        {loading ? (
+          <p className="rounded-xl bg-slate-50 px-3 py-3 text-[12px] text-slate-500">Đang tải chứng từ...</p>
+        ) : linkedDocuments.length ? linkedDocuments.map(document => {
+          const publicUrl = getPublicDocumentUrl(document)
+          return (
+            <a
+              key={document.id}
+              href={publicUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group block rounded-xl border border-slate-100 px-3 py-2.5 hover:border-orange-200 hover:bg-orange-50/60"
+            >
+              <span className="flex min-w-0 items-center gap-1.5 text-[13px] font-semibold text-blue-700 group-hover:text-blue-800">
+                <span className="truncate">{DOCUMENT_TYPES[document.document_type]?.label || document.document_type}</span>
+                <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+              </span>
+              <span className="mt-1 block text-[12px] text-slate-500">
+                Lập ngày {formatQuoteDate(document.issued_date) || '-'}
+              </span>
+            </a>
+          )
+        }) : (
+          <p className="rounded-xl bg-slate-50 px-3 py-3 text-[12px] text-slate-500">
+            Chưa có chứng từ.
+          </p>
+        )}
+      </div>
+
+    </section>
+  )
+}
+
+export default function ContractDocumentsPanel({ contract }) {
+  const navigate = useNavigate()
+  const [documents, setDocuments] = useState([])
+  const [loading, setLoading] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
-  const [editorState, setEditorState] = useState(null)
   const [documentToDelete, setDocumentToDelete] = useState(null)
   const [error, setError] = useState('')
-  const [editorError, setEditorError] = useState('')
   const [deleteError, setDeleteError] = useState('')
   const [notice, setNotice] = useState('')
 
@@ -1255,62 +1365,15 @@ export default function ContractDocumentsPanel({ contract }) {
     }
   }, [contract?.id])
 
-  useEffect(() => {
-    let mounted = true
-    async function loadTemplates() {
-      try {
-        const rows = await listContractDocumentTemplates()
-        if (mounted) setTemplates(rows)
-      } catch (err) {
-        if (mounted) setError(err?.message || 'Không tải được mẫu chứng từ hợp đồng.')
-      }
-    }
-
-    loadTemplates()
-    return () => {
-      mounted = false
-    }
-  }, [])
-
   function openNewDocument(documentType) {
     setMenuOpen(false)
     setNotice('')
-    setEditorError('')
-    setEditorState({ documentType, document: null })
+    navigate(getNewContractDocumentRoute(contract, documentType))
   }
 
   function openEditDocument(document) {
     setNotice('')
-    setEditorError('')
-    setEditorState({ documentType: document.document_type, document })
-  }
-
-  async function handleSaveDocument(draft) {
-    if (!draft.contract_id) {
-      setEditorError('Cần lưu hợp đồng trước khi tạo chứng từ.')
-      return
-    }
-    if (!String(draft.title || '').trim()) {
-      setEditorError('Cần nhập tiêu đề chứng từ.')
-      return
-    }
-    if (draft.document_type === 'payment_request' && !draft.form_data?.acceptance_document_id) {
-      setEditorError('Đề nghị thanh toán cần liên kết với một BBNT.')
-      return
-    }
-
-    setSaving(true)
-    setEditorError('')
-    try {
-      const saved = await saveContractDocument(buildDocumentPayload(draft, templates, documents))
-      await loadDocuments()
-      setEditorState(null)
-      setNotice(`Đã lưu chứng từ ${saved?.document_number || saved?.title || ''}.`)
-    } catch (err) {
-      setEditorError(err?.message || 'Không lưu được chứng từ.')
-    } finally {
-      setSaving(false)
-    }
+    navigate(getContractDocumentEditRoute(contract, document))
   }
 
   async function handleCopyLink(document) {
@@ -1382,7 +1445,7 @@ export default function ContractDocumentsPanel({ contract }) {
 
       {!canManageDocuments ? (
         <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] font-semibold text-amber-800">
-          Lưu hợp đồng trước khi tạo chứng từ.
+          Bạn cần lưu hợp đồng trước khi tạo chứng từ.
         </div>
       ) : null}
 
@@ -1396,9 +1459,9 @@ export default function ContractDocumentsPanel({ contract }) {
               <tr>
                 <th className="px-4 py-3">Loại chứng từ</th>
                 <th className="px-4 py-3">Số chứng từ</th>
-                <th className="px-4 py-3">Ngày lập</th>
                 <th className="px-4 py-3 text-right">Giá trị</th>
-                <th className="px-4 py-3">Public link</th>
+                <th className="px-4 py-3">Link gửi khách hàng</th>
+                <th className="px-4 py-3">Ngày lập</th>
                 <th className="px-4 py-3">Cập nhật</th>
                 <th className="px-4 py-3 text-right">Thao tác</th>
               </tr>
@@ -1413,15 +1476,22 @@ export default function ContractDocumentsPanel({ contract }) {
                 return (
                   <tr key={document.id} className="hover:bg-orange-50/40">
                     <td className="px-4 py-3 font-semibold text-slate-800">{DOCUMENT_TYPES[document.document_type]?.label || document.document_type}</td>
-                    <td className="px-4 py-3 text-slate-700">{document.document_number || '-'}</td>
-                    <td className="px-4 py-3 text-slate-600">{formatQuoteDate(document.issued_date)}</td>
+                    <td className="px-4 py-3">
+                      <button
+                        type="button"
+                        onClick={() => openEditDocument(document)}
+                        className="font-semibold text-blue-700 hover:text-blue-800 hover:underline"
+                      >
+                        {document.document_number || '-'}
+                      </button>
+                    </td>
                     <td className="px-4 py-3 text-right font-semibold tabular-nums text-slate-800">{amount ? `${formatQuoteCurrency(amount)}đ` : '-'}</td>
                     <td className="px-4 py-3">
                       {publicUrl ? (
                         <div className="flex min-w-0 items-center gap-2">
-                          <a href={publicUrl} target="_blank" rel="noopener noreferrer" className="inline-flex max-w-[180px] items-center gap-1 truncate rounded-lg bg-slate-50 px-2 py-1 text-[12px] font-semibold text-blue-700 hover:bg-blue-50">
+                          <a href={publicUrl} target="_blank" rel="noopener noreferrer" className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-full bg-blue-50 px-3 text-[12px] font-semibold text-blue-700 hover:bg-blue-100 hover:text-blue-800" aria-label="Mở link gửi khách hàng">
                             <Link className="h-3.5 w-3.5 shrink-0" />
-                            <span className="truncate">{document.share_token}</span>
+                            Mở link
                           </a>
                           <button type="button" onClick={() => handleCopyLink(document)} className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-blue-50 hover:text-blue-700" aria-label="Copy public link">
                             <Copy className="h-4 w-4" />
@@ -1429,34 +1499,32 @@ export default function ContractDocumentsPanel({ contract }) {
                         </div>
                       ) : '-'}
                     </td>
+                    <td className="px-4 py-3 text-slate-600">{formatQuoteDate(document.issued_date)}</td>
                     <td className="px-4 py-3 text-slate-500">{formatQuoteDate(document.updated_at || document.created_at)}</td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1.5">
                         <ContractDocumentPDFDownloadButton
                           document={document}
                           warnBeforeDownload
-                          className={`inline-flex h-8 w-8 items-center justify-center rounded-lg ${exportWarnings.length ? 'text-amber-600 hover:bg-amber-50' : 'text-slate-500 hover:bg-orange-50 hover:text-orange-700'}`}
+                          className={`inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-[12px] font-semibold shadow-sm ${exportWarnings.length ? 'text-amber-600 hover:border-amber-200 hover:bg-amber-50' : 'text-slate-600 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700'}`}
                           aria-label="Tải PDF chứng từ"
                           title={exportWarnings.length ? `Thiếu trước export: ${exportWarnings.join(', ')}` : 'Tải PDF'}
                         >
-                          <span className="sr-only">Tải PDF</span>
+                          Tải PDF
                         </ContractDocumentPDFDownloadButton>
                         <ContractDocumentDocxDownloadButton
                           document={document}
                           warnBeforeDownload
-                          className={`inline-flex h-8 w-8 items-center justify-center rounded-lg ${exportWarnings.length ? 'text-amber-600 hover:bg-amber-50' : 'text-slate-500 hover:bg-orange-50 hover:text-orange-700'}`}
+                          className={`inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-[12px] font-semibold shadow-sm ${exportWarnings.length ? 'text-amber-600 hover:border-amber-200 hover:bg-amber-50' : 'text-slate-600 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700'}`}
                           aria-label="Tải DOCX chứng từ"
                           title={exportWarnings.length ? `Thiếu trước export: ${exportWarnings.join(', ')}` : 'Tải DOCX'}
                         >
-                          <span className="sr-only">Tải DOCX</span>
+                          Tải Docx
                         </ContractDocumentDocxDownloadButton>
-                        <button type="button" onClick={() => openEditDocument(document)} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-orange-50 hover:text-orange-700" aria-label="Xem/sửa chứng từ">
-                          <Edit3 className="h-4 w-4" />
-                        </button>
                         <button type="button" onClick={() => {
                           setDeleteError('')
                           setDocumentToDelete(document)
-                        }} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label="Xóa chứng từ">
+                        }} className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 shadow-sm hover:border-red-200 hover:bg-red-50 hover:text-red-600" aria-label="Xóa chứng từ">
                           <Trash2 className="h-4 w-4" />
                         </button>
                       </div>
@@ -1482,20 +1550,6 @@ export default function ContractDocumentsPanel({ contract }) {
         </span>
         <span>{acceptanceDocumentCount ? `${acceptanceDocumentCount} BBNT có thể liên kết với đề nghị thanh toán.` : 'Tạo BBNT trước khi tạo đề nghị thanh toán.'}</span>
       </div>
-
-      {editorState ? (
-        <DocumentEditorModal
-          contract={contract}
-          documents={documents}
-          templates={templates}
-          document={editorState.document}
-          documentType={editorState.documentType}
-          saving={saving}
-          error={editorError}
-          onClose={() => setEditorState(null)}
-          onSave={handleSaveDocument}
-        />
-      ) : null}
 
       {documentToDelete ? (
         <DeleteDocumentConfirmModal

@@ -5,11 +5,6 @@ import { useEscapeToClose } from '../hooks/useEscapeToClose'
 import data from '../data/competency.json'
 
 const PositionPage = lazy(() => import('./PositionPage'))
-const ContractTemplatesPage = lazy(() => import('../features/quotes/pages/ContractTemplatesPage'))
-const QuoteCreatePage = lazy(() => import('../features/quotes/pages/QuoteCreatePage'))
-const QuoteDetailPage = lazy(() => import('../features/quotes/pages/QuoteDetailPage'))
-const QuoteListPage = lazy(() => import('../features/quotes/pages/QuoteListPage'))
-const QuoteTrashPage = lazy(() => import('../features/quotes/pages/QuoteTrashPage'))
 
 /* ─── Danh muc sidebar ─── */
 const CATEGORIES = [
@@ -1041,29 +1036,6 @@ function useAdmin() {
   return { isAdmin, showGate, setShowGate, input, setInput, error, tryLogin, logout }
 }
 
-function QuoteModulePage() {
-  const location = useLocation()
-  const quoteIdMatch = location.pathname.match(/^\/quotes\/([^/]+)$/)
-  const searchParams = new URLSearchParams(location.search)
-  let page = <QuoteListPage />
-
-  if (location.pathname === '/quotes/new') {
-    page = <QuoteCreatePage />
-  } else if (location.pathname === '/quotes/trash') {
-    page = <QuoteTrashPage />
-  } else if (location.pathname === '/quotes/contract-templates') {
-    page = <ContractTemplatesPage />
-  } else if (quoteIdMatch) {
-    if (searchParams.get('mode') === 'edit') {
-      page = <QuoteCreatePage mode="edit" quoteId={quoteIdMatch[1]} />
-    } else {
-      page = <QuoteDetailPage />
-    }
-  }
-
-  return <Suspense fallback={<PageLoading />}>{page}</Suspense>
-}
-
 /* ─── Main client portal page ─── */
 export default function ClientPortalPage() {
   const location = useLocation()
@@ -1103,8 +1075,6 @@ export default function ClientPortalPage() {
 
   useEffect(() => {
     if (
-      location.pathname === '/quotes' ||
-      location.pathname.startsWith('/quotes/') ||
       location.pathname === '/competency' ||
       location.pathname.startsWith('/position/')
     ) {
@@ -1209,13 +1179,6 @@ export default function ClientPortalPage() {
 
     if (location.pathname === '/competency') {
       setActiveCat('khung_nang_luc')
-      setSelectedTitle(null)
-      setEditing(false)
-      return
-    }
-
-    if (location.pathname === '/quotes' || location.pathname.startsWith('/quotes/')) {
-      setActiveCat('quotes')
       setSelectedTitle(null)
       setEditing(false)
       return
@@ -1349,14 +1312,12 @@ export default function ClientPortalPage() {
     }
   }
 
-  const isQuotesPage = activeCat === 'quotes'
-
   return (
     <div className="h-screen overflow-hidden flex flex-col bg-gradient-to-br from-slate-50 to-blue-50">
       <div className="flex flex-1 min-h-0">
 
         {/* Sidebar */}
-        {!isQuotesPage && <aside className="w-80 flex-shrink-0 border-r border-slate-200/80 bg-white/95 flex flex-col">
+        <aside className="w-80 flex-shrink-0 border-r border-slate-200/80 bg-white/95 flex flex-col">
           <div className="border-b border-slate-200/70 px-4 py-4">
             <button
               onClick={() => navigate('/')}
@@ -1409,7 +1370,7 @@ export default function ClientPortalPage() {
             ))}
           </nav>
 
-        </aside>}
+        </aside>
 
         {/* Main content */}
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
@@ -1425,13 +1386,6 @@ export default function ClientPortalPage() {
               </Suspense>
             </div>
           ) : <CompetencyGrid />)}
-
-          {/* Quote Generator */}
-          {activeCat === 'quotes' && (
-            <div className="flex-1 overflow-y-auto px-5 py-5 lg:px-7">
-              <QuoteModulePage />
-            </div>
-          )}
 
           {/* Card grid cac danh muc khac */}
           {activeCat !== 'home' && activeCat !== 'khung_nang_luc' && activeCat !== 'quotes' && !selectedTitle && (

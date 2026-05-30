@@ -299,7 +299,7 @@ export async function saveContract(payload = {}, { quote } = {}) {
         ? await getContractByQuoteId(payload.quote_id)
         : null
   if (!existing && sourceType === 'quote' && quote && !canCreateContractFromQuote(quote)) {
-    throw new Error('Chỉ báo giá đã lưu hoàn thiện mới được tạo hợp đồng.')
+    throw new Error('Không thể tạo hợp đồng từ báo giá này.')
   }
 
   const cleanPayload = cleanContractPayload({

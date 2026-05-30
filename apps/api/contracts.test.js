@@ -273,12 +273,20 @@ function createDocument(contract, documentType = 'advance_request', overrides = 
   })
 }
 
+test('new contracts get short ct-prefixed ids by default', () => withFakeContractsApi(async () => {
+  const contract = await createContract({ id: undefined })
+
+  assert.match(contract.id, /^ct_[0-9a-f]{16}$/)
+}))
+
 test('creates multiple documents of the same type in one contract', () => withFakeContractsApi(async () => {
   const contract = await createContract()
 
   const first = await createDocument(contract, 'advance_request')
   const second = await createDocument(contract, 'advance_request')
 
+  assert.match(first.id, /^doc_[A-HJ-NP-Z2-9]{12}$/)
+  assert.match(second.id, /^doc_[A-HJ-NP-Z2-9]{12}$/)
   assert.equal(first.contract_id, contract.id)
   assert.equal(second.contract_id, contract.id)
   assert.equal(first.document_type, 'advance_request')

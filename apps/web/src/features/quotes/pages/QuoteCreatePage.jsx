@@ -32,6 +32,8 @@ const DEFAULT_QUOTE = {
   has_vat: true,
   show_stamp: true,
   terms_text: '',
+  status: 'sent',
+  sent_at: null,
 }
 
 const FIELD_LABELS = {
@@ -811,6 +813,8 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
   const [showTermsModal, setShowTermsModal] = useState(false)
   const [termsDraft, setTermsDraft] = useState('')
   const [showStamp, setShowStamp] = useState(DEFAULT_QUOTE.show_stamp)
+  const canPublishQuote = !isEditMode
+  const canSaveChanges = isEditMode
 
   useEffect(() => {
     if (isEditMode) return
@@ -851,6 +855,8 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
           has_vat: existingQuote.has_vat !== false,
           show_stamp: existingQuote.show_stamp !== false,
           terms_text: existingQuote.terms_text || '',
+          status: existingQuote.status || 'sent',
+          sent_at: existingQuote.sent_at || null,
         }
         setQuote(nextQuote)
         setShowStamp(nextQuote.show_stamp)
@@ -1180,14 +1186,14 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
     if (shouldRefreshDefaultTerms) setTermsDraft(getDefaultQuoteTermsText(nextQuote))
   }
 
-  async function saveQuote(status) {
+  async function saveQuote(action) {
     const error = validateBeforeSave()
     if (error) {
       setValidationError(error)
       return
     }
 
-    setSaveState(status)
+    setSaveState(action)
     setValidationError('')
 
     try {
@@ -1195,6 +1201,7 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
       const clientName = String(quote.client_name || clientQuery || '').trim()
       const clientId = quote.client_id || null
       const derivedDurationHours = getDerivedQuoteDurationHours(displayItems, quote.duration_hours)
+      const shouldPublishQuote = action === 'sent'
       const quotePayload = {
         ...(!isEditMode ? getQuoteActorPayload(userContext) : {}),
         ai_input: inputText,
@@ -1210,9 +1217,9 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
         has_vat: Boolean(quote.has_vat),
         show_stamp: Boolean(showStamp),
         terms_text: normalizeQuoteTermsText(quote.terms_text) || null,
-        ...(!isEditMode ? {
-          status,
-          sent_at: status === 'sent' ? now : null,
+        ...((!isEditMode || shouldPublishQuote) ? {
+          status: 'sent',
+          sent_at: shouldPublishQuote ? (quote.sent_at || now) : null,
         } : {}),
         subtotal: totals.subtotal,
         travel_fee_total: totals.travel_fee_total,
@@ -1241,12 +1248,7 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
       }
       const saved = isEditMode ? await updateQuote(quoteId, quotePayload) : await createQuote(quotePayload)
 
-      if (isEditMode) {
-        navigate(`/quotes/${saved.id || quoteId}`)
-        return
-      }
-
-      if (status === 'sent') {
+      if (shouldPublishQuote) {
         const shareToken = saved.share_token
         if (shareToken) {
           navigator.clipboard?.writeText(`${window.location.origin}/q/${shareToken}`).catch(() => {})
@@ -1453,17 +1455,19 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
             {validationError && <p className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-[13px] text-red-700">{validationError}</p>}
             <div className="mt-5 flex flex-wrap justify-end gap-3 border-t border-slate-100 pt-4">
               <div className="flex flex-wrap justify-end gap-3">
-                <button
-                  type="button"
-                  disabled={saveState !== 'idle'}
-                  onClick={() => saveQuote('draft')}
-                  className={`rounded-xl px-5 py-3 text-[13px] font-semibold shadow-sm disabled:opacity-50 ${isEditMode ? 'bg-[#f8981d] text-white hover:bg-orange-500' : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
-                >
-                  {saveState === 'draft' ? 'Đang lưu...' : (isEditMode ? 'Lưu thay đổi' : 'Lưu nháp')}
-                </button>
-                {!isEditMode && (
+                {canSaveChanges && (
+                  <button
+                    type="button"
+                    disabled={saveState !== 'idle'}
+                    onClick={() => saveQuote('save')}
+                    className={`rounded-xl px-5 py-3 text-[13px] font-semibold shadow-sm disabled:opacity-50 ${isEditMode ? 'bg-[#f8981d] text-white hover:bg-orange-500' : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                  >
+                    {saveState === 'save' ? 'Đang lưu...' : 'Lưu thay đổi'}
+                  </button>
+                )}
+                {canPublishQuote && (
                   <button type="button" disabled={saveState !== 'idle'} onClick={() => saveQuote('sent')} className="rounded-xl bg-[#f8981d] px-5 py-3 text-[13px] font-semibold text-white shadow-sm hover:bg-orange-500 disabled:opacity-50">
-                    {saveState === 'sent' ? 'Đang tạo link...' : 'Lưu & Tạo link gửi khách'}
+                    {saveState === 'sent' ? 'Đang tạo link...' : 'Lưu & tạo link gửi khách'}
                   </button>
                 )}
               </div>

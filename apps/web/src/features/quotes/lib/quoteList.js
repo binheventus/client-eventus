@@ -11,7 +11,6 @@ export const DEFAULT_QUOTE_LIST_FILTERS = {
 
 export const QUOTE_STATUS_OPTIONS = [
   { value: '', label: 'Tất cả trạng thái' },
-  { value: 'draft', label: 'Nháp' },
   { value: 'sent', label: 'Đã lấy link gửi khách' },
 ]
 
@@ -31,14 +30,12 @@ export const QUOTE_ENTITY_OPTIONS = [
 const MUTED_STATUS_TONE = 'bg-slate-100 text-slate-500'
 
 const STATUS_TONES = {
-  draft: MUTED_STATUS_TONE,
   sent: MUTED_STATUS_TONE,
   accepted: MUTED_STATUS_TONE,
   rejected: MUTED_STATUS_TONE,
 }
 
 const STATUS_LABELS = {
-  draft: 'Nháp',
   sent: 'Đã lấy link gửi khách',
   accepted: 'Accepted',
   rejected: 'Rejected',
@@ -63,16 +60,16 @@ export function getQuoteCreatorName(quote = {}, userContext = {}) {
 }
 
 export function getQuoteStatusLabel(status) {
-  const normalized = String(status || 'draft').toLowerCase()
-  return STATUS_LABELS[normalized] || status || STATUS_LABELS.draft
+  const normalized = String(status || 'sent').toLowerCase()
+  return STATUS_LABELS[normalized] || status || STATUS_LABELS.sent
 }
 
 export function getQuoteStatusTone(status) {
-  return STATUS_TONES[String(status || 'draft').toLowerCase()] || MUTED_STATUS_TONE
+  return STATUS_TONES[String(status || 'sent').toLowerCase()] || MUTED_STATUS_TONE
 }
 
 export function canCreateContractFromQuote(quote = {}) {
-  return Boolean(quote?.id) && !quote.deleted_at && String(quote.status || 'draft').toLowerCase() !== 'draft'
+  return Boolean(quote?.id) && !quote.deleted_at
 }
 
 export function hasSavedContract(quote = {}) {

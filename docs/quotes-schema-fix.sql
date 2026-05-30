@@ -122,7 +122,7 @@ update public.quotes
 set
   validity_days = coalesce(validity_days, 15),
   has_vat = coalesce(has_vat, true),
-  status = coalesce(status, 'draft'),
+  status = coalesce(nullif(status, 'draft'), 'sent'),
   subtotal = coalesce(subtotal, 0),
   travel_fee_total = coalesce(travel_fee_total, 0),
   overtime_fee_total = coalesce(overtime_fee_total, 0),
@@ -150,7 +150,7 @@ alter table public.quotes
   alter column validity_days set not null,
   alter column has_vat set default true,
   alter column has_vat set not null,
-  alter column status set default 'draft',
+  alter column status set default 'sent',
   alter column status set not null,
   alter column subtotal set default 0,
   alter column subtotal set not null,

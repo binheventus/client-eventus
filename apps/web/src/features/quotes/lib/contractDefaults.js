@@ -278,7 +278,7 @@ export function getContractNumber(quote = {}, template = {}) {
 }
 
 export function canCreateContractFromQuote(quote = {}) {
-  return Boolean(quote?.id) && !quote.deleted_at && String(quote.status || 'draft').toLowerCase() !== 'draft'
+  return Boolean(quote?.id) && !quote.deleted_at
 }
 
 function normalizeEntityCode(value = '') {
@@ -613,6 +613,7 @@ function buildScheduleRows(quote = {}, template = {}) {
 export function buildInitialContractDraft(quote = {}, templateInput = DEFAULT_CONTRACT_TEMPLATES[0]) {
   const template = normalizeContractTemplate(templateInput)
   const sellerEntityCode = quote.entity_code || template.seller_entity_code || 'EVENTUS'
+  const contractNumberPattern = applySellerEntityToContractNumberPattern(template.contract_number_pattern, sellerEntityCode)
 
   return {
     id: '',
@@ -621,7 +622,7 @@ export function buildInitialContractDraft(quote = {}, templateInput = DEFAULT_CO
     source_type: quote.source_type || 'quote',
     external_job_id: quote.external_job_id || null,
     share_token: '',
-    contract_number: '',
+    contract_number: generateContractNumber(contractNumberPattern, quote),
     status: 'draft',
     template_id: template.id || DEFAULT_CONTRACT_TEMPLATE_ID,
     title: template.title || DEFAULT_CONTRACT_TITLE,
@@ -629,7 +630,7 @@ export function buildInitialContractDraft(quote = {}, templateInput = DEFAULT_CO
     seller_snapshot: getEntityProfile(sellerEntityCode),
     customer_snapshot: getCustomerProfileFromQuote(quote),
     party_role_config: template.party_role_config,
-    contract_number_pattern: applySellerEntityToContractNumberPattern(template.contract_number_pattern, sellerEntityCode),
+    contract_number_pattern: contractNumberPattern,
     signing_date: quote.signing_date || quote.quote_table_config?.signing_date || getTodayInputDate(),
     preamble: template.preamble,
     service_scope: inferServiceScope(quote, template),
@@ -650,6 +651,7 @@ export function buildInitialContractDraftFromSource(source = {}, templateInput =
   const sourceType = source.source_type || sourceSnapshot.source_type || 'manual'
   const sellerEntityCode = source.entity_code || quoteSnapshot.entity_code || template.seller_entity_code || 'EVENTUS'
   const customerSnapshot = source.customer_snapshot || sourceSnapshot.customer_snapshot || getCustomerProfileFromQuote(quoteSnapshot)
+  const contractNumberPattern = applySellerEntityToContractNumberPattern(template.contract_number_pattern, sellerEntityCode)
   const contractNumberSource = {
     ...quoteSnapshot,
     source_code: source.source_code || (source.external_job_id ? `JOB${source.external_job_id}` : ''),
@@ -664,7 +666,7 @@ export function buildInitialContractDraftFromSource(source = {}, templateInput =
     source_type: sourceType,
     external_job_id: source.external_job_id || null,
     share_token: '',
-    contract_number: source.contract_number || '',
+    contract_number: source.contract_number || generateContractNumber(contractNumberPattern, contractNumberSource),
     status: 'draft',
     template_id: template.id || DEFAULT_CONTRACT_TEMPLATE_ID,
     title: template.title || DEFAULT_CONTRACT_TITLE,
@@ -672,7 +674,7 @@ export function buildInitialContractDraftFromSource(source = {}, templateInput =
     seller_snapshot: getEntityProfile(sellerEntityCode),
     customer_snapshot: customerSnapshot,
     party_role_config: template.party_role_config,
-    contract_number_pattern: applySellerEntityToContractNumberPattern(template.contract_number_pattern, sellerEntityCode),
+    contract_number_pattern: contractNumberPattern,
     signing_date: source.signing_date || source.quote_table_config?.signing_date || getTodayInputDate(),
     preamble: template.preamble,
     service_scope: source.service_scope || inferServiceScope(quoteSnapshot, template),

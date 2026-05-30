@@ -355,12 +355,10 @@ export default function ContractDocumentPreview({ document = {} }) {
           <div>
             <p>ĐẠI DIỆN BÊN A</p>
             <div className="h-32" />
-            <p>{customer.representative || ''}</p>
           </div>
           <div>
             <p>ĐẠI DIỆN BÊN B</p>
             <div className="h-32" />
-            <p>{seller.representative || ''}</p>
           </div>
         </footer>
       </A4DocumentPage>

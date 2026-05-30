@@ -228,6 +228,31 @@ async function ensureContractQuoteNullable(pool) {
   return true
 }
 
+async function removeQuoteDraftMode(pool) {
+  const [draftRows] = await pool.query('select id from `client_quotes` where lower(`status`) = ?', ['draft'])
+  if (draftRows.length) {
+    await pool.query('delete from `client_quotes` where lower(`status`) = ?', ['draft'])
+  }
+
+  const [columns] = await pool.query(
+    `select column_default as columnDefault
+     from information_schema.columns
+     where table_schema = database()
+       and table_name = 'client_quotes'
+       and column_name = 'status'
+     limit 1`,
+  )
+  const defaultChanged = columns?.[0]?.columnDefault !== 'sent'
+  if (defaultChanged) {
+    await pool.query("alter table `client_quotes` modify column `status` varchar(40) not null default 'sent'")
+  }
+
+  return {
+    deletedDraftQuotes: draftRows.length,
+    defaultChanged,
+  }
+}
+
 try {
   for (const statement of splitSqlStatements(schemaSql)) {
     await pool.query(statement)
@@ -252,6 +277,7 @@ try {
   }
 
   if (await ensureContractQuoteNullable(pool)) createdColumns.push('client_contracts.quote_id nullable')
+  const quoteDraftModeCleanup = await removeQuoteDraftMode(pool)
 
   for (const indexConfig of contractIndexes) {
     if (await ensureConfiguredIndex(pool, indexConfig)) createdIndexes.push(indexConfig.indexName)
@@ -275,6 +301,7 @@ try {
     statements: splitSqlStatements(schemaSql).length,
     created_columns: createdColumns,
     created_indexes: createdIndexes,
+    quote_draft_mode_cleanup: quoteDraftModeCleanup,
     dropped_legacy_tables: shouldDropLegacyTables ? legacyAiLabTables.length : 0,
   }, null, 2))
 } finally {

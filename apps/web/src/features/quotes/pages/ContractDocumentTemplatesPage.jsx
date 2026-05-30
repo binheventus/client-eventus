@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { CopyPlus, Eye, FileText, Plus, Save, ScrollText, Trash2 } from 'lucide-react'
 import { useEscapeToClose } from '../../../hooks/useEscapeToClose'
 import QuoteBreadcrumb from '../components/QuoteBreadcrumb'
@@ -44,9 +44,14 @@ const TEMPLATE_KIND_OPTIONS = [
   })),
 ]
 
-function getTemplateKindFromSearch(searchParams) {
-  const type = searchParams.get('type')
-  if (type === CONTRACT_TEMPLATE_KIND || CONTRACT_DOCUMENT_TYPES[type]) return type
+function getTemplateRoute(templateKind) {
+  if (templateKind === CONTRACT_TEMPLATE_KIND) return '/contracts/templates/contract'
+  return `/contracts/templates/documents/${templateKind}`
+}
+
+function getTemplateKindFromRoute(pathname = '', documentType = '') {
+  if (pathname === '/contracts/templates/contract') return CONTRACT_TEMPLATE_KIND
+  if (CONTRACT_DOCUMENT_TYPES[documentType]) return documentType
   return CONTRACT_TEMPLATE_KIND
 }
 
@@ -815,9 +820,12 @@ function AcceptanceLiquidationNumberingPanel({ template, legalEntities = [], onC
 }
 
 export default function ContractDocumentTemplatesPage() {
-  const [searchParams, setSearchParams] = useSearchParams()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const { documentType = '' } = useParams()
   const { legalEntities } = useLegalEntities()
-  const initialTemplateKind = getTemplateKindFromSearch(searchParams)
+  const invalidDocumentType = Boolean(documentType) && !CONTRACT_DOCUMENT_TYPES[documentType]
+  const initialTemplateKind = getTemplateKindFromRoute(location.pathname, documentType)
   const initialDocumentType = CONTRACT_DOCUMENT_TYPES[initialTemplateKind] ? initialTemplateKind : 'advance_request'
   const [templates, setTemplates] = useState([])
   const [selectedKind, setSelectedKind] = useState(initialTemplateKind)
@@ -873,11 +881,26 @@ export default function ContractDocumentTemplatesPage() {
   }, [])
 
   useEffect(() => {
-  }, [selectedId, draft.document_type])
+    if (invalidDocumentType) return
+
+    const nextKind = getTemplateKindFromRoute(location.pathname, documentType)
+    if (nextKind === selectedKind && (!CONTRACT_DOCUMENT_TYPES[nextKind] || selectedType === nextKind)) return
+
+    if (!CONTRACT_DOCUMENT_TYPES[nextKind]) {
+      setSelectedKind(CONTRACT_TEMPLATE_KIND)
+      setNotice('')
+      setError('')
+      setPreviewOpen(false)
+      setDeleteConfirmOpen(false)
+      return
+    }
+
+    selectType(nextKind)
+  }, [documentType, invalidDocumentType, location.pathname, selectedKind, selectedType, templates])
 
   function selectTemplateKind(templateKind) {
     setSelectedKind(templateKind)
-    setSearchParams({ type: templateKind })
+    navigate(getTemplateRoute(templateKind))
 
     if (!CONTRACT_DOCUMENT_TYPES[templateKind]) {
       setNotice('')
@@ -1046,6 +1069,10 @@ export default function ContractDocumentTemplatesPage() {
     } finally {
       setSaving(false)
     }
+  }
+
+  if (invalidDocumentType) {
+    return <Navigate replace to="/contracts/templates/documents/advance_request" />
   }
 
   return (

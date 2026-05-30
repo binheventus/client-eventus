@@ -13,10 +13,10 @@ import {
 import { useLegalEntities } from '../hooks/useLegalEntities'
 import { canCreateContractFromQuote } from '../lib/contractDefaults'
 import { canOpenContractFromQuote, hasSavedContract } from '../lib/quoteList'
+import { getContractRoute, getNewContractRoute } from '../lib/contractRouting'
 import { normalizeQuoteValidityDays } from '../lib/quoteValidity'
 
 const QuotePDFDownloadButton = lazy(() => import('../components/QuotePDFDownloadButton'))
-const ContractEditorModal = lazy(() => import('../components/ContractEditorModal'))
 
 const DETAIL_ACTION_BUTTON_BASE = 'inline-flex h-10 items-center justify-center gap-2 rounded-xl px-4 text-center text-[13px] font-semibold shadow-sm transition focus-visible:outline-none focus-visible:ring-2 disabled:cursor-not-allowed'
 const DETAIL_SECONDARY_ACTION_BUTTON = `${DETAIL_ACTION_BUTTON_BASE} w-[156px] border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 focus-visible:ring-slate-200`
@@ -46,6 +46,11 @@ function getValidUntil(quote) {
   const date = new Date(quote.created_at)
   date.setDate(date.getDate() + days)
   return date
+}
+
+function getQuoteContractEditorPath(quote = {}) {
+  if (quote.contract_id) return getContractRoute(quote)
+  return getNewContractRoute({ source: 'quote', quoteId: quote.id })
 }
 
 function DuplicateQuoteConfirmModal({ quote, duplicating, error, onCancel, onConfirm }) {
@@ -114,7 +119,6 @@ export default function QuoteDetailPage() {
   const [duplicateError, setDuplicateError] = useState('')
   const [duplicating, setDuplicating] = useState(false)
   const [showDuplicateConfirm, setShowDuplicateConfirm] = useState(false)
-  const [showContractModal, setShowContractModal] = useState(false)
 
   const validUntil = useMemo(() => getValidUntil(quote), [quote])
   const contractRequested = useMemo(() => new URLSearchParams(location.search).get('contract') === '1', [location.search])
@@ -125,7 +129,7 @@ export default function QuoteDetailPage() {
   const contractActionLabel = hasContract ? 'Xem hợp đồng đã tạo' : 'Tạo hợp đồng'
   const contractActionTitle = hasContract
     ? 'Xem hoặc sửa hợp đồng đã tạo'
-    : canCreateContract ? 'Tạo hoặc sửa hợp đồng' : 'Báo giá nháp chưa tạo được hợp đồng'
+    : canCreateContract ? 'Tạo hoặc sửa hợp đồng' : 'Báo giá này chưa tạo được hợp đồng'
 
   async function loadDetail() {
     setLoading(true)
@@ -151,23 +155,13 @@ export default function QuoteDetailPage() {
   }, [id])
 
   useEffect(() => {
-    if (!quote) return
-    setShowContractModal(contractRequested && canOpenContractFromQuote(quote))
-  }, [contractRequested, quote])
+    if (!quote || !contractRequested || !canOpenContractFromQuote(quote)) return
+    navigate(getQuoteContractEditorPath(quote), { replace: true })
+  }, [contractRequested, navigate, quote])
 
-  function openContractModal() {
+  function openContractPage() {
     if (!canOpenContract) return
-    const params = new URLSearchParams(location.search)
-    params.set('contract', '1')
-    navigate(`/quotes/${id}?${params.toString()}`)
-  }
-
-  function closeContractModal() {
-    const params = new URLSearchParams(location.search)
-    params.delete('contract')
-    const nextSearch = params.toString()
-    navigate(`/quotes/${id}${nextSearch ? `?${nextSearch}` : ''}`, { replace: true })
-    setShowContractModal(false)
+    navigate(getQuoteContractEditorPath(quote))
   }
 
   async function copyShareLink() {
@@ -184,7 +178,7 @@ export default function QuoteDetailPage() {
       const duplicated = await duplicateQuote(quote.id)
       setDuplicating(false)
       setShowDuplicateConfirm(false)
-      navigate(`/quotes/${duplicated.id}?mode=edit`)
+      navigate(`/quotes/${duplicated.id}/edit`)
     } catch (err) {
       setDuplicateError(err?.message || 'Không nhân bản được báo giá.')
       setDuplicating(false)
@@ -204,7 +198,7 @@ export default function QuoteDetailPage() {
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => navigate(`/quotes/${id}?mode=edit`)}
+            onClick={() => navigate(`/quotes/${id}/edit`)}
             className={DETAIL_SECONDARY_ACTION_BUTTON}
           >
             Sửa báo giá
@@ -212,7 +206,7 @@ export default function QuoteDetailPage() {
           <button
             type="button"
             disabled={!canOpenContract}
-            onClick={openContractModal}
+            onClick={openContractPage}
             title={contractActionTitle}
             className={DETAIL_CONTRACT_ACTION_BUTTON}
           >
@@ -310,16 +304,6 @@ export default function QuoteDetailPage() {
 
         <QuotePreview quote={quote} items={quote.items || []} totals={quote} entities={legalEntities} />
       </div>
-
-      {showContractModal ? (
-        <Suspense fallback={null}>
-          <ContractEditorModal
-            open={showContractModal}
-            quote={quote}
-            onClose={closeContractModal}
-          />
-        </Suspense>
-      ) : null}
 
       {showDuplicateConfirm ? (
         <DuplicateQuoteConfirmModal

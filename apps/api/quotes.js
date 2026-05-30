@@ -44,6 +44,8 @@ const LIST_QUOTE_COLUMNS = [
   'q.sent_at',
   'q.validity_days',
   'c.id as contract_id',
+  'c.share_token as contract_share_token',
+  'c.contract_number',
   'case when c.id is null then 0 else 1 end as has_saved_contract',
 ].join(', ')
 
@@ -99,6 +101,19 @@ const QUOTE_ITEM_COLUMNS = [
   'group_sort_order',
   'sort_order',
 ]
+
+const QUOTE_DOCUMENT_TYPES = [
+  'advance_request',
+  'acceptance_liquidation',
+  'payment_request',
+]
+
+const QUOTE_DOCUMENT_LABELS = {
+  contract: 'Hợp đồng',
+  advance_request: 'Đề nghị tạm ứng',
+  acceptance_liquidation: 'Biên bản nghiệm thu',
+  payment_request: 'Đề nghị thanh toán',
+}
 
 function sendError(res, error, fallback = 'Khong xu ly duoc bao gia.') {
   const status = error?.statusCode || error?.status || 500
@@ -261,6 +276,11 @@ function normalizeDate(value) {
   return emptyToNull(value)
 }
 
+function normalizeQuoteStatus(value) {
+  const status = String(value || 'sent').trim().toLowerCase()
+  return status === 'draft' ? 'sent' : status
+}
+
 function normalizeQuoteRow(row = {}) {
   if (!row) return row
   return {
@@ -296,6 +316,15 @@ function normalizeQuoteItemRow(row = {}) {
 }
 
 function normalizeQuotePayload(payload = {}) {
+  const hasStatus = Object.prototype.hasOwnProperty.call(payload, 'status')
+  const hasSentAt = Object.prototype.hasOwnProperty.call(payload, 'sent_at')
+  const status = hasStatus ? normalizeQuoteStatus(payload.status) : undefined
+  const sentAt = hasSentAt || hasStatus
+    ? status === 'sent'
+      ? toMysqlDateTime(payload.sent_at || nowMysql())
+      : toMysqlDateTime(payload.sent_at)
+    : undefined
+
   return pickColumns({
     ...payload,
     client_id: emptyToNull(payload.client_id),
@@ -307,7 +336,8 @@ function normalizeQuotePayload(payload = {}) {
     validity_days: payload.validity_days ?? 15,
     has_vat: payload.has_vat === undefined ? true : Boolean(payload.has_vat),
     show_stamp: payload.show_stamp === undefined ? true : Boolean(payload.show_stamp),
-    sent_at: toMysqlDateTime(payload.sent_at),
+    ...(hasStatus ? { status } : {}),
+    ...(hasSentAt || hasStatus ? { sent_at: sentAt } : {}),
     deleted_at: toMysqlDateTime(payload.deleted_at),
   }, QUOTE_COLUMNS)
 }
@@ -382,9 +412,81 @@ async function insertQuoteItems(connection, quoteId, items = []) {
   }
 }
 
+function getContractQuoteDocument(quote = {}) {
+  if (!quote.contract_id) return null
+
+  return {
+    type: 'contract',
+    label: QUOTE_DOCUMENT_LABELS.contract,
+    id: quote.contract_id,
+    contract_id: quote.contract_id,
+    share_token: quote.contract_share_token || '',
+    number: quote.contract_number || '',
+    url: `/contracts/${encodeURIComponent(quote.contract_id)}`,
+  }
+}
+
+function normalizeQuoteDocumentBadge(row = {}) {
+  const type = row.document_type || ''
+  const shareToken = row.share_token || ''
+
+  return {
+    type,
+    label: QUOTE_DOCUMENT_LABELS[type] || type,
+    id: row.id || '',
+    contract_id: row.contract_id || '',
+    share_token: shareToken,
+    number: row.document_number || '',
+    url: shareToken ? `/d/${encodeURIComponent(shareToken)}` : '',
+  }
+}
+
+async function attachQuoteDocuments(quotes = []) {
+  const contractIds = [...new Set(quotes.map(quote => quote.contract_id).filter(Boolean))]
+  if (!contractIds.length) {
+    return quotes.map(quote => ({
+      ...quote,
+      quote_documents: [getContractQuoteDocument(quote)].filter(Boolean),
+    }))
+  }
+
+  const placeholders = contractIds.map(() => '?').join(', ')
+  const documentRows = await query(
+    `select id, contract_id, document_type, document_number, share_token, issued_date, created_at
+     from ${tables.contractDocuments}
+     where deleted_at is null
+       and contract_id in (${placeholders})
+       and document_type in (${QUOTE_DOCUMENT_TYPES.map(() => '?').join(', ')})
+     order by contract_id asc,
+       field(document_type, ${QUOTE_DOCUMENT_TYPES.map(() => '?').join(', ')}),
+       issued_date desc,
+       created_at desc`,
+    [...contractIds, ...QUOTE_DOCUMENT_TYPES, ...QUOTE_DOCUMENT_TYPES],
+  )
+
+  const documentsByContract = new Map()
+  for (const row of documentRows) {
+    if (!documentsByContract.has(row.contract_id)) documentsByContract.set(row.contract_id, new Map())
+    const documentsByType = documentsByContract.get(row.contract_id)
+    if (!documentsByType.has(row.document_type)) documentsByType.set(row.document_type, normalizeQuoteDocumentBadge(row))
+  }
+
+  return quotes.map(quote => {
+    const documentsByType = documentsByContract.get(quote.contract_id) || new Map()
+    return {
+      ...quote,
+      quote_documents: [
+        getContractQuoteDocument(quote),
+        ...QUOTE_DOCUMENT_TYPES.map(type => documentsByType.get(type)).filter(Boolean),
+      ].filter(Boolean),
+    }
+  })
+}
+
 async function getQuoteById(id) {
   const rows = await query(
-    `select q.*, c.id as contract_id, case when c.id is null then 0 else 1 end as has_saved_contract
+    `select q.*, c.id as contract_id, c.share_token as contract_share_token, c.contract_number,
+       case when c.id is null then 0 else 1 end as has_saved_contract
      from ${tables.quotes} q
      left join ${tables.contracts} c on c.quote_id = q.id and c.deleted_at is null
      where q.id = ?
@@ -505,8 +607,10 @@ async function listQuotes(queryParams = {}) {
     params,
   )
 
+  const quotes = await attachQuoteDocuments(rows.map(normalizeQuoteRow))
+
   return {
-    quotes: rows.map(normalizeQuoteRow),
+    quotes,
     count: Number(countRows?.[0]?.count || 0),
     page,
     pageSize,
@@ -565,6 +669,8 @@ async function createQuote(body = {}) {
       quote_number: quotePayload.quote_number || await makeQuoteNumber(connection),
       share_token: shareToken,
       client_id: clientId,
+      status: quotePayload.status || 'sent',
+      sent_at: quotePayload.sent_at || nowMysql(),
       created_by: createdBy,
       created_by_name: creatorName,
       sales_name: quotePayload.sales_name || creatorName,
@@ -670,8 +776,8 @@ function buildDuplicatedQuotePayload(quote = {}, actorPayload = {}, pricingConte
   return {
     ...quotePayload,
     ...actorPayload,
-    status: 'draft',
-    sent_at: null,
+    status: 'sent',
+    sent_at: nowMysql(),
     event_name: getDuplicateEventName(quote),
     subtotal: pricing.subtotal,
     travel_fee_total: pricing.travel_fee_total,

@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 import {
   emptyToNull,
   fromJson,
@@ -12,6 +12,8 @@ import {
   withTransaction as mysqlWithTransaction,
 } from './lib/mysql.js'
 import { requireEventusAuth as defaultRequireEventusAuth } from './lib/eventus-auth.js'
+
+const SHORT_ID_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 
 const defaultContractsApiDeps = {
   insertRow: mysqlInsertRow,
@@ -245,6 +247,17 @@ function isPublicContractRequest(req) {
 
 function makeId(prefix = '') {
   return prefix ? `${prefix}_${randomUUID()}` : randomUUID()
+}
+
+function makeShortId(prefix = '') {
+  const suffix = randomBytes(8).toString('hex')
+  return prefix ? `${prefix}_${suffix}` : suffix
+}
+
+function makeReadableShortId(prefix = '', length = 12) {
+  const bytes = randomBytes(length)
+  const suffix = Array.from(bytes, byte => SHORT_ID_ALPHABET[byte % SHORT_ID_ALPHABET.length]).join('')
+  return prefix ? `${prefix}_${suffix}` : suffix
 }
 
 function makeShareToken() {
@@ -1386,7 +1399,7 @@ async function cleanDocumentPayload(document = {}, existing = null) {
 async function saveDocument(document = {}) {
   let existing = null
   if (document.id) existing = await getDocumentById(document.id)
-  const id = existing?.id || document.id || makeId('doc')
+  const id = existing?.id || document.id || makeReadableShortId('doc', 12)
   const { payload, customerCode } = await cleanDocumentPayload(document, existing)
 
   await runTransaction(async connection => {
@@ -1620,14 +1633,7 @@ async function saveContract(contract = {}) {
     })
   }
 
-  if (!existing && payload.quote_id) {
-    const quote = await getQuoteById(payload.quote_id)
-    if (String(quote.status || 'draft').toLowerCase() === 'draft') {
-      const error = new Error('Chi bao gia da luu hoan thien moi duoc tao hop dong.')
-      error.statusCode = 400
-      throw error
-    }
-  }
+  if (!existing && payload.quote_id) await getQuoteById(payload.quote_id)
 
   if (existing?.id && contract.id && existing.id !== contract.id) {
     const error = new Error('Hop dong da ton tai voi nguon nay.')
@@ -1647,7 +1653,7 @@ async function saveContract(contract = {}) {
     return saved
   }
 
-  const id = contract.id || makeId('contract')
+  const id = contract.id || makeShortId('ct')
   await runTransaction(async connection => {
     await insertDataRow(connection, tables.contracts, { id, ...payload })
   })

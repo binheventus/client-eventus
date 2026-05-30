@@ -76,7 +76,7 @@ create table public.quotes (
   duration_hours numeric,
   validity_days integer not null default 15,
   has_vat boolean not null default true,
-  status text not null default 'draft',
+  status text not null default 'sent',
   sent_at timestamptz,
   subtotal numeric not null default 0,
   travel_fee_total numeric not null default 0,

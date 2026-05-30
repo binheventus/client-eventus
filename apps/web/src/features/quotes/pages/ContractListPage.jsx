@@ -1,201 +1,19 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
-import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { AlertTriangle, BriefcaseBusiness, FileSignature, FileText, Plus, Search, Trash2, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { AlertTriangle, FileText, Plus, Search, Trash2 } from 'lucide-react'
 import { useEscapeToClose } from '../../../hooks/useEscapeToClose'
 import QuoteBreadcrumb from '../components/QuoteBreadcrumb'
 import {
   deleteContract,
-  getContractById,
-  getContractJob,
-  listContractJobs,
   listContracts,
 } from '../hooks/useContracts'
 import { formatQuoteCurrency, formatQuoteDate } from '../lib/quoteList'
-
-const ContractEditorModal = lazy(() => import('../components/ContractEditorModal'))
+import { getContractRoute, getNewContractRoute } from '../lib/contractRouting'
 
 const SOURCE_LABELS = {
   quote: 'Từ báo giá',
   job: 'Từ job',
   manual: 'Thủ công',
-}
-
-const EMPTY_MANUAL_SOURCE = {
-  source_type: 'manual',
-  quote_snapshot: {
-    client_name: '',
-    event_name: '',
-    event_date: '',
-    location: '',
-    has_vat: true,
-    subtotal: 0,
-    travel_fee_total: 0,
-    overtime_fee_total: 0,
-    vat_amount: 0,
-    total_amount: 0,
-    items: [
-      {
-        service_code: 'MANUAL_TOTAL',
-        service_name: 'Dịch vụ media theo thỏa thuận',
-        unit: 'Gói',
-        quantity: 1,
-        num_sessions: 1,
-        unit_price: 0,
-        total_price: 0,
-        sort_order: 1,
-      },
-    ],
-  },
-  source_snapshot: {
-    source_type: 'manual',
-  },
-  schedule_rows: [
-    { time_range: '', date_text: '', location: '' },
-  ],
-}
-
-const SCHEDULE_CONTRACT_QUERY_KEYS = [
-  'sales_brief',
-  'customer_code',
-  'service_scope',
-  'job_title',
-  'ekip',
-  'start_time',
-  'end_time',
-  'job_time',
-  'job_date',
-  'location',
-  'contract_value',
-]
-
-function getContractRoute(contract = {}) {
-  const identifier = contract?.share_token || contract?.contract_share_token || contract?.id || contract?.contract_id
-  return identifier ? `/contracts/${encodeURIComponent(identifier)}` : '/contracts'
-}
-
-function compactText(value = '') {
-  return String(value || '').trim()
-}
-
-function parseContractValue(value) {
-  const clean = String(value || '').replace(/[^\d]/g, '')
-  return clean ? Number(clean) : 0
-}
-
-function getScheduleQueryParams(params = new URLSearchParams()) {
-  const get = key => compactText(params.get(key))
-  return {
-    source: get('source'),
-    jobId: get('job_id'),
-    salesBrief: get('sales_brief'),
-    customerCode: get('customer_code'),
-    serviceScope: get('service_scope'),
-    jobTitle: get('job_title'),
-    ekip: get('ekip'),
-    startTime: get('start_time'),
-    endTime: get('end_time'),
-    jobTime: get('job_time'),
-    jobDate: get('job_date'),
-    location: get('location'),
-    contractValue: get('contract_value'),
-  }
-}
-
-function buildJobTime({ jobTime = '', startTime = '', endTime = '' } = {}) {
-  if (jobTime) return jobTime
-  return [startTime, endTime].filter(Boolean).join(' - ')
-}
-
-function buildJobServiceScope(job = {}, { serviceScope = '', salesBrief = '' } = {}) {
-  const brief = compactText(serviceScope || salesBrief)
-  if (brief) return /^cung cấp\s+/i.test(brief) ? brief : `cung cấp ${brief}`
-  return job.job_title ? `cung cấp dịch vụ media cho ${job.job_title}` : 'cung cấp dịch vụ media theo job'
-}
-
-function buildJobQuoteSnapshot(job = {}, scheduleParams = {}) {
-  const quoteSnapshot = job.quote_snapshot || {}
-  const contractValue = parseContractValue(scheduleParams.contractValue)
-  const total = contractValue || Number(quoteSnapshot.total_amount || job.price || 0)
-  const serviceName = scheduleParams.serviceScope || scheduleParams.jobTitle || quoteSnapshot.items?.[0]?.service_name || job.job_title || 'Dịch vụ media theo job'
-  const hasVat = quoteSnapshot.has_vat !== false
-  const subtotal = hasVat ? Math.round(total / 1.08) : total
-  const vatAmount = hasVat ? total - subtotal : 0
-
-  return {
-    ...quoteSnapshot,
-    client_name: quoteSnapshot.client_name || job.customer_name || job.customer_snapshot?.company_name || '',
-    event_name: scheduleParams.jobTitle || quoteSnapshot.event_name || job.job_title || '',
-    event_date: scheduleParams.jobDate || quoteSnapshot.event_date || job.job_date || '',
-    location: scheduleParams.location || quoteSnapshot.location || job.location || '',
-    has_vat: hasVat,
-    subtotal,
-    vat_amount: vatAmount,
-    total_amount: total,
-    items: [{
-      service_code: quoteSnapshot.items?.[0]?.service_code || 'JOB_TOTAL',
-      service_name: serviceName,
-      unit: quoteSnapshot.items?.[0]?.unit || 'Gói',
-      quantity: 1,
-      num_sessions: 1,
-      billable_duration_hours: quoteSnapshot.items?.[0]?.billable_duration_hours || '',
-      unit_price: total,
-      total_price: total,
-      sort_order: 1,
-      group_label: quoteSnapshot.items?.[0]?.group_label || '',
-    }],
-  }
-}
-
-function buildJobSourceDraft(job = {}, scheduleParams = {}) {
-  const jobTitle = scheduleParams.jobTitle || job.job_title || ''
-  const jobTime = buildJobTime(scheduleParams)
-  const jobDate = scheduleParams.jobDate || job.date_text || ''
-  const location = scheduleParams.location || job.location || ''
-  const quoteSnapshot = buildJobQuoteSnapshot(job, scheduleParams)
-
-  return {
-    ...job,
-    job_title: jobTitle || job.job_title,
-    ekip: scheduleParams.ekip || job.ekip,
-    time_range: jobTime || job.time_range,
-    date_text: jobDate,
-    location,
-    price: parseContractValue(scheduleParams.contractValue) || job.price,
-    source_type: 'job',
-    external_job_id: job.id,
-    service_scope: buildJobServiceScope({ ...job, job_title: jobTitle }, scheduleParams),
-    customer_snapshot: {
-      ...(job.customer_snapshot || {}),
-      customer_code: scheduleParams.customerCode || job.customer_snapshot?.customer_code || '',
-    },
-    quote_snapshot: quoteSnapshot,
-    schedule_rows: [{
-      time_range: jobTime || job.time_range || '',
-      date_text: jobDate,
-      location,
-    }],
-    source_snapshot: {
-      ...(job.source_snapshot || {}),
-      source_type: 'job',
-      origin_source: scheduleParams.source || job.source_snapshot?.origin_source || '',
-      external_job_id: job.id,
-      job_title: jobTitle || job.source_snapshot?.job_title || '',
-      date_text: jobDate,
-      start_time: scheduleParams.startTime || job.source_snapshot?.start_time || '',
-      end_time: scheduleParams.endTime || job.source_snapshot?.end_time || '',
-      time_range: jobTime || job.source_snapshot?.time_range || '',
-      job_description: scheduleParams.location || job.source_snapshot?.job_description || '',
-      location,
-      ekip: scheduleParams.ekip || job.source_snapshot?.ekip || '',
-      price: parseContractValue(scheduleParams.contractValue) || job.source_snapshot?.price || job.price || 0,
-      sales_brief: scheduleParams.salesBrief || job.source_snapshot?.sales_brief || '',
-      service_scope: scheduleParams.serviceScope || job.source_snapshot?.service_scope || '',
-      customer_snapshot: {
-        ...(job.source_snapshot?.customer_snapshot || job.customer_snapshot || {}),
-        customer_code: scheduleParams.customerCode || job.source_snapshot?.customer_snapshot?.customer_code || job.customer_snapshot?.customer_code || '',
-      },
-    },
-  }
 }
 
 function getContractCustomerName(contract = {}) {
@@ -285,169 +103,18 @@ function DeleteContractConfirmModal({ contract, deleting, error, onCancel, onCon
   )
 }
 
-function NewContractModal({ onClose, onCreateManual, onCreateFromJob }) {
-  const navigate = useNavigate()
-  const [sourceMode, setSourceMode] = useState('job')
-  const [search, setSearch] = useState('')
-  const [jobs, setJobs] = useState([])
-  const [loadingJobs, setLoadingJobs] = useState(false)
-  const [error, setError] = useState('')
-
-  useEffect(() => {
-    if (sourceMode !== 'job') return
-    let mounted = true
-
-    async function loadJobs() {
-      setLoadingJobs(true)
-      setError('')
-      try {
-        const result = await listContractJobs({ search, pageSize: 10 })
-        if (mounted) setJobs(result.jobs || [])
-      } catch (err) {
-        if (mounted) setError(err?.message || 'Không tải được danh sách job.')
-      } finally {
-        if (mounted) setLoadingJobs(false)
-      }
-    }
-
-    const timer = window.setTimeout(loadJobs, 250)
-    return () => {
-      mounted = false
-      window.clearTimeout(timer)
-    }
-  }, [sourceMode, search])
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6">
-      <section className="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-        <header className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
-          <div>
-            <h2 className="text-[18px] font-semibold text-slate-950">Tạo hợp đồng mới</h2>
-          </div>
-          <button type="button" onClick={onClose} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50" aria-label="Đóng">
-            <X className="h-4 w-4" />
-          </button>
-        </header>
-
-        <div className="border-b border-slate-100 px-5 py-3">
-          <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
-            {[
-              ['job', 'Từ job chưa có báo giá'],
-              ['manual', 'Tạo thủ công'],
-              ['quote', 'Từ báo giá đã có'],
-            ].map(([value, label]) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setSourceMode(value)}
-                className={`rounded-lg px-3 py-2 text-[12px] font-semibold ${sourceMode === value ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto p-5">
-          {sourceMode === 'job' ? (
-            <div className="space-y-4">
-              <label className="relative block">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input
-                  value={search}
-                  onChange={event => setSearch(event.target.value)}
-                  className="w-full rounded-xl border border-slate-200 py-3 pl-10 pr-3 text-[13px] outline-none focus:border-[#f8981d] focus:ring-2 focus:ring-orange-100"
-                  placeholder="Tìm theo tên job, khách hàng, địa điểm..."
-                  autoFocus
-                />
-              </label>
-              {error ? <p className="rounded-xl bg-red-50 px-4 py-3 text-[13px] text-red-700">{error}</p> : null}
-              <div className="overflow-hidden rounded-2xl border border-slate-200">
-                <table className="w-full min-w-[760px] text-left text-[13px]">
-                  <thead className="bg-slate-50 text-[11px] uppercase tracking-[0.12em] text-slate-500">
-                    <tr>
-                      <th className="px-4 py-3">Job</th>
-                      <th className="px-4 py-3">Khách hàng</th>
-                      <th className="px-4 py-3">Thời gian địa điểm</th>
-                      <th className="px-4 py-3 text-right">Giá trị</th>
-                      <th className="px-4 py-3 text-right">Thao tác</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {loadingJobs ? (
-                      <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">Đang tải job...</td></tr>
-                    ) : jobs.length ? jobs.map(job => (
-                      <tr key={job.id} className="hover:bg-orange-50/40">
-                        <td className="px-4 py-3 font-semibold text-slate-900">{job.job_title || `JOB${job.id}`}</td>
-                        <td className="px-4 py-3 text-slate-700">{job.customer_name || '-'}</td>
-                        <td className="px-4 py-3 text-slate-600">
-                          <div className="font-semibold">{[job.time_range, job.date_text].filter(Boolean).join(' ngày ') || '-'}</div>
-                          <div className="mt-1 line-clamp-2 text-slate-500">{job.location || '-'}</div>
-                        </td>
-                        <td className="px-4 py-3 text-right font-semibold tabular-nums">{formatQuoteCurrency(job.price)}đ</td>
-                        <td className="px-4 py-3 text-right">
-                          <button
-                            type="button"
-                            onClick={() => job.contract_id ? navigate(getContractRoute(job)) : onCreateFromJob(job.id)}
-                            className={`inline-flex h-9 items-center justify-center rounded-lg px-3 text-[12px] font-semibold ${job.contract_id ? 'border border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100' : 'bg-[#f8981d] text-white hover:bg-orange-500'}`}
-                          >
-                            {job.contract_id ? 'Mở hợp đồng' : 'Tạo hợp đồng'}
-                          </button>
-                        </td>
-                      </tr>
-                    )) : (
-                      <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">Không tìm thấy job phù hợp.</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ) : null}
-
-          {sourceMode === 'manual' ? (
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-              <p className="text-[14px] font-semibold text-slate-900">Tạo hợp đồng thủ công</p>
-              <p className="mt-2 text-[13px] leading-6 text-slate-500">Form sẽ mở với thông tin trống để bạn nhập khách hàng, lịch triển khai, nội dung dịch vụ và giá trị hợp đồng.</p>
-              <button type="button" onClick={onCreateManual} className="mt-4 inline-flex h-10 items-center gap-2 rounded-xl bg-[#f8981d] px-4 text-[13px] font-semibold text-white hover:bg-orange-500">
-                <FileSignature className="h-4 w-4" />
-                Tạo thủ công
-              </button>
-            </div>
-          ) : null}
-
-          {sourceMode === 'quote' ? (
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-              <p className="text-[14px] font-semibold text-slate-900">Tạo từ báo giá đã có</p>
-              <p className="mt-2 text-[13px] leading-6 text-slate-500">Chọn một báo giá đã lưu hoàn thiện trong danh sách báo giá, sau đó bấm “Tạo hợp đồng” ở dòng báo giá hoặc trang chi tiết.</p>
-              <button type="button" onClick={() => navigate('/quotes')} className="mt-4 inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-700 hover:bg-slate-50">
-                <BriefcaseBusiness className="h-4 w-4" />
-                Mở danh sách báo giá
-              </button>
-            </div>
-          ) : null}
-        </div>
-      </section>
-    </div>
-  )
-}
-
 export default function ContractListPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { id: routeContractId } = useParams()
-  const scheduleRequestRef = useRef('')
   const [contracts, setContracts] = useState([])
   const [count, setCount] = useState(0)
   const [search, setSearch] = useState('')
   const [sourceType, setSourceType] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [newModalOpen, setNewModalOpen] = useState(false)
-  const [editorState, setEditorState] = useState(null)
   const [contractToDelete, setContractToDelete] = useState(null)
   const [deletingContract, setDeletingContract] = useState(false)
   const [deleteError, setDeleteError] = useState('')
-  const totalText = useMemo(() => `${formatQuoteCurrency(count)} hợp đồng`, [count])
 
   async function loadContracts() {
     setLoading(true)
@@ -469,103 +136,20 @@ export default function ContractListPage() {
   }, [search, sourceType])
 
   useEffect(() => {
-    let mounted = true
-    if (!routeContractId) {
-      setEditorState(null)
-      return
-    }
-
-    async function openContract() {
-      try {
-        const contract = await getContractById(routeContractId)
-        if (!mounted) return
-        if (contract?.id) {
-          setEditorState({
-            sourceType: contract.source_type || 'manual',
-            sourceDraft: contract,
-            contractId: contract.id,
-          })
-        }
-      } catch (err) {
-        if (mounted) setError(err?.message || 'Không mở được hợp đồng.')
-      }
-    }
-
-    openContract()
-    return () => {
-      mounted = false
-    }
-  }, [routeContractId])
-
-  useEffect(() => {
-    if (routeContractId) return
-
     const params = new URLSearchParams(location.search)
-    const scheduleParams = getScheduleQueryParams(params)
-    const { source, jobId } = scheduleParams
-    if (source !== 'lichlamviec' || !jobId) return
+    const source = params.get('source')
+    const jobId = params.get('job_id') || params.get('jobId')
+    if (!source) return
 
-    const requestKey = `${source}:${jobId}`
-    if (scheduleRequestRef.current === requestKey) return
-    scheduleRequestRef.current = requestKey
-
-    let mounted = true
-
-    async function openScheduleContract() {
-      setNewModalOpen(false)
-      setError('')
-
-      try {
-        const job = await getContractJob(jobId)
-        if (!mounted) return
-
-        if (job.contract_id) {
-          navigate(getContractRoute(job))
-          return
-        }
-
-        setEditorState({
-          sourceType: 'job',
-          sourceDraft: buildJobSourceDraft(job, scheduleParams),
-        })
-
-        if (SCHEDULE_CONTRACT_QUERY_KEYS.some(key => params.has(key))) {
-          SCHEDULE_CONTRACT_QUERY_KEYS.forEach(key => params.delete(key))
-          const nextSearch = params.toString()
-          navigate({
-            pathname: location.pathname,
-            search: nextSearch ? `?${nextSearch}` : '',
-          }, { replace: true })
-        }
-      } catch (err) {
-        if (mounted) setError(err?.message || 'Không mở được job từ lịch làm việc.')
-      }
+    if (source === 'lichlamviec' && jobId) {
+      params.set('source', 'job')
+      params.set('origin_source', 'lichlamviec')
+      params.set('jobId', jobId)
+      params.delete('job_id')
     }
 
-    openScheduleContract()
-    return () => {
-      mounted = false
-    }
-  }, [location.pathname, location.search, navigate, routeContractId])
-
-  async function createFromJob(jobId) {
-    setNewModalOpen(false)
-    const job = await getContractJob(jobId)
-    if (job.contract_id) {
-      navigate(getContractRoute(job))
-      return
-    }
-    setEditorState({
-      sourceType: 'job',
-      sourceDraft: buildJobSourceDraft(job),
-    })
-  }
-
-  function closeEditor() {
-    setEditorState(null)
-    if (routeContractId) navigate('/contracts', { replace: true })
-    loadContracts()
-  }
+    navigate(getNewContractRoute(params), { replace: true })
+  }, [location.search, navigate])
 
   async function confirmDeleteContract() {
     if (!contractToDelete?.id) return
@@ -575,10 +159,6 @@ export default function ContractListPage() {
     try {
       await deleteContract({ id: contractToDelete.id })
       setContractToDelete(null)
-      if (routeContractId === contractToDelete.id) {
-        setEditorState(null)
-        navigate('/contracts', { replace: true })
-      }
       await loadContracts()
     } catch (err) {
       setDeleteError(err?.message || 'Không xóa được hợp đồng.')
@@ -597,7 +177,7 @@ export default function ContractListPage() {
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => navigate('/contracts/templates')}
+            onClick={() => navigate('/contracts/templates/contract')}
             className="inline-flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
           >
             <FileText className="h-4 w-4" />
@@ -605,7 +185,7 @@ export default function ContractListPage() {
           </button>
           <button
             type="button"
-            onClick={() => setNewModalOpen(true)}
+            onClick={() => navigate('/contracts/new')}
             className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#f8981d] px-4 text-[13px] font-semibold text-white shadow-sm hover:bg-orange-500"
           >
             <Plus className="h-4 w-4" />
@@ -695,29 +275,6 @@ export default function ContractListPage() {
           </table>
         </div>
       </section>
-
-      {newModalOpen ? (
-        <NewContractModal
-          onClose={() => setNewModalOpen(false)}
-          onCreateManual={() => {
-            setNewModalOpen(false)
-            setEditorState({ sourceType: 'manual', sourceDraft: EMPTY_MANUAL_SOURCE })
-          }}
-          onCreateFromJob={createFromJob}
-        />
-      ) : null}
-
-      {editorState ? (
-        <Suspense fallback={null}>
-          <ContractEditorModal
-            open
-            sourceType={editorState.sourceType}
-            sourceDraft={editorState.sourceDraft}
-            contractId={editorState.contractId}
-            onClose={closeEditor}
-          />
-        </Suspense>
-      ) : null}
 
       {contractToDelete ? (
         <DeleteContractConfirmModal
