@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react'
 import { BrowserRouter, Navigate, Routes, Route, useLocation, useParams } from 'react-router-dom'
 
 const ClientPortalPage = lazy(() => import('./pages/ClientPortalPage'))
+const LandingPage = lazy(() => import('./pages/LandingPage'))
 const QuoteListPage = lazy(() => import('./features/quotes/pages/QuoteListPage'))
 const QuoteCreatePage = lazy(() => import('./features/quotes/pages/QuoteCreatePage'))
 const QuoteDetailPage = lazy(() => import('./features/quotes/pages/QuoteDetailPage'))
@@ -94,7 +95,7 @@ export default function App() {
     <BrowserRouter>
       <Suspense fallback={<AppLoading />}>
         <Routes>
-          <Route path="/" element={<ClientPortalPage />} />
+          <Route path="/" element={<LandingPage />} />
           <Route path="/quotes" element={<QuoteModuleShell><QuoteListPage /></QuoteModuleShell>} />
           <Route path="/quotes/new" element={<QuoteModuleShell><QuoteCreatePage /></QuoteModuleShell>} />
           <Route path="/quotes/trash" element={<QuoteModuleShell><QuoteTrashPage /></QuoteModuleShell>} />
