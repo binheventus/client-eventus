@@ -14,6 +14,10 @@ const legacyTables = {
 }
 
 const SHARE_TOKEN_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+const PUBLIC_CODE_ALPHABET = '23456789abcdefghjkmnpqrstuvwxyz'
+const PUBLIC_CODE_LENGTH = 4
+const usedPublicCodes = new Set()
+const feedbackPublicCodeByLegacyId = new Map()
 
 function assertIdentifier(name) {
   if (!/^[a-zA-Z0-9_]+$/.test(name)) throw new Error(`Ten bang/cot khong hop le: ${name}`)
@@ -28,6 +32,47 @@ function makeReadableToken(length = 14) {
   return Array.from(randomBytes(length), value => (
     SHARE_TOKEN_ALPHABET[value % SHARE_TOKEN_ALPHABET.length]
   )).join('')
+}
+
+function makePublicCode(length = PUBLIC_CODE_LENGTH) {
+  for (let attempt = 0; attempt < 128; attempt += 1) {
+    const code = Array.from(randomBytes(length), value => (
+      PUBLIC_CODE_ALPHABET[value % PUBLIC_CODE_ALPHABET.length]
+    )).join('')
+    if (/[a-z]/.test(code)) return code
+  }
+  throw new Error('Khong tao duoc public_code hop le.')
+}
+
+function makeUniquePublicCode() {
+  for (let attempt = 0; attempt < 128; attempt += 1) {
+    const code = makePublicCode()
+    if (usedPublicCodes.has(code)) continue
+    usedPublicCodes.add(code)
+    return code
+  }
+  throw new Error('Khong tao duoc public_code khong trung.')
+}
+
+async function loadExistingPublicCodes() {
+  if (!await tableExists(tables.feedbacks)) return
+  const columns = await getColumns(tables.feedbacks)
+  if (!columns?.has('public_code')) return
+
+  const [rows] = await pool.query(
+    `select legacy_id, public_code
+     from ${assertIdentifier(tables.feedbacks)}
+     where public_code is not null and public_code <> ''`,
+  )
+
+  for (const row of rows) {
+    const publicCode = String(row.public_code || '').trim()
+    if (!publicCode) continue
+    usedPublicCodes.add(publicCode)
+    if (row.legacy_id !== null && row.legacy_id !== undefined) {
+      feedbackPublicCodeByLegacyId.set(String(row.legacy_id), publicCode)
+    }
+  }
 }
 
 function getValue(row, columns, names, fallback = null) {
@@ -132,6 +177,7 @@ function makeFeedbackPayload(row, columns) {
   return {
     id: legacyId('fb', row.id),
     legacy_id: row.id,
+    public_code: feedbackPublicCodeByLegacyId.get(String(row.id)) || makeUniquePublicCode(),
     job_id: jobId,
     share_token: makeReadableToken(),
     name: normalizeText(getValue(row, columns, ['name']), `Feedback ${row.id}`),
@@ -299,6 +345,8 @@ async function importJobAnswers(connection) {
 }
 
 async function main() {
+  await loadExistingPublicCodes()
+
   const legacyCounts = {}
   const targetCountsBefore = {}
 
@@ -331,6 +379,7 @@ async function main() {
 
     summary.imported.feedbacks = await importRows(client, legacyTables.feedbacks, tables.feedbacks, makeFeedbackPayload, [
       'job_id',
+      'public_code',
       'name',
       'status',
       'video_url',

@@ -248,6 +248,7 @@ create table if not exists client_pages (
 create table if not exists client_feedbacks (
   id varchar(64) primary key,
   legacy_id bigint unsigned null,
+  public_code varchar(4) null,
   job_id bigint unsigned not null,
   share_token varchar(40) not null,
   name varchar(255) null,
@@ -271,6 +272,7 @@ create table if not exists client_feedbacks (
   created_at datetime(3) not null default current_timestamp(3),
   updated_at datetime(3) not null default current_timestamp(3) on update current_timestamp(3),
   unique key client_feedbacks_legacy_unique (legacy_id),
+  unique key client_feedbacks_public_code_unique (public_code),
   unique key client_feedbacks_share_token_unique (share_token),
   key client_feedbacks_job_idx (job_id, deleted_at, created_at),
   key client_feedbacks_status_idx (status, deleted_at)

@@ -26,6 +26,8 @@ const projectRoot = path.resolve(__dirname, '../..')
 const webRoot = path.join(projectRoot, 'apps/web')
 const publicRoot = path.join(webRoot, 'public')
 const SHARE_TOKEN_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+const PUBLIC_CODE_ALPHABET = '23456789abcdefghjkmnpqrstuvwxyz'
+const PUBLIC_CODE_LENGTH = 4
 const DEFAULT_PAGE_SIZE = 20
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024
 const DEFAULT_RCLONE_REMOTE = 'eventus'
@@ -184,6 +186,44 @@ function makeReadableToken(length = 14) {
   )).join('')
 }
 
+function makePublicCode(length = PUBLIC_CODE_LENGTH) {
+  for (let attempt = 0; attempt < 128; attempt += 1) {
+    const code = Array.from(randomBytes(length), value => (
+      PUBLIC_CODE_ALPHABET[value % PUBLIC_CODE_ALPHABET.length]
+    )).join('')
+    if (/[a-z]/.test(code)) return code
+  }
+  throw new Error('Khong tao duoc ma feedback ngan.')
+}
+
+async function makeUniquePublicCode() {
+  for (let attempt = 0; attempt < 128; attempt += 1) {
+    const code = makePublicCode()
+    const rows = await query(`select 1 from ${tables.feedbacks} where public_code = ? limit 1`, [code])
+    if (!rows.length) return code
+  }
+  throw makeHttpError('Không tạo được mã feedback ngắn.', 500, 'PUBLIC_CODE_UNAVAILABLE')
+}
+
+function isPublicCodeDuplicate(error) {
+  return (error?.code === 'ER_DUP_ENTRY' || error?.errno === 1062)
+    && String(error?.sqlMessage || error?.message || '').includes('public_code')
+}
+
+function getFeedbackPublicIdentifier(feedback = {}) {
+  return feedback.public_code || feedback.legacy_id || feedback.id
+}
+
+function getFeedbackPublicPath(feedback = {}, access = {}) {
+  const identifier = getFeedbackPublicIdentifier(feedback)
+  if (!identifier) return '/feedbacks'
+  const params = new URLSearchParams()
+  if (access.zalo) params.set('zalo', access.zalo)
+  else if (feedback.share_token || access.token) params.set('token', feedback.share_token || access.token)
+  const search = params.toString()
+  return `/feedbacks/${encodeURIComponent(identifier)}${search ? `?${search}` : ''}`
+}
+
 function trimText(value = '', maxLength = 500) {
   const text = String(value || '').trim()
   return text.length > maxLength ? text.slice(0, maxLength) : text
@@ -323,6 +363,7 @@ async function listFeedbackJobs({ search = '', page = 1, pageSize = DEFAULT_PAGE
   const rows = await query(
     `select j.*,
       latest.id as feedback_id,
+      latest.public_code as feedback_public_code,
       latest.share_token as feedback_share_token,
       latest.name as feedback_name,
       latest.done_feedback as feedback_done
@@ -348,6 +389,7 @@ async function listFeedbackJobs({ search = '', page = 1, pageSize = DEFAULT_PAGE
     jobs: rows.map(row => ({
       ...normalizeJobRow(row),
       feedback_id: row.feedback_id || null,
+      feedback_public_code: row.feedback_public_code || null,
       feedback_share_token: row.feedback_share_token || null,
       feedback_name: row.feedback_name || null,
       feedback_done: normalizeBoolean(row.feedback_done),
@@ -371,8 +413,8 @@ async function listFeedbacks({ search = '', jobId = '', page = 1, pageSize = DEF
 
   if (search) {
     const like = `%${search}%`
-    where.push('(f.name like ? or f.video_title like ? or j.job_title like ? or j.customer_name like ? or j.zalo_id like ?)')
-    params.push(like, like, like, like, like)
+    where.push('(f.name like ? or f.public_code like ? or f.video_title like ? or j.job_title like ? or j.customer_name like ? or j.zalo_id like ?)')
+    params.push(like, like, like, like, like, like)
   }
 
   const whereSql = `where ${where.join(' and ')}`
@@ -407,9 +449,9 @@ async function getFeedbackByIdentifier(identifier) {
     `select ${getFeedbackListSelect()}
      from ${tables.feedbacks} f
      left join ${tables.jobs} j on j.id = f.job_id
-     where (f.id = ? or f.legacy_id = ? or f.share_token = ?) and f.deleted_at is null
+     where (f.id = ? or f.legacy_id = ? or f.public_code = ? or f.share_token = ?) and f.deleted_at is null
      limit 1`,
-    [identifier, Number(identifier) || 0, identifier],
+    [identifier, Number(identifier) || 0, identifier, identifier],
   )
   return normalizeFeedbackRow(rows?.[0])
 }
@@ -435,22 +477,31 @@ async function ensureFeedbackForJob(jobId, patch = {}) {
   )
   if (rows?.[0]) return normalizeFeedbackRow(rows[0])
 
-  const id = makeId('fb')
-  await query(
-    `insert into ${tables.feedbacks}
-       (id, job_id, share_token, name, drive_url, editor_name, editor_phone, created_at, updated_at)
-     values (?, ?, ?, ?, ?, ?, ?, current_timestamp(3), current_timestamp(3))`,
-    [
-      id,
-      job.id,
-      makeReadableToken(),
-      patch.name || 'Feedback 1',
-      patch.drive_url || job.drive_feedback || null,
-      patch.editor_name || job.editor_name || null,
-      patch.editor_phone || job.editor_phone || null,
-    ],
-  )
-  return getFeedbackByIdentifier(id)
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const id = makeId('fb')
+    try {
+      await query(
+        `insert into ${tables.feedbacks}
+           (id, public_code, job_id, share_token, name, drive_url, editor_name, editor_phone, created_at, updated_at)
+         values (?, ?, ?, ?, ?, ?, ?, ?, current_timestamp(3), current_timestamp(3))`,
+        [
+          id,
+          await makeUniquePublicCode(),
+          job.id,
+          makeReadableToken(),
+          patch.name || 'Feedback 1',
+          patch.drive_url || job.drive_feedback || null,
+          patch.editor_name || job.editor_name || null,
+          patch.editor_phone || job.editor_phone || null,
+        ],
+      )
+      return getFeedbackByIdentifier(id)
+    } catch (error) {
+      if (!isPublicCodeDuplicate(error) || attempt === 7) throw error
+    }
+  }
+
+  throw makeHttpError('Không tạo được feedback.', 500, 'FEEDBACK_CREATE_FAILED')
 }
 
 async function createFeedback(jobId, payload = {}) {
@@ -459,31 +510,38 @@ async function createFeedback(jobId, payload = {}) {
 
   const rows = await query(`select count(*) as count from ${tables.feedbacks} where job_id = ? and deleted_at is null`, [job.id])
   const count = Number(rows?.[0]?.count || 0)
-  const id = makeId('fb')
-  const shareToken = makeReadableToken()
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const id = makeId('fb')
+    const shareToken = makeReadableToken()
+    try {
+      await query(
+        `insert into ${tables.feedbacks}
+           (id, public_code, job_id, share_token, name, video_url, video_title, direct_video_url, drive_url,
+            editor_employee_id, editor_name, editor_phone, started_at, created_at, updated_at)
+         values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp(3), current_timestamp(3))`,
+        [
+          id,
+          await makeUniquePublicCode(),
+          job.id,
+          shareToken,
+          trimText(payload.name, 255) || `Feedback ${count + 1}`,
+          emptyToNull(payload.video_url),
+          emptyToNull(payload.video_title),
+          emptyToNull(payload.direct_video_url),
+          emptyToNull(payload.drive_url || job.drive_feedback),
+          emptyToNull(payload.editor_employee_id),
+          emptyToNull(payload.editor_name || job.editor_name),
+          emptyToNull(payload.editor_phone || job.editor_phone),
+          payload.video_url ? nowMysql() : null,
+        ],
+      )
+      return getFeedbackByIdentifier(id)
+    } catch (error) {
+      if (!isPublicCodeDuplicate(error) || attempt === 7) throw error
+    }
+  }
 
-  await query(
-    `insert into ${tables.feedbacks}
-       (id, job_id, share_token, name, video_url, video_title, direct_video_url, drive_url,
-        editor_employee_id, editor_name, editor_phone, started_at, created_at, updated_at)
-     values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp(3), current_timestamp(3))`,
-    [
-      id,
-      job.id,
-      shareToken,
-      trimText(payload.name, 255) || `Feedback ${count + 1}`,
-      emptyToNull(payload.video_url),
-      emptyToNull(payload.video_title),
-      emptyToNull(payload.direct_video_url),
-      emptyToNull(payload.drive_url || job.drive_feedback),
-      emptyToNull(payload.editor_employee_id),
-      emptyToNull(payload.editor_name || job.editor_name),
-      emptyToNull(payload.editor_phone || job.editor_phone),
-      payload.video_url ? nowMysql() : null,
-    ],
-  )
-
-  return getFeedbackByIdentifier(id)
+  throw makeHttpError('Không tạo được feedback.', 500, 'FEEDBACK_CREATE_FAILED')
 }
 
 async function getFeedbackComments(feedbackId) {
@@ -563,7 +621,7 @@ async function getFeedbackDetail(req, identifier, access = {}) {
     comments,
     feedbacks,
     employees,
-    public_url: `/feedbacks/${encodeURIComponent(feedback.id)}?token=${encodeURIComponent(feedback.share_token)}`,
+    public_url: getFeedbackPublicPath(feedback, { token: feedback.share_token }),
   }
 }
 

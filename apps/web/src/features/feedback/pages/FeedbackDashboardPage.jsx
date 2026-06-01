@@ -41,7 +41,7 @@ function JobRow({ job, onOpen, onCreate }) {
       <td className="px-4 py-3 text-right">
         <button
           type="button"
-          onClick={() => (job.feedback_id ? onOpen(job.feedback_id, job.zalo_id) : onCreate(job.id))}
+          onClick={() => (job.feedback_id ? onOpen(job.feedback_public_code || job.feedback_id, job.zalo_id) : onCreate(job.id))}
           className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 text-[13px] font-semibold text-white hover:bg-slate-800"
         >
           {job.feedback_id ? <Video className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
@@ -56,7 +56,7 @@ function FeedbackCard({ feedback, onOpen }) {
   return (
     <button
       type="button"
-      onClick={() => onOpen(feedback.id, feedback.job?.zalo_id)}
+      onClick={() => onOpen(feedback.public_code || feedback.id, feedback.job?.zalo_id)}
       className="rounded-lg border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-blue-200 hover:shadow-md"
     >
       <div className="flex items-start justify-between gap-3">
@@ -132,7 +132,7 @@ export default function FeedbackDashboardPage() {
     setError('')
     try {
       const feedback = await ensureFeedback(jobId)
-      openFeedback(feedback.id, feedback.job?.zalo_id)
+      navigate(getFeedbackPublicPath(feedback, { zalo: feedback.job?.zalo_id }))
       await loadData()
     } catch (err) {
       setError(err?.message || 'Không tạo được feedback.')
@@ -166,7 +166,7 @@ export default function FeedbackDashboardPage() {
         jobId,
         feedback: { name: 'Feedback mới' },
       })
-      openFeedback(feedback.id, feedback.job?.zalo_id)
+      navigate(getFeedbackPublicPath(feedback, { zalo: feedback.job?.zalo_id }))
       await loadData()
     } catch (err) {
       setError(err?.message || 'Không tạo được feedback mới.')

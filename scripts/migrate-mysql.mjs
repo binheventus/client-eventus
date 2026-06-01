@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { getPool } from '../apps/api/lib/mysql.js'
@@ -12,6 +13,8 @@ function splitSqlStatements(sql) {
 const schemaPath = path.join(process.cwd(), 'docs/mysql-schema.sql')
 const schemaSql = await fs.readFile(schemaPath, 'utf8')
 const pool = getPool()
+const PUBLIC_CODE_ALPHABET = '23456789abcdefghjkmnpqrstuvwxyz'
+const PUBLIC_CODE_LENGTH = 4
 const legacyPrefix = ['ai', 'lab'].join('_')
 const legacyAiLabTables = [
   'quote_views',
@@ -208,7 +211,22 @@ const feedbackAttachmentColumns = [
   },
 ]
 
+const feedbackColumns = [
+  {
+    tableName: 'client_feedbacks',
+    columnName: 'public_code',
+    definition: 'varchar(4) null after `legacy_id`',
+  },
+]
+
 const feedbackIndexes = [
+  {
+    tableName: 'client_feedbacks',
+    indexName: 'client_feedbacks_public_code_unique',
+    columns: ['public_code'],
+    unique: true,
+    skipIfDuplicateRows: true,
+  },
   {
     tableName: 'client_feedback_survey_responses',
     indexName: 'client_feedback_survey_responses_job_type_unique',
@@ -287,14 +305,59 @@ async function ensureConfiguredIndex(pool, { tableName, indexName, columns, uniq
 
 async function hasDuplicateRowsForIndex(pool, { tableName, columns }) {
   const columnSql = columns.map(column => `\`${column}\``).join(', ')
+  const presentSql = columns.map(column => `\`${column}\` is not null`).join(' and ')
   const [rows] = await pool.query(
     `select ${columnSql}, count(*) as count
      from \`${tableName}\`
+     where ${presentSql}
      group by ${columnSql}
      having count(*) > 1
      limit 1`,
   )
   return rows.length > 0
+}
+
+function makePublicCode(length = PUBLIC_CODE_LENGTH) {
+  for (let attempt = 0; attempt < 128; attempt += 1) {
+    const code = Array.from(randomBytes(length), value => (
+      PUBLIC_CODE_ALPHABET[value % PUBLIC_CODE_ALPHABET.length]
+    )).join('')
+    if (/[a-z]/.test(code)) return code
+  }
+  throw new Error('Khong tao duoc public_code hop le.')
+}
+
+async function makeUniquePublicCode(pool, usedCodes) {
+  for (let attempt = 0; attempt < 128; attempt += 1) {
+    const code = makePublicCode()
+    if (usedCodes.has(code)) continue
+    const [rows] = await pool.query('select 1 from `client_feedbacks` where `public_code` = ? limit 1', [code])
+    if (!rows.length) {
+      usedCodes.add(code)
+      return code
+    }
+  }
+  throw new Error('Khong tao duoc public_code khong trung.')
+}
+
+async function backfillFeedbackPublicCodes(pool) {
+  const [existingRows] = await pool.query(
+    'select `public_code` from `client_feedbacks` where `public_code` is not null and `public_code` <> ""',
+  )
+  const usedCodes = new Set(existingRows.map(row => String(row.public_code || '').trim()).filter(Boolean))
+  const [rows] = await pool.query(
+    'select `id` from `client_feedbacks` where `public_code` is null or `public_code` = "" order by `created_at` asc, `id` asc',
+  )
+
+  for (const row of rows) {
+    const publicCode = await makeUniquePublicCode(pool, usedCodes)
+    await pool.query(
+      'update `client_feedbacks` set `public_code` = ? where `id` = ? and (`public_code` is null or `public_code` = "")',
+      [publicCode, row.id],
+    )
+  }
+
+  return rows.length
 }
 
 async function ensureContractQuoteNullable(pool) {
@@ -393,6 +456,12 @@ try {
     if (await ensureColumnIfTableExists(pool, columnConfig)) createdColumns.push(`${columnConfig.tableName}.${columnConfig.columnName}`)
   }
 
+  for (const columnConfig of feedbackColumns) {
+    if (await ensureColumnIfTableExists(pool, columnConfig)) createdColumns.push(`${columnConfig.tableName}.${columnConfig.columnName}`)
+  }
+
+  const backfilledFeedbackPublicCodes = await backfillFeedbackPublicCodes(pool)
+
   if (await ensureContractQuoteNullable(pool)) createdColumns.push('client_contracts.quote_id nullable')
   const quoteDraftModeCleanup = await removeQuoteDraftMode(pool)
 
@@ -428,6 +497,7 @@ try {
     created_columns: createdColumns,
     created_indexes: createdIndexes,
     skipped_indexes: skippedIndexes,
+    backfilled_feedback_public_codes: backfilledFeedbackPublicCodes,
     quote_draft_mode_cleanup: quoteDraftModeCleanup,
     dropped_legacy_tables: shouldDropLegacyTables ? legacyAiLabTables.length : 0,
   }, null, 2))

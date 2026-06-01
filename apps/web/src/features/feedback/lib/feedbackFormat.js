@@ -84,11 +84,12 @@ export function getFeedbackAccessFromSearch(search = '') {
 
 export function getFeedbackPublicPath(feedback, access = {}) {
   if (!feedback?.id) return '/feedbacks'
+  const identifier = feedback.public_code || feedback.legacy_id || feedback.id
   const params = new URLSearchParams()
-  if (feedback.share_token || access.token) params.set('token', feedback.share_token || access.token)
-  if (!params.has('token') && access.zalo) params.set('zalo', access.zalo)
+  if (access.zalo) params.set('zalo', access.zalo)
+  else if (feedback.share_token || access.token) params.set('token', feedback.share_token || access.token)
   const search = params.toString()
-  return `/feedbacks/${encodeURIComponent(feedback.id)}${search ? `?${search}` : ''}`
+  return `/feedbacks/${encodeURIComponent(identifier)}${search ? `?${search}` : ''}`
 }
 
 export function readFileAsDataUrl(file) {
