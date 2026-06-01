@@ -638,7 +638,7 @@ export default function FeedbackDetailPage() {
 
   function prepareVideoSurvey() {
     if (!videoSurveyUrl) return
-    window.setTimeout(() => window.location.assign(videoSurveyUrl), 0)
+    window.location.assign(videoSurveyUrl)
   }
 
   async function doneFeedback() {
