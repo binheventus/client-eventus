@@ -178,16 +178,6 @@ const feedbackJobColumns = [
     columnName: 'end_feedback',
     definition: 'datetime(3) null',
   },
-  {
-    tableName: 'jobs',
-    columnName: 'is_done_lark',
-    definition: 'tinyint(1) not null default 0',
-  },
-  {
-    tableName: 'jobs',
-    columnName: 'send_collect_lark',
-    definition: 'datetime(3) null',
-  },
 ]
 
 const feedbackEmployeeColumns = [
