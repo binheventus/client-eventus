@@ -4,6 +4,7 @@ const DEFAULT_OPENAI_MODEL = 'gpt-5.4'
 const DEFAULT_ANTHROPIC_MODEL = 'claude-sonnet-4-6'
 const DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com'
 const DEFAULT_QUOTE_PARSE_TIMEOUT_MS = 12000
+const MANUAL_ADD_INSTRUCTION = 'Bạn hãy thêm thủ công ở ô bên dưới nhé.'
 const EMPTY_QUOTE_PARSE_RESULT = {
   parsed: {
     items: [],
@@ -319,6 +320,14 @@ function getPostProductionGroup() {
   }
 }
 
+function getSingleBriefGroup() {
+  return {
+    group_code: 'CUSTOM_DEFAULT',
+    group_label: 'Nhóm 1',
+    group_sort_order: 1,
+  }
+}
+
 function applyPostProductionGroup(item = {}) {
   return {
     ...item,
@@ -326,17 +335,75 @@ function applyPostProductionGroup(item = {}) {
   }
 }
 
+function getOnsiteBriefItemKind(item = {}) {
+  const serviceCode = getServiceCodeFromItem(item)
+  const rawText = normalizeVietnameseText([
+    item?.service_name_raw,
+    item?.service_name,
+    item?.service?.service_name,
+    item?.service?.quote_display_name,
+    item?.service?.name,
+  ].filter(Boolean).join(' '))
+
+  if (/^CHUP(?:_|$)/.test(serviceCode) || /\b(chup|photo|photographer)\b/.test(rawText)) return 'photo'
+  if (itemLooksLikeVideoShoot(item)) return 'video'
+  if (/^(FLYCAM|FPV)(?:_|$)/.test(serviceCode) || /\b(flycam|drone|fpv)\b/.test(rawText)) return 'aerial'
+  if (/^(LIVE|LIVE_)/.test(serviceCode) || /\b(live|livestream)\b/.test(rawText)) return 'live'
+  return ''
+}
+
+function hasExplicitBriefGrouping(inputText = '') {
+  if (parseDaySections(inputText).length) return true
+  const normalized = normalizeVietnameseText(inputText)
+  return /\b(hang muc|nhom|group|tach rieng|rieng tung|separate)\b/.test(normalized)
+}
+
+function briefLooksLikeSingleMixedWorkPackage(inputText = '', items = []) {
+  if (hasExplicitBriefGrouping(inputText)) return false
+
+  const onsiteKinds = new Set(
+    (Array.isArray(items) ? items : [])
+      .map(getOnsiteBriefItemKind)
+      .filter(Boolean)
+  )
+
+  return onsiteKinds.size >= 2
+}
+
+function applySingleBriefGroup(result, inputText = '') {
+  const items = Array.isArray(result?.parsed?.items) ? result.parsed.items : []
+  if (!briefLooksLikeSingleMixedWorkPackage(inputText, items)) return result
+
+  const singleGroup = getSingleBriefGroup()
+  const reasoningLine = 'Đã giữ các dịch vụ trong brief combo một dòng thành một nhóm hạng mục chung.'
+  const existingReasoning = String(result?.ai_reasoning || '').trim()
+
+  return {
+    ...result,
+    parsed: {
+      ...result.parsed,
+      items: items.map(item => ({
+        ...item,
+        ...singleGroup,
+      })),
+    },
+    ai_reasoning: existingReasoning.includes(reasoningLine)
+      ? existingReasoning
+      : [existingReasoning, reasoningLine].filter(Boolean).join('\n'),
+  }
+}
+
 export function applyBriefBusinessRules(result, inputText = '', context = {}) {
   const groupedResult = applyMultiDayBriefGroups(result, inputText, context)
-  if (!briefNeedsDefaultRecapEdit(inputText)) return groupedResult
+  if (!briefNeedsDefaultRecapEdit(inputText)) return applySingleBriefGroup(groupedResult, inputText)
   const items = Array.isArray(groupedResult?.parsed?.items) ? groupedResult.parsed.items : []
   const cameraCount = getVideoShootCameraCount(items, inputText)
   const defaultEditService = getRecapEditServiceForCameraCount(context, cameraCount)
-  if (!defaultEditService || !serviceExists(context, defaultEditService)) return groupedResult
+  if (!defaultEditService || !serviceExists(context, defaultEditService)) return applySingleBriefGroup(groupedResult, inputText)
 
   if (items.some(item => itemLooksLikeRecapEdit(item))) {
     let replaced = false
-    return {
+    return applySingleBriefGroup({
       ...groupedResult,
       parsed: {
         ...groupedResult.parsed,
@@ -352,10 +419,10 @@ export function applyBriefBusinessRules(result, inputText = '', context = {}) {
           })]
         }),
       },
-    }
+    }, inputText)
   }
 
-  return {
+  return applySingleBriefGroup({
     ...groupedResult,
     parsed: {
       ...groupedResult.parsed,
@@ -364,7 +431,7 @@ export function applyBriefBusinessRules(result, inputText = '', context = {}) {
         applyPostProductionGroup(makeFallbackItem(defaultEditService, 1, getRecapEditRawName(defaultEditService))),
       ],
     },
-  }
+  }, inputText)
 }
 
 function normalizeParsedPayload(payload) {
@@ -397,8 +464,15 @@ function withRepairNotice(result) {
 function fallbackParseResult(reason) {
   return {
     ...EMPTY_QUOTE_PARSE_RESULT,
-    ai_reasoning: reason || 'AI chưa trả về JSON hợp lệ, vui lòng nhập thủ công hoặc thử lại với brief ngắn hơn.',
+    ai_reasoning: appendManualAddInstruction(reason || 'AI chưa trả về JSON hợp lệ, vui lòng nhập thủ công hoặc thử lại với brief ngắn hơn.'),
   }
+}
+
+function appendManualAddInstruction(message = '') {
+  const text = String(message || '').trim()
+  if (!text) return MANUAL_ADD_INSTRUCTION
+  if (text.includes(MANUAL_ADD_INSTRUCTION)) return text
+  return `${text} ${MANUAL_ADD_INSTRUCTION}`
 }
 
 function extractApiError(payload, fallback) {
@@ -636,7 +710,7 @@ export function deterministicParseQuoteInput(inputText = '', context = {}, reaso
     ambiguous_fields: [],
     confidence: items.length ? 'medium' : 'low',
     ai_reasoning: reason
-      ? `AI provider đang lỗi (${reason}). Đã dùng parser nội bộ để phân tích brief.`
+      ? appendManualAddInstruction(`AI provider đang lỗi (${reason}). Đã dùng parser nội bộ để phân tích brief.`)
       : 'Đã dùng parser nội bộ để phân tích brief.',
   }, inputText, context)
 }

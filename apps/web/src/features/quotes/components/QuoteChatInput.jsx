@@ -24,7 +24,7 @@ export default function QuoteChatInput({
   return (
     <div className="space-y-3">
       <label className="text-[12px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-        Sales brief
+        Brief
       </label>
       <textarea
         ref={textareaRef}

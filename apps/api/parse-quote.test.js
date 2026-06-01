@@ -80,6 +80,19 @@ test('highest recap edit bracket supports the previous 7-8 cam service code', ()
   assert.deepEqual(result.parsed.items.map(item => item.service_code), ['QUAY_RECAP_IN_4H', 'RECAP_7_8_CAM'])
 })
 
+test('single-line mixed crew brief keeps all services in one quote group', () => {
+  const result = deterministicParseQuoteInput('2 quay 2 chụp 1 flycam nội thành', { services: recapServices })
+
+  assert.deepEqual(result.parsed.items.map(item => item.service_code), [
+    'CHUP_IN_4H',
+    'QUAY_RECAP_IN_4H',
+    'FLYCAM',
+    'RECAP_1_2_CAM',
+  ])
+  assert.deepEqual([...new Set(result.parsed.items.map(item => item.group_code))], ['CUSTOM_DEFAULT'])
+  assert.deepEqual([...new Set(result.parsed.items.map(item => item.group_label))], ['Nhóm 1'])
+})
+
 test('multi-day briefs keep shooting items grouped by day and post-production separate', () => {
   const result = deterministicParseQuoteInput(`Ngày 1:
 2 quay 2 chụp 3 tiếng Hà Nội
@@ -147,6 +160,7 @@ test('handler falls back to deterministic parser when AI keys are missing', asyn
     assert.equal(response.statusCode, 200)
     assert.deepEqual(response.payload.parsed.items.map(item => item.service_code), ['QUAY_RECAP_IN_4H', 'RECAP_3_4_CAM'])
     assert.match(response.payload.ai_reasoning, /Thiếu OPENAI_API_KEY hoặc ANTHROPIC_API_KEY/)
+    assert.match(response.payload.ai_reasoning, /Bạn hãy thêm thủ công ở ô bên dưới nhé\./)
   } finally {
     if (originalOpenAiKey === undefined) delete process.env.OPENAI_API_KEY
     else process.env.OPENAI_API_KEY = originalOpenAiKey
@@ -194,6 +208,7 @@ test('handler falls back quickly when AI provider times out', async () => {
     assert.equal(response.statusCode, 200)
     assert.deepEqual(response.payload.parsed.items.map(item => item.service_code), ['QUAY_RECAP_IN_4H', 'RECAP_3_4_CAM'])
     assert.match(response.payload.ai_reasoning, /quá thời gian phản hồi/)
+    assert.match(response.payload.ai_reasoning, /Bạn hãy thêm thủ công ở ô bên dưới nhé\./)
   } finally {
     globalThis.fetch = originalFetch
 
