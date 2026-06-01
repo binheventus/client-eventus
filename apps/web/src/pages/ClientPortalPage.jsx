@@ -16,6 +16,14 @@ const CATEGORIES = [
     banner: 'Quote Generator',
     desc: 'Module tạo báo giá tự động cho sales Eventus.',
   },
+  {
+    id: 'feedback',
+    label: 'Feedback',
+    icon: '💬',
+    shortDesc: 'Quản lý feedback video, survey và gallery',
+    banner: 'Feedback',
+    desc: 'Module nhận góp ý chỉnh sửa video, theo dõi phản hồi khách hàng và khảo sát sau dịch vụ.',
+  },
 ]
 
 function PageLoading() {
@@ -80,6 +88,11 @@ const CATEGORY_BANNER_STYLES = {
     bg: 'from-slate-900 via-blue-900 to-teal-700',
     label: 'text-blue-100',
     desc: 'text-blue-100/90',
+  },
+  feedback: {
+    bg: 'from-slate-900 via-indigo-900 to-cyan-700',
+    label: 'text-cyan-100',
+    desc: 'text-cyan-100/90',
   },
 }
 
@@ -361,6 +374,7 @@ const PLACEHOLDER_POSITION = {
 function getCategoryHref(id) {
   if (id === 'khung_nang_luc') return '/competency'
   if (id === 'quotes') return '/quotes'
+  if (id === 'feedback') return '/feedback'
   return '/'
 }
 
@@ -1204,6 +1218,8 @@ export default function ClientPortalPage() {
       navigate('/competency')
     } else if (id === 'quotes') {
       navigate('/quotes')
+    } else if (id === 'feedback') {
+      navigate('/feedback')
     } else if (CATEGORY_ROUTE_SEGMENTS[id]) {
       navigate(getCategoryBasePath(id))
     } else if (location.pathname !== '/') {
@@ -1215,7 +1231,7 @@ export default function ClientPortalPage() {
   }
 
   function openHomeCategory(id) {
-    if (id === 'khung_nang_luc' || id === 'quotes') {
+    if (id === 'khung_nang_luc' || id === 'quotes' || id === 'feedback') {
       selectCat(id)
       return
     }
@@ -1388,7 +1404,7 @@ export default function ClientPortalPage() {
           ) : <CompetencyGrid />)}
 
           {/* Card grid cac danh muc khac */}
-          {activeCat !== 'home' && activeCat !== 'khung_nang_luc' && activeCat !== 'quotes' && !selectedTitle && (
+          {activeCat !== 'home' && activeCat !== 'khung_nang_luc' && activeCat !== 'quotes' && activeCat !== 'feedback' && !selectedTitle && (
             <div className="flex-1 overflow-y-auto p-6">
               <CategoryBanner cat={currentCat} />
               {admin.isAdmin && (
@@ -1453,7 +1469,7 @@ export default function ClientPortalPage() {
           )}
 
           {/* Content view */}
-          {activeCat !== 'home' && activeCat !== 'khung_nang_luc' && activeCat !== 'quotes' && selectedTitle && !editing && (
+          {activeCat !== 'home' && activeCat !== 'khung_nang_luc' && activeCat !== 'quotes' && activeCat !== 'feedback' && selectedTitle && !editing && (
             <div className="flex-1 overflow-y-auto">
               <div className="px-6 pt-0 pb-5">
                 {currentPage ? (
@@ -1500,7 +1516,7 @@ export default function ClientPortalPage() {
           )}
 
           {/* Editor */}
-          {activeCat !== 'home' && activeCat !== 'khung_nang_luc' && activeCat !== 'quotes' && selectedTitle && editing && (
+          {activeCat !== 'home' && activeCat !== 'khung_nang_luc' && activeCat !== 'quotes' && activeCat !== 'feedback' && selectedTitle && editing && (
             <div className="flex-1 flex flex-col p-6">
               <div className="flex items-center justify-between mb-3">
                 <div />

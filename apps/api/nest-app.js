@@ -3,6 +3,7 @@ import { All, Controller, Module, Req, Res } from '@nestjs/common'
 import { NestFactory } from '@nestjs/core'
 import contractsHandler from './contracts.js'
 import clientPagesHandler from './client-pages.js'
+import feedbackHandler from './feedback.js'
 import parseQuoteHandler from './parse-quote.js'
 import quotesHandler from './quotes.js'
 
@@ -37,6 +38,14 @@ class ClientPagesController {
 Controller('api/client-pages')(ClientPagesController)
 bindAllRoute(ClientPagesController, 'handle')
 
+class FeedbackController {
+  handle(req, res) {
+    return feedbackHandler(req, res)
+  }
+}
+Controller('api/feedback')(FeedbackController)
+bindAllRoute(FeedbackController, 'handle')
+
 class ParseQuoteController {
   handle(req, res) {
     return parseQuoteHandler(req, res)
@@ -51,6 +60,7 @@ Module({
     QuotesController,
     ContractsController,
     ClientPagesController,
+    FeedbackController,
     ParseQuoteController,
   ],
 })(ApiModule)

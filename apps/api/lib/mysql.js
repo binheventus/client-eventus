@@ -16,8 +16,17 @@ export const tables = {
   contractDocuments: 'client_contract_documents',
   contractDocumentNumberCounters: 'client_contract_document_number_counters',
   contractDocumentNumberLedger: 'client_contract_document_number_ledger',
+  feedbacks: 'client_feedbacks',
+  feedbackComments: 'client_feedback_comments',
+  feedbackAttachments: 'client_feedback_attachments',
+  feedbackSurveyQuestions: 'client_feedback_survey_questions',
+  feedbackSurveyAnswers: 'client_feedback_survey_answers',
+  feedbackSurveyResponses: 'client_feedback_survey_responses',
+  feedbackSurveyResponseAnswers: 'client_feedback_survey_response_answers',
   pages: 'client_pages',
   jobs: 'jobs',
+  employees: 'employees',
+  employeeJobs: 'employee_job',
 }
 
 function getDbConfig() {

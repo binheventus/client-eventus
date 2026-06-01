@@ -244,3 +244,132 @@ create table if not exists client_pages (
   updated_at datetime(3) not null default current_timestamp(3) on update current_timestamp(3),
   unique key client_pages_category_title_unique (category, title)
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create table if not exists client_feedbacks (
+  id varchar(64) primary key,
+  legacy_id bigint unsigned null,
+  job_id bigint unsigned not null,
+  share_token varchar(40) not null,
+  name varchar(255) null,
+  status varchar(40) not null default 'open',
+  video_url longtext null,
+  video_title varchar(500) null,
+  direct_video_url longtext null,
+  drive_url longtext null,
+  video_preview_url longtext null,
+  audio_preview_url longtext null,
+  overall_feedback json null,
+  more_column tinyint(1) not null default 0,
+  done_feedback tinyint(1) not null default 0,
+  editor_employee_id bigint unsigned null,
+  editor_name varchar(255) null,
+  editor_phone varchar(80) null,
+  update_preview_at datetime(3) null,
+  started_at datetime(3) null,
+  completed_at datetime(3) null,
+  deleted_at datetime(3) null,
+  created_at datetime(3) not null default current_timestamp(3),
+  updated_at datetime(3) not null default current_timestamp(3) on update current_timestamp(3),
+  unique key client_feedbacks_legacy_unique (legacy_id),
+  unique key client_feedbacks_share_token_unique (share_token),
+  key client_feedbacks_job_idx (job_id, deleted_at, created_at),
+  key client_feedbacks_status_idx (status, deleted_at)
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create table if not exists client_feedback_comments (
+  id varchar(64) primary key,
+  legacy_id bigint unsigned null,
+  feedback_id varchar(64) not null,
+  comment_1 longtext null,
+  image_comment_1 longtext null,
+  reply_1 longtext null,
+  image_reply_1 longtext null,
+  time_comment_1 decimal(12,3) null,
+  time_reply_1 decimal(12,3) null,
+  is_done_1 tinyint(1) not null default 0,
+  comment_2 longtext null,
+  image_comment_2 longtext null,
+  reply_2 longtext null,
+  image_reply_2 longtext null,
+  time_comment_2 decimal(12,3) null,
+  time_reply_2 decimal(12,3) null,
+  is_done_2 tinyint(1) not null default 0,
+  created_at datetime(3) not null default current_timestamp(3),
+  updated_at datetime(3) not null default current_timestamp(3) on update current_timestamp(3),
+  unique key client_feedback_comments_legacy_unique (legacy_id),
+  key client_feedback_comments_feedback_idx (feedback_id, created_at),
+  constraint client_feedback_comments_feedback_fk foreign key (feedback_id) references client_feedbacks (id) on delete cascade
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create table if not exists client_feedback_attachments (
+  id varchar(64) primary key,
+  legacy_id bigint unsigned null,
+  comment_id varchar(64) not null,
+  file_name varchar(500) not null,
+  url longtext not null,
+  storage_path longtext null,
+  preview_url longtext null,
+  field_name varchar(80) null,
+  file_type varchar(40) not null default 'file',
+  delete_at datetime(3) null,
+  created_at datetime(3) not null default current_timestamp(3),
+  updated_at datetime(3) not null default current_timestamp(3) on update current_timestamp(3),
+  unique key client_feedback_attachments_legacy_unique (legacy_id),
+  key client_feedback_attachments_comment_idx (comment_id, created_at),
+  constraint client_feedback_attachments_comment_fk foreign key (comment_id) references client_feedback_comments (id) on delete cascade
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create table if not exists client_feedback_survey_questions (
+  id varchar(64) primary key,
+  legacy_id bigint unsigned null,
+  question text not null,
+  type varchar(40) not null default 'video',
+  star int null,
+  text_left varchar(255) null,
+  text_right varchar(255) null,
+  is_active tinyint(1) not null default 1,
+  sort_order int not null default 100,
+  created_at datetime(3) not null default current_timestamp(3),
+  updated_at datetime(3) not null default current_timestamp(3) on update current_timestamp(3),
+  unique key client_feedback_survey_questions_legacy_unique (legacy_id),
+  key client_feedback_survey_questions_type_idx (type, is_active, sort_order)
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create table if not exists client_feedback_survey_answers (
+  id varchar(64) primary key,
+  legacy_id bigint unsigned null,
+  question_id varchar(64) not null,
+  answer varchar(500) not null,
+  is_star tinyint(1) not null default 0,
+  sort_order int not null default 100,
+  created_at datetime(3) not null default current_timestamp(3),
+  updated_at datetime(3) not null default current_timestamp(3) on update current_timestamp(3),
+  unique key client_feedback_survey_answers_legacy_unique (legacy_id),
+  key client_feedback_survey_answers_question_idx (question_id, sort_order),
+  constraint client_feedback_survey_answers_question_fk foreign key (question_id) references client_feedback_survey_questions (id) on delete cascade
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create table if not exists client_feedback_survey_responses (
+  id varchar(64) primary key,
+  job_id bigint unsigned not null,
+  feedback_id varchar(64) null,
+  survey_type varchar(40) not null default 'video',
+  respondent_name varchar(255) null,
+  user_agent text null,
+  created_at datetime(3) not null default current_timestamp(3),
+  unique key client_feedback_survey_responses_job_type_unique (job_id, survey_type),
+  key client_feedback_survey_responses_job_idx (job_id, created_at),
+  key client_feedback_survey_responses_feedback_idx (feedback_id, created_at)
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create table if not exists client_feedback_survey_response_answers (
+  id varchar(64) primary key,
+  response_id varchar(64) not null,
+  question_id varchar(64) not null,
+  answer_id varchar(64) null,
+  answer_text text null,
+  created_at datetime(3) not null default current_timestamp(3),
+  key client_feedback_survey_response_answers_response_idx (response_id),
+  key client_feedback_survey_response_answers_question_idx (question_id),
+  constraint client_feedback_survey_response_answers_response_fk foreign key (response_id) references client_feedback_survey_responses (id) on delete cascade
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;

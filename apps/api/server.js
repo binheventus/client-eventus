@@ -8,6 +8,7 @@ import { ApiModule } from './nest-app.js'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const projectRoot = path.resolve(__dirname, '../..')
 const distDir = path.join(projectRoot, 'apps/web/dist')
+const publicDir = path.join(projectRoot, 'apps/web/public')
 const indexHtml = path.join(distDir, 'index.html')
 const port = Number(process.env.PORT || 3000)
 const host = process.env.HOST || '0.0.0.0'
@@ -18,6 +19,9 @@ const contentTypes = {
   '.ico': 'image/x-icon',
   '.js': 'text/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
   '.png': 'image/png',
   '.svg': 'image/svg+xml',
   '.ttf': 'font/ttf',
@@ -52,6 +56,13 @@ function resolveStaticPath(url = '/') {
   return filePath.startsWith(distDir) ? filePath : indexHtml
 }
 
+function resolvePublicPath(url = '/') {
+  const pathname = new URL(url, 'http://localhost').pathname
+  const safePath = path.normalize(decodeURIComponent(pathname)).replace(/^(\.\.[/\\])+/, '')
+  const filePath = path.join(publicDir, safePath)
+  return filePath.startsWith(publicDir) ? filePath : null
+}
+
 function registerStaticFallback(server) {
   server.use((req, res, next) => {
     if (String(req.url || '').startsWith('/api/')) {
@@ -63,6 +74,12 @@ function registerStaticFallback(server) {
       res.statusCode = 500
       res.setHeader('content-type', 'application/json; charset=utf-8')
       res.end(JSON.stringify({ error: 'Missing dist/index.html. Run npm run build first.' }))
+      return
+    }
+
+    const publicPath = resolvePublicPath(req.url)
+    if (publicPath && fs.existsSync(publicPath) && fs.statSync(publicPath).isFile()) {
+      sendFile(res, publicPath)
       return
     }
 

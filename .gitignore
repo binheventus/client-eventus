@@ -8,3 +8,4 @@ apps/web/dist/
 *service-account*.json
 *credentials*.json
 .vercel/
+.tmp/

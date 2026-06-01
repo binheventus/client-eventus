@@ -139,6 +139,85 @@ const contractIndexes = [
   },
 ]
 
+const feedbackJobColumns = [
+  {
+    tableName: 'jobs',
+    columnName: 'zalo_id',
+    definition: 'varchar(120) null',
+  },
+  {
+    tableName: 'jobs',
+    columnName: 'editor_name',
+    definition: 'varchar(255) null',
+  },
+  {
+    tableName: 'jobs',
+    columnName: 'editor_phone',
+    definition: 'varchar(80) null',
+  },
+  {
+    tableName: 'jobs',
+    columnName: 'drive_feedback',
+    definition: 'longtext null',
+  },
+  {
+    tableName: 'jobs',
+    columnName: 'gallery_drive',
+    definition: 'longtext null',
+  },
+  {
+    tableName: 'jobs',
+    columnName: 'start_feedback',
+    definition: 'datetime(3) null',
+  },
+  {
+    tableName: 'jobs',
+    columnName: 'end_feedback',
+    definition: 'datetime(3) null',
+  },
+  {
+    tableName: 'jobs',
+    columnName: 'is_done_lark',
+    definition: 'tinyint(1) not null default 0',
+  },
+  {
+    tableName: 'jobs',
+    columnName: 'send_collect_lark',
+    definition: 'datetime(3) null',
+  },
+]
+
+const feedbackEmployeeColumns = [
+  {
+    tableName: 'employees',
+    columnName: 'zalo_name',
+    definition: 'varchar(255) null',
+  },
+  {
+    tableName: 'employees',
+    columnName: 'is_bod',
+    definition: 'tinyint(1) not null default 0',
+  },
+]
+
+const feedbackAttachmentColumns = [
+  {
+    tableName: 'client_feedback_attachments',
+    columnName: 'preview_url',
+    definition: 'longtext null after `storage_path`',
+  },
+]
+
+const feedbackIndexes = [
+  {
+    tableName: 'client_feedback_survey_responses',
+    indexName: 'client_feedback_survey_responses_job_type_unique',
+    columns: ['job_id', 'survey_type'],
+    unique: true,
+    skipIfDuplicateRows: true,
+  },
+]
+
 async function ensureColumn(pool, { tableName, columnName, definition }) {
   const [rows] = await pool.query(
     `select 1
@@ -154,6 +233,20 @@ async function ensureColumn(pool, { tableName, columnName, definition }) {
 
   await pool.query(`alter table \`${tableName}\` add column \`${columnName}\` ${definition}`)
   return true
+}
+
+async function ensureColumnIfTableExists(pool, config) {
+  const [tables] = await pool.query(
+    `select 1
+     from information_schema.tables
+     where table_schema = database()
+       and table_name = ?
+     limit 1`,
+    [config.tableName],
+  )
+
+  if (!tables.length) return false
+  return ensureColumn(pool, config)
 }
 
 async function ensureIndex(pool, { tableName, indexName, columns }) {
@@ -190,6 +283,18 @@ async function ensureConfiguredIndex(pool, { tableName, indexName, columns, uniq
   const columnSql = columns.map(column => `\`${column}\``).join(', ')
   await pool.query(`alter table \`${tableName}\` add ${unique ? 'unique ' : ''}index \`${indexName}\` (${columnSql})`)
   return true
+}
+
+async function hasDuplicateRowsForIndex(pool, { tableName, columns }) {
+  const columnSql = columns.map(column => `\`${column}\``).join(', ')
+  const [rows] = await pool.query(
+    `select ${columnSql}, count(*) as count
+     from \`${tableName}\`
+     group by ${columnSql}
+     having count(*) > 1
+     limit 1`,
+  )
+  return rows.length > 0
 }
 
 async function ensureContractQuoteNullable(pool) {
@@ -276,10 +381,31 @@ try {
     if (await ensureColumn(pool, columnConfig)) createdColumns.push(`${columnConfig.tableName}.${columnConfig.columnName}`)
   }
 
+  for (const columnConfig of feedbackJobColumns) {
+    if (await ensureColumnIfTableExists(pool, columnConfig)) createdColumns.push(`${columnConfig.tableName}.${columnConfig.columnName}`)
+  }
+
+  for (const columnConfig of feedbackEmployeeColumns) {
+    if (await ensureColumnIfTableExists(pool, columnConfig)) createdColumns.push(`${columnConfig.tableName}.${columnConfig.columnName}`)
+  }
+
+  for (const columnConfig of feedbackAttachmentColumns) {
+    if (await ensureColumnIfTableExists(pool, columnConfig)) createdColumns.push(`${columnConfig.tableName}.${columnConfig.columnName}`)
+  }
+
   if (await ensureContractQuoteNullable(pool)) createdColumns.push('client_contracts.quote_id nullable')
   const quoteDraftModeCleanup = await removeQuoteDraftMode(pool)
 
   for (const indexConfig of contractIndexes) {
+    if (await ensureConfiguredIndex(pool, indexConfig)) createdIndexes.push(indexConfig.indexName)
+  }
+
+  const skippedIndexes = []
+  for (const indexConfig of feedbackIndexes) {
+    if (indexConfig.skipIfDuplicateRows && await hasDuplicateRowsForIndex(pool, indexConfig)) {
+      skippedIndexes.push(`${indexConfig.indexName}: duplicate rows exist`)
+      continue
+    }
     if (await ensureConfiguredIndex(pool, indexConfig)) createdIndexes.push(indexConfig.indexName)
   }
 
@@ -301,6 +427,7 @@ try {
     statements: splitSqlStatements(schemaSql).length,
     created_columns: createdColumns,
     created_indexes: createdIndexes,
+    skipped_indexes: skippedIndexes,
     quote_draft_mode_cleanup: quoteDraftModeCleanup,
     dropped_legacy_tables: shouldDropLegacyTables ? legacyAiLabTables.length : 0,
   }, null, 2))

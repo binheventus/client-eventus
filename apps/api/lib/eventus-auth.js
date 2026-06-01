@@ -52,7 +52,8 @@ export function getEventusLoginUrl(req) {
 export function isProtectedQuotePageRequest(req) {
   const pathname = new URL(req?.url || '/', 'http://client.local').pathname
   return pathname === '/quotes' || pathname.startsWith('/quotes/') ||
-    pathname === '/contracts' || pathname.startsWith('/contracts/')
+    pathname === '/contracts' || pathname.startsWith('/contracts/') ||
+    pathname === '/feedback' || pathname.startsWith('/feedback/')
 }
 
 export async function getEventusAuthUser(req) {
@@ -93,7 +94,7 @@ export async function requireEventusAuth(req, res) {
   }
 
   res.status(401).json({
-    error: 'Vui lòng đăng nhập bằng tài khoản Eventus để truy cập báo giá.',
+    error: 'Vui lòng đăng nhập bằng tài khoản Eventus để truy cập khu vực này.',
     code: 'AUTH_REQUIRED',
     login_url: getEventusLoginUrl(req),
   })

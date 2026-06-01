@@ -36,6 +36,22 @@ npm run dev
 ```
 
 Vite phục vụ frontend trong `apps/web` và proxy `/api/*` qua NestJS trong `apps/api`.
+Mở app tại `https://client-eventus.test/`. Herd giữ domain HTTPS này và proxy vào
+Vite tại `http://127.0.0.1:5173`.
+
+Thiết lập proxy Herd một lần trên máy local:
+
+```bash
+herd proxy client-eventus http://127.0.0.1:5173 --secure
+```
+
+Để giữ dev server chạy khi đóng terminal:
+
+```bash
+npm run dev:background
+npm run dev:status
+npm run dev:stop
+```
 
 5. Chạy production-style:
 
@@ -45,6 +61,49 @@ npm start
 ```
 
 NestJS server phục vụ cả API `/api/quotes`, `/api/contracts`, `/api/client-pages`, `/api/parse-quote` và frontend đã build trong `apps/web/dist`.
+
+## Feedback module
+
+Feedback chạy trong `client-eventus` với routes:
+
+- `/feedback`: dashboard nội bộ, dùng auth Eventus hiện tại.
+- `/feedbacks`: form nhập mã job/Zalo cho khách.
+- `/feedbacks/:id`: link feedback khách hàng; link cũ theo legacy id vẫn mở được sau khi import dữ liệu.
+- `/redirect/:zaloId`, `/survey`, `/gallery/:zaloId`: routes công khai tương thích flow cũ.
+
+Upload file feedback dùng Google Drive qua `rclone` theo mặc định:
+
+```bash
+RCLONE_BIN=rclone
+RCLONE_REMOTE=eventus
+RCLONE_FEEDBACK_DIR=feedback
+FEEDBACK_UPLOAD_STORAGE=rclone
+```
+
+Các biến bổ sung:
+
+```bash
+YT_DLP_BIN=
+FFMPEG_BINARIES=ffmpeg
+NHANSU_URL=
+```
+
+Sau khi chạy `npm run db:migrate`, import dữ liệu legacy cùng DB bằng:
+
+```bash
+npm run feedback:import-legacy -- --dry-run
+npm run feedback:import-legacy
+```
+
+Nếu chỉ muốn giữ dữ liệu Feedback trong 6 tháng gần nhất, prune dữ liệu đã import trong
+`client_feedback_*` bằng:
+
+```bash
+npm run feedback:prune -- --months=6
+npm run feedback:prune -- --months=6 --force
+```
+
+Script prune không xóa bảng legacy gốc và không xóa file Google Drive/local.
 
 ## Deploy production
 

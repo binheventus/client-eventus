@@ -9,6 +9,10 @@ cd /home/flashvps/client.eventusproduction.com/client-eventus
 git pull origin main
 npm install
 npm run db:migrate
+npm run feedback:import-legacy -- --dry-run
+npm run feedback:import-legacy
+npm run feedback:prune -- --months=6
+npm run feedback:prune -- --months=6 --force
 npm run build
 pm2 restart client-eventus || pm2 start npm --name client-eventus -- start
 pm2 save
@@ -36,6 +40,7 @@ sudo systemctl reload nginx
 
 ```bash
 curl -I https://client.eventusproduction.com/quotes
+curl -I https://client.eventusproduction.com/feedbacks
 curl -s https://client.eventusproduction.com/api/quotes
 ASSET=$(ls apps/web/dist/assets/index-*.js | head -1 | xargs basename)
 curl -I "https://client.eventusproduction.com/assets/$ASSET"
@@ -48,3 +53,26 @@ Expected:
 - `/assets/*` returns `Cache-Control: public, max-age=31536000, immutable`
 - `/api/quotes` returns JSON `200`
 - gzip request returns `Content-Encoding: gzip` when Nginx compression is active
+
+## Feedback environment
+
+Feedback upload dùng Google Drive qua `rclone`, nên production cần có:
+
+```bash
+RCLONE_BIN=rclone
+RCLONE_REMOTE=eventus
+RCLONE_FEEDBACK_DIR=feedback
+FEEDBACK_UPLOAD_STORAGE=rclone
+YT_DLP_BIN=/usr/local/bin/yt-dlp
+FFMPEG_BINARIES=ffmpeg
+NHANSU_URL=https://...
+```
+
+Trước khi tắt deploy `feedback-eventus`, kiểm tra link cũ theo mẫu:
+
+```bash
+curl -I 'https://client.eventusproduction.com/feedbacks/{legacy_id}?zalo={zalo_id}'
+curl -I 'https://client.eventusproduction.com/redirect/{zalo_id}'
+curl -I 'https://client.eventusproduction.com/survey?job={job_id}'
+curl -I 'https://client.eventusproduction.com/gallery/{zalo_id}'
+```

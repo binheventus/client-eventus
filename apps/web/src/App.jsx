@@ -16,6 +16,12 @@ const ContractEditorPage = lazy(() => import('./features/quotes/pages/ContractEd
 const ContractDocumentsPage = lazy(() => import('./features/quotes/pages/ContractDocumentsPage'))
 const ContractDocumentEditorPage = lazy(() => import('./features/quotes/pages/ContractDocumentEditorPage'))
 const ContractDocumentTemplatesPage = lazy(() => import('./features/quotes/pages/ContractDocumentTemplatesPage'))
+const FeedbackDashboardPage = lazy(() => import('./features/feedback/pages/FeedbackDashboardPage'))
+const FeedbackAccessPage = lazy(() => import('./features/feedback/pages/FeedbackAccessPage'))
+const FeedbackDetailPage = lazy(() => import('./features/feedback/pages/FeedbackDetailPage'))
+const FeedbackSurveyPage = lazy(() => import('./features/feedback/pages/FeedbackSurveyPage'))
+const FeedbackGalleryPage = lazy(() => import('./features/feedback/pages/FeedbackGalleryPage'))
+const FeedbackRedirectPage = lazy(() => import('./features/feedback/pages/FeedbackAccessPage').then(module => ({ default: module.FeedbackRedirectPage })))
 
 const CONTRACT_DOCUMENT_TEMPLATE_TYPES = new Set([
   'advance_request',
@@ -119,6 +125,12 @@ export default function App() {
           <Route path="/documents/:documentId/edit" element={<ContractDocumentEditorPage />} />
           <Route path="/contracts/:contractId/documents/:documentId/edit" element={<ContractDocumentEditorPage />} />
           <Route path="/contracts/:id" element={<ContractEditorPage />} />
+          <Route path="/feedback" element={<FeedbackDashboardPage />} />
+          <Route path="/feedbacks" element={<FeedbackAccessPage />} />
+          <Route path="/feedbacks/:id" element={<FeedbackDetailPage />} />
+          <Route path="/redirect/:zaloId" element={<FeedbackRedirectPage />} />
+          <Route path="/survey" element={<FeedbackSurveyPage />} />
+          <Route path="/gallery/:zaloId" element={<FeedbackGalleryPage />} />
           <Route path="/q/:share_token" element={<QuotePublicPage />} />
           <Route path="/c/:share_token" element={<ContractPublicPage />} />
           <Route path="/d/:share_token" element={<ContractDocumentPublicPage />} />
