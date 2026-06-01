@@ -63,7 +63,7 @@ function LandingPage() {
 
             <div className="eventus-home__body mt-6 max-w-3xl space-y-4 text-[15px] leading-7 text-[#4b5565]">
               <p>
-                  Nếu bạn đang tìm kiếm bảng báo giá hoặc hợp đồng dịch vụ được thiết kế riêng cho mình,
+                  Nếu bạn đang tìm kiếm link xem video, bảng báo giá hoặc hợp đồng dịch vụ được thiết kế riêng cho mình,
                   chúng đã được chúng tôi "gói ghém" cẩn thận và bảo mật trong một đường link riêng tư
                   được gửi trực tiếp đến bạn.
               </p>
