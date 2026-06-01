@@ -1,18 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useLocation, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
+  BellRing,
+  Check,
   CheckCircle2,
-  Copy,
+  ChevronDown,
   ExternalLink,
+  Film,
   FileUp,
-  Plus,
-  Reply,
   Save,
   SendHorizontal,
   Trash2,
   Video,
 } from 'lucide-react'
 import {
+  createFeedback,
   createFeedbackComment,
   deleteFeedbackAttachment,
   deleteFeedbackComment,
@@ -33,14 +35,14 @@ import {
   readFileAsDataUrl,
 } from '../lib/feedbackFormat'
 
-function Alert({ type = 'info', children }) {
+function Alert({ type = 'info', children, className = '' }) {
   const styles = type === 'error'
     ? 'border-rose-200 bg-rose-50 text-rose-700'
     : type === 'success'
       ? 'border-[#f79820]/30 bg-[#f79820]/10 text-[#f79820]'
       : 'border-[#f79820]/30 bg-[#f79820]/10 text-[#f79820]'
 
-  return <div className={`rounded-lg border px-4 py-3 text-[13px] font-semibold ${styles}`}>{children}</div>
+  return <div className={`rounded-lg border px-4 py-3 text-[13px] font-semibold ${styles} ${className}`}>{children}</div>
 }
 
 function FieldLabel({ children }) {
@@ -239,11 +241,7 @@ function InlineFeedbackField({ comment, column, access, className = '', placehol
 function CommentCard({ comment, showSecondColumn, access, onChanged, onSeek }) {
   const image = comment.image_comment_1 || comment.image_comment_2
   const [uploading, setUploading] = useState(false)
-  const [showReply, setShowReply] = useState(Boolean(comment.reply_1 || comment.reply_2))
-
-  useEffect(() => {
-    setShowReply(Boolean(comment.reply_1 || comment.reply_2))
-  }, [comment.id, comment.reply_1, comment.reply_2])
+  const authorName = String(comment.author_name || '').trim()
 
   async function deleteComment() {
     await deleteFeedbackComment(comment.id, access)
@@ -277,38 +275,40 @@ function CommentCard({ comment, showSecondColumn, access, onChanged, onSeek }) {
     <article className="group">
       <div className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:border-slate-300">
         <div className="mb-1.5 flex items-center justify-between gap-2">
-          <button
-            type="button"
-            onClick={() => onSeek(comment.time_comment_1)}
-            className="shrink-0 rounded bg-[#f79820] px-1.5 py-0.5 text-[10px] font-bold text-white ring-1 ring-[#f79820] hover:bg-[#df861d]"
-          >
-            {formatTimeline(comment.time_comment_1)}
-          </button>
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => onSeek(comment.time_comment_1)}
+              className="shrink-0 rounded bg-[#f79820] px-1.5 py-0.5 text-[10px] font-bold text-white ring-1 ring-[#f79820] hover:bg-[#df861d]"
+            >
+              {formatTimeline(comment.time_comment_1)}
+            </button>
+            {authorName && (
+              <span className="truncate text-[11px] font-semibold text-slate-500">{authorName}</span>
+            )}
+            {comment.is_done_1 && (
+              <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                Đã sửa
+              </span>
+            )}
+          </div>
 
           <div className="flex shrink-0 items-center gap-1">
             <button
               type="button"
               onClick={markDone}
-              className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-[#f79820]/40 bg-white text-[#f79820] hover:bg-[#f79820]/10"
-              title={comment.is_done_1 ? 'Mở lại' : 'Done'}
-              aria-label={comment.is_done_1 ? 'Mở lại feedback' : 'Đánh dấu done'}
+              className={`inline-flex h-6 w-6 items-center justify-center rounded-full border transition ${comment.is_done_1 ? 'border-emerald-500 bg-emerald-500 text-slate-950' : 'border-slate-300 bg-white hover:border-emerald-400'}`}
+              title={comment.is_done_1 ? 'Bỏ đánh dấu đã sửa' : 'Đánh dấu đã sửa'}
+              aria-label={comment.is_done_1 ? 'Bỏ đánh dấu đã sửa' : 'Đánh dấu đã sửa'}
+              aria-pressed={comment.is_done_1}
             >
-              <CheckCircle2 className="h-3 w-3" />
+              {comment.is_done_1 && <Check className="h-4 w-4 stroke-[3]" />}
             </button>
-            <label className="inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-md border border-[#f79820]/40 bg-white text-[#f79820] hover:bg-[#f79820]/10" title="Upload file">
+            <label className="inline-flex h-7 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-[#f79820]/40 bg-white px-2 text-[11px] font-semibold text-[#f79820] hover:bg-[#f79820]/10" title="Upload file">
               <FileUp className="h-3 w-3" />
-              <span className="sr-only">{uploading ? 'Đang tải file' : 'Upload file'}</span>
+              <span>{uploading ? 'Đang upload' : 'Upload'}</span>
               <input type="file" className="hidden" onChange={upload} />
             </label>
-            <button
-              type="button"
-              onClick={() => setShowReply(value => !value)}
-              className={`inline-flex h-6 w-6 items-center justify-center rounded-md border bg-white hover:bg-[#f79820]/10 hover:text-[#f79820] ${showReply ? 'border-[#f79820] text-[#f79820]' : 'border-[#f79820]/40 text-[#f79820]'}`}
-              title="Reply"
-              aria-label="Reply feedback"
-            >
-              <Reply className="h-3 w-3" />
-            </button>
             <button
               type="button"
               onClick={deleteComment}
@@ -335,19 +335,6 @@ function CommentCard({ comment, showSecondColumn, access, onChanged, onSeek }) {
           )}
         </div>
 
-        {showReply && (
-          <div className="mt-1.5 rounded-md border border-[#f79820]/25 bg-[#f79820]/10 px-2 py-1.5">
-            <div className="mb-1 text-[10px] font-semibold uppercase text-[#f79820]">Editor</div>
-            <div className={`grid gap-1.5 ${showSecondColumn ? 'min-[1800px]:grid-cols-2' : ''}`}>
-              <InlineFeedbackField comment={comment} column="reply_1" access={access} className="text-slate-950" placeholder="Nhập phản hồi editor..." />
-
-              {showSecondColumn && (
-                <InlineFeedbackField comment={comment} column="reply_2" access={access} className="text-slate-950" placeholder="Nhập phản hồi editor..." />
-              )}
-            </div>
-          </div>
-        )}
-
         <AttachmentList attachments={comment.attachments} access={access} onChanged={onChanged} />
       </div>
     </article>
@@ -355,40 +342,80 @@ function CommentCard({ comment, showSecondColumn, access, onChanged, onSeek }) {
 }
 
 function OverallFeedbackPanel({ feedback, access, onChanged }) {
-  const [value, setValue] = useState('')
-  const items = feedback.overall_feedback || []
+  const initialValue = (feedback.overall_feedback || []).join('\n')
+  const textareaRef = useRef(null)
+  const saveStatusTimerRef = useRef(null)
+  const lastSavedValueRef = useRef(initialValue.trim())
+  const [value, setValue] = useState(initialValue)
+  const [saveStatus, setSaveStatus] = useState('')
 
-  async function add() {
-    const text = value.trim()
-    if (!text) return
-    await updateOverallFeedback(feedback.id, { type: 'create', value: text }, access)
-    setValue('')
-    onChanged()
+  useEffect(() => {
+    const nextValue = (feedback.overall_feedback || []).join('\n')
+    lastSavedValueRef.current = nextValue.trim()
+    setValue(nextValue)
+  }, [feedback.id, feedback.overall_feedback])
+
+  useEffect(() => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+    textarea.style.height = 'auto'
+    textarea.style.height = `${textarea.scrollHeight}px`
+  }, [value])
+
+  useEffect(() => () => {
+    if (saveStatusTimerRef.current) window.clearTimeout(saveStatusTimerRef.current)
+  }, [])
+
+  function showSavedStatus() {
+    setSaveStatus('Đã lưu')
+    if (saveStatusTimerRef.current) window.clearTimeout(saveStatusTimerRef.current)
+    saveStatusTimerRef.current = window.setTimeout(() => setSaveStatus(''), 3500)
   }
 
-  async function remove(index) {
-    await updateOverallFeedback(feedback.id, { type: 'delete', index }, access)
-    onChanged()
+  async function save() {
+    const nextValue = value.trim()
+    if (nextValue === lastSavedValueRef.current) {
+      showSavedStatus()
+      return
+    }
+
+    setSaveStatus('')
+    try {
+      await updateOverallFeedback(feedback.id, { type: 'replace', value: nextValue }, access)
+      lastSavedValueRef.current = nextValue
+      showSavedStatus()
+      onChanged()
+    } catch {
+      setSaveStatus('')
+    }
   }
 
   return (
-    <section className="rounded-lg border border-[#f79820]/30 bg-[#f79820]/10 p-2.5 shadow-sm">
-      <h2 className="text-[12px] font-semibold uppercase text-[#f79820]">Feedback tổng quan</h2>
-      <div className="mt-2 space-y-1.5">
-        {items.length ? items.map((item, index) => (
-          <div key={`${item}-${index}`} className="flex items-start justify-between gap-2 rounded-md bg-white/80 px-2.5 py-1.5 text-[12px] leading-5 text-slate-800">
-            <span>{item}</span>
-            <button type="button" onClick={() => remove(index)} className="shrink-0 text-slate-400 hover:text-[#f79820]">×</button>
-          </div>
-        )) : (
-          <p className="text-[12px] text-[#f79820]/80">Chưa có nhận xét tổng quan.</p>
+    <section onMouseLeave={save} className="rounded-lg border border-[#f79820]/30 bg-[#f79820]/10 p-2.5 shadow-sm">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-[12px] font-semibold uppercase text-slate-950">Feedback tổng quan</h2>
+        {saveStatus && (
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-right text-[11px] font-semibold text-emerald-700">
+            <CheckCircle2 className="h-3 w-3" />
+            {saveStatus}
+          </span>
         )}
       </div>
-      <div className="mt-2 flex gap-1.5">
-        <TextInput value={value} onChange={event => setValue(event.target.value)} placeholder="Nhập nhận xét tổng quan" className="h-8 rounded-md text-[12px]" />
-        <button type="button" onClick={add} className="inline-flex h-8 shrink-0 items-center justify-center rounded-md bg-[#f79820] px-2.5 text-[12px] font-semibold text-white hover:bg-[#df861d]">
-          <Plus className="h-3.5 w-3.5" />
-        </button>
+      <div className="mt-2">
+        <div className="rounded-md border border-slate-200 bg-white px-2.5 py-2 focus-within:border-[#f79820] focus-within:ring-2 focus-within:ring-[#f79820]/20">
+          <textarea
+            ref={textareaRef}
+            value={value}
+            onBlur={save}
+            onChange={event => {
+              setValue(event.target.value)
+              setSaveStatus('')
+            }}
+            placeholder="Nhập nhận xét tổng quan..."
+            rows={3}
+            className="block min-h-[60px] w-full resize-none overflow-hidden border-0 bg-transparent p-0 text-[13px] leading-5 text-slate-900 outline-none placeholder:text-slate-400"
+          />
+        </div>
       </div>
     </section>
   )
@@ -397,25 +424,28 @@ function OverallFeedbackPanel({ feedback, access, onChanged }) {
 export default function FeedbackDetailPage() {
   const { id } = useParams()
   const location = useLocation()
+  const navigate = useNavigate()
   const access = useMemo(() => getFeedbackAccessFromSearch(location.search), [location.search])
   const videoShellRef = useRef(null)
-  const copyTimerRef = useRef(null)
+  const feedbackMenuRef = useRef(null)
   const footerStatusTimerRef = useRef(null)
   const [detail, setDetail] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
-  const [copiedPublicLink, setCopiedPublicLink] = useState(false)
   const [footerStatus, setFooterStatus] = useState('')
   const [updatingFooterAction, setUpdatingFooterAction] = useState('')
   const [commentText, setCommentText] = useState('')
+  const [feedbackAuthorName, setFeedbackAuthorName] = useState('')
   const [currentVideoTime, setCurrentVideoTime] = useState(0)
+  const [notifyingEditor, setNotifyingEditor] = useState(false)
+  const [creatingFeedbackVersion, setCreatingFeedbackVersion] = useState(false)
+  const [feedbackMenuOpen, setFeedbackMenuOpen] = useState(false)
 
   const feedback = detail?.feedback
   const comments = detail?.comments || []
   const feedbackVersions = detail?.feedbacks || []
   const embedUrl = getFeedbackVideoEmbedUrl(feedback?.video_url)
-  const publicPath = getFeedbackPublicPath(feedback, access)
   const currentFeedbackIndex = feedbackVersions.findIndex(item => item.id === feedback?.id)
   const previousFeedbacks = currentFeedbackIndex > 0 ? feedbackVersions.slice(0, currentFeedbackIndex) : feedbackVersions
   const previousFeedbackWithDrive = [...previousFeedbacks].reverse().find(item => item.id !== feedback?.id && item.drive_url)
@@ -437,10 +467,34 @@ export default function FeedbackDetailPage() {
     load()
   }, [id, access.zalo, access.token])
 
+  useEffect(() => {
+    setFeedbackAuthorName(window.localStorage?.getItem(`eventus.feedbackAuthorName.${id}`) || '')
+  }, [id])
+
   useEffect(() => () => {
-    if (copyTimerRef.current) window.clearTimeout(copyTimerRef.current)
     if (footerStatusTimerRef.current) window.clearTimeout(footerStatusTimerRef.current)
   }, [])
+
+  useEffect(() => {
+    if (!feedbackMenuOpen) return undefined
+
+    function closeOnOutsideClick(event) {
+      if (feedbackMenuRef.current?.contains(event.target)) return
+      setFeedbackMenuOpen(false)
+    }
+
+    function closeOnEscape(event) {
+      if (event.key === 'Escape') setFeedbackMenuOpen(false)
+    }
+
+    document.addEventListener('pointerdown', closeOnOutsideClick)
+    document.addEventListener('keydown', closeOnEscape)
+
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [feedbackMenuOpen])
 
   useEffect(() => {
     if (!embedUrl) return undefined
@@ -523,6 +577,7 @@ export default function FeedbackDetailPage() {
       const result = await createFeedbackComment(feedback.id, {
         text: commentText,
         time,
+        author_name: feedbackAuthorName.trim(),
       }, access)
       setDetail(prev => ({ ...prev, comments: result.comments || prev.comments }))
       setCommentText('')
@@ -539,12 +594,23 @@ export default function FeedbackDetailPage() {
     iframe.src = video
   }
 
-  async function copyPublicLink() {
-    const url = `${window.location.origin}${publicPath}`
-    await navigator.clipboard?.writeText(url)
-    setCopiedPublicLink(true)
-    if (copyTimerRef.current) window.clearTimeout(copyTimerRef.current)
-    copyTimerRef.current = window.setTimeout(() => setCopiedPublicLink(false), 2000)
+  async function addFeedbackVersion() {
+    if (!feedback?.id) return
+    setFeedbackMenuOpen(false)
+    setCreatingFeedbackVersion(true)
+    setError('')
+    try {
+      const nextFeedback = await createFeedback({
+        feedbackId: feedback.id,
+        access,
+        feedback: { name: `Feedback ${feedbackVersions.length + 1}` },
+      })
+      navigate(getFeedbackPublicPath(nextFeedback, access))
+    } catch (err) {
+      setError(err?.message || 'Không tạo được bản feedback mới.')
+    } finally {
+      setCreatingFeedbackVersion(false)
+    }
   }
 
   async function updateFromFooter(action) {
@@ -569,9 +635,19 @@ export default function FeedbackDetailPage() {
   }
 
   async function doneFeedback() {
-    const next = await markFeedbackDone(feedback.id, access)
-    setDetail(next)
-    setMessage('Đã ghi nhận khách hàng hoàn thành feedback.')
+    setNotifyingEditor(true)
+    setError('')
+    setMessage('')
+    try {
+      const next = await markFeedbackDone(feedback.id, access)
+      setDetail(next)
+      const editorName = feedback.editor_name || feedback.job?.editor_name || 'Editor'
+      setMessage(`Đã ghi nhận Feedback hoàn tất và thông báo tới Editor ${editorName}.`)
+    } catch (err) {
+      setError(err?.message || 'Không thông báo được tới Editor.')
+    } finally {
+      setNotifyingEditor(false)
+    }
   }
 
   if (loading) {
@@ -599,54 +675,76 @@ export default function FeedbackDetailPage() {
           <div className="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0">
               <div className="flex items-start gap-3">
-                <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#f79820] text-white">
-                  <Video className="h-4 w-4" />
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-[#f79820] text-white shadow-sm">
+                  <Film className="h-7 w-7" />
                 </span>
                 <div className="min-w-0">
                   <h1 className="truncate text-[16px] font-semibold text-slate-950">{feedback.job?.title || `Job #${feedback.job_id}`}</h1>
-                  <p className="mt-0.5 truncate text-[12px] text-slate-500">
-                    {feedback.name || 'Feedback'} · {formatFeedbackDate(feedback.job?.job_date)}
-                  </p>
+                  <div ref={feedbackMenuRef} className="relative mt-0.5 inline-block max-w-full">
+                    <button
+                      type="button"
+                      onClick={() => setFeedbackMenuOpen(value => !value)}
+                      className={`inline-flex max-w-full items-center gap-1.5 rounded-md px-1.5 py-0.5 text-[12px] font-semibold transition ${
+                        feedbackMenuOpen
+                          ? 'bg-[#df861d] text-white ring-2 ring-[#f79820]/20'
+                          : 'bg-[#f79820] text-white shadow-sm hover:bg-[#df861d]'
+                      }`}
+                      aria-expanded={feedbackMenuOpen}
+                      aria-haspopup="menu"
+                    >
+                      <span className="min-w-0 truncate">{feedback.name || 'Feedback'} · {formatFeedbackDate(feedback.job?.job_date)}</span>
+                      <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-white transition ${feedbackMenuOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    {feedbackMenuOpen && (
+                      <div className="absolute left-0 z-20 mt-2 w-56 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg" role="menu">
+                        {(detail.feedbacks || []).map(item => (
+                          <Link
+                            key={item.id}
+                            to={getFeedbackPublicPath(item, access)}
+                            onClick={() => setFeedbackMenuOpen(false)}
+                            className={`block px-3 py-2 text-[12px] font-semibold ${item.id === feedback.id ? 'bg-[#fff7ed] text-slate-950' : 'text-slate-700 hover:bg-[#fff7ed] hover:text-slate-950'}`}
+                            role="menuitem"
+                          >
+                            {item.name || 'Feedback'}
+                          </Link>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={addFeedbackVersion}
+                          disabled={creatingFeedbackVersion}
+                          className="block w-full border-t border-slate-100 px-3 py-2 text-left text-[12px] font-semibold text-[#f79820] hover:bg-[#fff7ed] disabled:cursor-not-allowed disabled:opacity-60"
+                          role="menuitem"
+                        >
+                          {creatingFeedbackVersion ? 'Đang thêm...' : 'Thêm bản mới'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={copyPublicLink} className="inline-flex h-8 items-center justify-center gap-2 rounded-lg border border-[#f79820]/30 bg-white px-2.5 text-[12px] font-semibold text-[#f79820] hover:bg-[#f79820]/10">
-                <Copy className="h-3.5 w-3.5" />
-                {copiedPublicLink ? 'Đã copy' : 'Copy link'}
-              </button>
               {fourKDownloadUrl && (
                 <a href={fourKDownloadUrl} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center justify-center gap-2 rounded-lg border border-[#f79820]/30 bg-white px-2.5 text-[12px] font-semibold text-[#f79820] hover:bg-[#f79820]/10">
                   <ExternalLink className="h-3.5 w-3.5" />
                   Link 4K
                 </a>
               )}
-              <details className="relative">
-                <summary className="inline-flex h-8 cursor-pointer list-none items-center justify-center gap-2 rounded-lg border border-[#f79820]/30 bg-white px-2.5 text-[12px] font-semibold text-[#f79820] hover:bg-[#f79820]/10 [&::-webkit-details-marker]:hidden">
-                  Các bản feedback
-                </summary>
-                <div className="absolute right-0 z-20 mt-2 w-56 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
-                  {(detail.feedbacks || []).map(item => (
-                    <Link
-                      key={item.id}
-                      to={getFeedbackPublicPath(item, access)}
-                      className={`block px-3 py-2 text-[12px] font-semibold ${item.id === feedback.id ? 'bg-[#f79820]/10 text-[#f79820]' : 'text-slate-700 hover:bg-[#f79820]/10 hover:text-[#f79820]'}`}
-                    >
-                      {item.name || 'Feedback'}
-                    </Link>
-                  ))}
-                </div>
-              </details>
-              <button type="button" onClick={doneFeedback} className="inline-flex h-8 items-center justify-center gap-2 rounded-lg bg-[#f79820] px-2.5 text-[12px] font-semibold text-white hover:bg-[#df861d]">
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                Hoàn thành
+              <button
+                type="button"
+                onClick={doneFeedback}
+                disabled={notifyingEditor}
+                className="inline-flex min-h-8 max-w-full items-center justify-center gap-2 rounded-lg bg-[#f79820] px-2.5 py-1 text-[12px] font-semibold leading-snug text-white hover:bg-[#df861d] disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {notifyingEditor ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> : <BellRing className="h-3.5 w-3.5 shrink-0" />}
+                <span className="text-left">{notifyingEditor ? 'Đang thông báo...' : 'Thông báo tới Editor: Tôi đã hoàn tất Feedback'}</span>
               </button>
             </div>
           </div>
         </header>
 
         <div className="mt-2 space-y-2">
-          {message && <Alert type="success">{message}</Alert>}
+          {message && <Alert type="success" className="text-center !text-slate-950">{message}</Alert>}
           {error && <Alert type="error">{error}</Alert>}
           {!feedback.video_url && <SetupPanel detail={detail} access={access} onSaved={setDetail} />}
         </div>
@@ -676,38 +774,38 @@ export default function FeedbackDetailPage() {
               )}
             </div>
             <footer className="mt-2 rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2 text-[11px] text-slate-400 lg:rounded-l-none">
-              <div className="flex flex-col gap-1.5 lg:flex-row lg:items-center lg:justify-between">
-                <div className="flex flex-wrap gap-x-4 gap-y-1">
+              <div className="flex flex-col gap-1.5 lg:flex-row lg:items-center">
+                <details className="relative shrink-0">
+                  <summary className="flex h-6 cursor-pointer list-none items-center [&::-webkit-details-marker]:hidden" aria-label="Mở công cụ Eventus">
+                    <img src="/logos/logo_eventus.png" alt="Eventus Production" className="h-6 w-auto opacity-100" />
+                  </summary>
+                  <div className="absolute bottom-8 left-0 z-20 w-48 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 text-left shadow-lg">
+                    <button
+                      type="button"
+                      onClick={() => updateFromFooter('video')}
+                      disabled={Boolean(updatingFooterAction)}
+                      className="block w-full px-3 py-2 text-left text-[12px] font-semibold text-slate-700 hover:bg-[#f79820]/10 hover:text-[#f79820] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {updatingFooterAction === 'video' ? 'Đang cập nhật...' : 'Cập nhật video đã sửa'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateFromFooter('drive')}
+                      disabled={Boolean(updatingFooterAction)}
+                      className="block w-full px-3 py-2 text-left text-[12px] font-semibold text-slate-700 hover:bg-[#f79820]/10 hover:text-[#f79820] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {updatingFooterAction === 'drive' ? 'Đang cập nhật...' : 'Update drive'}
+                    </button>
+                  </div>
+                </details>
+                <div className="flex flex-1 flex-wrap gap-x-4 gap-y-1 lg:pl-3">
                   <span><span className="font-semibold text-slate-500">Editor:</span> {feedback.editor_name || feedback.job?.editor_name || '-'}</span>
                   <span><span className="font-semibold text-slate-500">Điện thoại:</span> {feedback.editor_phone || feedback.job?.editor_phone || '-'}</span>
                   <span><span className="font-semibold text-slate-500">Cập nhật:</span> {formatFeedbackDateTime(feedback.updated_at)}</span>
-                  <span><span className="font-semibold text-slate-500">Trạng thái:</span> {feedback.done_feedback ? 'Đã hoàn thành' : 'Đang feedback'}</span>
+                  <span><span className="font-semibold text-slate-500">Trạng thái:</span> {feedback.done_feedback ? 'Khách hàng đã hoàn tất feedback' : 'Đang feedback'}</span>
                 </div>
-                <div className="flex shrink-0 items-center gap-3 text-left lg:text-right">
+                <div className="shrink-0 text-left lg:text-right">
                   <span>{footerStatus || 'Copyright © 2017 - 2026 Eventus Production. All rights reserved.'}</span>
-                  <details className="relative">
-                    <summary className="flex h-6 cursor-pointer list-none items-center [&::-webkit-details-marker]:hidden" aria-label="Mở công cụ Eventus">
-                      <img src="/logos/logo_eventus.png" alt="Eventus Production" className="h-6 w-auto opacity-100" />
-                    </summary>
-                    <div className="absolute bottom-8 right-0 z-20 w-48 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 text-left shadow-lg">
-                      <button
-                        type="button"
-                        onClick={() => updateFromFooter('video')}
-                        disabled={Boolean(updatingFooterAction)}
-                        className="block w-full px-3 py-2 text-left text-[12px] font-semibold text-slate-700 hover:bg-[#f79820]/10 hover:text-[#f79820] disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {updatingFooterAction === 'video' ? 'Đang cập nhật...' : 'Cập nhật video đã sửa'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => updateFromFooter('drive')}
-                        disabled={Boolean(updatingFooterAction)}
-                        className="block w-full px-3 py-2 text-left text-[12px] font-semibold text-slate-700 hover:bg-[#f79820]/10 hover:text-[#f79820] disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {updatingFooterAction === 'drive' ? 'Đang cập nhật...' : 'Update drive'}
-                      </button>
-                    </div>
-                  </details>
                 </div>
               </div>
             </footer>
@@ -736,7 +834,24 @@ export default function FeedbackDetailPage() {
             </div>
 
             <form onSubmit={addComment} className="sticky bottom-0 mt-3 rounded-lg border border-slate-200 bg-white p-2 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] lg:shrink-0">
-              <div className="flex items-start gap-2 rounded-md border border-slate-200 bg-white px-2.5 py-2 focus-within:border-[#f79820] focus-within:ring-2 focus-within:ring-[#f79820]/20">
+              <label className="mb-2 flex items-center gap-2 px-1 text-[11px] font-semibold text-slate-500">
+                <span className="shrink-0">Tên người feedback:</span>
+                <input
+                  type="text"
+                  value={feedbackAuthorName}
+                  onChange={event => {
+                    const nextName = event.target.value
+                    setFeedbackAuthorName(nextName)
+                    window.localStorage?.setItem(`eventus.feedbackAuthorName.${id}`, nextName)
+                  }}
+                  onKeyDown={event => {
+                    if (event.key === 'Enter') event.preventDefault()
+                  }}
+                  placeholder="Nhập tên"
+                  className="h-7 min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-2 text-[12px] font-medium text-slate-900 outline-none placeholder:text-slate-400 focus:border-[#f79820] focus:ring-2 focus:ring-[#f79820]/20"
+                />
+              </label>
+              <div className="rounded-md border border-slate-200 bg-white px-2.5 py-2 focus-within:border-[#f79820] focus-within:ring-2 focus-within:ring-[#f79820]/20">
                 <span className="mt-0.5 shrink-0 rounded-md bg-[#f79820]/10 px-2 py-1 text-[11px] font-bold text-[#f79820] ring-1 ring-[#f79820]/25">
                   {formatTimeline(currentVideoTime)}
                 </span>
@@ -745,9 +860,9 @@ export default function FeedbackDetailPage() {
                   onChange={event => setCommentText(event.target.value)}
                   placeholder="Nhập feedback..."
                   rows={4}
-                  className="min-h-[80px] flex-1 resize-none border-0 bg-transparent p-0 text-[13px] leading-5 text-slate-900 outline-none placeholder:text-slate-400"
+                  className="mt-2 block min-h-[80px] w-full resize-none border-0 bg-transparent p-0 text-[13px] leading-5 text-slate-900 outline-none placeholder:text-slate-400"
                 />
-                <button type="submit" className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#f79820] text-white hover:bg-[#df861d]" aria-label="Gửi feedback">
+                <button type="submit" className="ml-auto mt-2 flex h-7 w-7 items-center justify-center rounded-md bg-[#f79820] text-white hover:bg-[#df861d]" aria-label="Gửi feedback">
                   <SendHorizontal className="h-3.5 w-3.5" />
                 </button>
               </div>

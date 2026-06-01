@@ -880,6 +880,7 @@ async function createFeedbackComment(req, body = {}) {
     feedback_id: feedback.id,
     comment_1: emptyToNull(body.text || body.comment_1),
     image_comment_1: emptyToNull(image),
+    author_name: emptyToNull(trimText(body.author_name || body.feedback_author_name, 255)),
     time_comment_1: Number.isFinite(time) ? time : null,
   })
 
@@ -993,6 +994,7 @@ async function updateOverallFeedback(req, body = {}) {
 
   const current = [...normalizeOverallFeedback(feedback.overall_feedback)]
   const type = body.type || body.operation || 'create'
+  if (type === 'replace') current.splice(0, current.length, trimText(body.value, 2000))
   if (type === 'create') current.push(trimText(body.value, 2000))
   if (type === 'edit') current[Number(body.index)] = trimText(body.value, 2000)
   if (type === 'delete') current.splice(Number(body.index), 1)

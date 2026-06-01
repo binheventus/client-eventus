@@ -284,6 +284,7 @@ create table if not exists client_feedback_comments (
   feedback_id varchar(64) not null,
   comment_1 longtext null,
   image_comment_1 longtext null,
+  author_name varchar(255) null,
   reply_1 longtext null,
   image_reply_1 longtext null,
   time_comment_1 decimal(12,3) null,

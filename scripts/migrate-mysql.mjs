@@ -211,6 +211,14 @@ const feedbackAttachmentColumns = [
   },
 ]
 
+const feedbackCommentColumns = [
+  {
+    tableName: 'client_feedback_comments',
+    columnName: 'author_name',
+    definition: 'varchar(255) null after `image_comment_1`',
+  },
+]
+
 const feedbackColumns = [
   {
     tableName: 'client_feedbacks',
@@ -453,6 +461,10 @@ try {
   }
 
   for (const columnConfig of feedbackAttachmentColumns) {
+    if (await ensureColumnIfTableExists(pool, columnConfig)) createdColumns.push(`${columnConfig.tableName}.${columnConfig.columnName}`)
+  }
+
+  for (const columnConfig of feedbackCommentColumns) {
     if (await ensureColumnIfTableExists(pool, columnConfig)) createdColumns.push(`${columnConfig.tableName}.${columnConfig.columnName}`)
   }
 
