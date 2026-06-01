@@ -41,7 +41,7 @@ function JobRow({ job, onOpen, onCreate }) {
       <td className="px-4 py-3 text-right">
         <button
           type="button"
-          onClick={() => (job.feedback_id ? onOpen(job.feedback_public_code || job.feedback_id, job.zalo_id) : onCreate(job.id))}
+          onClick={() => (job.feedback_id ? onOpen({ id: job.feedback_id, share_token: job.feedback_share_token }) : onCreate(job.id))}
           className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 text-[13px] font-semibold text-white hover:bg-slate-800"
         >
           {job.feedback_id ? <Video className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
@@ -56,7 +56,7 @@ function FeedbackCard({ feedback, onOpen }) {
   return (
     <button
       type="button"
-      onClick={() => onOpen(feedback.public_code || feedback.id, feedback.job?.zalo_id)}
+      onClick={() => onOpen(feedback)}
       className="rounded-lg border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-blue-200 hover:shadow-md"
     >
       <div className="flex items-start justify-between gap-3">
@@ -121,10 +121,8 @@ export default function FeedbackDashboardPage() {
     setSelectedJobId(current => jobs.some(job => String(job.id) === String(current)) ? current : String(jobs[0].id))
   }, [jobs])
 
-  function openFeedback(id, zalo = '') {
-    const params = new URLSearchParams()
-    if (zalo) params.set('zalo', zalo)
-    navigate(`/feedbacks/${encodeURIComponent(id)}${params.toString() ? `?${params.toString()}` : ''}`)
+  function openFeedback(feedback) {
+    navigate(getFeedbackPublicPath(feedback))
   }
 
   async function handleCreate(jobId) {
@@ -132,7 +130,7 @@ export default function FeedbackDashboardPage() {
     setError('')
     try {
       const feedback = await ensureFeedback(jobId)
-      navigate(getFeedbackPublicPath(feedback, { zalo: feedback.job?.zalo_id }))
+      navigate(getFeedbackPublicPath(feedback))
       await loadData()
     } catch (err) {
       setError(err?.message || 'Không tạo được feedback.')
@@ -150,7 +148,7 @@ export default function FeedbackDashboardPage() {
     setError('')
     try {
       const result = await lookupFeedbackJob(code)
-      navigate(getFeedbackPublicPath(result.feedback, { zalo: code }))
+      navigate(getFeedbackPublicPath(result.feedback))
     } catch (err) {
       setError(err?.message || 'Không tìm thấy mã job.')
     } finally {
@@ -166,7 +164,7 @@ export default function FeedbackDashboardPage() {
         jobId,
         feedback: { name: 'Feedback mới' },
       })
-      navigate(getFeedbackPublicPath(feedback, { zalo: feedback.job?.zalo_id }))
+      navigate(getFeedbackPublicPath(feedback))
       await loadData()
     } catch (err) {
       setError(err?.message || 'Không tạo được feedback mới.')

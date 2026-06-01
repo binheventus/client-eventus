@@ -130,7 +130,7 @@ export default function App() {
           <Route path="/feedbacks/:id" element={<FeedbackDetailPage />} />
           <Route path="/redirect/:zaloId" element={<FeedbackRedirectPage />} />
           <Route path="/survey" element={<FeedbackSurveyPage />} />
-          <Route path="/gallery/:zaloId" element={<FeedbackGalleryPage />} />
+          <Route path="/gallery/:token" element={<FeedbackGalleryPage />} />
           <Route path="/q/:share_token" element={<QuotePublicPage />} />
           <Route path="/c/:share_token" element={<ContractPublicPage />} />
           <Route path="/d/:share_token" element={<ContractDocumentPublicPage />} />

@@ -87,19 +87,18 @@ function SetupPanel({ detail, access, onSaved }) {
 
   return (
     <section className="rounded-lg border border-[#f79820]/30 bg-[#f79820]/10 p-5">
-      <div className="flex items-start gap-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#f79820] text-white">
-          <Video className="h-5 w-5" />
+      <div className="flex items-center gap-2.5">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#f79820] text-white">
+          <Video className="h-4 w-4" />
         </span>
         <div>
           <h2 className="text-[16px] font-semibold text-slate-950">Hoàn tất thông tin để mở Feedback</h2>
-          <p className="mt-1 text-[13px] leading-6 text-slate-600">Chọn editor và nhập link video để khách hàng bắt đầu góp ý.</p>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="mt-5 grid gap-4 md:grid-cols-2">
+      <form onSubmit={handleSubmit} className="mt-5 grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
         {!feedback.editor_name && (
-          <div className="md:col-span-2">
+          <div className="md:col-span-3">
             <FieldLabel>Editor</FieldLabel>
             <select
               value={editorId}
@@ -135,18 +134,18 @@ function SetupPanel({ detail, access, onSaved }) {
           />
         </div>
 
-        {error && <div className="md:col-span-2"><Alert type="error">{error}</Alert></div>}
-
-        <div className="md:col-span-2">
+        <div className="flex items-end">
           <button
             type="submit"
             disabled={saving}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#f79820] px-4 text-[13px] font-semibold text-white hover:bg-[#df861d] disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-[#f79820] px-5 text-[13px] font-semibold whitespace-nowrap text-white hover:bg-[#df861d] disabled:cursor-not-allowed disabled:opacity-60 md:w-auto"
           >
             <Save className="h-4 w-4" />
             {saving ? 'Đang lưu...' : 'Lưu và vào Feedback'}
           </button>
         </div>
+
+        {error && <div className="md:col-span-3"><Alert type="error">{error}</Alert></div>}
       </form>
     </section>
   )
@@ -425,7 +424,7 @@ export default function FeedbackDetailPage() {
   const { id } = useParams()
   const location = useLocation()
   const navigate = useNavigate()
-  const access = useMemo(() => getFeedbackAccessFromSearch(location.search), [location.search])
+  const access = useMemo(() => getFeedbackAccessFromSearch(location.search, id), [id, location.search])
   const videoShellRef = useRef(null)
   const feedbackMenuRef = useRef(null)
   const footerStatusTimerRef = useRef(null)
@@ -450,6 +449,7 @@ export default function FeedbackDetailPage() {
   const previousFeedbacks = currentFeedbackIndex > 0 ? feedbackVersions.slice(0, currentFeedbackIndex) : feedbackVersions
   const previousFeedbackWithDrive = [...previousFeedbacks].reverse().find(item => item.id !== feedback?.id && item.drive_url)
   const fourKDownloadUrl = feedback?.drive_url || previousFeedbackWithDrive?.drive_url || feedback?.job?.drive_feedback || ''
+  const showFeedbackStatusPanel = Boolean(message || error || !feedback?.video_url)
 
   async function load() {
     setLoading(true)
@@ -605,7 +605,7 @@ export default function FeedbackDetailPage() {
         access,
         feedback: { name: `Feedback ${feedbackVersions.length + 1}` },
       })
-      navigate(getFeedbackPublicPath(nextFeedback, access))
+      navigate(getFeedbackPublicPath(nextFeedback))
     } catch (err) {
       setError(err?.message || 'Không tạo được bản feedback mới.')
     } finally {
@@ -673,60 +673,62 @@ export default function FeedbackDetailPage() {
       <div className="px-3 py-2 lg:flex lg:h-full lg:flex-col lg:pl-0 lg:pr-3">
         <header className="rounded-lg border border-slate-200 bg-white shadow-sm lg:rounded-l-none">
           <div className="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="min-w-0">
-              <div className="flex items-start gap-3">
-                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-[#f79820] text-white shadow-sm">
-                  <Film className="h-7 w-7" />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#f79820] text-white shadow-sm">
+                  <Film className="h-5 w-5" />
                 </span>
-                <div className="min-w-0">
-                  <h1 className="truncate text-[16px] font-semibold text-slate-950">{feedback.job?.title || `Job #${feedback.job_id}`}</h1>
-                  <div ref={feedbackMenuRef} className="relative mt-0.5 inline-block max-w-full">
-                    <button
-                      type="button"
-                      onClick={() => setFeedbackMenuOpen(value => !value)}
-                      className={`inline-flex max-w-full items-center gap-1.5 rounded-md px-1.5 py-0.5 text-[12px] font-semibold transition ${
-                        feedbackMenuOpen
-                          ? 'bg-[#df861d] text-white ring-2 ring-[#f79820]/20'
-                          : 'bg-[#f79820] text-white shadow-sm hover:bg-[#df861d]'
-                      }`}
-                      aria-expanded={feedbackMenuOpen}
-                      aria-haspopup="menu"
-                    >
-                      <span className="min-w-0 truncate">{feedback.name || 'Feedback'} · {formatFeedbackDate(feedback.job?.job_date)}</span>
-                      <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-white transition ${feedbackMenuOpen ? 'rotate-180' : ''}`} />
-                    </button>
-                    {feedbackMenuOpen && (
-                      <div className="absolute left-0 z-20 mt-2 w-56 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg" role="menu">
-                        {(detail.feedbacks || []).map(item => (
-                          <Link
-                            key={item.id}
-                            to={getFeedbackPublicPath(item, access)}
-                            onClick={() => setFeedbackMenuOpen(false)}
-                            className={`block px-3 py-2 text-[12px] font-semibold ${item.id === feedback.id ? 'bg-[#fff7ed] text-slate-950' : 'text-slate-700 hover:bg-[#fff7ed] hover:text-slate-950'}`}
+                <div className="min-w-0 flex-1">
+                  <div className="flex min-w-0 items-center justify-start gap-2">
+                    <h1 className="min-w-0 truncate text-[16px] font-semibold text-slate-950">{feedback.job?.title || `Job #${feedback.job_id}`}</h1>
+                    <div ref={feedbackMenuRef} className="relative inline-block max-w-[45vw] shrink-0 sm:max-w-[260px]">
+                      <button
+                        type="button"
+                        onClick={() => setFeedbackMenuOpen(value => !value)}
+                        className={`inline-flex w-full items-center gap-2 rounded-lg px-3 py-2 text-[13px] font-semibold leading-none transition ${
+                          feedbackMenuOpen
+                            ? 'bg-[#df861d] text-white ring-2 ring-[#f79820]/20'
+                            : 'bg-[#f79820] text-white shadow-sm hover:bg-[#df861d]'
+                        }`}
+                        aria-expanded={feedbackMenuOpen}
+                        aria-haspopup="menu"
+                      >
+                        <span className="min-w-0 truncate">{feedback.name || 'Feedback'} · {formatFeedbackDate(feedback.job?.job_date)}</span>
+                        <ChevronDown className={`h-4 w-4 shrink-0 text-white transition ${feedbackMenuOpen ? 'rotate-180' : ''}`} />
+                      </button>
+                      {feedbackMenuOpen && (
+                        <div className="absolute left-0 z-20 mt-2 w-56 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg" role="menu">
+                          {(detail.feedbacks || []).map(item => (
+                            <Link
+                              key={item.id}
+                              to={getFeedbackPublicPath(item)}
+                              onClick={() => setFeedbackMenuOpen(false)}
+                              className={`block px-3 py-2 text-[12px] font-semibold ${item.id === feedback.id ? 'bg-[#fff7ed] text-slate-950' : 'text-slate-700 hover:bg-[#fff7ed] hover:text-slate-950'}`}
+                              role="menuitem"
+                            >
+                              {item.name || 'Feedback'}
+                            </Link>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={addFeedbackVersion}
+                            disabled={creatingFeedbackVersion}
+                            className="block w-full border-t border-slate-100 px-3 py-2 text-left text-[12px] font-semibold text-[#f79820] hover:bg-[#fff7ed] disabled:cursor-not-allowed disabled:opacity-60"
                             role="menuitem"
                           >
-                            {item.name || 'Feedback'}
-                          </Link>
-                        ))}
-                        <button
-                          type="button"
-                          onClick={addFeedbackVersion}
-                          disabled={creatingFeedbackVersion}
-                          className="block w-full border-t border-slate-100 px-3 py-2 text-left text-[12px] font-semibold text-[#f79820] hover:bg-[#fff7ed] disabled:cursor-not-allowed disabled:opacity-60"
-                          role="menuitem"
-                        >
-                          {creatingFeedbackVersion ? 'Đang thêm...' : 'Thêm bản mới'}
-                        </button>
-                      </div>
-                    )}
+                            {creatingFeedbackVersion ? 'Đang thêm...' : 'Thêm bản mới'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
               {fourKDownloadUrl && (
-                <a href={fourKDownloadUrl} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center justify-center gap-2 rounded-lg border border-[#f79820]/30 bg-white px-2.5 text-[12px] font-semibold text-[#f79820] hover:bg-[#f79820]/10">
-                  <ExternalLink className="h-3.5 w-3.5" />
+                <a href={fourKDownloadUrl} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center justify-center gap-2 rounded-lg border border-[#f79820]/30 bg-white px-2.5 text-[13px] font-semibold text-[#f79820] hover:bg-[#f79820]/10">
+                  <ExternalLink className="h-4 w-4" />
                   Link 4K
                 </a>
               )}
@@ -734,20 +736,22 @@ export default function FeedbackDetailPage() {
                 type="button"
                 onClick={doneFeedback}
                 disabled={notifyingEditor}
-                className="inline-flex min-h-8 max-w-full items-center justify-center gap-2 rounded-lg bg-[#f79820] px-2.5 py-1 text-[12px] font-semibold leading-snug text-white hover:bg-[#df861d] disabled:cursor-not-allowed disabled:opacity-70"
+                className="inline-flex min-h-8 max-w-full items-center justify-center gap-2 rounded-lg bg-[#f79820] px-2.5 py-1 text-[13px] font-semibold leading-snug text-white hover:bg-[#df861d] disabled:cursor-not-allowed disabled:opacity-70"
               >
-                {notifyingEditor ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> : <BellRing className="h-3.5 w-3.5 shrink-0" />}
+                {notifyingEditor ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <BellRing className="h-4 w-4 shrink-0" />}
                 <span className="text-left">{notifyingEditor ? 'Đang thông báo...' : 'Thông báo tới Editor: Tôi đã hoàn tất Feedback'}</span>
               </button>
             </div>
           </div>
         </header>
 
-        <div className="mt-2 space-y-2">
-          {message && <Alert type="success" className="text-center !text-slate-950">{message}</Alert>}
-          {error && <Alert type="error">{error}</Alert>}
-          {!feedback.video_url && <SetupPanel detail={detail} access={access} onSaved={setDetail} />}
-        </div>
+        {showFeedbackStatusPanel && (
+          <div className="mt-2 space-y-2">
+            {message && <Alert type="success" className="text-center !text-slate-950">{message}</Alert>}
+            {error && <Alert type="error">{error}</Alert>}
+            {!feedback.video_url && <SetupPanel detail={detail} access={access} onSaved={setDetail} />}
+          </div>
+        )}
 
         <section className="mt-2 grid gap-3 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,2.2fr)_minmax(380px,0.85fr)] xl:grid-cols-[minmax(0,2.35fr)_minmax(410px,0.9fr)]">
           <div ref={videoShellRef} className="overscroll-none lg:sticky lg:top-2 lg:flex lg:h-full lg:min-h-0 lg:flex-col lg:self-start">
@@ -773,13 +777,13 @@ export default function FeedbackDetailPage() {
                 </div>
               )}
             </div>
-            <footer className="mt-2 rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2 text-[11px] text-slate-400 lg:rounded-l-none">
+            <footer className="mt-2 rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-1.5 text-[11px] text-slate-400 lg:rounded-l-none">
               <div className="flex flex-col gap-1.5 lg:flex-row lg:items-center">
                 <details className="relative shrink-0">
-                  <summary className="flex h-6 cursor-pointer list-none items-center [&::-webkit-details-marker]:hidden" aria-label="Mở công cụ Eventus">
-                    <img src="/logos/logo_eventus.png" alt="Eventus Production" className="h-6 w-auto opacity-100" />
+                  <summary className="flex h-5 cursor-pointer list-none items-center [&::-webkit-details-marker]:hidden" aria-label="Mở công cụ Eventus">
+                    <img src="/logos/logo_eventus.png" alt="Eventus Production" className="h-5 w-auto opacity-100" />
                   </summary>
-                  <div className="absolute bottom-8 left-0 z-20 w-48 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 text-left shadow-lg">
+                  <div className="absolute bottom-7 left-0 z-20 w-48 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 text-left shadow-lg">
                     <button
                       type="button"
                       onClick={() => updateFromFooter('video')}

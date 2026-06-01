@@ -74,22 +74,22 @@ export function getFeedbackVideoEmbedUrl(url = '') {
   return `https://www.youtube.com/embed/${videoId}?rel=0&enablejsapi=1${origin}`
 }
 
-export function getFeedbackAccessFromSearch(search = '') {
+export function isFeedbackShareToken(value = '') {
+  return /^[A-Z2-9]{12,40}$/.test(String(value || '').trim())
+}
+
+export function getFeedbackAccessFromSearch(search = '', pathToken = '') {
   const params = new URLSearchParams(search)
+  const queryToken = params.get('token') || params.get('share_token') || ''
   return {
     zalo: params.get('zalo') || '',
-    token: params.get('token') || params.get('share_token') || '',
+    token: queryToken || (isFeedbackShareToken(pathToken) ? pathToken : ''),
   }
 }
 
-export function getFeedbackPublicPath(feedback, access = {}) {
-  if (!feedback?.id) return '/feedbacks'
-  const identifier = feedback.public_code || feedback.legacy_id || feedback.id
-  const params = new URLSearchParams()
-  if (access.zalo) params.set('zalo', access.zalo)
-  else if (feedback.share_token || access.token) params.set('token', feedback.share_token || access.token)
-  const search = params.toString()
-  return `/feedbacks/${encodeURIComponent(identifier)}${search ? `?${search}` : ''}`
+export function getFeedbackPublicPath(feedback) {
+  if (!feedback?.share_token) return '/feedbacks'
+  return `/feedbacks/${encodeURIComponent(feedback.share_token)}`
 }
 
 export function readFileAsDataUrl(file) {

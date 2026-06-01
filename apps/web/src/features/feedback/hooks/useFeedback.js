@@ -91,7 +91,6 @@ export async function getFeedbackDetail(id, access = {}) {
   return requestFeedbackApi(buildQuery({
     resource: 'feedback',
     id,
-    ...access,
   }))
 }
 
@@ -227,8 +226,8 @@ export async function submitFeedbackSurvey(payload = {}) {
   })
 }
 
-export async function getFeedbackGallery(zaloId) {
-  return requestFeedbackApi(buildQuery({ resource: 'gallery', zalo_id: zaloId }))
+export async function getFeedbackGallery(shareToken) {
+  return requestFeedbackApi(buildQuery({ resource: 'gallery', share_token: shareToken }))
 }
 
 export async function markFeedbackJobDone(payload = {}) {

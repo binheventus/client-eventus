@@ -5,7 +5,7 @@ import { getFeedbackGallery, markFeedbackJobDone } from '../hooks/useFeedback'
 import { formatFeedbackDate } from '../lib/feedbackFormat'
 
 export default function FeedbackGalleryPage() {
-  const { zaloId } = useParams()
+  const { token: shareToken } = useParams()
   const [gallery, setGallery] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -17,10 +17,10 @@ export default function FeedbackGalleryPage() {
       setLoading(true)
       setError('')
       try {
-        const result = await getFeedbackGallery(zaloId)
+        const result = await getFeedbackGallery(shareToken)
         if (!cancelled) {
           setGallery(result)
-          markFeedbackJobDone({ zalo: zaloId, image: 1 }).catch(() => {})
+          markFeedbackJobDone({ share_token: shareToken, image: 1 }).catch(() => {})
         }
       } catch (err) {
         if (!cancelled) setError(err?.message || 'Không tải được gallery.')
@@ -33,7 +33,7 @@ export default function FeedbackGalleryPage() {
     return () => {
       cancelled = true
     }
-  }, [zaloId])
+  }, [shareToken])
 
   return (
     <main className="grid min-h-screen place-items-center bg-slate-100 px-4 py-8">

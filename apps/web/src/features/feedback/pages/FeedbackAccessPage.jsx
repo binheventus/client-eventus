@@ -15,7 +15,7 @@ export function FeedbackRedirectPage() {
     async function run() {
       try {
         const result = await lookupFeedbackJob(zaloId)
-        if (!cancelled) navigate(getFeedbackPublicPath(result.feedback, { zalo: zaloId }), { replace: true })
+        if (!cancelled) navigate(getFeedbackPublicPath(result.feedback), { replace: true })
       } catch (err) {
         if (!cancelled) setError(err?.message || 'Không mở được link feedback.')
       }
@@ -76,7 +76,7 @@ export default function FeedbackAccessPage() {
     setError('')
     try {
       const result = await lookupFeedbackJob(code)
-      navigate(getFeedbackPublicPath(result.feedback, { zalo: code }))
+      navigate(getFeedbackPublicPath(result.feedback))
     } catch (err) {
       setError(err?.message || 'Mã Job không chính xác.')
     } finally {

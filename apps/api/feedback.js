@@ -25,7 +25,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const projectRoot = path.resolve(__dirname, '../..')
 const webRoot = path.join(projectRoot, 'apps/web')
 const publicRoot = path.join(webRoot, 'public')
-const SHARE_TOKEN_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+const SHARE_TOKEN_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
+const SHARE_TOKEN_LENGTH = 14
+const SHARE_TOKEN_PUBLIC_PATTERN = /^[A-Z2-9]{12,40}$/
 const PUBLIC_CODE_ALPHABET = '23456789abcdefghjkmnpqrstuvwxyz'
 const PUBLIC_CODE_LENGTH = 4
 const DEFAULT_PAGE_SIZE = 20
@@ -180,10 +182,14 @@ function makeId(prefix = '') {
   return prefix ? `${prefix}_${randomUUID()}` : randomUUID()
 }
 
-function makeReadableToken(length = 14) {
+function makeReadableToken(length = SHARE_TOKEN_LENGTH) {
   return Array.from(randomBytes(length), value => (
     SHARE_TOKEN_ALPHABET[value % SHARE_TOKEN_ALPHABET.length]
   )).join('')
+}
+
+function isFeedbackShareToken(value = '') {
+  return SHARE_TOKEN_PUBLIC_PATTERN.test(String(value || '').trim())
 }
 
 function makePublicCode(length = PUBLIC_CODE_LENGTH) {
@@ -205,23 +211,29 @@ async function makeUniquePublicCode() {
   throw makeHttpError('Không tạo được mã feedback ngắn.', 500, 'PUBLIC_CODE_UNAVAILABLE')
 }
 
+async function makeUniqueShareToken() {
+  for (let attempt = 0; attempt < 128; attempt += 1) {
+    const token = makeReadableToken()
+    const rows = await query(`select 1 from ${tables.feedbacks} where share_token = ? limit 1`, [token])
+    if (!rows.length) return token
+  }
+  throw makeHttpError('Không tạo được mã chia sẻ feedback.', 500, 'SHARE_TOKEN_UNAVAILABLE')
+}
+
 function isPublicCodeDuplicate(error) {
   return (error?.code === 'ER_DUP_ENTRY' || error?.errno === 1062)
     && String(error?.sqlMessage || error?.message || '').includes('public_code')
 }
 
-function getFeedbackPublicIdentifier(feedback = {}) {
-  return feedback.public_code || feedback.legacy_id || feedback.id
+function isShareTokenDuplicate(error) {
+  return (error?.code === 'ER_DUP_ENTRY' || error?.errno === 1062)
+    && String(error?.sqlMessage || error?.message || '').includes('share_token')
 }
 
-function getFeedbackPublicPath(feedback = {}, access = {}) {
-  const identifier = getFeedbackPublicIdentifier(feedback)
+function getFeedbackPublicPath(feedback = {}) {
+  const identifier = feedback.share_token
   if (!identifier) return '/feedbacks'
-  const params = new URLSearchParams()
-  if (access.zalo) params.set('zalo', access.zalo)
-  else if (feedback.share_token || access.token) params.set('token', feedback.share_token || access.token)
-  const search = params.toString()
-  return `/feedbacks/${encodeURIComponent(identifier)}${search ? `?${search}` : ''}`
+  return `/feedbacks/${encodeURIComponent(identifier)}`
 }
 
 function trimText(value = '', maxLength = 500) {
@@ -456,6 +468,19 @@ async function getFeedbackByIdentifier(identifier) {
   return normalizeFeedbackRow(rows?.[0])
 }
 
+async function getFeedbackByShareToken(shareToken) {
+  if (!shareToken) return null
+  const rows = await query(
+    `select ${getFeedbackListSelect()}
+     from ${tables.feedbacks} f
+     left join ${tables.jobs} j on j.id = f.job_id
+     where f.share_token = ? and f.deleted_at is null
+     limit 1`,
+    [shareToken],
+  )
+  return normalizeFeedbackRow(rows?.[0])
+}
+
 async function listFeedbacksForJob(jobId) {
   if (!jobId) return []
   const result = await listFeedbacks({ jobId, pageSize: 100 })
@@ -488,7 +513,7 @@ async function ensureFeedbackForJob(jobId, patch = {}) {
           id,
           await makeUniquePublicCode(),
           job.id,
-          makeReadableToken(),
+          await makeUniqueShareToken(),
           patch.name || 'Feedback 1',
           patch.drive_url || job.drive_feedback || null,
           patch.editor_name || job.editor_name || null,
@@ -497,7 +522,7 @@ async function ensureFeedbackForJob(jobId, patch = {}) {
       )
       return getFeedbackByIdentifier(id)
     } catch (error) {
-      if (!isPublicCodeDuplicate(error) || attempt === 7) throw error
+      if ((!isPublicCodeDuplicate(error) && !isShareTokenDuplicate(error)) || attempt === 7) throw error
     }
   }
 
@@ -512,7 +537,7 @@ async function createFeedback(jobId, payload = {}) {
   const count = Number(rows?.[0]?.count || 0)
   for (let attempt = 0; attempt < 8; attempt += 1) {
     const id = makeId('fb')
-    const shareToken = makeReadableToken()
+    const shareToken = await makeUniqueShareToken()
     try {
       await query(
         `insert into ${tables.feedbacks}
@@ -537,7 +562,7 @@ async function createFeedback(jobId, payload = {}) {
       )
       return getFeedbackByIdentifier(id)
     } catch (error) {
-      if (!isPublicCodeDuplicate(error) || attempt === 7) throw error
+      if ((!isPublicCodeDuplicate(error) && !isShareTokenDuplicate(error)) || attempt === 7) throw error
     }
   }
 
@@ -608,7 +633,10 @@ async function assertFeedbackAccess(req, feedback, access = {}) {
 
 async function getFeedbackDetail(req, identifier, access = {}) {
   const feedback = await getFeedbackByIdentifier(identifier)
-  await assertFeedbackAccess(req, feedback, access)
+  const detailAccess = feedback?.share_token && String(identifier || '') === String(feedback.share_token)
+    ? { ...access, token: access.token || feedback.share_token }
+    : access
+  await assertFeedbackAccess(req, feedback, detailAccess)
 
   const [comments, feedbacks, employees] = await Promise.all([
     getFeedbackComments(feedback.id),
@@ -621,7 +649,7 @@ async function getFeedbackDetail(req, identifier, access = {}) {
     comments,
     feedbacks,
     employees,
-    public_url: getFeedbackPublicPath(feedback, { token: feedback.share_token }),
+    public_url: getFeedbackPublicPath(feedback),
   }
 }
 
@@ -1181,10 +1209,12 @@ async function notifySurveySubmitted(job, answers = {}) {
 }
 
 async function getGallery(req) {
-  const zaloId = getQueryValue(req.query?.zalo_id || req.query?.zalo, '')
-  const job = await getJobByZaloId(zaloId)
+  const shareToken = trimText(getQueryValue(req.query?.token || req.query?.share_token, ''), 80)
+  const feedback = await getFeedbackByShareToken(shareToken)
+  const job = feedback?.job_id ? await getJobById(feedback.job_id) : null
   if (!job?.id) throw makeHttpError('Không tìm thấy gallery.', 404, 'GALLERY_NOT_FOUND')
   return {
+    feedback,
     job,
     drive_link: job.gallery_drive || job.drive_feedback || '',
     survey_link: `/survey?type=image&job=${encodeURIComponent(job.id)}`,
@@ -1192,19 +1222,23 @@ async function getGallery(req) {
 }
 
 async function markJobDone(req, body = {}) {
-  const feedback = body.feedback_id ? await getFeedbackByIdentifier(body.feedback_id) : null
-  if (feedback) await assertFeedbackAccess(req, feedback, parseAccess(body))
+  const feedbackIdentifier = body.feedback_id || body.id || body.share_token || body.token
+  const feedback = feedbackIdentifier ? await getFeedbackByIdentifier(feedbackIdentifier) : null
+  if (feedback) {
+    const access = parseAccess(body)
+    if (body.share_token || body.token) access.token ||= body.share_token || body.token
+    await assertFeedbackAccess(req, feedback, access)
+  }
   return { ok: true }
 }
 
-function isPublicRequest(req) {
+export function isPublicFeedbackRequest(req) {
   if (req.method === 'GET') {
     const resource = getQueryValue(req.query?.resource, '')
     if (resource === 'survey' || resource === 'gallery') return true
     if (resource === 'feedback') {
       const id = getQueryValue(req.query?.id, '')
-      const access = parseAccess({}, req.query || {})
-      return Boolean(id && (access.zalo || access.token))
+      return isFeedbackShareToken(id)
     }
     return false
   }
@@ -1235,7 +1269,7 @@ function isPublicRequest(req) {
 
 export default async function handler(req, res) {
   try {
-    if (!isPublicRequest(req) && !await requireEventusAuth(req, res)) return
+    if (!isPublicFeedbackRequest(req) && !await requireEventusAuth(req, res)) return
 
     if (req.method === 'GET') {
       const resource = getQueryValue(req.query?.resource, 'feedbacks')
