@@ -61,6 +61,7 @@ function TextInput(props) {
 function SetupPanel({ detail, access, onSaved }) {
   const feedback = detail.feedback
   const employees = detail.employees || []
+  const existingEditorName = feedback.editor_name || feedback.job?.editor_name || ''
   const [editorId, setEditorId] = useState('')
   const [videoUrl, setVideoUrl] = useState(feedback.video_url || '')
   const [driveUrl, setDriveUrl] = useState(feedback.drive_url || feedback.job?.drive_feedback || '')
@@ -97,7 +98,7 @@ function SetupPanel({ detail, access, onSaved }) {
       </div>
 
       <form onSubmit={handleSubmit} className="mt-5 grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
-        {!feedback.editor_name && (
+        {!existingEditorName && (
           <div className="md:col-span-3">
             <FieldLabel>Editor</FieldLabel>
             <select
@@ -449,6 +450,7 @@ export default function FeedbackDetailPage() {
   const previousFeedbacks = currentFeedbackIndex > 0 ? feedbackVersions.slice(0, currentFeedbackIndex) : feedbackVersions
   const previousFeedbackWithDrive = [...previousFeedbacks].reverse().find(item => item.id !== feedback?.id && item.drive_url)
   const fourKDownloadUrl = feedback?.drive_url || previousFeedbackWithDrive?.drive_url || feedback?.job?.drive_feedback || ''
+  const videoSurveyUrl = feedback?.job_id ? `/survey?type=video&job=${encodeURIComponent(feedback.job_id)}` : ''
   const showFeedbackStatusPanel = Boolean(message || error || !feedback?.video_url)
 
   async function load() {
@@ -634,6 +636,11 @@ export default function FeedbackDetailPage() {
     }
   }
 
+  function prepareVideoSurvey() {
+    if (!videoSurveyUrl) return
+    window.setTimeout(() => window.location.assign(videoSurveyUrl), 0)
+  }
+
   async function doneFeedback() {
     setNotifyingEditor(true)
     setError('')
@@ -727,9 +734,15 @@ export default function FeedbackDetailPage() {
             </div>
             <div className="flex flex-wrap gap-2">
               {fourKDownloadUrl && (
-                <a href={fourKDownloadUrl} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center justify-center gap-2 rounded-lg border border-[#f79820]/30 bg-white px-2.5 text-[13px] font-semibold text-[#f79820] hover:bg-[#f79820]/10">
+                <a
+                  href={fourKDownloadUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={prepareVideoSurvey}
+                  className="inline-flex h-8 items-center justify-center gap-2 rounded-lg border border-[#f79820]/30 bg-white px-2.5 text-[13px] font-semibold text-[#f79820] hover:bg-[#f79820]/10"
+                >
                   <ExternalLink className="h-4 w-4" />
-                  Link 4K
+                  Lấy link drive tải video
                 </a>
               )}
               <button

@@ -34,6 +34,17 @@ const DEFAULT_PAGE_SIZE = 20
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024
 const DEFAULT_RCLONE_REMOTE = 'eventus'
 const DEFAULT_RCLONE_FEEDBACK_DIR = 'feedback'
+const CSS_SINCE_062026_VERSION_NAME = 'CSS Since 06.2026'
+const CSS_SURVEY_COPY = {
+  title: 'Chia sẻ trải nghiệm của Anh/Chị cùng Eventus',
+  description: 'Cảm ơn anh/chị đã tin tưởng lựa chọn Eventus. Khảo sát này chỉ mất khoảng 2 phút để hoàn\u00a0thành. Những chia sẻ của anh/chị sẽ giúp chúng tôi tiếp tục nâng cao chất lượng dịch vụ và mang đến trải nghiệm tốt hơn trong các dự án sắp tới.',
+  thank_you: 'Cảm ơn anh/chị đã dành thời gian chia sẻ ý kiến.\nMỗi phản hồi đều là nguồn thông tin quý giá giúp Eventus Production không ngừng hoàn thiện chất lượng dịch vụ và mang đến những trải nghiệm tốt hơn trong tương lai.\nChúng tôi trân trọng sự đồng hành và tin tưởng của anh/chị. Hẹn gặp lại trong những dự án tiếp theo!',
+}
+const DEFAULT_SURVEY_COPY = {
+  title: 'Form khảo sát sự hài lòng',
+  description: 'Hãy để cho chúng tôi biết nhiều hơn về bạn!',
+  thank_you: 'Eventus thực sự biết ơn bạn vì đã chọn chúng tôi làm nhà cung cấp dịch vụ và cho chúng tôi cơ hội phát triển. Ý kiến đóng góp của bạn rất có giá trị và quan trọng đối với chúng tôi. Những thông tin bạn đã cung cấp sẽ giúp Eventus tiếp tục phát triển và hoàn thiện hơn nữa.',
+}
 const EDITABLE_COMMENT_COLUMNS = new Set([
   'comment_1',
   'image_comment_1',
@@ -258,23 +269,27 @@ function normalizeOverallFeedback(value) {
 
 function normalizeFeedbackRow(row = {}) {
   if (!row) return null
+  const job = normalizeJobRow(row.job || {
+    id: row.job_id,
+    job_title: row.job_title,
+    customer_name: row.customer_name,
+    customer_id: row.customer_id,
+    job_date: row.job_date,
+    zalo_id: row.zalo_id,
+    drive_feedback: row.job_drive_feedback,
+    gallery_drive: row.gallery_drive,
+    editor_name: row.job_editor_name,
+    editor_phone: row.job_editor_phone,
+  })
+
   return {
     ...row,
+    editor_name: row.editor_name || job?.editor_name || '',
+    editor_phone: row.editor_phone || job?.editor_phone || '',
     overall_feedback: normalizeOverallFeedback(row.overall_feedback),
     more_column: normalizeBoolean(row.more_column),
     done_feedback: normalizeBoolean(row.done_feedback),
-    job: normalizeJobRow(row.job || {
-      id: row.job_id,
-      job_title: row.job_title,
-      customer_name: row.customer_name,
-      customer_id: row.customer_id,
-      job_date: row.job_date,
-      zalo_id: row.zalo_id,
-      drive_feedback: row.job_drive_feedback,
-      gallery_drive: row.gallery_drive,
-      editor_name: row.job_editor_name,
-      editor_phone: row.job_editor_phone,
-    }),
+    job,
   }
 }
 
@@ -1081,25 +1096,14 @@ async function notifyFeedbackDone(feedback) {
   }).catch(() => {})
 }
 
-async function getSurveyQuestions(type = 'video') {
-  const rows = await query(
-    `select q.*, a.id as answer_id, a.answer, a.is_star, a.sort_order as answer_sort_order
-     from ${tables.feedbackSurveyQuestions} q
-     left join ${tables.feedbackSurveyAnswers} a on a.question_id = q.id
-     where q.type = ? and q.is_active = 1
-     order by q.sort_order asc, a.sort_order asc`,
-    [type],
-  )
-
-  if (!rows.length) return DEFAULT_SURVEY_QUESTIONS.filter(question => question.type === type)
-
+function normalizeSurveyQuestionRows(rows = [], type = 'video') {
   const map = new Map()
   rows.forEach(row => {
     if (!map.has(row.id)) {
       map.set(row.id, {
         id: row.id,
         question: row.question,
-        type: row.type,
+        type: row.type || type,
         star: row.star,
         text_left: row.text_left,
         text_right: row.text_right,
@@ -1116,7 +1120,70 @@ async function getSurveyQuestions(type = 'video') {
       })
     }
   })
+
   return [...map.values()]
+}
+
+function getSurveyCopy(version = null) {
+  if (version?.name === CSS_SINCE_062026_VERSION_NAME) return CSS_SURVEY_COPY
+  return DEFAULT_SURVEY_COPY
+}
+
+async function getActiveSurveyVersion() {
+  const rows = await query(
+    `select *
+     from ${tables.surveyVersions}
+     order by case when status = 'active' then 0 else 1 end, id desc
+     limit 1`,
+  )
+  return rows?.[0] || null
+}
+
+async function getActiveSurveyQuestions(type = 'video') {
+  try {
+    const version = await getActiveSurveyVersion()
+    if (!version?.id) return { version: null, questions: [] }
+
+    const rows = await query(
+      `select q.*, a.id as answer_id, a.answer, a.is_star, a.sort_order as answer_sort_order
+       from ${tables.surveyQuestions} q
+       left join ${tables.surveyAnswers} a on a.question_id = q.id
+       where q.survey_version_id = ?
+       order by q.sort_order asc, q.id asc, a.sort_order asc, a.id asc`,
+      [version.id],
+    )
+
+    return {
+      version,
+      questions: normalizeSurveyQuestionRows(rows, type),
+    }
+  } catch {
+    return { version: null, questions: [] }
+  }
+}
+
+async function getLegacyFeedbackSurveyQuestions(type = 'video') {
+  const rows = await query(
+    `select q.*, a.id as answer_id, a.answer, a.is_star, a.sort_order as answer_sort_order
+     from ${tables.feedbackSurveyQuestions} q
+     left join ${tables.feedbackSurveyAnswers} a on a.question_id = q.id
+     where q.type = ? and q.is_active = 1
+     order by q.sort_order asc, a.sort_order asc`,
+    [type],
+  )
+
+  return normalizeSurveyQuestionRows(rows, type)
+}
+
+async function getSurveyQuestions(type = 'video') {
+  const activeSurvey = await getActiveSurveyQuestions(type)
+  if (activeSurvey.questions.length) return activeSurvey
+
+  const legacyQuestions = await getLegacyFeedbackSurveyQuestions(type)
+  return {
+    version: null,
+    questions: legacyQuestions.length ? legacyQuestions : DEFAULT_SURVEY_QUESTIONS.filter(question => question.type === type),
+  }
 }
 
 async function getSurvey(req) {
@@ -1129,11 +1196,18 @@ async function getSurvey(req) {
     `select count(*) as count from ${tables.feedbackSurveyResponses} where job_id = ? and survey_type = ?`,
     [job.id, type],
   )
+  const survey = await getSurveyQuestions(type)
   return {
     job,
     type,
     already_submitted: Number(responseRows?.[0]?.count || 0) > 0,
-    questions: await getSurveyQuestions(type),
+    copy: getSurveyCopy(survey.version),
+    survey_version: survey.version ? {
+      id: survey.version.id,
+      name: survey.version.name,
+      status: survey.version.status,
+    } : null,
+    questions: survey.questions,
   }
 }
 
@@ -1152,6 +1226,7 @@ async function submitSurvey(req, body = {}) {
   }
 
   const answers = body.answers || {}
+  const freeText = body.free_text || body.freeText || {}
   const responseId = makeId('fbsr')
   try {
     await withTransaction(async connection => {
@@ -1175,6 +1250,35 @@ async function submitSurvey(req, body = {}) {
             answer_text: null,
           })
         }
+      }
+
+      for (const [questionId, answerTextValue] of Object.entries(freeText)) {
+        const answerText = trimText(answerTextValue, 4000)
+        if (!answerText) continue
+
+        const [answerRows] = await connection.query(
+          `select id from ${tables.surveyAnswers}
+           where question_id = ? and answer = ? and is_star = 0
+           order by sort_order asc, id asc
+           limit 1`,
+          [questionId, '__free_text__'],
+        )
+        const [legacyAnswerRows] = answerRows.length ? [[]] : await connection.query(
+          `select id from ${tables.feedbackSurveyAnswers}
+           where question_id = ? and answer = ? and is_star = 0
+           order by sort_order asc, id asc
+           limit 1`,
+          [questionId, '__free_text__'],
+        )
+        const freeTextAnswer = answerRows?.[0] || legacyAnswerRows?.[0]
+
+        await insertRow(connection, tables.feedbackSurveyResponseAnswers, {
+          id: makeId('fbsra'),
+          response_id: responseId,
+          question_id: questionId,
+          answer_id: emptyToNull(freeTextAnswer?.id),
+          answer_text: answerText,
+        })
       }
     })
   } catch (error) {
