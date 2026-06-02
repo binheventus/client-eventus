@@ -12,6 +12,7 @@ import {
   SendHorizontal,
   Trash2,
   Video,
+  X,
 } from 'lucide-react'
 import {
   createFeedback,
@@ -64,7 +65,7 @@ function SetupPanel({ detail, access, onSaved }) {
   const existingEditorName = feedback.editor_name || feedback.job?.editor_name || ''
   const [editorId, setEditorId] = useState('')
   const [videoUrl, setVideoUrl] = useState(feedback.video_url || '')
-  const [driveUrl, setDriveUrl] = useState(feedback.drive_url || feedback.job?.drive_feedback || '')
+  const [driveUrl, setDriveUrl] = useState(feedback.drive_url || '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -126,7 +127,7 @@ function SetupPanel({ detail, access, onSaved }) {
         </div>
 
         <div>
-          <FieldLabel>Link tải file chất lượng cao</FieldLabel>
+          <FieldLabel>Link Google Drive tải file</FieldLabel>
           <TextInput
             value={driveUrl}
             onChange={event => setDriveUrl(event.target.value)}
@@ -279,7 +280,11 @@ function CommentCard({ comment, showSecondColumn, access, onChanged, onSeek }) {
             <button
               type="button"
               onClick={() => onSeek(comment.time_comment_1)}
-              className="shrink-0 rounded bg-[#f79820] px-1.5 py-0.5 text-[10px] font-bold text-white ring-1 ring-[#f79820] hover:bg-[#df861d]"
+              className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold text-white ring-1 ${
+                comment.is_done_1
+                  ? 'bg-blue-500 ring-blue-500 hover:bg-blue-600'
+                  : 'bg-[#f79820] ring-[#f79820] hover:bg-[#df861d]'
+              }`}
             >
               {formatTimeline(comment.time_comment_1)}
             </button>
@@ -287,7 +292,7 @@ function CommentCard({ comment, showSecondColumn, access, onChanged, onSeek }) {
               <span className="truncate text-[11px] font-semibold text-slate-500">{authorName}</span>
             )}
             {comment.is_done_1 && (
-              <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+              <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
                 Đã sửa
               </span>
             )}
@@ -297,7 +302,7 @@ function CommentCard({ comment, showSecondColumn, access, onChanged, onSeek }) {
             <button
               type="button"
               onClick={markDone}
-              className={`inline-flex h-6 w-6 items-center justify-center rounded-full border transition ${comment.is_done_1 ? 'border-emerald-500 bg-emerald-500 text-slate-950' : 'border-slate-300 bg-white hover:border-emerald-400'}`}
+              className={`inline-flex h-6 w-6 items-center justify-center rounded-full border transition ${comment.is_done_1 ? 'border-blue-500 bg-blue-500 text-white' : 'border-slate-300 bg-white hover:border-blue-400'}`}
               title={comment.is_done_1 ? 'Bỏ đánh dấu đã sửa' : 'Đánh dấu đã sửa'}
               aria-label={comment.is_done_1 ? 'Bỏ đánh dấu đã sửa' : 'Đánh dấu đã sửa'}
               aria-pressed={comment.is_done_1}
@@ -434,7 +439,11 @@ export default function FeedbackDetailPage() {
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [footerStatus, setFooterStatus] = useState('')
-  const [updatingFooterAction, setUpdatingFooterAction] = useState('')
+  const [footerEditorOpen, setFooterEditorOpen] = useState(false)
+  const [footerVideoUrl, setFooterVideoUrl] = useState('')
+  const [footerDriveUrl, setFooterDriveUrl] = useState('')
+  const [savingFooterLinks, setSavingFooterLinks] = useState(false)
+  const [footerEditorError, setFooterEditorError] = useState('')
   const [commentText, setCommentText] = useState('')
   const [feedbackAuthorName, setFeedbackAuthorName] = useState('')
   const [currentVideoTime, setCurrentVideoTime] = useState(0)
@@ -446,10 +455,7 @@ export default function FeedbackDetailPage() {
   const comments = detail?.comments || []
   const feedbackVersions = detail?.feedbacks || []
   const embedUrl = getFeedbackVideoEmbedUrl(feedback?.video_url)
-  const currentFeedbackIndex = feedbackVersions.findIndex(item => item.id === feedback?.id)
-  const previousFeedbacks = currentFeedbackIndex > 0 ? feedbackVersions.slice(0, currentFeedbackIndex) : feedbackVersions
-  const previousFeedbackWithDrive = [...previousFeedbacks].reverse().find(item => item.id !== feedback?.id && item.drive_url)
-  const fourKDownloadUrl = feedback?.drive_url || previousFeedbackWithDrive?.drive_url || feedback?.job?.drive_feedback || ''
+  const fourKDownloadUrl = feedback?.drive_url || ''
   const videoSurveyUrl = feedback?.job_id ? `/survey?type=video&job=${encodeURIComponent(feedback.job_id)}` : ''
   const showFeedbackStatusPanel = Boolean(message || error || !feedback?.video_url)
 
@@ -615,30 +621,38 @@ export default function FeedbackDetailPage() {
     }
   }
 
-  async function updateFromFooter(action) {
-    const isVideo = action === 'video'
-    const nextUrl = window.prompt(isVideo ? 'Nhập link video đã sửa:' : 'Nhập link Drive / link tải 4K:')
-    const cleanUrl = String(nextUrl || '').trim()
-    if (!cleanUrl) return
+  function openFooterEditor() {
+    setFooterVideoUrl(feedback?.video_url || '')
+    setFooterDriveUrl(feedback?.drive_url || '')
+    setFooterEditorError('')
+    setFooterEditorOpen(true)
+  }
 
-    setUpdatingFooterAction(action)
+  async function saveFooterLinks(event) {
+    event.preventDefault()
+    setSavingFooterLinks(true)
     setFooterStatus('')
+    setFooterEditorError('')
     try {
-      const nextDetail = await saveFeedbackSetup(feedback.id, isVideo ? { video_url: cleanUrl } : { drive_url: cleanUrl }, access)
+      const nextDetail = await saveFeedbackSetup(feedback.id, {
+        video_url: footerVideoUrl.trim(),
+        drive_url: footerDriveUrl.trim(),
+      }, access)
       setDetail(nextDetail)
-      setFooterStatus(isVideo ? 'Đã cập nhật video' : 'Đã cập nhật Drive')
+      setFooterEditorOpen(false)
+      setFooterStatus('Đã cập nhật link')
       if (footerStatusTimerRef.current) window.clearTimeout(footerStatusTimerRef.current)
       footerStatusTimerRef.current = window.setTimeout(() => setFooterStatus(''), 2000)
     } catch (err) {
-      setError(err?.message || (isVideo ? 'Không cập nhật được video.' : 'Không cập nhật được Drive.'))
+      setFooterEditorError(err?.message || 'Không cập nhật được link.')
     } finally {
-      setUpdatingFooterAction('')
+      setSavingFooterLinks(false)
     }
   }
 
   function prepareVideoSurvey() {
     if (!videoSurveyUrl) return
-    window.location.assign(videoSurveyUrl)
+    window.setTimeout(() => window.location.assign(videoSurveyUrl), 0)
   }
 
   async function doneFeedback() {
@@ -676,23 +690,23 @@ export default function FeedbackDetailPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 lg:h-screen lg:overflow-hidden">
-      <div className="px-3 py-2 lg:flex lg:h-full lg:flex-col lg:pl-0 lg:pr-3">
-        <header className="rounded-lg border border-slate-200 bg-white shadow-sm lg:rounded-l-none">
-          <div className="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+    <main className="h-screen overflow-hidden bg-slate-50">
+      <div className="flex h-full flex-col px-3 py-2 lg:pl-0 lg:pr-3">
+        <header className="shrink-0 rounded-lg border border-slate-200 bg-white shadow-sm lg:rounded-l-none">
+          <div className="flex flex-col gap-2 px-3 py-2 lg:flex-row lg:items-center lg:justify-between lg:gap-3 lg:px-4 lg:py-3">
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#f79820] text-white shadow-sm">
+              <div className="flex items-start gap-2 lg:items-center lg:gap-3">
+                <span className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#f79820] text-white shadow-sm lg:flex">
                   <Film className="h-5 w-5" />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <div className="flex min-w-0 items-center justify-start gap-2">
-                    <h1 className="min-w-0 truncate text-[16px] font-semibold text-slate-950">{feedback.job?.title || `Job #${feedback.job_id}`}</h1>
-                    <div ref={feedbackMenuRef} className="relative inline-block max-w-[45vw] shrink-0 sm:max-w-[260px]">
+                  <div className="flex min-w-0 flex-col items-stretch justify-start gap-1.5 lg:flex-row lg:items-center lg:gap-2">
+                    <h1 className="min-w-0 text-[13px] font-semibold leading-snug text-slate-950 lg:truncate lg:text-[16px]">{feedback.job?.title || `Job #${feedback.job_id}`}</h1>
+                    <div ref={feedbackMenuRef} className="relative inline-block w-full lg:w-auto lg:max-w-[260px] lg:shrink-0">
                       <button
                         type="button"
                         onClick={() => setFeedbackMenuOpen(value => !value)}
-                        className={`inline-flex w-full items-center gap-2 rounded-lg px-3 py-2 text-[13px] font-semibold leading-none transition ${
+                        className={`inline-flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-[12px] font-semibold leading-none transition lg:text-[13px] ${
                           feedbackMenuOpen
                             ? 'bg-[#df861d] text-white ring-2 ring-[#f79820]/20'
                             : 'bg-[#f79820] text-white shadow-sm hover:bg-[#df861d]'
@@ -732,42 +746,49 @@ export default function FeedbackDetailPage() {
                 </div>
               </div>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-2 gap-1.5 lg:flex lg:flex-wrap lg:gap-2">
               {fourKDownloadUrl && (
                 <a
                   href={fourKDownloadUrl}
                   target="_blank"
                   rel="noreferrer"
                   onClick={prepareVideoSurvey}
-                  className="inline-flex h-8 items-center justify-center gap-2 rounded-lg border border-[#f79820]/30 bg-white px-2.5 text-[13px] font-semibold text-[#f79820] hover:bg-[#f79820]/10"
+                  className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-lg border border-[#f79820]/30 bg-white px-2 py-1 text-[11px] font-semibold leading-tight text-[#f79820] hover:bg-[#f79820]/10 lg:h-8 lg:gap-2 lg:px-2.5 lg:text-[13px]"
                 >
-                  <ExternalLink className="h-4 w-4" />
-                  Lấy link drive tải video
+                  <ExternalLink className="h-3.5 w-3.5 shrink-0 lg:h-4 lg:w-4" />
+                  <span className="text-center">Link Google Drive tải file</span>
                 </a>
               )}
               <button
                 type="button"
                 onClick={doneFeedback}
                 disabled={notifyingEditor}
-                className="inline-flex min-h-8 max-w-full items-center justify-center gap-2 rounded-lg bg-[#f79820] px-2.5 py-1 text-[13px] font-semibold leading-snug text-white hover:bg-[#df861d] disabled:cursor-not-allowed disabled:opacity-70"
+                className={`${fourKDownloadUrl ? '' : 'col-span-2'} inline-flex min-h-8 max-w-full items-center justify-center gap-1.5 rounded-lg bg-[#f79820] px-2 py-1 text-[11px] font-semibold leading-tight text-white hover:bg-[#df861d] disabled:cursor-not-allowed disabled:opacity-70 lg:gap-2 lg:px-2.5 lg:text-[13px]`}
               >
-                {notifyingEditor ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <BellRing className="h-4 w-4 shrink-0" />}
-                <span className="text-left">{notifyingEditor ? 'Đang thông báo...' : 'Thông báo tới Editor: Tôi đã hoàn tất Feedback'}</span>
+                {notifyingEditor ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 lg:h-4 lg:w-4" /> : <BellRing className="h-3.5 w-3.5 shrink-0 lg:h-4 lg:w-4" />}
+                {notifyingEditor ? (
+                  <span className="text-center lg:text-left">Đang thông báo...</span>
+                ) : (
+                  <span className="text-center lg:text-left">
+                    <span className="block lg:inline">Thông báo tới Editor:</span>
+                    <span className="block lg:ml-1 lg:inline">Tôi đã hoàn tất Feedback</span>
+                  </span>
+                )}
               </button>
             </div>
           </div>
         </header>
 
         {showFeedbackStatusPanel && (
-          <div className="mt-2 space-y-2">
+          <div className="mt-2 shrink-0 space-y-2">
             {message && <Alert type="success" className="text-center !text-slate-950">{message}</Alert>}
             {error && <Alert type="error">{error}</Alert>}
             {!feedback.video_url && <SetupPanel detail={detail} access={access} onSaved={setDetail} />}
           </div>
         )}
 
-        <section className="mt-2 grid gap-3 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,2.2fr)_minmax(380px,0.85fr)] xl:grid-cols-[minmax(0,2.35fr)_minmax(410px,0.9fr)]">
-          <div ref={videoShellRef} className="overscroll-none lg:sticky lg:top-2 lg:flex lg:h-full lg:min-h-0 lg:flex-col lg:self-start">
+        <section className="mt-2 flex min-h-0 flex-1 flex-col gap-2 overflow-hidden lg:grid lg:gap-3 lg:grid-cols-[minmax(0,2.2fr)_minmax(380px,0.85fr)] xl:grid-cols-[minmax(0,2.35fr)_minmax(410px,0.9fr)]">
+          <div ref={videoShellRef} className="shrink-0 overscroll-none lg:sticky lg:top-2 lg:flex lg:h-full lg:min-h-0 lg:flex-col lg:self-start">
             <div className="min-h-0 overflow-hidden overscroll-none rounded-lg border border-slate-200 bg-white shadow-sm lg:flex-1 lg:rounded-l-none">
               {embedUrl ? (
                 <div className="aspect-video bg-slate-950 lg:h-full lg:aspect-auto">
@@ -790,31 +811,13 @@ export default function FeedbackDetailPage() {
                 </div>
               )}
             </div>
-            <footer className="mt-2 rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-1.5 text-[11px] text-slate-400 lg:rounded-l-none">
+            <footer className="mt-2 hidden rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-1.5 text-[11px] text-slate-400 lg:block lg:rounded-l-none">
               <div className="flex flex-col gap-1.5 lg:flex-row lg:items-center">
-                <details className="relative shrink-0">
-                  <summary className="flex h-5 cursor-pointer list-none items-center [&::-webkit-details-marker]:hidden" aria-label="Mở công cụ Eventus">
+                <div className="shrink-0">
+                  <button type="button" onClick={openFooterEditor} className="flex h-5 cursor-pointer items-center" aria-label="Cập nhật link Feedback">
                     <img src="/logos/logo_eventus.png" alt="Eventus Production" className="h-5 w-auto opacity-100" />
-                  </summary>
-                  <div className="absolute bottom-7 left-0 z-20 w-48 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 text-left shadow-lg">
-                    <button
-                      type="button"
-                      onClick={() => updateFromFooter('video')}
-                      disabled={Boolean(updatingFooterAction)}
-                      className="block w-full px-3 py-2 text-left text-[12px] font-semibold text-slate-700 hover:bg-[#f79820]/10 hover:text-[#f79820] disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {updatingFooterAction === 'video' ? 'Đang cập nhật...' : 'Cập nhật video đã sửa'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => updateFromFooter('drive')}
-                      disabled={Boolean(updatingFooterAction)}
-                      className="block w-full px-3 py-2 text-left text-[12px] font-semibold text-slate-700 hover:bg-[#f79820]/10 hover:text-[#f79820] disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {updatingFooterAction === 'drive' ? 'Đang cập nhật...' : 'Update drive'}
-                    </button>
-                  </div>
-                </details>
+                  </button>
+                </div>
                 <div className="flex flex-1 flex-wrap gap-x-4 gap-y-1 lg:pl-3">
                   <span><span className="font-semibold text-slate-500">Editor:</span> {feedback.editor_name || feedback.job?.editor_name || '-'}</span>
                   <span><span className="font-semibold text-slate-500">Điện thoại:</span> {feedback.editor_phone || feedback.job?.editor_phone || '-'}</span>
@@ -828,8 +831,8 @@ export default function FeedbackDetailPage() {
             </footer>
           </div>
 
-          <aside className="min-h-0 lg:flex lg:h-full lg:flex-col lg:pr-1">
-            <div className="min-h-0 flex-1 space-y-2 lg:overflow-y-auto lg:pb-3">
+          <aside className="flex min-h-0 flex-1 flex-col overflow-hidden lg:h-full lg:pr-1">
+            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pb-0">
               <OverallFeedbackPanel feedback={feedback} access={access} onChanged={refresh} />
 
               {comments.length ? comments.map(comment => (
@@ -850,36 +853,38 @@ export default function FeedbackDetailPage() {
 
             </div>
 
-            <form onSubmit={addComment} className="sticky bottom-0 mt-3 rounded-lg border border-slate-200 bg-white p-2 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] lg:shrink-0">
-              <label className="mb-2 flex items-center gap-2 px-1 text-[11px] font-semibold text-slate-500">
-                <span className="shrink-0">Tên người feedback:</span>
-                <input
-                  type="text"
-                  value={feedbackAuthorName}
-                  onChange={event => {
-                    const nextName = event.target.value
-                    setFeedbackAuthorName(nextName)
-                    window.localStorage?.setItem(`eventus.feedbackAuthorName.${id}`, nextName)
-                  }}
-                  onKeyDown={event => {
-                    if (event.key === 'Enter') event.preventDefault()
-                  }}
-                  placeholder="Nhập tên"
-                  className="h-7 min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-2 text-[12px] font-medium text-slate-900 outline-none placeholder:text-slate-400 focus:border-[#f79820] focus:ring-2 focus:ring-[#f79820]/20"
-                />
-              </label>
-              <div className="rounded-md border border-slate-200 bg-white px-2.5 py-2 focus-within:border-[#f79820] focus-within:ring-2 focus-within:ring-[#f79820]/20">
-                <span className="mt-0.5 shrink-0 rounded-md bg-[#f79820]/10 px-2 py-1 text-[11px] font-bold text-[#f79820] ring-1 ring-[#f79820]/25">
+            <form onSubmit={addComment} className="shrink-0 rounded-lg border border-slate-200 bg-white p-2 shadow-[0_-2px_10px_rgba(15,23,42,0.06)]">
+              <div className="mb-2 flex items-center gap-2 px-1 text-[11px] font-semibold text-slate-500">
+                <span className="shrink-0 rounded-md bg-[#f79820]/10 px-2 py-1 text-[11px] font-bold text-[#f79820] ring-1 ring-[#f79820]/25">
                   {formatTimeline(currentVideoTime)}
                 </span>
+                <label className="flex min-w-0 flex-1 items-center gap-2">
+                  <span className="shrink-0">Tên người feedback:</span>
+                  <input
+                    type="text"
+                    value={feedbackAuthorName}
+                    onChange={event => {
+                      const nextName = event.target.value
+                      setFeedbackAuthorName(nextName)
+                      window.localStorage?.setItem(`eventus.feedbackAuthorName.${id}`, nextName)
+                    }}
+                    onKeyDown={event => {
+                      if (event.key === 'Enter') event.preventDefault()
+                    }}
+                    placeholder="Nhập tên"
+                    className="h-7 min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-2 text-[12px] font-medium text-slate-900 outline-none placeholder:text-slate-400 focus:border-[#f79820] focus:ring-2 focus:ring-[#f79820]/20"
+                  />
+                </label>
+              </div>
+              <div className="relative rounded-md border border-slate-200 bg-white px-2.5 pb-2 pt-1.5 focus-within:border-[#f79820] focus-within:ring-2 focus-within:ring-[#f79820]/20">
                 <textarea
                   value={commentText}
                   onChange={event => setCommentText(event.target.value)}
                   placeholder="Nhập feedback..."
-                  rows={4}
-                  className="mt-2 block min-h-[80px] w-full resize-none border-0 bg-transparent p-0 text-[13px] leading-5 text-slate-900 outline-none placeholder:text-slate-400"
+                  rows={5}
+                  className="block min-h-[100px] w-full resize-none border-0 bg-transparent p-0 pr-10 text-[13px] leading-5 text-slate-900 outline-none placeholder:text-slate-400"
                 />
-                <button type="submit" className="ml-auto mt-2 flex h-7 w-7 items-center justify-center rounded-md bg-[#f79820] text-white hover:bg-[#df861d]" aria-label="Gửi feedback">
+                <button type="submit" className="absolute bottom-2 right-2 flex h-7 w-7 items-center justify-center rounded-md bg-[#f79820] text-white hover:bg-[#df861d]" aria-label="Gửi feedback">
                   <SendHorizontal className="h-3.5 w-3.5" />
                 </button>
               </div>
@@ -887,6 +892,61 @@ export default function FeedbackDetailPage() {
           </aside>
         </section>
       </div>
+      {footerEditorOpen && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 px-4 py-6">
+          <section className="w-full max-w-xl rounded-lg border border-slate-200 bg-white p-5 shadow-xl" role="dialog" aria-modal="true" aria-labelledby="feedback-link-editor-title">
+            <div className="flex items-center justify-between gap-3">
+              <h2 id="feedback-link-editor-title" className="text-[16px] font-semibold text-slate-950">Cập nhật link Feedback</h2>
+              <button
+                type="button"
+                onClick={() => setFooterEditorOpen(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                aria-label="Đóng popup"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <form onSubmit={saveFooterLinks} className="mt-4 space-y-4">
+              <div>
+                <FieldLabel>Youtube URL</FieldLabel>
+                <TextInput
+                  value={footerVideoUrl}
+                  onChange={event => setFooterVideoUrl(event.target.value)}
+                  placeholder="https://www.youtube.com/watch?v=..."
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <FieldLabel>Link Google Drive tải file</FieldLabel>
+                <TextInput
+                  value={footerDriveUrl}
+                  onChange={event => setFooterDriveUrl(event.target.value)}
+                  placeholder="https://drive.google.com/..."
+                  className="mt-1"
+                />
+              </div>
+              {footerEditorError && <Alert type="error">{footerEditorError}</Alert>}
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFooterEditorOpen(false)}
+                  className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingFooterLinks}
+                  className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-[#f79820] px-4 text-[13px] font-semibold text-white hover:bg-[#df861d] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Save className="h-4 w-4" />
+                  {savingFooterLinks ? 'Đang lưu...' : 'Lưu thay đổi'}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
     </main>
   )
 }

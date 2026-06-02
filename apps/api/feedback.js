@@ -247,6 +247,25 @@ function getFeedbackPublicPath(feedback = {}) {
   return `/feedbacks/${encodeURIComponent(identifier)}`
 }
 
+export function buildFeedbackOpenGraphText(feedback = {}) {
+  const title = trimText(
+    feedback.job?.title || feedback.video_title || feedback.name || 'Eventus Feedback',
+    255,
+  )
+  const videoTitle = trimText(feedback.video_title, 255)
+  const feedbackName = trimText(feedback.name, 255)
+  const customerName = trimText(feedback.job?.customer_name, 255)
+  const details = [videoTitle, feedbackName, customerName]
+    .filter(item => item && item !== title)
+
+  return {
+    title,
+    description: details.length
+      ? `Feedback video - ${details.join(' - ')}`
+      : 'Feedback video từ Eventus Production.',
+  }
+}
+
 function trimText(value = '', maxLength = 500) {
   const text = String(value || '').trim()
   return text.length > maxLength ? text.slice(0, maxLength) : text
@@ -496,6 +515,20 @@ async function getFeedbackByShareToken(shareToken) {
   return normalizeFeedbackRow(rows?.[0])
 }
 
+export async function getPublicFeedbackOpenGraphData(identifier) {
+  const shareToken = trimText(identifier, 80)
+  if (!isFeedbackShareToken(shareToken)) return null
+
+  const feedback = await getFeedbackByShareToken(shareToken)
+  if (!feedback?.id) return null
+
+  return {
+    ...buildFeedbackOpenGraphText(feedback),
+    image: feedback.video_preview_url || '',
+    path: getFeedbackPublicPath(feedback),
+  }
+}
+
 async function listFeedbacksForJob(jobId) {
   if (!jobId) return []
   const result = await listFeedbacks({ jobId, pageSize: 100 })
@@ -530,7 +563,7 @@ async function ensureFeedbackForJob(jobId, patch = {}) {
           job.id,
           await makeUniqueShareToken(),
           patch.name || 'Feedback 1',
-          patch.drive_url || job.drive_feedback || null,
+          patch.drive_url || null,
           patch.editor_name || job.editor_name || null,
           patch.editor_phone || job.editor_phone || null,
         ],
@@ -568,7 +601,7 @@ async function createFeedback(jobId, payload = {}) {
           emptyToNull(payload.video_url),
           emptyToNull(payload.video_title),
           emptyToNull(payload.direct_video_url),
-          emptyToNull(payload.drive_url || job.drive_feedback),
+          emptyToNull(payload.drive_url),
           emptyToNull(payload.editor_employee_id),
           emptyToNull(payload.editor_name || job.editor_name),
           emptyToNull(payload.editor_phone || job.editor_phone),
