@@ -32,6 +32,7 @@ const PUBLIC_CODE_ALPHABET = '23456789abcdefghjkmnpqrstuvwxyz'
 const PUBLIC_CODE_LENGTH = 4
 const DEFAULT_PAGE_SIZE = 20
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024
+const SURVEY_DOUBLE_SUBMIT_WINDOW_SECONDS = 15
 const DEFAULT_RCLONE_REMOTE = 'eventus'
 const DEFAULT_RCLONE_FEEDBACK_DIR = 'feedback'
 const CSS_SINCE_062026_VERSION_NAME = 'CSS Since 06.2026'
@@ -252,23 +253,81 @@ export function buildFeedbackOpenGraphText(feedback = {}) {
     feedback.job?.title || feedback.video_title || feedback.name || 'Eventus Feedback',
     255,
   )
-  const videoTitle = trimText(feedback.video_title, 255)
-  const feedbackName = trimText(feedback.name, 255)
-  const customerName = trimText(feedback.job?.customer_name, 255)
-  const details = [videoTitle, feedbackName, customerName]
-    .filter(item => item && item !== title)
 
   return {
     title,
-    description: details.length
-      ? `Feedback video - ${details.join(' - ')}`
-      : 'Feedback video từ Eventus Production.',
+    description: trimText(feedback.name, 255) || 'Feedback',
   }
+}
+
+export function buildDefaultFeedbackName(sequence = 1, date = new Date()) {
+  const safeSequence = Math.max(1, Math.floor(Number(sequence) || 1))
+  const formattedDate = new Intl.DateTimeFormat('vi-VN', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(date).replace(/\//g, '.')
+  return `Feedback #${safeSequence} ${formattedDate}`
+}
+
+function getSurveyType(value = 'video') {
+  return value === 'image' ? 'image' : 'video'
+}
+
+export function buildSurveyResponseName(type = 'video', submissionNo = 1) {
+  const safeNo = Math.max(1, Math.floor(Number(submissionNo) || 1))
+  const label = getSurveyType(type) === 'image' ? 'Khảo sát hình ảnh' : 'Khảo sát video'
+  return `${label} #${safeNo}`
 }
 
 function trimText(value = '', maxLength = 500) {
   const text = String(value || '').trim()
   return text.length > maxLength ? text.slice(0, maxLength) : text
+}
+
+function normalizePhone(value = '') {
+  return String(value || '').replace(/\D+/g, '')
+}
+
+function getAuthUserRole(user = {}) {
+  return String(user.role || user.user_role || user.permission || '').toLowerCase()
+}
+
+function isFeedbackAdminUser(user = {}) {
+  const role = getAuthUserRole(user)
+  return role === 'admin' || role === 'administrator' || role === 'super_admin' || user.is_admin || user.is_bod
+}
+
+function getAuthUserIds(user = {}) {
+  return [
+    user.id,
+    user.user_id,
+    user.employee_id,
+    user.employee?.id,
+    user.staff_id,
+    user.nhansu_id,
+  ].map(value => String(value || '').trim()).filter(Boolean)
+}
+
+function getAuthUserPhones(user = {}) {
+  return [
+    user.phone,
+    user.phone_number,
+    user.mobile,
+    user.zalo_phone,
+    user.employee?.phone,
+  ].map(normalizePhone).filter(Boolean)
+}
+
+function userMatchesFeedbackEditor(user = {}, feedback = {}) {
+  const editorId = String(feedback.editor_employee_id || '').trim()
+  if (editorId && getAuthUserIds(user).includes(editorId)) return true
+
+  const editorPhone = normalizePhone(feedback.editor_phone || feedback.job?.editor_phone)
+  if (editorPhone && getAuthUserPhones(user).includes(editorPhone)) return true
+
+  return false
 }
 
 function parseAccess(payload = {}, queryParams = {}) {
@@ -345,6 +404,23 @@ function normalizeEmployeeRow(row = {}) {
     name: row.zalo_name || row.name || row.full_name || '',
     phone: row.phone || '',
     zalo_name: row.zalo_name || row.name || '',
+  }
+}
+
+function normalizeSurveyResponseRow(row = {}) {
+  if (!row) return null
+  const submissionNo = Math.max(1, Math.floor(Number(row.submission_no) || 1))
+  const surveyType = getSurveyType(row.survey_type)
+  return {
+    id: row.id,
+    job_id: row.job_id,
+    feedback_id: row.feedback_id || null,
+    survey_type: surveyType,
+    submission_no: submissionNo,
+    display_name: buildSurveyResponseName(surveyType, submissionNo),
+    respondent_name: row.respondent_name || '',
+    created_at: row.created_at,
+    answer_count: Number(row.answer_count || 0),
   }
 }
 
@@ -562,7 +638,7 @@ async function ensureFeedbackForJob(jobId, patch = {}) {
           await makeUniquePublicCode(),
           job.id,
           await makeUniqueShareToken(),
-          patch.name || 'Feedback 1',
+          trimText(patch.name, 255) || buildDefaultFeedbackName(1),
           patch.drive_url || null,
           patch.editor_name || job.editor_name || null,
           patch.editor_phone || job.editor_phone || null,
@@ -597,7 +673,7 @@ async function createFeedback(jobId, payload = {}) {
           await makeUniquePublicCode(),
           job.id,
           shareToken,
-          trimText(payload.name, 255) || `Feedback ${count + 1}`,
+          trimText(payload.name, 255) || buildDefaultFeedbackName(count + 1),
           emptyToNull(payload.video_url),
           emptyToNull(payload.video_title),
           emptyToNull(payload.direct_video_url),
@@ -679,6 +755,29 @@ async function assertFeedbackAccess(req, feedback, access = {}) {
   throw makeHttpError('Link feedback không hợp lệ hoặc đã thiếu mã xác thực.', 403, 'FEEDBACK_ACCESS_DENIED')
 }
 
+async function getAuthenticatedFeedbackUser(req) {
+  if (req.eventusUser) return req.eventusUser
+  const user = await getEventusAuthUser(req)
+  if (user) req.eventusUser = user
+  return user
+}
+
+async function assertFeedbackEditorAccess(req, feedback) {
+  if (!feedback?.id) throw makeHttpError('Không tìm thấy feedback.', 404, 'FEEDBACK_NOT_FOUND')
+  const user = await getAuthenticatedFeedbackUser(req)
+  if (user && (isFeedbackAdminUser(user) || userMatchesFeedbackEditor(user, feedback))) return user
+  throw makeHttpError('Chỉ Editor phụ trách feedback này mới có quyền xóa bản feedback.', 403, 'FEEDBACK_EDITOR_REQUIRED')
+}
+
+async function getFeedbackPermissions(req, feedback) {
+  const user = await getAuthenticatedFeedbackUser(req)
+  const canManageFeedback = Boolean(user && (isFeedbackAdminUser(user) || userMatchesFeedbackEditor(user, feedback)))
+  return {
+    can_rename_feedback: true,
+    can_delete_feedback: canManageFeedback,
+  }
+}
+
 async function getFeedbackDetail(req, identifier, access = {}) {
   const feedback = await getFeedbackByIdentifier(identifier)
   const detailAccess = feedback?.share_token && String(identifier || '') === String(feedback.share_token)
@@ -686,10 +785,11 @@ async function getFeedbackDetail(req, identifier, access = {}) {
     : access
   await assertFeedbackAccess(req, feedback, detailAccess)
 
-  const [comments, feedbacks, employees] = await Promise.all([
+  const [comments, feedbacks, employees, surveyResponses] = await Promise.all([
     getFeedbackComments(feedback.id),
     listFeedbacksForJob(feedback.job_id),
     listJobEmployees(feedback.job_id),
+    listSurveyResponsesForJob(feedback.job_id),
   ])
 
   return {
@@ -697,6 +797,8 @@ async function getFeedbackDetail(req, identifier, access = {}) {
     comments,
     feedbacks,
     employees,
+    survey_responses: surveyResponses,
+    permissions: await getFeedbackPermissions(req, feedback),
     public_url: getFeedbackPublicPath(feedback),
   }
 }
@@ -739,8 +841,15 @@ function sanitizeFileName(fileName = 'file') {
 }
 
 function getRcloneConfig() {
+  const configuredBinary = String(process.env.RCLONE_BIN || '').trim()
+  const defaultBinary = [
+    '/usr/bin/rclone',
+    '/usr/local/bin/rclone',
+    '/snap/bin/rclone',
+  ].find(binaryPath => fs.existsSync(binaryPath)) || 'rclone'
+
   return {
-    binary: process.env.RCLONE_BIN || 'rclone',
+    binary: configuredBinary || defaultBinary,
     remote: String(process.env.RCLONE_REMOTE || DEFAULT_RCLONE_REMOTE).replace(/:+$/, ''),
     baseDir: String(process.env.RCLONE_FEEDBACK_DIR || DEFAULT_RCLONE_FEEDBACK_DIR).replace(/^\/+|\/+$/g, ''),
   }
@@ -771,7 +880,7 @@ async function uploadFeedbackFileToDrive(buffer, feedback, fileName) {
   const { binary, remote, baseDir } = getRcloneConfig()
   const tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'eventus-feedback-'))
   const tempPath = path.join(tempDir, fileName)
-  const remotePath = `${remote}:${baseDir}/feedback-${getFeedbackStorageKey(feedback)}/${fileName}`
+  const remotePath = `${remote}:/${baseDir}/feedback-${getFeedbackStorageKey(feedback)}/${fileName}`
 
   try {
     await fsp.writeFile(tempPath, buffer)
@@ -1094,6 +1203,35 @@ async function clearColumn(req, body = {}) {
   return { ok: true, comments: await getFeedbackComments(feedback.id) }
 }
 
+async function deleteFeedback(req, body = {}) {
+  const feedback = await getFeedbackByIdentifier(body.id || body.feedback_id)
+  await assertFeedbackEditorAccess(req, feedback)
+
+  await query(
+    `update ${tables.feedbacks}
+     set deleted_at = current_timestamp(3), status = 'deleted', updated_at = current_timestamp(3)
+     where id = ? and deleted_at is null`,
+    [feedback.id],
+  )
+
+  const rows = await query(
+    `select ${getFeedbackListSelect()}
+     from ${tables.feedbacks} f
+     left join ${tables.jobs} j on j.id = f.job_id
+     where f.job_id = ? and f.deleted_at is null
+     order by f.created_at desc
+     limit 1`,
+    [feedback.job_id],
+  )
+  const nextFeedback = normalizeFeedbackRow(rows?.[0])
+
+  return {
+    ok: true,
+    feedback: nextFeedback,
+    public_url: nextFeedback ? getFeedbackPublicPath(nextFeedback) : '/feedbacks',
+  }
+}
+
 async function markFeedbackDone(req, body = {}) {
   const feedback = await getFeedbackByIdentifier(body.id || body.feedback_id)
   await assertFeedbackAccess(req, feedback, parseAccess(body))
@@ -1219,21 +1357,79 @@ async function getSurveyQuestions(type = 'video') {
   }
 }
 
+async function listSurveyResponsesForJob(jobId) {
+  if (!jobId) return []
+
+  const rows = await query(
+    `select sr.*,
+       sra.id as response_answer_id,
+       sra.question_id,
+       sra.answer_id,
+       sra.answer_text,
+       coalesce(q.question, lq.question, sra.question_id) as question_text,
+       coalesce(q.sort_order, lq.sort_order, 999999) as question_sort_order,
+       coalesce(a.answer, la.answer, '') as answer_label,
+       coalesce(a.sort_order, la.sort_order, 999999) as answer_sort_order
+     from ${tables.feedbackSurveyResponses} sr
+     left join ${tables.feedbackSurveyResponseAnswers} sra on sra.response_id = sr.id
+     left join ${tables.surveyQuestions} q on q.id = sra.question_id
+     left join ${tables.feedbackSurveyQuestions} lq on lq.id = sra.question_id
+     left join ${tables.surveyAnswers} a on a.id = sra.answer_id
+     left join ${tables.feedbackSurveyAnswers} la on la.id = sra.answer_id
+     where sr.job_id = ?
+     order by sr.created_at desc, sr.submission_no desc, question_sort_order asc, sra.created_at asc, answer_sort_order asc`,
+    [jobId],
+  )
+
+  const responses = new Map()
+  rows.forEach(row => {
+    if (!responses.has(row.id)) {
+      responses.set(row.id, {
+        ...normalizeSurveyResponseRow(row),
+        answers: [],
+      })
+    }
+
+    if (!row.response_answer_id) return
+    const answerLabel = String(row.answer_label || '').trim()
+    responses.get(row.id).answers.push({
+      id: row.response_answer_id,
+      question_id: row.question_id,
+      question: row.question_text || row.question_id,
+      answer_id: row.answer_id || null,
+      answer: row.answer_text || (answerLabel === '__free_text__' ? '' : answerLabel),
+      answer_text: row.answer_text || '',
+    })
+  })
+
+  return [...responses.values()].map(response => ({
+    ...response,
+    answer_count: response.answers.length,
+  }))
+}
+
 async function getSurvey(req) {
   const jobId = getQueryValue(req.query?.job || req.query?.job_id, '')
-  const type = getQueryValue(req.query?.type, 'video') === 'image' ? 'image' : 'video'
+  const type = getSurveyType(getQueryValue(req.query?.type, 'video'))
   const job = await getJobById(jobId)
   if (!job?.id) throw makeHttpError('Không tìm thấy job.', 404, 'JOB_NOT_FOUND')
 
   const responseRows = await query(
-    `select count(*) as count from ${tables.feedbackSurveyResponses} where job_id = ? and survey_type = ?`,
+    `select count(*) as count, coalesce(max(submission_no), 0) as max_submission_no
+     from ${tables.feedbackSurveyResponses}
+     where job_id = ? and survey_type = ?`,
     [job.id, type],
   )
+  const submissionCount = Number(responseRows?.[0]?.count || 0)
+  const nextSubmissionNo = Number(responseRows?.[0]?.max_submission_no || 0) + 1
   const survey = await getSurveyQuestions(type)
   return {
     job,
     type,
-    already_submitted: Number(responseRows?.[0]?.count || 0) > 0,
+    already_submitted: false,
+    submission_count: submissionCount,
+    next_submission_no: nextSubmissionNo,
+    next_display_name: buildSurveyResponseName(type, nextSubmissionNo),
     copy: getSurveyCopy(survey.version),
     survey_version: survey.version ? {
       id: survey.version.id,
@@ -1244,88 +1440,169 @@ async function getSurvey(req) {
   }
 }
 
+async function getSurveyResponseBySubmissionKey(submissionKey) {
+  if (!submissionKey) return null
+  const rows = await query(
+    `select * from ${tables.feedbackSurveyResponses} where submission_key = ? limit 1`,
+    [submissionKey],
+  )
+  return normalizeSurveyResponseRow(rows?.[0])
+}
+
 async function submitSurvey(req, body = {}) {
   const jobId = body.job || body.job_id
-  const type = body.type === 'image' ? 'image' : 'video'
+  const type = getSurveyType(body.type)
   const job = await getJobById(jobId)
   if (!job?.id) throw makeHttpError('Không tìm thấy job.', 404, 'JOB_NOT_FOUND')
 
-  const existingRows = await query(
-    `select id from ${tables.feedbackSurveyResponses} where job_id = ? and survey_type = ? limit 1`,
-    [job.id, type],
-  )
-  if (existingRows.length) {
-    throw makeHttpError('Job này đã gửi khảo sát trước đó.', 409, 'SURVEY_ALREADY_SUBMITTED')
-  }
-
   const answers = body.answers || {}
   const freeText = body.free_text || body.freeText || {}
-  const responseId = makeId('fbsr')
-  try {
-    await withTransaction(async connection => {
-      await insertRow(connection, tables.feedbackSurveyResponses, {
-        id: responseId,
-        job_id: job.id,
-        feedback_id: emptyToNull(body.feedback_id),
-        survey_type: type,
-        respondent_name: emptyToNull(body.respondent_name),
-        user_agent: req.headers?.['user-agent'] || null,
-      })
+  const submissionKey = trimText(body.submission_key || body.submissionKey, 80)
+  const userAgent = req.headers?.['user-agent'] || null
+  let result = null
 
-      for (const [questionId, answerValues] of Object.entries(answers)) {
-        const values = Array.isArray(answerValues) ? answerValues : [answerValues]
-        for (const answerId of values.filter(value => value !== undefined && value !== null && value !== '')) {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      result = await withTransaction(async connection => {
+        if (submissionKey) {
+          const [existingKeyRows] = await connection.query(
+            `select * from ${tables.feedbackSurveyResponses} where submission_key = ? limit 1 for update`,
+            [submissionKey],
+          )
+          if (existingKeyRows.length) {
+            return {
+              response: normalizeSurveyResponseRow(existingKeyRows[0]),
+              duplicate: true,
+            }
+          }
+        } else if (userAgent) {
+          const [recentRows] = await connection.query(
+            `select *
+             from ${tables.feedbackSurveyResponses}
+             where job_id = ?
+               and survey_type = ?
+               and user_agent = ?
+               and created_at >= date_sub(current_timestamp(3), interval ? second)
+             order by created_at desc
+             limit 1
+             for update`,
+            [job.id, type, userAgent, SURVEY_DOUBLE_SUBMIT_WINDOW_SECONDS],
+          )
+          if (recentRows.length) {
+            return {
+              response: normalizeSurveyResponseRow(recentRows[0]),
+              duplicate: true,
+            }
+          }
+        }
+
+        const [latestRows] = await connection.query(
+          `select submission_no
+           from ${tables.feedbackSurveyResponses}
+           where job_id = ? and survey_type = ?
+           order by submission_no desc
+           limit 1
+           for update`,
+          [job.id, type],
+        )
+        const submissionNo = Number(latestRows?.[0]?.submission_no || 0) + 1
+        const responseId = makeId('fbsr')
+
+        await insertRow(connection, tables.feedbackSurveyResponses, {
+          id: responseId,
+          job_id: job.id,
+          feedback_id: emptyToNull(body.feedback_id),
+          survey_type: type,
+          submission_no: submissionNo,
+          submission_key: emptyToNull(submissionKey),
+          respondent_name: emptyToNull(body.respondent_name),
+          user_agent: userAgent,
+        })
+
+        for (const [questionId, answerValues] of Object.entries(answers)) {
+          const values = Array.isArray(answerValues) ? answerValues : [answerValues]
+          for (const answerId of values.filter(value => value !== undefined && value !== null && value !== '')) {
+            await insertRow(connection, tables.feedbackSurveyResponseAnswers, {
+              id: makeId('fbsra'),
+              response_id: responseId,
+              question_id: questionId,
+              answer_id: String(answerId),
+              answer_text: null,
+            })
+          }
+        }
+
+        for (const [questionId, answerTextValue] of Object.entries(freeText)) {
+          const answerText = trimText(answerTextValue, 4000)
+          if (!answerText) continue
+
+          const [answerRows] = await connection.query(
+            `select id from ${tables.surveyAnswers}
+             where question_id = ? and answer = ? and is_star = 0
+             order by sort_order asc, id asc
+             limit 1`,
+            [questionId, '__free_text__'],
+          )
+          const [legacyAnswerRows] = answerRows.length ? [[]] : await connection.query(
+            `select id from ${tables.feedbackSurveyAnswers}
+             where question_id = ? and answer = ? and is_star = 0
+             order by sort_order asc, id asc
+             limit 1`,
+            [questionId, '__free_text__'],
+          )
+          const freeTextAnswer = answerRows?.[0] || legacyAnswerRows?.[0]
+
           await insertRow(connection, tables.feedbackSurveyResponseAnswers, {
             id: makeId('fbsra'),
             response_id: responseId,
             question_id: questionId,
-            answer_id: String(answerId),
-            answer_text: null,
+            answer_id: emptyToNull(freeTextAnswer?.id),
+            answer_text: answerText,
           })
         }
+
+        return {
+          response: normalizeSurveyResponseRow({
+            id: responseId,
+            job_id: job.id,
+            feedback_id: emptyToNull(body.feedback_id),
+            survey_type: type,
+            submission_no: submissionNo,
+            respondent_name: emptyToNull(body.respondent_name),
+            created_at: nowMysql(),
+          }),
+          duplicate: false,
+        }
+      })
+      break
+    } catch (error) {
+      if (error?.code === 'ER_DUP_ENTRY' && submissionKey) {
+        const existing = await getSurveyResponseBySubmissionKey(submissionKey)
+        if (existing) {
+          result = { response: existing, duplicate: true }
+          break
+        }
       }
-
-      for (const [questionId, answerTextValue] of Object.entries(freeText)) {
-        const answerText = trimText(answerTextValue, 4000)
-        if (!answerText) continue
-
-        const [answerRows] = await connection.query(
-          `select id from ${tables.surveyAnswers}
-           where question_id = ? and answer = ? and is_star = 0
-           order by sort_order asc, id asc
-           limit 1`,
-          [questionId, '__free_text__'],
-        )
-        const [legacyAnswerRows] = answerRows.length ? [[]] : await connection.query(
-          `select id from ${tables.feedbackSurveyAnswers}
-           where question_id = ? and answer = ? and is_star = 0
-           order by sort_order asc, id asc
-           limit 1`,
-          [questionId, '__free_text__'],
-        )
-        const freeTextAnswer = answerRows?.[0] || legacyAnswerRows?.[0]
-
-        await insertRow(connection, tables.feedbackSurveyResponseAnswers, {
-          id: makeId('fbsra'),
-          response_id: responseId,
-          question_id: questionId,
-          answer_id: emptyToNull(freeTextAnswer?.id),
-          answer_text: answerText,
-        })
+      if (error?.code === 'ER_DUP_ENTRY' && attempt < 4) continue
+      if (error?.code === 'ER_DUP_ENTRY') {
+        throw makeHttpError('Không tạo được số lượt khảo sát mới. Anh/chị thử gửi lại sau ít giây.', 409, 'SURVEY_SUBMISSION_CONFLICT')
       }
-    })
-  } catch (error) {
-    if (error?.code === 'ER_DUP_ENTRY') {
-      throw makeHttpError('Job này đã gửi khảo sát trước đó.', 409, 'SURVEY_ALREADY_SUBMITTED')
+      throw error
     }
-    throw error
   }
 
-  notifySurveySubmitted(job, answers).catch(() => {})
-  return { ok: true, response_id: responseId }
+  if (!result?.response) throw makeHttpError('Không tạo được khảo sát.', 500, 'SURVEY_CREATE_FAILED')
+  if (!result.duplicate) notifySurveySubmitted(job, answers, result.response).catch(() => {})
+  return {
+    ok: true,
+    response_id: result.response.id,
+    submission_no: result.response.submission_no,
+    display_name: result.response.display_name,
+    duplicate: Boolean(result.duplicate),
+  }
 }
 
-async function notifySurveySubmitted(job, answers = {}) {
+async function notifySurveySubmitted(job, answers = {}, response = {}) {
   const baseUrl = String(process.env.NHANSU_URL || '').replace(/\/+$/, '')
   if (!baseUrl) return
 
@@ -1340,7 +1617,7 @@ async function notifySurveySubmitted(job, answers = {}) {
       type: 5,
       need_to_send: needToSend,
       title: 'Eventus Customer Satisfaction Survey',
-      content: `Thông báo CSS mới từ job ${job.job_date || ''} ${job.title || job.id}.\n\nTên khách hàng: ${job.customer_name || '-'}\n\nSố câu trả lời: ${Object.keys(answers).length}`,
+      content: `Thông báo ${response.display_name || 'CSS mới'} từ job ${job.job_date || ''} ${job.title || job.id}.\n\nTên khách hàng: ${job.customer_name || '-'}\n\nSố câu trả lời: ${Object.keys(answers).length}`,
     }),
   }).catch(() => {})
 }
@@ -1475,6 +1752,7 @@ export default async function handler(req, res) {
       if (action === 'overall_feedback') return res.status(200).json(await updateOverallFeedback(req, body))
       if (action === 'feedback_done') return res.status(200).json(await markFeedbackDone(req, body))
       if (action === 'clear_column') return res.status(200).json(await clearColumn(req, body))
+      if (action === 'delete_feedback') return res.status(200).json(await deleteFeedback(req, body))
       if (action === 'job_done') return res.status(200).json(await markJobDone(req, body))
       if (action === 'submit_survey') return res.status(201).json(await submitSurvey(req, body))
 

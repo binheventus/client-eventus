@@ -217,6 +217,26 @@ const feedbackColumns = [
   },
 ]
 
+const feedbackSurveyResponseColumns = [
+  {
+    tableName: 'client_feedback_survey_responses',
+    columnName: 'submission_no',
+    definition: 'int not null default 1 after `survey_type`',
+  },
+  {
+    tableName: 'client_feedback_survey_responses',
+    columnName: 'submission_key',
+    definition: 'varchar(80) null after `submission_no`',
+  },
+]
+
+const legacyFeedbackIndexes = [
+  {
+    tableName: 'client_feedback_survey_responses',
+    indexName: 'client_feedback_survey_responses_job_type_unique',
+  },
+]
+
 const feedbackIndexes = [
   {
     tableName: 'client_feedbacks',
@@ -227,8 +247,15 @@ const feedbackIndexes = [
   },
   {
     tableName: 'client_feedback_survey_responses',
-    indexName: 'client_feedback_survey_responses_job_type_unique',
-    columns: ['job_id', 'survey_type'],
+    indexName: 'client_feedback_survey_responses_job_type_no_unique',
+    columns: ['job_id', 'survey_type', 'submission_no'],
+    unique: true,
+    skipIfDuplicateRows: true,
+  },
+  {
+    tableName: 'client_feedback_survey_responses',
+    indexName: 'client_feedback_survey_responses_submission_key_unique',
+    columns: ['submission_key'],
     unique: true,
     skipIfDuplicateRows: true,
   },
@@ -301,6 +328,23 @@ async function ensureConfiguredIndex(pool, { tableName, indexName, columns, uniq
   return true
 }
 
+async function dropIndexIfExists(pool, { tableName, indexName }) {
+  const [rows] = await pool.query(
+    `select 1
+     from information_schema.statistics
+     where table_schema = database()
+       and table_name = ?
+       and index_name = ?
+     limit 1`,
+    [tableName, indexName],
+  )
+
+  if (!rows.length) return false
+
+  await pool.query(`alter table \`${tableName}\` drop index \`${indexName}\``)
+  return true
+}
+
 async function hasDuplicateRowsForIndex(pool, { tableName, columns }) {
   const columnSql = columns.map(column => `\`${column}\``).join(', ')
   const presentSql = columns.map(column => `\`${column}\` is not null`).join(' and ')
@@ -356,6 +400,50 @@ async function backfillFeedbackPublicCodes(pool) {
   }
 
   return rows.length
+}
+
+async function backfillFeedbackSurveySubmissionNumbers(pool) {
+  const [tables] = await pool.query(
+    `select 1
+     from information_schema.tables
+     where table_schema = database()
+       and table_name = 'client_feedback_survey_responses'
+     limit 1`,
+  )
+  if (!tables.length) return 0
+
+  const [columns] = await pool.query(
+    `select 1
+     from information_schema.columns
+     where table_schema = database()
+       and table_name = 'client_feedback_survey_responses'
+       and column_name = 'submission_no'
+     limit 1`,
+  )
+  if (!columns.length) return 0
+
+  const [rows] = await pool.query(
+    `select id, job_id, survey_type, submission_no
+     from \`client_feedback_survey_responses\`
+     order by job_id asc, survey_type asc, created_at asc, id asc`,
+  )
+
+  const counters = new Map()
+  let updated = 0
+  for (const row of rows) {
+    const key = `${row.job_id}:${row.survey_type || 'video'}`
+    const nextNo = (counters.get(key) || 0) + 1
+    counters.set(key, nextNo)
+
+    if (Number(row.submission_no || 0) === nextNo) continue
+    await pool.query(
+      'update `client_feedback_survey_responses` set `submission_no` = ? where `id` = ?',
+      [nextNo, row.id],
+    )
+    updated += 1
+  }
+
+  return updated
 }
 
 async function ensureContractQuoteNullable(pool) {
@@ -462,13 +550,23 @@ try {
     if (await ensureColumnIfTableExists(pool, columnConfig)) createdColumns.push(`${columnConfig.tableName}.${columnConfig.columnName}`)
   }
 
+  for (const columnConfig of feedbackSurveyResponseColumns) {
+    if (await ensureColumnIfTableExists(pool, columnConfig)) createdColumns.push(`${columnConfig.tableName}.${columnConfig.columnName}`)
+  }
+
   const backfilledFeedbackPublicCodes = await backfillFeedbackPublicCodes(pool)
+  const backfilledFeedbackSurveySubmissionNumbers = await backfillFeedbackSurveySubmissionNumbers(pool)
 
   if (await ensureContractQuoteNullable(pool)) createdColumns.push('client_contracts.quote_id nullable')
   const quoteDraftModeCleanup = await removeQuoteDraftMode(pool)
 
   for (const indexConfig of contractIndexes) {
     if (await ensureConfiguredIndex(pool, indexConfig)) createdIndexes.push(indexConfig.indexName)
+  }
+
+  const droppedIndexes = []
+  for (const indexConfig of legacyFeedbackIndexes) {
+    if (await dropIndexIfExists(pool, indexConfig)) droppedIndexes.push(indexConfig.indexName)
   }
 
   const skippedIndexes = []
@@ -498,8 +596,10 @@ try {
     statements: splitSqlStatements(schemaSql).length,
     created_columns: createdColumns,
     created_indexes: createdIndexes,
+    dropped_indexes: droppedIndexes,
     skipped_indexes: skippedIndexes,
     backfilled_feedback_public_codes: backfilledFeedbackPublicCodes,
+    backfilled_feedback_survey_submission_numbers: backfilledFeedbackSurveySubmissionNumbers,
     quote_draft_mode_cleanup: quoteDraftModeCleanup,
     dropped_legacy_tables: shouldDropLegacyTables ? legacyAiLabTables.length : 0,
   }, null, 2))

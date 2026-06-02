@@ -357,11 +357,14 @@ create table if not exists client_feedback_survey_responses (
   job_id bigint unsigned not null,
   feedback_id varchar(64) null,
   survey_type varchar(40) not null default 'video',
+  submission_no int not null default 1,
+  submission_key varchar(80) null,
   respondent_name varchar(255) null,
   user_agent text null,
   created_at datetime(3) not null default current_timestamp(3),
-  unique key client_feedback_survey_responses_job_type_unique (job_id, survey_type),
-  key client_feedback_survey_responses_job_idx (job_id, created_at),
+  unique key client_feedback_survey_responses_job_type_no_unique (job_id, survey_type, submission_no),
+  unique key client_feedback_survey_responses_submission_key_unique (submission_key),
+  key client_feedback_survey_responses_job_idx (job_id, survey_type, created_at),
   key client_feedback_survey_responses_feedback_idx (feedback_id, created_at)
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 

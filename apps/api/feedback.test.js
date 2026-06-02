@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { buildFeedbackOpenGraphText, isPublicFeedbackRequest } from './feedback.js'
+import { buildDefaultFeedbackName, buildFeedbackOpenGraphText, buildSurveyResponseName, isPublicFeedbackRequest } from './feedback.js'
 
 test('feedback detail can be opened publicly with a share token path id', () => {
   assert.equal(isPublicFeedbackRequest({
@@ -21,6 +21,15 @@ test('feedback admin list still requires auth', () => {
   }), false)
 })
 
+test('feedback delete action requires Eventus auth before handler', () => {
+  assert.equal(isPublicFeedbackRequest({
+    method: 'POST',
+    body: {
+      action: 'delete_feedback',
+    },
+  }), false)
+})
+
 test('feedback open graph title uses the banner job title first', () => {
   const meta = buildFeedbackOpenGraphText({
     name: 'Feedback 1',
@@ -32,5 +41,14 @@ test('feedback open graph title uses the banner job title first', () => {
   })
 
   assert.equal(meta.title, 'Year End Party 2026')
-  assert.match(meta.description, /Video from YouTube/)
+  assert.equal(meta.description, 'Feedback 1')
+})
+
+test('default feedback name includes sequence and Vietnam date', () => {
+  assert.equal(buildDefaultFeedbackName(4, new Date('2026-06-01T18:00:00.000Z')), 'Feedback #4 02.06.2026')
+})
+
+test('survey response name includes type and submission number', () => {
+  assert.equal(buildSurveyResponseName('video', 2), 'Khảo sát video #2')
+  assert.equal(buildSurveyResponseName('image', 3), 'Khảo sát hình ảnh #3')
 })

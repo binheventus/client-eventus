@@ -13,6 +13,9 @@ const publicDir = path.join(projectRoot, 'apps/web/public')
 const indexHtml = path.join(distDir, 'index.html')
 const port = Number(process.env.PORT || 3000)
 const host = process.env.HOST || '0.0.0.0'
+const apiBodyLimit = process.env.API_JSON_BODY_LIMIT || '12mb'
+const surveyPageTitle = 'Chia sẻ ý kiến của bạn - Eventus CSS'
+const quotePublicPageTitle = 'Báo giá chi tiết - Eventus Production'
 
 const contentTypes = {
   '.css': 'text/css; charset=utf-8',
@@ -90,6 +93,16 @@ function getFeedbackIdentifier(url = '') {
   return match ? decodeURIComponent(match[1]) : ''
 }
 
+function isSurveyPageUrl(url = '') {
+  const pathname = new URL(url, 'http://localhost').pathname
+  return pathname === '/survey' || pathname === '/survey/'
+}
+
+function isQuotePublicPageUrl(url = '') {
+  const pathname = new URL(url, 'http://localhost').pathname
+  return /^\/q\/[^/]+\/?$/.test(pathname)
+}
+
 function stripManagedOpenGraphTags(html = '') {
   return html.replace(
     /\s*<meta\s+(?:property|name)=["'](?:og:title|og:description|og:type|og:url|og:image|og:site_name|twitter:card|twitter:title|twitter:description|twitter:image)["'][^>]*>\s*/gi,
@@ -118,6 +131,11 @@ function renderOpenGraphIndexHtml(req, metadata = {}) {
   return rawHtml
     .replace(/<title>.*?<\/title>/i, `<title>${escapeHtml(pageTitle)}</title>`)
     .replace('</head>', `${tags}\n  </head>`)
+}
+
+function renderTitledIndexHtml(title) {
+  return fs.readFileSync(indexHtml, 'utf8')
+    .replace(/<title>.*?<\/title>/i, `<title>${escapeHtml(title)}</title>`)
 }
 
 function resolveStaticPath(url = '/') {
@@ -159,6 +177,16 @@ async function handleStaticRequest(req, res, next) {
     return
   }
 
+  if (req.method === 'GET' && isSurveyPageUrl(req.url)) {
+    sendHtml(res, renderTitledIndexHtml(surveyPageTitle))
+    return
+  }
+
+  if (req.method === 'GET' && isQuotePublicPageUrl(req.url)) {
+    sendHtml(res, renderTitledIndexHtml(quotePublicPageTitle))
+    return
+  }
+
   const feedbackIdentifier = req.method === 'GET' ? getFeedbackIdentifier(req.url) : ''
   if (feedbackIdentifier) {
     const metadata = await getPublicFeedbackOpenGraphData(feedbackIdentifier).catch(() => null)
@@ -181,8 +209,10 @@ function registerStaticFallback(server) {
   })
 }
 
-const app = await NestFactory.create(ApiModule, { logger: ['error', 'warn'] })
+const app = await NestFactory.create(ApiModule, { bodyParser: false, logger: ['error', 'warn'] })
 app.enableCors()
+app.useBodyParser('json', { limit: apiBodyLimit })
+app.useBodyParser('urlencoded', { extended: true, limit: apiBodyLimit })
 const server = app.getHttpAdapter().getInstance()
 server.use(protectQuotePage)
 registerStaticFallback(server)

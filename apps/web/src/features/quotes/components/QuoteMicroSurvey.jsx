@@ -96,7 +96,7 @@ export default function QuoteMicroSurvey({ quote = {} }) {
     <section className="quote-micro-survey" aria-live="polite">
       {view === 'intro' ? (
         <div className="quote-micro-survey__panel">
-          <h2 className="quote-micro-survey__title">{SURVEY_TEXT.introTitle}</h2>
+          <h2 className="quote-micro-survey__title quote-micro-survey__title--brand">{SURVEY_TEXT.introTitle}</h2>
           <div className="quote-micro-survey__actions" role="group" aria-label={SURVEY_TEXT.introTitle}>
             {INITIAL_OPTIONS.map(option => (
               <button

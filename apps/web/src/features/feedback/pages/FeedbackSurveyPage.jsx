@@ -7,6 +7,33 @@ const DEFAULT_COPY = {
   description: 'Cảm ơn anh/chị đã tin tưởng lựa chọn Eventus. Khảo sát này chỉ mất khoảng 2 phút để hoàn\u00a0thành. Những chia sẻ của anh/chị sẽ giúp chúng tôi tiếp tục nâng cao chất lượng dịch vụ và mang đến trải nghiệm tốt hơn trong các dự án sắp tới.',
   thank_you: 'Cảm ơn anh/chị đã dành thời gian chia sẻ ý kiến.\nMỗi phản hồi đều là nguồn thông tin quý giá giúp Eventus Production không ngừng hoàn thiện chất lượng dịch vụ và mang đến những trải nghiệm tốt hơn trong tương lai.\nChúng tôi trân trọng sự đồng hành và tin tưởng của anh/chị. Hẹn gặp lại trong những dự án tiếp theo!',
 }
+const SURVEY_PAGE_TITLE = 'Chia sẻ ý kiến của bạn - Eventus CSS'
+const DOUBLE_SUBMIT_LOCK_MS = 15000
+
+function createSubmissionKey() {
+  if (typeof window !== 'undefined' && window.crypto?.randomUUID) return window.crypto.randomUUID()
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`
+}
+
+function getSubmitLockKey({ jobId = '', type = 'video' } = {}) {
+  return `eventus.feedbackSurveySubmitLock.${type}.${jobId}`
+}
+
+function readSubmitLock(key) {
+  try {
+    return Number(window.localStorage?.getItem(key) || 0)
+  } catch {
+    return 0
+  }
+}
+
+function writeSubmitLock(key, value) {
+  try {
+    window.localStorage?.setItem(key, String(value))
+  } catch {
+    // Local storage can be unavailable in private browsing; the API still has a duplicate guard.
+  }
+}
 
 function useSurveyParams() {
   const location = useLocation()
@@ -35,7 +62,7 @@ function getQuestionKind(question = {}) {
   }
 }
 
-function SurveySuccess({ copy = DEFAULT_COPY }) {
+function SurveySuccess({ copy = DEFAULT_COPY, response = null }) {
   return (
     <main className="flex min-h-screen items-center justify-center bg-[#f4f5f8] px-3 py-7 font-['Montserrat','Segoe_UI',system-ui,sans-serif] text-[#333]">
       <section className="relative w-full max-w-[620px] overflow-hidden rounded-2xl border border-[#e5e9f1] bg-[linear-gradient(135deg,rgba(255,247,237,0.92),rgba(255,255,255,0.96)_46%,rgba(232,246,242,0.92))] px-5 py-7 text-center shadow-[0_18px_46px_rgba(31,45,61,0.1)] sm:px-8 sm:py-9">
@@ -44,6 +71,11 @@ function SurveySuccess({ copy = DEFAULT_COPY }) {
           <img src="/logos/logo_eventus.png" alt="Eventus Production" className="mx-auto h-auto w-[min(176px,58vw)]" />
         </div>
         <h1 className="relative z-10 text-[20px] font-bold leading-[1.28] text-[#202b3c] sm:text-[23px]">Cảm ơn Anh/Chị đã thực hiện khảo sát</h1>
+        {response?.display_name && (
+          <p className="relative z-10 mx-auto mt-3 inline-flex rounded-full bg-white/70 px-3 py-1 text-[12px] font-bold text-[#f79820]">
+            Đã ghi nhận {response.display_name}
+          </p>
+        )}
         <p className="relative z-10 mx-auto mt-5 max-w-[510px] whitespace-pre-line text-[14px] leading-[1.75] text-[#4b5563]">
           {copy.thank_you || DEFAULT_COPY.thank_you}
         </p>
@@ -192,9 +224,11 @@ function FreeTextQuestion({ question, value = '', disabled, onChange }) {
 export default function FeedbackSurveyPage() {
   const params = useSurveyParams()
   const savedStatusTimerRef = useRef({})
+  const submissionKeyRef = useRef(createSubmissionKey())
   const [survey, setSurvey] = useState(null)
   const [answers, setAnswers] = useState({})
   const [freeText, setFreeText] = useState({})
+  const [submissionResult, setSubmissionResult] = useState(null)
   const [savedStatus, setSavedStatus] = useState({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -208,6 +242,14 @@ export default function FeedbackSurveyPage() {
     if (isFreeText) return Boolean(String(freeText[question.id] || '').trim())
     return (answers[question.id] || []).length > 0
   }).length
+
+  useEffect(() => {
+    const previousTitle = document.title
+    document.title = SURVEY_PAGE_TITLE
+    return () => {
+      document.title = previousTitle
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -265,15 +307,29 @@ export default function FeedbackSurveyPage() {
 
   async function submit(event) {
     event.preventDefault()
+    if (saving) return
+
+    const lockKey = getSubmitLockKey(params)
+    const now = Date.now()
+    const lockedUntil = readSubmitLock(lockKey)
+    if (lockedUntil > now) {
+      const seconds = Math.max(1, Math.ceil((lockedUntil - now) / 1000))
+      setError(`Eventus đang ghi nhận phản hồi vừa gửi. Anh/chị vui lòng đợi ${seconds} giây để tránh gửi trùng.`)
+      return
+    }
+
+    writeSubmitLock(lockKey, now + DOUBLE_SUBMIT_LOCK_MS)
     setSaving(true)
     setError('')
     try {
-      await submitFeedbackSurvey({
+      const result = await submitFeedbackSurvey({
         job: params.jobId,
         type: params.type,
+        submission_key: submissionKeyRef.current,
         answers,
         free_text: freeText,
       })
+      setSubmissionResult(result)
       setDone(true)
     } catch (err) {
       setError(err?.message || 'Không lưu được khảo sát.')
@@ -282,7 +338,7 @@ export default function FeedbackSurveyPage() {
     }
   }
 
-  if (done) return <SurveySuccess copy={copy} />
+  if (done) return <SurveySuccess copy={copy} response={submissionResult} />
 
   return (
     <main className="min-h-screen bg-[#f4f5f8] px-2.5 pb-8 font-['Montserrat','Segoe_UI',system-ui,sans-serif] text-[#333] sm:px-3 sm:pb-10">
@@ -300,9 +356,9 @@ export default function FeedbackSurveyPage() {
           </div>
         ) : (
           <form onSubmit={submit} className="grid gap-0">
-            {survey?.already_submitted && (
+            {Number(survey?.submission_count || 0) > 0 && (
               <div className="mb-4 rounded-xl border border-[#dbeafe] bg-[linear-gradient(135deg,rgba(255,247,237,0.92),rgba(255,255,255,0.96)_46%,rgba(232,246,242,0.92))] px-4 py-3 text-[13px] font-semibold italic leading-[1.55] text-[#43556e]">
-                Job này đã có khảo sát trước đó. Eventus chỉ nhận một khảo sát cho mỗi job và loại dịch vụ.
+                Job này đã có {survey.submission_count} lượt khảo sát trước đó. Lần gửi này sẽ được lưu thành {survey.next_display_name || `khảo sát #${Number(survey.submission_count || 0) + 1}`}.
               </div>
             )}
 
@@ -332,21 +388,21 @@ export default function FeedbackSurveyPage() {
                       <RatingQuestion
                         question={question}
                         selectedAnswer={(answers[question.id] || [])[0] || ''}
-                        disabled={saving || survey?.already_submitted}
+                        disabled={saving}
                         onSelect={selectRating}
                       />
                     ) : isFreeText ? (
                       <FreeTextQuestion
                         question={question}
                         value={freeText[question.id] || ''}
-                        disabled={saving || survey?.already_submitted}
+                        disabled={saving}
                         onChange={setFreeTextAnswer}
                       />
                     ) : choiceAnswers.length > 0 ? (
                       <ChoiceQuestion
                         question={question}
                         selectedAnswers={answers[question.id] || []}
-                        disabled={saving || survey?.already_submitted}
+                        disabled={saving}
                         onChange={setChoiceAnswer}
                       />
                     ) : null}
@@ -362,10 +418,10 @@ export default function FeedbackSurveyPage() {
             <div className="mt-1">
               <button
                 type="submit"
-                disabled={saving || survey?.already_submitted}
+                disabled={saving}
                 className="inline-flex min-h-12 w-full items-center justify-center rounded-lg border-0 bg-[#f79820] px-4 text-center text-[14px] font-extrabold leading-tight text-white shadow-[0_12px_24px_rgba(247,152,32,0.18)] transition hover:-translate-y-px hover:bg-[#d97706] hover:shadow-[0_16px_30px_rgba(247,152,32,0.22)] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {survey?.already_submitted ? 'Đã gửi khảo sát' : saving ? 'Đang gửi...' : 'Gửi phản hồi tới Eventus'}
+                {saving ? 'Đang gửi...' : 'Gửi phản hồi tới Eventus'}
               </button>
             </div>
           </form>

@@ -24,11 +24,11 @@ import { normalizeQuoteValidityDays } from '../lib/quoteValidity'
 
 const QuotePDFDownloadButton = lazy(() => import('../components/QuotePDFDownloadButton'))
 
-const DETAIL_ACTION_BUTTON_BASE = 'inline-flex h-10 items-center justify-center gap-2 rounded-xl px-4 text-center text-[13px] font-semibold shadow-sm transition focus-visible:outline-none focus-visible:ring-2 disabled:cursor-not-allowed'
-const DETAIL_SECONDARY_ACTION_BUTTON = `${DETAIL_ACTION_BUTTON_BASE} w-[156px] border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 focus-visible:ring-slate-200`
-const DETAIL_DUPLICATE_ACTION_BUTTON = `${DETAIL_ACTION_BUTTON_BASE} min-w-[172px] whitespace-nowrap border border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100 focus-visible:ring-orange-200 disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-300 disabled:shadow-none`
-const DETAIL_CONTRACT_ACTION_BUTTON = `${DETAIL_ACTION_BUTTON_BASE} min-w-[156px] whitespace-nowrap border border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100 focus-visible:ring-orange-200 disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-300 disabled:shadow-none`
-const DETAIL_PRIMARY_ACTION_BUTTON = `${DETAIL_ACTION_BUTTON_BASE} min-w-[184px] whitespace-nowrap bg-[#f8981d] text-white hover:bg-orange-500 focus-visible:ring-orange-200`
+const DETAIL_ACTION_BUTTON_BASE = 'inline-flex h-9 items-center justify-center gap-1.5 rounded-xl px-3 text-center text-[12px] font-semibold shadow-sm transition focus-visible:outline-none focus-visible:ring-2 disabled:cursor-not-allowed'
+const DETAIL_SECONDARY_ACTION_BUTTON = `${DETAIL_ACTION_BUTTON_BASE} w-[132px] border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 focus-visible:ring-slate-200`
+const DETAIL_DUPLICATE_ACTION_BUTTON = `${DETAIL_ACTION_BUTTON_BASE} min-w-[144px] whitespace-nowrap border border-orange-200 bg-white text-slate-700 hover:bg-orange-50 focus-visible:ring-orange-200 disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-300 disabled:shadow-none`
+const DETAIL_CONTRACT_ACTION_BUTTON = `${DETAIL_ACTION_BUTTON_BASE} min-w-[148px] whitespace-nowrap border border-orange-200 bg-white text-slate-700 hover:bg-orange-50 focus-visible:ring-orange-200 disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-300 disabled:shadow-none`
+const DETAIL_PRIMARY_ACTION_BUTTON = `${DETAIL_ACTION_BUTTON_BASE} min-w-[156px] whitespace-nowrap bg-[#f8981d] text-white hover:bg-orange-500 focus-visible:ring-orange-200`
 
 function formatDateTime(value) {
   if (!value) return '-'

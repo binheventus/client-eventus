@@ -66,12 +66,19 @@ Module({
 })(ApiModule)
 
 let nestAppPromise
+const apiBodyLimit = process.env.API_JSON_BODY_LIMIT || '12mb'
+
+function configureApiApp(app) {
+  app.enableCors()
+  app.useBodyParser('json', { limit: apiBodyLimit })
+  app.useBodyParser('urlencoded', { extended: true, limit: apiBodyLimit })
+}
 
 export async function createNestApiApp() {
   if (!nestAppPromise) {
-    nestAppPromise = NestFactory.create(ApiModule, { logger: ['error', 'warn'] })
+    nestAppPromise = NestFactory.create(ApiModule, { bodyParser: false, logger: ['error', 'warn'] })
       .then(async app => {
-        app.enableCors()
+        configureApiApp(app)
         await app.init()
         return app
       })

@@ -7,6 +7,7 @@ import { useLegalEntities } from '../hooks/useLegalEntities'
 import { normalizeQuoteValidityDays } from '../lib/quoteValidity'
 
 const QuotePDFDownloadButton = lazy(() => import('../components/QuotePDFDownloadButton'))
+const QUOTE_PUBLIC_PAGE_TITLE = 'Báo giá chi tiết - Eventus Production'
 
 function getValidUntil(quote) {
   if (!quote) return null
@@ -40,6 +41,14 @@ export default function QuotePublicPage() {
 
   const validUntil = useMemo(() => getValidUntil(quote), [quote])
   const expired = validUntil ? validUntil.getTime() < Date.now() : false
+
+  useEffect(() => {
+    const previousTitle = document.title
+    document.title = QUOTE_PUBLIC_PAGE_TITLE
+    return () => {
+      document.title = previousTitle
+    }
+  }, [])
 
   useEffect(() => {
     let mounted = true

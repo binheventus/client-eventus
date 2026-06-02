@@ -200,6 +200,16 @@ export async function markFeedbackDone(feedbackId, access = {}) {
   })
 }
 
+export async function deleteFeedback(feedbackId) {
+  return requestFeedbackApi('', {
+    method: 'POST',
+    body: {
+      action: 'delete_feedback',
+      id: feedbackId,
+    },
+  })
+}
+
 export async function clearFeedbackColumn(feedbackId, payload = {}, access = {}) {
   return requestFeedbackApi('', {
     method: 'POST',

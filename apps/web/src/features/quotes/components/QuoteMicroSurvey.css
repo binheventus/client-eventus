@@ -24,6 +24,10 @@
   text-wrap: balance;
 }
 
+.quote-micro-survey__title--brand {
+  color: #f8981d;
+}
+
 .quote-micro-survey__back {
   display: inline-flex;
   align-items: center;

@@ -22,6 +22,17 @@ export function formatFeedbackDateTime(value) {
   }).format(date)
 }
 
+export function buildDefaultFeedbackName(sequence = 1, date = new Date()) {
+  const safeSequence = Math.max(1, Math.floor(Number(sequence) || 1))
+  const formattedDate = new Intl.DateTimeFormat('vi-VN', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(date).replace(/\//g, '.')
+  return `Feedback #${safeSequence} ${formattedDate}`
+}
+
 export function parseTimeToSeconds(value) {
   if (value === undefined || value === null || value === '') return null
   if (typeof value === 'number') return Number.isFinite(value) ? value : null
@@ -68,10 +79,21 @@ export function getYoutubeVideoId(url = '') {
 export function getFeedbackVideoEmbedUrl(url = '') {
   const videoId = getYoutubeVideoId(url)
   if (!videoId) return ''
-  const origin = typeof window !== 'undefined' && window.location?.origin
-    ? `&origin=${encodeURIComponent(window.location.origin)}`
-    : ''
-  return `https://www.youtube.com/embed/${videoId}?rel=0&enablejsapi=1${origin}`
+  const params = new URLSearchParams({
+    controls: '1',
+    enablejsapi: '1',
+    fs: '0',
+    iv_load_policy: '3',
+    modestbranding: '1',
+    playsinline: '1',
+    rel: '0',
+  })
+
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    params.set('origin', window.location.origin)
+  }
+
+  return `https://www.youtube-nocookie.com/embed/${videoId}?${params.toString()}`
 }
 
 export function isFeedbackShareToken(value = '') {

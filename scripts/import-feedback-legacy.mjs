@@ -321,15 +321,12 @@ async function importJobAnswers(connection) {
         job_id: row.job_id,
         feedback_id: null,
         survey_type: surveyType,
+        submission_no: 1,
         respondent_name: null,
         user_agent: 'legacy-import',
         created_at: normalizeDate(row.created_at) || nowMysql(),
-      }, ['respondent_name', 'user_agent'])
-      const [responseRows] = await connection.query(
-        `select id from ${assertIdentifier(tables.feedbackSurveyResponses)} where job_id = ? and survey_type = ? limit 1`,
-        [row.job_id, surveyType],
-      )
-      responseIds.set(key, responseRows?.[0]?.id || responseId)
+      }, ['submission_no', 'respondent_name', 'user_agent'])
+      responseIds.set(key, responseId)
     }
 
     await upsertRow(connection, tables.feedbackSurveyResponseAnswers, {

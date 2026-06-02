@@ -5,9 +5,11 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
+  ClipboardCheck,
   ExternalLink,
   Film,
   FileUp,
+  Plus,
   Save,
   SendHorizontal,
   Trash2,
@@ -17,6 +19,7 @@ import {
 import {
   createFeedback,
   createFeedbackComment,
+  deleteFeedback,
   deleteFeedbackAttachment,
   deleteFeedbackComment,
   getFeedbackDetail,
@@ -27,18 +30,20 @@ import {
   uploadFeedbackAttachment,
 } from '../hooks/useFeedback'
 import {
-  formatFeedbackDate,
+  buildDefaultFeedbackName,
   formatFeedbackDateTime,
   formatTimeline,
   getFeedbackAccessFromSearch,
   getFeedbackPublicPath,
   getFeedbackVideoEmbedUrl,
+  parseTimeToSeconds,
   readFileAsDataUrl,
 } from '../lib/feedbackFormat'
+import { useEscapeToClose } from '../../../hooks/useEscapeToClose'
 
 function Alert({ type = 'info', children, className = '' }) {
   const styles = type === 'error'
-    ? 'border-rose-200 bg-rose-50 text-rose-700'
+    ? 'border-[#f79820]/30 bg-[#f79820]/10 text-[#b86414]'
     : type === 'success'
       ? 'border-[#f79820]/30 bg-[#f79820]/10 text-[#f79820]'
       : 'border-[#f79820]/30 bg-[#f79820]/10 text-[#f79820]'
@@ -63,11 +68,18 @@ function SetupPanel({ detail, access, onSaved }) {
   const feedback = detail.feedback
   const employees = detail.employees || []
   const existingEditorName = feedback.editor_name || feedback.job?.editor_name || ''
+  const [feedbackName, setFeedbackName] = useState(feedback.name || '')
   const [editorId, setEditorId] = useState('')
   const [videoUrl, setVideoUrl] = useState(feedback.video_url || '')
   const [driveUrl, setDriveUrl] = useState(feedback.drive_url || '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    setFeedbackName(feedback.name || '')
+    setVideoUrl(feedback.video_url || '')
+    setDriveUrl(feedback.drive_url || '')
+  }, [feedback.id, feedback.name, feedback.video_url, feedback.drive_url])
 
   async function handleSubmit(event) {
     event.preventDefault()
@@ -75,9 +87,10 @@ function SetupPanel({ detail, access, onSaved }) {
     setError('')
     try {
       const nextDetail = await saveFeedbackSetup(feedback.id, {
+        name: feedbackName.trim(),
         editor_employee_id: editorId || undefined,
-        video_url: videoUrl,
-        drive_url: driveUrl,
+        video_url: videoUrl.trim(),
+        drive_url: driveUrl.trim(),
       }, access)
       onSaved(nextDetail)
     } catch (err) {
@@ -88,19 +101,14 @@ function SetupPanel({ detail, access, onSaved }) {
   }
 
   return (
-    <section className="rounded-lg border border-[#f79820]/30 bg-[#f79820]/10 p-5">
-      <div className="flex items-center gap-2.5">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#f79820] text-white">
-          <Video className="h-4 w-4" />
-        </span>
-        <div>
-          <h2 className="text-[16px] font-semibold text-slate-950">Hoàn tất thông tin để mở Feedback</h2>
-        </div>
+    <section className="h-full rounded-lg border border-[#f79820]/30 bg-[#f79820]/10 p-5">
+      <div className="flex items-center">
+        <h2 className="text-[12px] font-semibold uppercase text-slate-950">Thêm bản feedback mới</h2>
       </div>
 
-      <form onSubmit={handleSubmit} className="mt-5 grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+      <form onSubmit={handleSubmit} className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(140px,0.75fr)_minmax(180px,1fr)_minmax(160px,0.8fr)_auto]">
         {!existingEditorName && (
-          <div className="md:col-span-3">
+          <div className="md:col-span-2 xl:col-span-4">
             <FieldLabel>Editor</FieldLabel>
             <select
               value={editorId}
@@ -114,6 +122,16 @@ function SetupPanel({ detail, access, onSaved }) {
             </select>
           </div>
         )}
+
+        <div>
+          <FieldLabel>Tên bản mới</FieldLabel>
+          <TextInput
+            value={feedbackName}
+            onChange={event => setFeedbackName(event.target.value)}
+            placeholder={buildDefaultFeedbackName()}
+            className="mt-1"
+          />
+        </div>
 
         <div>
           <FieldLabel>Youtube URL</FieldLabel>
@@ -147,7 +165,7 @@ function SetupPanel({ detail, access, onSaved }) {
           </button>
         </div>
 
-        {error && <div className="md:col-span-3"><Alert type="error">{error}</Alert></div>}
+        {error && <div className="md:col-span-2 xl:col-span-4"><Alert type="error">{error}</Alert></div>}
       </form>
     </section>
   )
@@ -239,9 +257,111 @@ function InlineFeedbackField({ comment, column, access, className = '', placehol
   )
 }
 
-function CommentCard({ comment, showSecondColumn, access, onChanged, onSeek }) {
+function getTimecodeColor(comment) {
+  return comment?.is_done_1 ? 'blue' : 'orange'
+}
+
+function getTimecodeButtonClass(comment) {
+  return getTimecodeColor(comment) === 'blue'
+    ? 'bg-blue-500 ring-blue-500 hover:bg-blue-600'
+    : 'bg-[#f79820] ring-[#f79820] hover:bg-[#df861d]'
+}
+
+function getTimelineDotClass(comment) {
+  return getTimecodeColor(comment) === 'blue'
+    ? 'border-blue-500 bg-blue-500 shadow-blue-500/25 hover:bg-blue-600 focus:ring-blue-200'
+    : 'border-[#f79820] bg-[#f79820] shadow-[#f79820]/25 hover:bg-[#df861d] focus:ring-[#f79820]/30'
+}
+
+function TimelineDotTooltip({ comment, seconds, align = 'center' }) {
+  const authorName = String(comment.author_name || '').trim()
+  const primaryText = String(comment.comment_1 || '').trim()
+  const secondaryText = String(comment.comment_2 || '').trim()
+  const image = comment.image_comment_1 || comment.image_comment_2
+  const attachments = comment.attachments || []
+  const alignClass = align === 'left'
+    ? 'left-0 translate-x-0'
+    : align === 'right'
+      ? 'right-0 translate-x-0'
+      : 'left-1/2 -translate-x-1/2'
+
+  return (
+    <div className={`pointer-events-none absolute bottom-full z-30 mb-2 hidden w-[260px] max-w-[70vw] rounded-lg border border-slate-200 bg-white p-2.5 text-left shadow-xl group-hover:block group-focus-within:block ${alignClass}`}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold text-white ring-1 ${getTimecodeButtonClass(comment)}`}>
+            {formatTimeline(seconds)}
+          </span>
+          {authorName && <span className="min-w-0 truncate text-[11px] font-semibold text-slate-500">{authorName}</span>}
+        </div>
+        {comment.is_done_1 && (
+          <span className="shrink-0 rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
+            Đã sửa
+          </span>
+        )}
+      </div>
+      {image && (
+        <img src={image} alt="Ảnh preview feedback" className="mt-2 max-h-[90px] w-full rounded-md border border-slate-200 object-cover" />
+      )}
+      <div className="mt-2 space-y-1.5 text-[12px] leading-4 text-slate-800">
+        {primaryText ? <p className="max-h-16 overflow-hidden whitespace-pre-wrap">{primaryText}</p> : <p className="text-slate-400">Chưa có nội dung feedback.</p>}
+        {secondaryText && <p className="max-h-12 overflow-hidden whitespace-pre-wrap border-t border-slate-100 pt-1.5 text-slate-600">{secondaryText}</p>}
+      </div>
+      {attachments.length > 0 && (
+        <div className="mt-2 text-[10px] font-semibold text-slate-400">
+          {attachments.length} file đính kèm
+        </div>
+      )}
+    </div>
+  )
+}
+
+function FeedbackTimelineBar({ comments = [], duration = 0, onSelect }) {
+  const points = useMemo(() => comments
+    .map(comment => ({
+      comment,
+      seconds: parseTimeToSeconds(comment.time_comment_1),
+    }))
+    .filter(point => Number.isFinite(point.seconds) && point.seconds >= 0)
+    .sort((a, b) => a.seconds - b.seconds), [comments])
+
+  const maxPointTime = points.reduce((max, point) => Math.max(max, point.seconds), 0)
+  const timelineDuration = Math.max(Number(duration) || 0, maxPointTime, 1)
+
+  if (!points.length) return null
+
+  return (
+    <div className="mt-1.5 rounded-lg border border-slate-100 bg-slate-50/80 px-2.5 py-1 shadow-sm lg:rounded-l-none">
+      <div className="relative h-4">
+        <div className="absolute left-0 right-0 top-1/2 h-px -translate-y-1/2 rounded-full bg-slate-200" />
+        {points.map(({ comment, seconds }, index) => {
+          const position = Math.min(100, Math.max(0, (seconds / timelineDuration) * 100))
+          const align = position < 10 ? 'left' : position > 90 ? 'right' : 'center'
+          return (
+            <div
+              key={`${comment.id || index}-${seconds}`}
+              className="group absolute top-1/2 -translate-x-1/2 -translate-y-1/2"
+              style={{ left: `${position}%` }}
+            >
+              <button
+                type="button"
+                onClick={() => onSelect(comment, seconds)}
+                className={`block h-2.5 w-2.5 rounded-full border shadow-sm transition focus:outline-none focus:ring-2 ${getTimelineDotClass(comment)}`}
+                aria-label={`Tới feedback tại ${formatTimeline(seconds)}`}
+              />
+              <TimelineDotTooltip comment={comment} seconds={seconds} align={align} />
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function CommentCard({ comment, showSecondColumn, access, onChanged, onSeek, cardRef, isHighlighted = false }) {
   const image = comment.image_comment_1 || comment.image_comment_2
   const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState('')
   const authorName = String(comment.author_name || '').trim()
 
   async function deleteComment() {
@@ -257,8 +377,9 @@ function CommentCard({ comment, showSecondColumn, access, onChanged, onSeek }) {
   async function upload(event) {
     const file = event.target.files?.[0]
     event.target.value = ''
-    if (!file) return
+    if (!file || uploading) return
     setUploading(true)
+    setUploadError('')
     try {
       const dataUrl = await readFileAsDataUrl(file)
       await uploadFeedbackAttachment(comment.id, {
@@ -267,24 +388,22 @@ function CommentCard({ comment, showSecondColumn, access, onChanged, onSeek }) {
         field_name: 'comment_1',
       }, access)
       onChanged()
+    } catch (err) {
+      setUploadError(err?.message || 'Không upload được file.')
     } finally {
       setUploading(false)
     }
   }
 
   return (
-    <article className="group">
-      <div className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:border-slate-300">
+    <article ref={cardRef} className="group scroll-mt-3">
+      <div className={`rounded-lg border bg-white px-2.5 py-2 transition ${isHighlighted ? 'border-[#f79820] shadow-[0_0_0_3px_rgba(247,152,32,0.18),0_10px_24px_rgba(15,23,42,0.10)]' : 'border-slate-200 shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:border-slate-300'}`}>
         <div className="mb-1.5 flex items-center justify-between gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             <button
               type="button"
               onClick={() => onSeek(comment.time_comment_1)}
-              className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold text-white ring-1 ${
-                comment.is_done_1
-                  ? 'bg-blue-500 ring-blue-500 hover:bg-blue-600'
-                  : 'bg-[#f79820] ring-[#f79820] hover:bg-[#df861d]'
-              }`}
+              className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold text-white ring-1 ${getTimecodeButtonClass(comment)}`}
             >
               {formatTimeline(comment.time_comment_1)}
             </button>
@@ -309,10 +428,10 @@ function CommentCard({ comment, showSecondColumn, access, onChanged, onSeek }) {
             >
               {comment.is_done_1 && <Check className="h-4 w-4 stroke-[3]" />}
             </button>
-            <label className="inline-flex h-7 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-[#f79820]/40 bg-white px-2 text-[11px] font-semibold text-[#f79820] hover:bg-[#f79820]/10" title="Upload file">
+            <label className={`inline-flex h-7 items-center justify-center gap-1.5 rounded-md border border-[#f79820]/40 bg-white px-2 text-[11px] font-semibold text-[#f79820] hover:bg-[#f79820]/10 ${uploading ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`} title="Upload file">
               <FileUp className="h-3 w-3" />
               <span>{uploading ? 'Đang upload' : 'Upload'}</span>
-              <input type="file" className="hidden" onChange={upload} />
+              <input type="file" className="hidden" onChange={upload} disabled={uploading} />
             </label>
             <button
               type="button"
@@ -341,12 +460,17 @@ function CommentCard({ comment, showSecondColumn, access, onChanged, onSeek }) {
         </div>
 
         <AttachmentList attachments={comment.attachments} access={access} onChanged={onChanged} />
+        {uploadError && (
+          <div className="mt-2 rounded-md border border-[#f79820]/30 bg-[#f79820]/10 px-2.5 py-2 text-[12px] font-semibold text-[#b86414]">
+            {uploadError}
+          </div>
+        )}
       </div>
     </article>
   )
 }
 
-function OverallFeedbackPanel({ feedback, access, onChanged }) {
+function OverallFeedbackPanel({ feedback, access, onChanged, fillHeight = false }) {
   const initialValue = (feedback.overall_feedback || []).join('\n')
   const textareaRef = useRef(null)
   const saveStatusTimerRef = useRef(null)
@@ -396,7 +520,7 @@ function OverallFeedbackPanel({ feedback, access, onChanged }) {
   }
 
   return (
-    <section onMouseLeave={save} className="rounded-lg border border-[#f79820]/30 bg-[#f79820]/10 p-2.5 shadow-sm">
+    <section onMouseLeave={save} className={`${fillHeight ? 'h-full p-5' : 'p-2.5'} rounded-lg border border-[#f79820]/30 bg-[#f79820]/10 shadow-sm`}>
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-[12px] font-semibold uppercase text-slate-950">Feedback tổng quan</h2>
         {saveStatus && (
@@ -426,6 +550,74 @@ function OverallFeedbackPanel({ feedback, access, onChanged }) {
   )
 }
 
+function groupSurveyAnswers(answers = []) {
+  const groups = new Map()
+  answers.forEach(answer => {
+    const key = answer.question_id || answer.question || answer.id
+    if (!groups.has(key)) {
+      groups.set(key, {
+        question: answer.question || 'Câu hỏi',
+        values: [],
+      })
+    }
+
+    const value = String(answer.answer_text || answer.answer || '').trim()
+    if (value) groups.get(key).values.push(value)
+  })
+  return [...groups.values()]
+}
+
+function FeedbackSurveyResponsesPanel({ responses = [] }) {
+  if (!responses.length) return null
+
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white p-2.5 shadow-sm">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="inline-flex items-center gap-1.5 text-[12px] font-semibold uppercase text-slate-950">
+          <ClipboardCheck className="h-3.5 w-3.5 text-[#f79820]" />
+          Survey khách hàng
+        </h2>
+        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+          {responses.length} lượt
+        </span>
+      </div>
+
+      <div className="mt-2 space-y-2">
+        {responses.map((response, index) => {
+          const answerGroups = groupSurveyAnswers(response.answers || [])
+          return (
+            <details key={response.id} open={index === 0} className="rounded-lg border border-slate-200 bg-slate-50">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-left marker:hidden">
+                <span className="min-w-0">
+                  <span className="block truncate text-[13px] font-bold text-slate-900">{response.display_name || `Khảo sát #${response.submission_no || index + 1}`}</span>
+                  <span className="mt-0.5 block text-[11px] font-semibold text-slate-500">{formatFeedbackDateTime(response.created_at)}</span>
+                </span>
+                <span className="shrink-0 rounded-full border border-[#f79820]/25 bg-[#fff7ed] px-2 py-0.5 text-[11px] font-semibold text-[#f79820]">
+                  {response.answer_count || answerGroups.length} câu
+                </span>
+              </summary>
+              <div className="border-t border-slate-200 bg-white px-3 py-2">
+                {answerGroups.length ? (
+                  <div className="space-y-2">
+                    {answerGroups.map(group => (
+                      <div key={group.question}>
+                        <p className="text-[12px] font-semibold leading-5 text-slate-700">{group.question}</p>
+                        <p className="mt-0.5 whitespace-pre-wrap text-[12px] leading-5 text-slate-500">{group.values.join(', ') || '-'}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[12px] font-semibold text-slate-400">Chưa có câu trả lời.</p>
+                )}
+              </div>
+            </details>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
 export default function FeedbackDetailPage() {
   const { id } = useParams()
   const location = useLocation()
@@ -434,29 +626,45 @@ export default function FeedbackDetailPage() {
   const videoShellRef = useRef(null)
   const feedbackMenuRef = useRef(null)
   const footerStatusTimerRef = useRef(null)
+  const selectedTimelineTimerRef = useRef(null)
+  const seekPauseTimerRef = useRef(null)
+  const youtubePlayerStateRef = useRef(-1)
+  const commentCardRefs = useRef({})
   const [detail, setDetail] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [footerStatus, setFooterStatus] = useState('')
   const [footerEditorOpen, setFooterEditorOpen] = useState(false)
+  const [footerFeedbackName, setFooterFeedbackName] = useState('')
   const [footerVideoUrl, setFooterVideoUrl] = useState('')
   const [footerDriveUrl, setFooterDriveUrl] = useState('')
   const [savingFooterLinks, setSavingFooterLinks] = useState(false)
   const [footerEditorError, setFooterEditorError] = useState('')
+  const [deleteFeedbackDialogOpen, setDeleteFeedbackDialogOpen] = useState(false)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [deleteFeedbackError, setDeleteFeedbackError] = useState('')
+  const [deletingFeedback, setDeletingFeedback] = useState(false)
   const [commentText, setCommentText] = useState('')
   const [feedbackAuthorName, setFeedbackAuthorName] = useState('')
   const [currentVideoTime, setCurrentVideoTime] = useState(0)
+  const [videoDuration, setVideoDuration] = useState(0)
+  const [selectedTimelineCommentId, setSelectedTimelineCommentId] = useState('')
   const [notifyingEditor, setNotifyingEditor] = useState(false)
   const [creatingFeedbackVersion, setCreatingFeedbackVersion] = useState(false)
   const [feedbackMenuOpen, setFeedbackMenuOpen] = useState(false)
+  const [newFeedbackName, setNewFeedbackName] = useState('')
 
   const feedback = detail?.feedback
   const comments = detail?.comments || []
   const feedbackVersions = detail?.feedbacks || []
+  const surveyResponses = detail?.survey_responses || []
+  const sortedFeedbackVersions = useMemo(() => [...feedbackVersions].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)), [feedbackVersions])
+  const permissions = detail?.permissions || {}
   const embedUrl = getFeedbackVideoEmbedUrl(feedback?.video_url)
   const fourKDownloadUrl = feedback?.drive_url || ''
   const videoSurveyUrl = feedback?.job_id ? `/survey?type=video&job=${encodeURIComponent(feedback.job_id)}` : ''
+  const canDeleteFeedback = Boolean(permissions.can_delete_feedback)
   const showFeedbackStatusPanel = Boolean(message || error || !feedback?.video_url)
 
   async function load() {
@@ -481,7 +689,16 @@ export default function FeedbackDetailPage() {
 
   useEffect(() => () => {
     if (footerStatusTimerRef.current) window.clearTimeout(footerStatusTimerRef.current)
+    if (selectedTimelineTimerRef.current) window.clearTimeout(selectedTimelineTimerRef.current)
+    if (seekPauseTimerRef.current) {
+      const timers = Array.isArray(seekPauseTimerRef.current) ? seekPauseTimerRef.current : [seekPauseTimerRef.current]
+      timers.forEach(timer => window.clearTimeout(timer))
+    }
   }, [])
+
+  useEffect(() => {
+    setNewFeedbackName(buildDefaultFeedbackName(feedbackVersions.length + 1))
+  }, [feedback?.id, feedbackVersions.length])
 
   useEffect(() => {
     if (!feedbackMenuOpen) return undefined
@@ -504,11 +721,23 @@ export default function FeedbackDetailPage() {
     }
   }, [feedbackMenuOpen])
 
+  useEscapeToClose(() => {
+    if (deleteFeedbackDialogOpen) {
+      setDeleteFeedbackDialogOpen(false)
+      return
+    }
+    setFooterEditorOpen(false)
+  }, footerEditorOpen)
+
   useEffect(() => {
     if (!embedUrl) return undefined
+    setVideoDuration(0)
+    setCurrentVideoTime(0)
+    youtubePlayerStateRef.current = -1
 
     function handleMessage(event) {
-      if (!String(event.origin || '').includes('youtube.com')) return
+      const eventOrigin = String(event.origin || '')
+      if (!eventOrigin.includes('youtube.com') && !eventOrigin.includes('youtube-nocookie.com')) return
 
       let data = event.data
       if (typeof data === 'string') {
@@ -521,6 +750,21 @@ export default function FeedbackDetailPage() {
 
       const nextTime = data?.info?.currentTime
       if (Number.isFinite(nextTime)) setCurrentVideoTime(nextTime)
+      const nextDuration = data?.info?.duration
+      if (Number.isFinite(nextDuration) && nextDuration > 0) setVideoDuration(nextDuration)
+      const nextPlayerState = data?.info?.playerState
+      if (Number.isFinite(nextPlayerState)) {
+        youtubePlayerStateRef.current = nextPlayerState
+
+        if (nextPlayerState === 0) {
+          window.setTimeout(() => {
+            const iframe = document.getElementById('feedback-youtube-player')
+            if (!iframe?.contentWindow) return
+            iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'seekTo', args: [0, true] }), '*')
+            iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'pauseVideo', args: [] }), '*')
+          }, 80)
+        }
+      }
     }
 
     function requestCurrentTime() {
@@ -528,6 +772,8 @@ export default function FeedbackDetailPage() {
       if (!iframe?.contentWindow) return
       iframe.contentWindow.postMessage(JSON.stringify({ event: 'listening', id: 'feedback-youtube-player' }), '*')
       iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'getCurrentTime', args: [] }), '*')
+      iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'getDuration', args: [] }), '*')
+      iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'getPlayerState', args: [] }), '*')
     }
 
     window.addEventListener('message', handleMessage)
@@ -594,16 +840,61 @@ export default function FeedbackDetailPage() {
     }
   }
 
+  function sendYoutubeCommand(func, args = []) {
+    const iframe = document.getElementById('feedback-youtube-player')
+    if (!iframe?.contentWindow || !embedUrl) return false
+    iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func, args }), '*')
+    return true
+  }
+
   function seekTo(seconds) {
     const iframe = document.getElementById('feedback-youtube-player')
-    if (!iframe || !embedUrl) return
-    setCurrentVideoTime(Math.max(0, Number(seconds) || 0))
-    const video = embedUrl.replace('enablejsapi=1', `enablejsapi=1&start=${Math.floor(Number(seconds) || 0)}`)
-    iframe.src = video
+    if (!iframe?.contentWindow || !embedUrl) return
+    const nextSeconds = Math.max(0, parseTimeToSeconds(seconds) || 0)
+    setCurrentVideoTime(nextSeconds)
+    const isColdPlayer = youtubePlayerStateRef.current === -1 || youtubePlayerStateRef.current === 5
+    if (seekPauseTimerRef.current) {
+      const timers = Array.isArray(seekPauseTimerRef.current) ? seekPauseTimerRef.current : [seekPauseTimerRef.current]
+      timers.forEach(timer => window.clearTimeout(timer))
+    }
+
+    if (isColdPlayer) {
+      const url = new URL(embedUrl)
+      url.searchParams.set('start', String(Math.floor(nextSeconds)))
+      url.searchParams.set('autoplay', '1')
+      url.searchParams.set('mute', '1')
+      url.searchParams.set('playsinline', '1')
+      iframe.src = url.toString()
+      youtubePlayerStateRef.current = 1
+    } else {
+      sendYoutubeCommand('seekTo', [nextSeconds, true])
+      sendYoutubeCommand('pauseVideo')
+      youtubePlayerStateRef.current = 2
+    }
+
+    const pauseDelays = isColdPlayer ? [500, 900, 1400, 2200] : [250]
+    seekPauseTimerRef.current = pauseDelays.map(delay => window.setTimeout(() => {
+      sendYoutubeCommand('pauseVideo')
+      if (isColdPlayer) {
+        sendYoutubeCommand('unMute')
+      }
+      youtubePlayerStateRef.current = 2
+    }, delay))
+  }
+
+  function selectTimelineComment(comment, seconds) {
+    seekTo(seconds)
+    setSelectedTimelineCommentId(comment.id)
+    if (selectedTimelineTimerRef.current) window.clearTimeout(selectedTimelineTimerRef.current)
+    selectedTimelineTimerRef.current = window.setTimeout(() => setSelectedTimelineCommentId(''), 3500)
+    const card = commentCardRefs.current[comment.id]
+    if (!card) return
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
 
   async function addFeedbackVersion() {
-    if (!feedback?.id) return
+    if (!feedback?.id || creatingFeedbackVersion) return
+    const name = newFeedbackName.trim() || buildDefaultFeedbackName(feedbackVersions.length + 1)
     setFeedbackMenuOpen(false)
     setCreatingFeedbackVersion(true)
     setError('')
@@ -611,7 +902,7 @@ export default function FeedbackDetailPage() {
       const nextFeedback = await createFeedback({
         feedbackId: feedback.id,
         access,
-        feedback: { name: `Feedback ${feedbackVersions.length + 1}` },
+        feedback: { name },
       })
       navigate(getFeedbackPublicPath(nextFeedback))
     } catch (err) {
@@ -622,8 +913,12 @@ export default function FeedbackDetailPage() {
   }
 
   function openFooterEditor() {
+    setFooterFeedbackName(feedback?.name || '')
     setFooterVideoUrl(feedback?.video_url || '')
     setFooterDriveUrl(feedback?.drive_url || '')
+    setDeleteFeedbackDialogOpen(false)
+    setDeleteConfirmText('')
+    setDeleteFeedbackError('')
     setFooterEditorError('')
     setFooterEditorOpen(true)
   }
@@ -635,18 +930,40 @@ export default function FeedbackDetailPage() {
     setFooterEditorError('')
     try {
       const nextDetail = await saveFeedbackSetup(feedback.id, {
+        name: footerFeedbackName.trim(),
         video_url: footerVideoUrl.trim(),
         drive_url: footerDriveUrl.trim(),
       }, access)
       setDetail(nextDetail)
       setFooterEditorOpen(false)
-      setFooterStatus('Đã cập nhật link')
+      setFooterStatus('Đã cập nhật Feedback')
       if (footerStatusTimerRef.current) window.clearTimeout(footerStatusTimerRef.current)
       footerStatusTimerRef.current = window.setTimeout(() => setFooterStatus(''), 2000)
     } catch (err) {
       setFooterEditorError(err?.message || 'Không cập nhật được link.')
     } finally {
       setSavingFooterLinks(false)
+    }
+  }
+
+  async function removeCurrentFeedback() {
+    if (!feedback?.id || !canDeleteFeedback || deleteConfirmText.trim() !== 'Delete') return
+
+    setDeletingFeedback(true)
+    setDeleteFeedbackError('')
+    try {
+      const result = await deleteFeedback(feedback.id)
+      setDeleteFeedbackDialogOpen(false)
+      setFooterEditorOpen(false)
+      if (result.feedback) {
+        navigate(getFeedbackPublicPath(result.feedback), { replace: true })
+        return
+      }
+      navigate('/feedbacks', { replace: true })
+    } catch (err) {
+      setDeleteFeedbackError(err?.message || 'Không xóa được bản feedback.')
+    } finally {
+      setDeletingFeedback(false)
     }
   }
 
@@ -714,12 +1031,12 @@ export default function FeedbackDetailPage() {
                         aria-expanded={feedbackMenuOpen}
                         aria-haspopup="menu"
                       >
-                        <span className="min-w-0 truncate">{feedback.name || 'Feedback'} · {formatFeedbackDate(feedback.job?.job_date)}</span>
+                        <span className="min-w-0 truncate">{feedback.name || 'Feedback'}</span>
                         <ChevronDown className={`h-4 w-4 shrink-0 text-white transition ${feedbackMenuOpen ? 'rotate-180' : ''}`} />
                       </button>
                       {feedbackMenuOpen && (
                         <div className="absolute left-0 z-20 mt-2 w-56 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg" role="menu">
-                          {(detail.feedbacks || []).map(item => (
+                          {sortedFeedbackVersions.map(item => (
                             <Link
                               key={item.id}
                               to={getFeedbackPublicPath(item)}
@@ -734,9 +1051,10 @@ export default function FeedbackDetailPage() {
                             type="button"
                             onClick={addFeedbackVersion}
                             disabled={creatingFeedbackVersion}
-                            className="block w-full border-t border-slate-100 px-3 py-2 text-left text-[12px] font-semibold text-[#f79820] hover:bg-[#fff7ed] disabled:cursor-not-allowed disabled:opacity-60"
+                            className="flex w-full items-center gap-1.5 border-t border-slate-100 px-3 py-2 text-left text-[12px] font-semibold text-[#f79820] hover:bg-[#fff7ed] disabled:cursor-not-allowed disabled:opacity-60"
                             role="menuitem"
                           >
+                            <Plus className="h-3.5 w-3.5 shrink-0" />
                             {creatingFeedbackVersion ? 'Đang thêm...' : 'Thêm bản mới'}
                           </button>
                         </div>
@@ -783,34 +1101,40 @@ export default function FeedbackDetailPage() {
           <div className="mt-2 shrink-0 space-y-2">
             {message && <Alert type="success" className="text-center !text-slate-950">{message}</Alert>}
             {error && <Alert type="error">{error}</Alert>}
-            {!feedback.video_url && <SetupPanel detail={detail} access={access} onSaved={setDetail} />}
+            {!feedback.video_url && (
+              <div className="lg:grid lg:gap-3 lg:grid-cols-[minmax(0,2.2fr)_minmax(380px,0.85fr)] xl:grid-cols-[minmax(0,2.35fr)_minmax(410px,0.9fr)]">
+                <SetupPanel detail={detail} access={access} onSaved={setDetail} />
+                <OverallFeedbackPanel feedback={feedback} access={access} onChanged={refresh} fillHeight />
+              </div>
+            )}
           </div>
         )}
 
         <section className="mt-2 flex min-h-0 flex-1 flex-col gap-2 overflow-hidden lg:grid lg:gap-3 lg:grid-cols-[minmax(0,2.2fr)_minmax(380px,0.85fr)] xl:grid-cols-[minmax(0,2.35fr)_minmax(410px,0.9fr)]">
-          <div ref={videoShellRef} className="shrink-0 overscroll-none lg:sticky lg:top-2 lg:flex lg:h-full lg:min-h-0 lg:flex-col lg:self-start">
-            <div className="min-h-0 overflow-hidden overscroll-none rounded-lg border border-slate-200 bg-white shadow-sm lg:flex-1 lg:rounded-l-none">
-              {embedUrl ? (
-                <div className="aspect-video bg-slate-950 lg:h-full lg:aspect-auto">
-                  <iframe
-                    id="feedback-youtube-player"
-                    title={feedback.video_title || feedback.name || 'Feedback video'}
-                    src={embedUrl}
-                    className="h-full w-full overscroll-none"
-                    scrolling="no"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                  />
-                </div>
-              ) : (
-                <div className="grid aspect-video place-items-center bg-slate-100 text-center lg:h-full lg:aspect-auto">
-                  <div>
-                    <Video className="mx-auto h-10 w-10 text-slate-300" />
-                    <p className="mt-2 text-[13px] font-semibold text-slate-500">Chưa có video để hiển thị.</p>
-                  </div>
-                </div>
-              )}
-            </div>
+	          <div ref={videoShellRef} className="shrink-0 overscroll-none lg:sticky lg:top-2 lg:self-start">
+	            <div className="overflow-hidden overscroll-none rounded-lg border border-slate-200 bg-white shadow-sm lg:rounded-l-none">
+	              {embedUrl ? (
+	                <div className="relative aspect-video overflow-hidden bg-white">
+	                  <iframe
+	                    id="feedback-youtube-player"
+	                    title={feedback.video_title || feedback.name || 'Feedback video'}
+	                    src={embedUrl}
+	                    className="absolute -top-px left-0 block h-[calc(100%+2px)] w-full border-0 bg-white overscroll-none"
+	                    scrolling="no"
+		                    allow="accelerometer; autoplay; encrypted-media; gyroscope"
+		                    referrerPolicy="strict-origin-when-cross-origin"
+			                  />
+			                </div>
+	              ) : (
+	                <div className="grid aspect-video place-items-center bg-slate-100 text-center">
+	                  <div>
+	                    <Video className="mx-auto h-10 w-10 text-slate-300" />
+	                    <p className="mt-2 text-[13px] font-semibold text-slate-500">Chưa có video để hiển thị.</p>
+	                  </div>
+	                </div>
+	              )}
+	            </div>
+            <FeedbackTimelineBar comments={comments} duration={videoDuration} onSelect={selectTimelineComment} />
             <footer className="mt-2 hidden rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-1.5 text-[11px] text-slate-400 lg:block lg:rounded-l-none">
               <div className="flex flex-col gap-1.5 lg:flex-row lg:items-center">
                 <div className="shrink-0">
@@ -833,18 +1157,24 @@ export default function FeedbackDetailPage() {
 
           <aside className="flex min-h-0 flex-1 flex-col overflow-hidden lg:h-full lg:pr-1">
             <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pb-0">
-              <OverallFeedbackPanel feedback={feedback} access={access} onChanged={refresh} />
+              {feedback.video_url && <OverallFeedbackPanel feedback={feedback} access={access} onChanged={refresh} />}
+              <FeedbackSurveyResponsesPanel responses={surveyResponses} />
 
-              {comments.length ? comments.map(comment => (
-                <CommentCard
-                  key={comment.id}
-                  comment={comment}
-                  showSecondColumn={feedback.more_column}
-                  access={access}
-                  onChanged={refresh}
-                  onSeek={seekTo}
-                />
-              )) : (
+	              {comments.length ? comments.map(comment => (
+	                <CommentCard
+	                  key={comment.id}
+	                  comment={comment}
+	                  showSecondColumn={feedback.more_column}
+	                  access={access}
+	                  onChanged={refresh}
+	                  onSeek={seekTo}
+	                  isHighlighted={selectedTimelineCommentId === comment.id}
+	                  cardRef={node => {
+	                    if (node) commentCardRefs.current[comment.id] = node
+	                    else delete commentCardRefs.current[comment.id]
+	                  }}
+	                />
+	              )) : (
                 <div className="rounded-lg border border-dashed border-slate-300 bg-white px-5 py-10 text-center">
                   <p className="text-[14px] font-semibold text-slate-800">Chưa có feedback timeline</p>
                   <p className="mt-1 text-[13px] text-slate-500">Nhập nội dung góp ý ở ô bên dưới để bắt đầu.</p>
@@ -896,17 +1226,33 @@ export default function FeedbackDetailPage() {
         <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 px-4 py-6">
           <section className="w-full max-w-xl rounded-lg border border-slate-200 bg-white p-5 shadow-xl" role="dialog" aria-modal="true" aria-labelledby="feedback-link-editor-title">
             <div className="flex items-center justify-between gap-3">
-              <h2 id="feedback-link-editor-title" className="text-[16px] font-semibold text-slate-950">Cập nhật link Feedback</h2>
-              <button
-                type="button"
-                onClick={() => setFooterEditorOpen(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-900"
-                aria-label="Đóng popup"
-              >
-                <X className="h-4 w-4" />
-              </button>
+              <h2 id="feedback-link-editor-title" className="text-[16px] font-semibold text-[#f79820]">Cài đặt Feedback</h2>
+              {canDeleteFeedback && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDeleteConfirmText('')
+                    setDeleteFeedbackError('')
+                    setDeleteFeedbackDialogOpen(true)
+                  }}
+                  className="flex h-8 w-8 items-center justify-center rounded-md border border-[#f79820]/40 bg-white text-[#f79820] hover:bg-[#fff7ed]"
+                  aria-label="Mở popup xóa feedback"
+                  title="Xóa feedback"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
             </div>
             <form onSubmit={saveFooterLinks} className="mt-4 space-y-4">
+              <div>
+                <FieldLabel>Tên feedback</FieldLabel>
+                <TextInput
+                  value={footerFeedbackName}
+                  onChange={event => setFooterFeedbackName(event.target.value)}
+                  placeholder="Feedback #4 02.06.2026"
+                  className="mt-1"
+                />
+              </div>
               <div>
                 <FieldLabel>Youtube URL</FieldLabel>
                 <TextInput
@@ -944,6 +1290,63 @@ export default function FeedbackDetailPage() {
                 </button>
               </div>
             </form>
+          </section>
+        </div>
+      )}
+      {deleteFeedbackDialogOpen && (
+        <div className="fixed inset-0 z-[60] grid place-items-center bg-slate-950/45 px-4 py-6">
+          <section className="w-full max-w-md rounded-lg border border-[#f79820]/40 bg-white p-5 shadow-xl" role="dialog" aria-modal="true" aria-labelledby="feedback-delete-title">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#f79820]/10 text-[#f79820] ring-1 ring-[#f79820]/30">
+                  <Trash2 className="h-4 w-4" />
+                </span>
+                <div>
+                  <h2 id="feedback-delete-title" className="text-[16px] font-semibold text-slate-950">Xóa bản feedback này</h2>
+                  <p className="mt-1 text-[12px] leading-5 text-slate-600">Bản feedback sẽ được ẩn khỏi danh sách. Các bản feedback khác của cùng job vẫn được giữ lại.</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDeleteFeedbackDialogOpen(false)}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                aria-label="Đóng popup xóa"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="mt-4">
+              <FieldLabel>Nhập Delete để xác nhận</FieldLabel>
+              <TextInput
+                value={deleteConfirmText}
+                onChange={event => setDeleteConfirmText(event.target.value)}
+                placeholder="Delete"
+                className="mt-1 border-[#f79820]/30 focus:border-[#f79820] focus:ring-[#f79820]/20"
+              />
+            </div>
+            {deleteFeedbackError && (
+              <div className="mt-4 rounded-lg border border-[#f79820]/30 bg-[#f79820]/10 px-4 py-3 text-[13px] font-semibold text-[#b86414]">
+                {deleteFeedbackError}
+              </div>
+            )}
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleteFeedbackDialogOpen(false)}
+                className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={removeCurrentFeedback}
+                disabled={deletingFeedback || deleteConfirmText.trim() !== 'Delete'}
+                className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-[#f79820] px-4 text-[13px] font-semibold text-white hover:bg-[#df861d] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Trash2 className="h-4 w-4" />
+                {deletingFeedback ? 'Đang xóa...' : 'Xóa feedback'}
+              </button>
+            </div>
           </section>
         </div>
       )}
