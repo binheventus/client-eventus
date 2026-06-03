@@ -21,13 +21,13 @@ test('feedback admin list still requires auth', () => {
   }), false)
 })
 
-test('feedback delete action requires Eventus auth before handler', () => {
+test('feedback delete action can be handled with feedback access', () => {
   assert.equal(isPublicFeedbackRequest({
     method: 'POST',
     body: {
       action: 'delete_feedback',
     },
-  }), false)
+  }), true)
 })
 
 test('feedback open graph title uses the banner job title first', () => {

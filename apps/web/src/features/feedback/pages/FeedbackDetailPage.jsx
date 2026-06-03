@@ -952,7 +952,7 @@ export default function FeedbackDetailPage() {
     setDeletingFeedback(true)
     setDeleteFeedbackError('')
     try {
-      const result = await deleteFeedback(feedback.id)
+      const result = await deleteFeedback(feedback.id, access)
       setDeleteFeedbackDialogOpen(false)
       setFooterEditorOpen(false)
       if (result.feedback) {

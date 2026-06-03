@@ -770,11 +770,9 @@ async function assertFeedbackEditorAccess(req, feedback) {
 }
 
 async function getFeedbackPermissions(req, feedback) {
-  const user = await getAuthenticatedFeedbackUser(req)
-  const canManageFeedback = Boolean(user && (isFeedbackAdminUser(user) || userMatchesFeedbackEditor(user, feedback)))
   return {
     can_rename_feedback: true,
-    can_delete_feedback: canManageFeedback,
+    can_delete_feedback: true,
   }
 }
 
@@ -1205,7 +1203,7 @@ async function clearColumn(req, body = {}) {
 
 async function deleteFeedback(req, body = {}) {
   const feedback = await getFeedbackByIdentifier(body.id || body.feedback_id)
-  await assertFeedbackEditorAccess(req, feedback)
+  await assertFeedbackAccess(req, feedback, parseAccess(body))
 
   await query(
     `update ${tables.feedbacks}
@@ -1672,6 +1670,7 @@ export function isPublicFeedbackRequest(req) {
       'toggle_more_column',
       'overall_feedback',
       'feedback_done',
+      'delete_feedback',
       'clear_column',
       'job_done',
       'submit_survey',
