@@ -16,6 +16,7 @@ import {
   getSellerProfile,
   getVatLabel,
   hasDocumentText,
+  shouldShowAcceptanceAmountTables,
 } from '../lib/contractDocumentRender'
 
 const PDF_FONT_FAMILY = 'BeVietnamProContractDocument'
@@ -466,6 +467,9 @@ export default function ContractDocumentPDFDocument({ document = {} }) {
   const acceptanceSummary = document.document_type === 'acceptance_liquidation'
     ? getAcceptanceSummary(document)
     : null
+  const showAcceptanceAmountTables = document.document_type === 'acceptance_liquidation'
+    ? shouldShowAcceptanceAmountTables(document, acceptanceSummary)
+    : false
 
   return (
     <Document title={document.document_number || getDocumentTitle(document)}>
@@ -507,10 +511,10 @@ export default function ContractDocumentPDFDocument({ document = {} }) {
                 {String(section.body || '').split(/\n+/).filter(Boolean).map((line, index) => (
                   <BankAwarePdfParagraph key={`${section.id}-${index}`} line={line} style={styles.paragraph} />
                 ))}
-                {acceptanceContent?.has_cost_difference && section.id === 'acceptance-article-2' ? (
+                {showAcceptanceAmountTables && section.id === 'acceptance-article-2' ? (
                   <>
-                    <PdfAcceptanceAmountTable title="Chi tiết hạng mục trên hợp đồng" rows={acceptanceSummary?.contract_rows || []} totals={acceptanceSummary?.contract_totals || {}} vatConfig={acceptanceSummary?.vat_config || {}} />
-                    <PdfAcceptanceAmountTable title="Chi tiết hạng mục nghiệm thu" rows={acceptanceSummary?.actual_rows || []} totals={acceptanceSummary?.actual_totals || {}} vatConfig={acceptanceSummary?.vat_config || {}} />
+                    <PdfAcceptanceAmountTable title="Bảng giá trị theo hợp đồng" rows={acceptanceSummary?.contract_rows || []} totals={acceptanceSummary?.contract_totals || {}} vatConfig={acceptanceSummary?.vat_config || {}} />
+                    <PdfAcceptanceAmountTable title="Bảng giá trị nghiệm thu/thực tế" rows={acceptanceSummary?.actual_rows || []} totals={acceptanceSummary?.actual_totals || {}} vatConfig={acceptanceSummary?.vat_config || {}} />
                     {acceptanceContent.cost_difference_note ? <Text style={styles.paragraph}>{acceptanceContent.cost_difference_note}</Text> : null}
                   </>
                 ) : null}

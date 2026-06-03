@@ -6,6 +6,7 @@ import QuotePreview from './QuotePreview'
 import { useEscapeToClose } from '../../../hooks/useEscapeToClose'
 import { downloadContractDocx } from '../lib/contractDocx'
 import {
+  CONTRACT_SUBTOTAL_LABEL,
   getContractPreamble,
   getContractPaymentNotes,
   getContractWorkProgressNotes,
@@ -201,7 +202,7 @@ export function ContractPreviewDocument({ contract = {} }) {
 
   return (
     <div className="mx-auto max-w-4xl space-y-5 rounded-2xl border border-slate-200 bg-slate-50 p-5 pb-7">
-      <section className="rounded-xl bg-white p-5 pb-6">
+      <section className="rounded-xl bg-white p-5 pb-3">
         <div className="text-center">
           <p className="text-[13px] uppercase text-slate-950">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
           <p className="text-[13px] text-slate-950">Độc lập – Tự do – Hạnh phúc</p>
@@ -224,11 +225,12 @@ export function ContractPreviewDocument({ contract = {} }) {
           <PartyPreview heading="BÊN A:" profile={partyA} fallbackPrefix="khách hàng" role={getPartyRole(contract, 'party_a')} />
           <PartyPreview heading="BÊN B:" profile={partyB} fallbackPrefix="Bên B" role={getPartyRole(contract, 'party_b')} />
         </div>
+        <p className="mt-3 -mb-2 text-[13px] leading-6 text-slate-700">Sau khi thỏa thuận, Các Bên đồng ý ký kết Hợp Đồng này theo các điều khoản sau:</p>
       </section>
 
-      <section className="rounded-xl bg-white p-5 pb-6">
-        <p className="text-[13px] leading-6 text-slate-700">Sau khi thỏa thuận, Các Bên đồng ý ký kết Hợp Đồng này theo các điều khoản sau:</p>
-        <div className="mt-3 space-y-2">
+      <section className="rounded-xl bg-white px-5 py-4">
+        <div className="space-y-2">
+          <h3 className="text-[14px] font-semibold text-slate-900">ĐIỀU 1: NỘI DUNG HỢP ĐỒNG</h3>
           <p className="text-[13px] leading-6 text-slate-700">
             Bên A đề nghị Bên B và Bên B đồng ý cung cấp <PreviewValue value={serviceScopeDetail} fallback="Nội dung dịch vụ" /> cho Bên A, chi tiết như sau:
           </p>
@@ -248,6 +250,7 @@ export function ContractPreviewDocument({ contract = {} }) {
             totals={quoteTotals}
             sticky={false}
             tableOnly
+            subtotalLabel={CONTRACT_SUBTOTAL_LABEL}
           />
           <div className="space-y-1 pt-1">
             <p className="text-[13px] font-semibold text-slate-900">Lưu ý về thời gian làm việc và tiến độ bàn giao:</p>
@@ -258,7 +261,7 @@ export function ContractPreviewDocument({ contract = {} }) {
         </div>
       </section>
 
-      <section className="rounded-xl bg-white p-5 pb-6">
+      <section className="rounded-xl bg-white px-5 py-4">
         <ContractPaymentSummary quote={quote} paymentConfig={paymentConfig} />
         <div className="mt-3">
           <p className="text-[13px] font-semibold text-slate-900">Hồ sơ thanh toán:</p>
@@ -278,9 +281,9 @@ export function ContractPreviewDocument({ contract = {} }) {
         </div>
       </section>
 
-      <section className="rounded-xl bg-white p-5 pb-6">
+      <section className="rounded-xl bg-white px-5 py-4">
         {contentSections.length ? (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {contentSections.map((section, index) => (
               <div key={section.id || `${section.article_no}-${index}`}>
                 <p className="text-[13px] font-bold uppercase text-slate-950">ĐIỀU {section.article_no || index + 3}: {section.title || 'ĐIỀU KHOẢN'}</p>

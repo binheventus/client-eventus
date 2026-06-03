@@ -30,7 +30,7 @@ const DEFAULT_QUOTE = {
   client_name: 'Mr. ',
   validity_days: 15,
   has_vat: true,
-  show_stamp: true,
+  show_stamp: false,
   terms_text: '',
   status: 'sent',
   sent_at: null,

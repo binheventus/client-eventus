@@ -14,6 +14,7 @@ import {
   getSellerProfile,
   getVatLabel,
   hasDocumentText,
+  shouldShowAcceptanceAmountTables,
 } from '../lib/contractDocumentRender'
 
 function Value({ children, fallback = '-' }) {
@@ -71,47 +72,58 @@ function PartyBlock({ title, profile = {} }) {
 }
 
 function AcceptanceAmountTable({ title, rows = [], totals = {}, vatConfig = {} }) {
+  const cellClass = 'border border-slate-300 px-1.5 py-1 align-top [overflow-wrap:anywhere]'
+  const numberCellClass = `${cellClass} text-right tabular-nums`
+
   return (
     <section className="space-y-2">
       <p className="font-semibold">{title}:</p>
-      <div className="overflow-x-auto border border-slate-300">
-        <table className="w-full min-w-[720px] text-left text-[12px] leading-5">
-          <thead className="bg-slate-100">
+      <div className="w-full overflow-hidden">
+        <table className="w-full table-fixed border-collapse text-left text-[11px] leading-4">
+          <colgroup>
+            <col className="w-[7%]" />
+            <col className="w-[37%]" />
+            <col className="w-[10%]" />
+            <col className="w-[11%]" />
+            <col className="w-[17%]" />
+            <col className="w-[18%]" />
+          </colgroup>
+          <thead>
             <tr>
-              <th className="w-[54px] border border-slate-300 px-2 py-1 text-center">STT</th>
-              <th className="border border-slate-300 px-2 py-1">Hạng mục</th>
-              <th className="w-[90px] border border-slate-300 px-2 py-1">ĐVT</th>
-              <th className="w-[90px] border border-slate-300 px-2 py-1 text-right">Số lượng</th>
-              <th className="w-[140px] border border-slate-300 px-2 py-1 text-right">Đơn giá (VNĐ)</th>
-              <th className="w-[150px] border border-slate-300 px-2 py-1 text-right">Thành tiền (VNĐ)</th>
+              <th className={`${cellClass} text-center`}>STT</th>
+              <th className={cellClass}>Hạng mục</th>
+              <th className={cellClass}>ĐVT</th>
+              <th className={`${cellClass} text-right`}>Số lượng</th>
+              <th className={`${cellClass} text-right`}>Đơn giá (VNĐ)</th>
+              <th className={`${cellClass} text-right`}>Thành tiền (VNĐ)</th>
             </tr>
           </thead>
           <tbody>
             {rows.length ? rows.map((row, index) => (
               <tr key={row.id || index}>
-                <td className="border border-slate-300 px-2 py-1 text-center">{index + 1}</td>
-                <td className="border border-slate-300 px-2 py-1">{row.description || '-'}</td>
-                <td className="border border-slate-300 px-2 py-1">{row.unit || '-'}</td>
-                <td className="border border-slate-300 px-2 py-1 text-right tabular-nums">{row.quantity || 0}</td>
-                <td className="border border-slate-300 px-2 py-1 text-right tabular-nums">{formatDocumentCurrency(row.unit_price, '')}</td>
-                <td className="border border-slate-300 px-2 py-1 text-right tabular-nums">{formatDocumentCurrency(row.amount, '')}</td>
+                <td className={`${cellClass} text-center`}>{index + 1}</td>
+                <td className={`${cellClass} break-words`}>{row.description || '-'}</td>
+                <td className={`${cellClass} break-words`}>{row.unit || '-'}</td>
+                <td className={numberCellClass}>{row.quantity || 0}</td>
+                <td className={numberCellClass}>{formatDocumentCurrency(row.unit_price, '')}</td>
+                <td className={numberCellClass}>{formatDocumentCurrency(row.amount, '')}</td>
               </tr>
             )) : (
               <tr>
-                <td colSpan={6} className="border border-slate-300 px-2 py-4 text-center text-slate-400">Chưa có hạng mục.</td>
+                <td colSpan={6} className={`${cellClass} py-4 text-center text-slate-400`}>Chưa có hạng mục.</td>
               </tr>
             )}
             <tr>
-              <td colSpan={5} className="border border-slate-300 px-2 py-1 text-right font-semibold">Tổng (chưa bao gồm thuế GTGT)</td>
-              <td className="border border-slate-300 px-2 py-1 text-right tabular-nums">{formatDocumentCurrency(totals.subtotal, '')}</td>
+              <td colSpan={5} className={`${cellClass} text-right font-semibold`}>Tổng (chưa bao gồm thuế GTGT)</td>
+              <td className={numberCellClass}>{formatDocumentCurrency(totals.subtotal, '')}</td>
             </tr>
             <tr>
-              <td colSpan={5} className="border border-slate-300 px-2 py-1 text-right font-semibold">{getVatLabel(vatConfig)}</td>
-              <td className="border border-slate-300 px-2 py-1 text-right tabular-nums">{formatDocumentCurrency(totals.vat_amount, '')}</td>
+              <td colSpan={5} className={`${cellClass} text-right font-semibold`}>{getVatLabel(vatConfig)}</td>
+              <td className={numberCellClass}>{formatDocumentCurrency(totals.vat_amount, '')}</td>
             </tr>
             <tr>
-              <td colSpan={5} className="border border-slate-300 px-2 py-1 text-right font-semibold">Tổng chi phí (Đã bao gồm VAT)</td>
-              <td className="border border-slate-300 px-2 py-1 text-right font-semibold tabular-nums">{formatDocumentCurrency(totals.total_amount, '')}</td>
+              <td colSpan={5} className={`${cellClass} text-right font-semibold`}>Tổng chi phí (Đã bao gồm VAT)</td>
+              <td className={`${numberCellClass} font-semibold`}>{formatDocumentCurrency(totals.total_amount, '')}</td>
             </tr>
           </tbody>
         </table>
@@ -185,9 +197,11 @@ function AcceptanceBody({ document }) {
   const content = getAcceptanceLiquidationContent(document)
   return (
     <div className="space-y-4 text-[13px] leading-6 text-slate-950">
-      {content.basis_contract ? <p>{content.basis_contract}</p> : null}
-      {content.basis_completed ? <p>{content.basis_completed}</p> : null}
-      {content.party_intro ? <p>{content.party_intro}</p> : null}
+      <div>
+        {content.basis_contract ? <p>{content.basis_contract}</p> : null}
+        {content.basis_completed ? <p>{content.basis_completed}</p> : null}
+        {content.party_intro ? <p>{content.party_intro}</p> : null}
+      </div>
       {content.signing_intro ? <p>{content.signing_intro}</p> : null}
       {content.articles.map(section => (
         <section key={section.id} className="space-y-2">
@@ -305,6 +319,7 @@ export default function ContractDocumentPreview({ document = {} }) {
     const content = getAcceptanceLiquidationContent(document)
     const bank = getBankAccountDetails(document)
     const summary = getAcceptanceSummary(document)
+    const showAmountTables = shouldShowAcceptanceAmountTables(document, summary)
 
     return (
       <A4DocumentPage>
@@ -319,9 +334,11 @@ export default function ContractDocumentPreview({ document = {} }) {
         </header>
 
         <div className="space-y-5 py-8 text-[13px] leading-6 text-slate-950">
-          {content.basis_contract ? <p>{content.basis_contract}</p> : null}
-          {content.basis_completed ? <p>{content.basis_completed}</p> : null}
-          {content.party_intro ? <p>{content.party_intro}</p> : null}
+          <div>
+            {content.basis_contract ? <p>{content.basis_contract}</p> : null}
+            {content.basis_completed ? <p>{content.basis_completed}</p> : null}
+            {content.party_intro ? <p>{content.party_intro}</p> : null}
+          </div>
 
           <section className="space-y-1">
             <PartyBlock title="BÊN A" profile={customer} />
@@ -340,10 +357,10 @@ export default function ContractDocumentPreview({ document = {} }) {
               {String(section.body || '').split(/\n+/).filter(Boolean).map((line, index) => (
                 <p key={`${section.id}-${index}`}><BankAwareParagraph line={line} /></p>
               ))}
-              {content.has_cost_difference && section.id === 'acceptance-article-2' ? (
+              {showAmountTables && section.id === 'acceptance-article-2' ? (
                 <div className="space-y-4">
-                  <AcceptanceAmountTable title="Chi tiết hạng mục trên hợp đồng" rows={summary.contract_rows} totals={summary.contract_totals} vatConfig={summary.vat_config} />
-                  <AcceptanceAmountTable title="Chi tiết hạng mục nghiệm thu" rows={summary.actual_rows} totals={summary.actual_totals} vatConfig={summary.vat_config} />
+                  <AcceptanceAmountTable title="Bảng giá trị theo hợp đồng" rows={summary.contract_rows} totals={summary.contract_totals} vatConfig={summary.vat_config} />
+                  <AcceptanceAmountTable title="Bảng giá trị nghiệm thu/thực tế" rows={summary.actual_rows} totals={summary.actual_totals} vatConfig={summary.vat_config} />
                   {content.cost_difference_note ? <p>{content.cost_difference_note}</p> : null}
                 </div>
               ) : null}

@@ -1,4 +1,5 @@
 import {
+  CONTRACT_SUBTOTAL_LABEL,
   getContractPreamble,
   getContractPaymentNotes,
   getContractWorkProgressNotes,
@@ -302,7 +303,7 @@ function quoteTable(contract = {}) {
   const items = Array.isArray(quote.items) ? quote.items : []
   const groups = groupItemsByDay(items)
   const totalRows = [
-    ['Subtotal', quote.subtotal],
+    [CONTRACT_SUBTOTAL_LABEL, quote.subtotal],
     quote.has_vat !== false ? ['Thuế GTGT 8%', quote.vat_amount] : null,
     ['Tổng cộng', quote.total_amount],
   ].filter(Boolean)
@@ -346,6 +347,7 @@ function serviceArticleXml(contract = {}) {
   const workProgressNotes = getContractWorkProgressNotes(contract)
 
   return [
+    paragraph('ĐIỀU 1: NỘI DUNG HỢP ĐỒNG', { style: 'Heading1', bold: true }),
     paragraph(`Bên A đề nghị Bên B và Bên B đồng ý ${contract.service_scope || 'cung cấp dịch vụ theo báo giá'} cho Bên A, chi tiết như sau:`),
     scheduleXml(contract.schedule_rows || []),
     paragraph('Chi tiết hạng mục', { bold: true }),

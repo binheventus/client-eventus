@@ -4,6 +4,7 @@ export const MEDIAMONSTER_SAMPLE_TEMPLATE_ID = 'system-mediamonster-service-cont
 export const DEFAULT_CONTRACT_TEMPLATE_ID = MEDIAMONSTER_SAMPLE_TEMPLATE_ID
 export const DEFAULT_CONTRACT_TITLE = 'HỢP ĐỒNG CUNG CẤP DỊCH VỤ MEDIA'
 export const CONTRACT_APPENDIX_DETAIL_TEXT = 'Chi tiết hạng mục: Theo Phụ lục đính kèm hợp đồng'
+export const CONTRACT_SUBTOTAL_LABEL = 'Tổng cộng chưa bao gồm Thuế GTGT'
 export const CONTRACT_TEMPLATE_SNAPSHOT_RULE = 'Mẫu hợp đồng chỉ áp dụng cho hợp đồng tạo mới; hợp đồng đã lưu sẽ không bị cập nhật theo mẫu.'
 const LEGACY_DEFAULT_CONTRACT_TEMPLATE_IDS = new Set(['system-default-service-contract'])
 
@@ -318,10 +319,14 @@ export function formatEntityBankDetails(details = {}) {
 export function getEntityProfile(entityCode = 'EVENTUS') {
   const code = entityCode || 'EVENTUS'
   const entity = findLegalEntityByCode(code, legalEntitiesData) || legalEntitiesData[0] || {}
+  const legalName = entity.entity_name_full || entity.legal_name || entity.name || entity.display_name || ''
 
   return {
     entity_code: getLegalEntityCode(entity) || code,
-    company_name: getLegalEntityLabel(entity),
+    entity_name_full: legalName,
+    legal_name: legalName,
+    name: legalName,
+    company_name: legalName,
     tax_code: entity.tax_code || '',
     address: entity.address || '',
     website: entity.website || '',

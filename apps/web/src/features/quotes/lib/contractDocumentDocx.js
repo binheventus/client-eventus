@@ -15,6 +15,7 @@ import {
   getSellerProfile,
   getVatLabel,
   hasDocumentText,
+  shouldShowAcceptanceAmountTables,
 } from './contractDocumentRender'
 
 const encoder = new TextEncoder()
@@ -279,6 +280,7 @@ function advanceXml(document = {}) {
 function acceptanceXml(document = {}) {
   const content = getAcceptanceLiquidationContent(document)
   const summary = getAcceptanceSummary(document)
+  const showAmountTables = shouldShowAcceptanceAmountTables(document, summary)
   return [
     content.basis_contract ? paragraph(content.basis_contract) : '',
     content.basis_completed ? paragraph(content.basis_completed) : '',
@@ -288,10 +290,10 @@ function acceptanceXml(document = {}) {
     ...content.articles.map(section => [
       paragraph(section.title, { bold: true }),
       ...String(section.body || '').split(/\n+/).filter(Boolean).map(line => bankAwareParagraph(line)),
-      content.has_cost_difference && section.id === 'acceptance-article-2'
+      showAmountTables && section.id === 'acceptance-article-2'
         ? [
-            acceptanceAmountTable('Chi tiết hạng mục trên hợp đồng', summary.contract_rows, summary.contract_totals, summary.vat_config),
-            acceptanceAmountTable('Chi tiết hạng mục nghiệm thu', summary.actual_rows, summary.actual_totals, summary.vat_config),
+            acceptanceAmountTable('Bảng giá trị theo hợp đồng', summary.contract_rows, summary.contract_totals, summary.vat_config),
+            acceptanceAmountTable('Bảng giá trị nghiệm thu/thực tế', summary.actual_rows, summary.actual_totals, summary.vat_config),
             content.cost_difference_note ? paragraph(content.cost_difference_note) : '',
           ].join('')
         : '',

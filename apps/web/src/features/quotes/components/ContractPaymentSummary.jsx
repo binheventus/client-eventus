@@ -15,7 +15,7 @@ export default function ContractPaymentSummary({ quote = {}, paymentConfig = {},
   return (
     <div className={`text-[13px] leading-6 text-slate-700 ${className}`}>
       <h3 className="text-[14px] font-semibold text-slate-900">ĐIỀU 2: GIÁ TRỊ HỢP ĐỒNG</h3>
-      <div className="mt-3 space-y-2">
+      <div className="mt-2 space-y-2">
         <p>
           Giá trị của hợp đồng là:{' '}
           <span className="font-bold text-slate-950">{formatCurrency(totalAmount) || 'Giá trị hợp đồng'} VNĐ {quote.has_vat === false ? '(Chưa bao gồm VAT)' : '(Đã bao gồm VAT)'}</span>

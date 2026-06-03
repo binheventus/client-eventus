@@ -248,6 +248,7 @@ export default function QuotePreview({
   sticky = true,
   tableOnly = false,
   showStamp,
+  subtotalLabel = 'Subtotal',
 }) {
   const entityRows = entities.length ? entities : legalEntitiesData
   const entity = getEntity(quote.entity_code, entityRows)
@@ -356,7 +357,7 @@ export default function QuotePreview({
 
         <section className={`${tableOnly ? 'ml-auto' : 'mt-2 ml-auto'} w-full max-w-[360px] space-y-1.5 text-[13px] sm:pr-3`}>
           <div className="flex justify-between gap-6 text-black">
-            <span>Subtotal</span>
+            <span>{subtotalLabel}</span>
             <span>{formatCurrency(totals.subtotal)}đ</span>
           </div>
           {!tableOnly && showTravelFee ? (

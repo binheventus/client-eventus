@@ -1,5 +1,6 @@
 import { Document, Font, Page, StyleSheet, Text, View } from '@react-pdf/renderer'
 import {
+  CONTRACT_SUBTOTAL_LABEL,
   getContractPreamble,
   getContractPaymentNotes,
   getContractWorkProgressNotes,
@@ -376,7 +377,7 @@ function QuoteItemsTable({ items = [] }) {
 
 function Totals({ quote = {} }) {
   const rows = [
-    ['Subtotal', quote.subtotal],
+    [CONTRACT_SUBTOTAL_LABEL, quote.subtotal],
     quote.has_vat !== false ? ['Thuế GTGT 8%', quote.vat_amount] : null,
   ].filter(Boolean)
 
@@ -401,6 +402,7 @@ function ServiceArticle({ contract = {}, quote = {}, items = [] }) {
 
   return (
     <View>
+      <Text style={styles.sectionTitle}>ĐIỀU 1: NỘI DUNG HỢP ĐỒNG</Text>
       <Text style={styles.paragraph}>
         Bên A đề nghị Bên B và Bên B đồng ý {contract.service_scope || 'cung cấp dịch vụ theo báo giá'} cho Bên A, chi tiết như sau:
       </Text>

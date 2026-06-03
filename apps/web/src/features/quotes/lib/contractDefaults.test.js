@@ -9,6 +9,7 @@ import {
   generateContractNumber,
   getContractWorkDurationText,
   getContractWorkProgressNotes,
+  getEntityProfile,
 } from './contractDefaults.js'
 
 const template = {
@@ -37,10 +38,18 @@ test('buildInitialContractDraft generates a contract number for new quote contra
   assert.match(draft.contract_number, /^\d{4}\/HDEVT-MA\/\d{4}$/)
 })
 
+test('getEntityProfile uses full legal entity name for contract party fields', () => {
+  const profile = getEntityProfile('EVENTUS')
+
+  assert.equal(profile.company_name, 'CÔNG TY TNHH EVENTUS VIỆT NAM')
+  assert.equal(profile.company_name, profile.entity_name_full)
+})
+
 test('buildInitialContractDraftFromSource preserves job source snapshots and totals', () => {
   const draft = buildInitialContractDraftFromSource({
     source_type: 'job',
     external_job_id: 42,
+    service_scope: 'cung cấp dịch vụ media theo job Year End Party',
     customer_snapshot: {
       company_name: 'Công ty Test Media',
       tax_code: '0100000000',
@@ -77,6 +86,7 @@ test('buildInitialContractDraftFromSource preserves job source snapshots and tot
   assert.equal(draft.source_type, 'job')
   assert.equal(draft.external_job_id, 42)
   assert.equal(draft.customer_snapshot.company_name, 'Công ty Test Media')
+  assert.equal(draft.service_scope, 'cung cấp dịch vụ media theo job Year End Party')
   assert.equal(draft.quote_snapshot.total_amount, 12000000)
   assert.equal(draft.quote_snapshot.items[0].service_name, 'Dịch vụ media theo job Year End Party')
   assert.equal(draft.schedule_rows[0].location, 'Hà Nội')

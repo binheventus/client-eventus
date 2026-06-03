@@ -523,9 +523,11 @@ function AcceptanceLiquidationTemplatePreview({ template, legalEntities = [] }) 
       </h3>
 
       <div className="mt-8 space-y-4">
-        {getBody('acceptance-basis-contract') ? <p><PreviewText text={getBody('acceptance-basis-contract')} tokenValues={tokenValues} /></p> : null}
-        {getBody('acceptance-basis-completed') ? <p><PreviewText text={getBody('acceptance-basis-completed')} tokenValues={tokenValues} /></p> : null}
-        {getBody('acceptance-party-intro') ? <p><PreviewText text={getBody('acceptance-party-intro')} tokenValues={tokenValues} /></p> : null}
+        <div>
+          {getBody('acceptance-basis-contract') ? <p><PreviewText text={getBody('acceptance-basis-contract')} tokenValues={tokenValues} /></p> : null}
+          {getBody('acceptance-basis-completed') ? <p><PreviewText text={getBody('acceptance-basis-completed')} tokenValues={tokenValues} /></p> : null}
+          {getBody('acceptance-party-intro') ? <p><PreviewText text={getBody('acceptance-party-intro')} tokenValues={tokenValues} /></p> : null}
+        </div>
         <PartyPreviewRows
           title="BÊN A"
           nameToken="customer_name"
@@ -673,6 +675,13 @@ function AdvanceRequestContentEditor({ template, onChangeSection }) {
 
 function AcceptanceLiquidationContentEditor({ template, onChangeSection }) {
   const sections = getAcceptanceLiquidationSections(template)
+  const introSectionIds = new Set([
+    'acceptance-basis-contract',
+    'acceptance-basis-completed',
+    'acceptance-party-intro',
+  ])
+  const introSections = sections.filter(section => introSectionIds.has(section.id))
+  const remainingSections = sections.filter(section => !introSectionIds.has(section.id))
 
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -683,7 +692,21 @@ function AcceptanceLiquidationContentEditor({ template, onChangeSection }) {
         </div>
       </div>
       <div className="mt-4 space-y-3">
-        {sections.map(section => (
+        {introSections.length ? (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+            {introSections.map(section => (
+              <Textarea
+                key={section.id}
+                aria-label={section.title}
+                rows={section.id === 'acceptance-basis-contract' ? 2 : 1}
+                value={section.body || ''}
+                onChange={event => onChangeSection(section.id, event.target.value)}
+                className="resize-y !rounded-none !border-0 !bg-transparent !px-0 !py-0 focus:!border-transparent focus:!ring-0"
+              />
+            ))}
+          </div>
+        ) : null}
+        {remainingSections.map(section => (
           <label key={section.id} className="block rounded-xl border border-slate-200 bg-white p-3">
             <span className="mb-2 block text-[12px] font-semibold text-slate-700">{section.title}</span>
             <Textarea

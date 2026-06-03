@@ -1,4 +1,5 @@
-import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { ArrowDown, ArrowUp, Pencil, Plus, Trash2 } from 'lucide-react'
 
 function formatCurrency(value) {
   return new Intl.NumberFormat('vi-VN').format(Number(value) || 0)
@@ -99,6 +100,38 @@ function IconButton({ title, disabled, onClick, children }) {
 }
 
 function QuoteItemRow({ item, index, onChangeItem, onRemoveItem }) {
+  const [editingName, setEditingName] = useState(false)
+  const [nameDraft, setNameDraft] = useState('')
+  const nameInputRef = useRef(null)
+
+  useEffect(() => {
+    if (editingName) nameInputRef.current?.focus()
+  }, [editingName])
+
+  function startNameEdit() {
+    setNameDraft(getServiceName(item))
+    setEditingName(true)
+  }
+
+  function commitNameEdit() {
+    const nextName = nameDraft.trim()
+    setEditingName(false)
+
+    if (!nextName) {
+      if (item.service_name) onChangeItem?.(index, { service_name: '' })
+      return
+    }
+
+    if (nextName !== item.service_name) {
+      onChangeItem?.(index, { service_name: nextName })
+    }
+  }
+
+  function cancelNameEdit() {
+    setEditingName(false)
+    setNameDraft('')
+  }
+
   return (
     <tr className="align-top">
       <td className="py-2 pl-5 pr-3">
@@ -111,11 +144,41 @@ function QuoteItemRow({ item, index, onChangeItem, onRemoveItem }) {
             className="min-h-8 w-full resize-none rounded-lg border border-transparent bg-transparent px-2 py-1 font-medium leading-5 text-black outline-none placeholder:text-slate-400 focus:border-slate-200 focus:bg-white"
           />
         ) : (
-          <div className="grid min-h-8 grid-cols-[130px_minmax(0,1fr)] items-start gap-x-3 gap-y-1.5">
-            <div className="min-w-[120px] basis-[130px] shrink grow-0">
-              <span className="block break-words px-2 py-1 font-medium leading-5 text-black">
-                {getServiceName(item)}
-              </span>
+          <div className="grid min-h-8 grid-cols-[minmax(150px,1.7fr)_minmax(90px,1fr)] items-start gap-x-3 gap-y-1.5">
+            <div className="min-w-[150px] shrink grow-0">
+              {editingName ? (
+                <input
+                  ref={nameInputRef}
+                  value={nameDraft}
+                  onChange={event => setNameDraft(event.target.value)}
+                  onBlur={commitNameEdit}
+                  onKeyDown={event => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault()
+                      commitNameEdit()
+                    } else if (event.key === 'Escape') {
+                      event.preventDefault()
+                      cancelNameEdit()
+                    }
+                  }}
+                  className="min-h-8 w-full rounded-lg border border-slate-200 bg-white px-2 py-1 font-medium leading-5 text-black outline-none focus:border-[#f8981d] focus:ring-2 focus:ring-orange-100"
+                />
+              ) : (
+                <div className="flex items-start gap-1 px-2 py-1">
+                  <span className="min-w-0 flex-1 break-words font-medium leading-5 text-black">
+                    {getServiceName(item)}
+                  </span>
+                  <button
+                    type="button"
+                    title="Sửa tên dịch vụ"
+                    aria-label="Sửa tên dịch vụ"
+                    onClick={startNameEdit}
+                    className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded text-slate-300 hover:bg-slate-100 hover:text-slate-600 focus:bg-slate-100 focus:text-slate-600 focus:outline-none"
+                  >
+                    <Pencil className="h-3 w-3" strokeWidth={2.2} />
+                  </button>
+                </div>
+              )}
               <span
                 title="Mã dịch vụ"
                 className="ml-2 mt-0.5 inline-flex w-fit rounded-full border border-orange-100/70 bg-orange-50/60 px-1.5 py-0 text-[9px] font-semibold leading-3 text-orange-300"
@@ -307,7 +370,7 @@ export default function QuoteItemsTable({
                     <th className="w-[8%] px-1.5 py-3 text-center font-semibold">Giờ tính</th>
                     <th className="w-[13%] px-2 py-3 text-right font-semibold">Đơn giá</th>
                     <th className="w-[10%] py-3 pl-0 pr-0 text-right font-semibold">Thành tiền</th>
-                    <th className="w-[5%] py-3 pl-0 pr-1" />
+                    <th className="w-[4%] py-3 pl-0 pr-1" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">

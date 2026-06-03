@@ -21,6 +21,7 @@ import {
   buildQuoteSnapshot,
   canCreateContractFromQuote,
   buildSingleLineQuoteSnapshot,
+  CONTRACT_SUBTOTAL_LABEL,
   DEFAULT_CONTRACT_TITLE,
   DEFAULT_PAYMENT_CONFIG,
   generateContractNumber,
@@ -81,7 +82,7 @@ function Select(props) {
 
 function SectionCard({ icon: Icon, title, children, action }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           {Icon ? (
@@ -93,7 +94,7 @@ function SectionCard({ icon: Icon, title, children, action }) {
         </div>
         {action}
       </div>
-      <div className="mt-4">{children}</div>
+      <div className="mt-3">{children}</div>
     </section>
   )
 }
@@ -316,6 +317,7 @@ function ProfileFields({
   onLookupCustomer,
   onCreateCustomer,
   onCopyTaxLookup,
+  footer = null,
 }) {
   const companyKey = 'company_name'
   const gridClass = type === 'seller' ? 'md:grid-cols-6' : 'md:grid-cols-2'
@@ -466,6 +468,8 @@ function ProfileFields({
           onCancel={() => setCreateOpen(false)}
         />
       ) : null}
+
+      {footer ? <div className="mt-3 -mb-2">{footer}</div> : null}
     </section>
   )
 }
@@ -499,6 +503,14 @@ function syncHydratedContractNumber(contractNumber, contractNumberPattern, contr
   return wasGenerated ? nextGenerated : applySellerEntityToContractNumber(current, contract.seller_entity_code)
 }
 
+function getHydratedSellerSnapshot(contract = {}, quote = {}) {
+  const sellerEntityCode = contract.seller_entity_code || quote?.entity_code || 'EVENTUS'
+  return {
+    ...(contract.seller_snapshot || {}),
+    ...getEntityProfile(sellerEntityCode),
+  }
+}
+
 function hydrateContract(contract, quote) {
   const normalized = normalizeContractTemplate(contract)
   const customerSnapshot = normalizeCustomerProfile(contract.customer_snapshot || {})
@@ -510,7 +522,7 @@ function hydrateContract(contract, quote) {
     ...normalized,
     quote_id: contract.quote_id || quote?.id || '',
     quote_number: contract.quote_number || quote?.quote_number || '',
-    seller_snapshot: contract.seller_snapshot || getEntityProfile(contract.seller_entity_code || quote?.entity_code),
+    seller_snapshot: getHydratedSellerSnapshot(contract, quote),
     customer_snapshot: customerSnapshot,
     contract_number: syncHydratedContractNumber(contract.contract_number, normalized.contract_number_pattern, { ...contract, seller_entity_code: normalized.seller_entity_code }, quoteSnapshot, customerSnapshot),
     signing_date: signingDate,
@@ -837,7 +849,7 @@ export default function ContractEditorModal({
       party_role_config: normalizedTemplate.party_role_config,
       contract_number_pattern: nextPattern,
       preamble: normalizedTemplate.preamble,
-      service_scope: normalizedTemplate.service_scope || draft.service_scope,
+      service_scope: draft.service_scope,
       schedule_rows: normalizedTemplate.schedule_rows.length ? normalizedTemplate.schedule_rows : draft.schedule_rows,
       quote_table_config: normalizedTemplate.quote_table_config,
       payment_config: normalizedTemplate.payment_config,
@@ -1281,20 +1293,24 @@ export default function ContractEditorModal({
                           </Select>
                         </div>
                       )}
+                      footer={<p className="text-[13px] leading-6 text-slate-700">Sau khi thỏa thuận, Các Bên đồng ý ký kết Hợp Đồng này theo các điều khoản sau:</p>}
                     />
                   </div>
 
-                  <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-[13px] leading-6 text-slate-700">
-                      <span>Bên A đề nghị Bên B và Bên B đồng ý cung cấp </span>
-                      <span className="font-semibold text-slate-950">{serviceScopeDetail || 'Nội dung dịch vụ'}</span>
-                      <span> cho Bên A, chi tiết như sau:</span>
+                  <section className="-mt-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-2.5 text-[13px] leading-6 text-slate-700">
+                      <h3 className="text-[14px] font-semibold text-slate-900">ĐIỀU 1: NỘI DUNG HỢP ĐỒNG</h3>
+                      <p className="mt-2">
+                        <span>Bên A đề nghị Bên B và Bên B đồng ý cung cấp </span>
+                        <span className="font-semibold text-slate-950">{serviceScopeDetail || 'Nội dung dịch vụ'}</span>
+                        <span> cho Bên A, chi tiết như sau:</span>
+                      </p>
                     </div>
-                    <Field label="Nội dung dịch vụ sau chữ “cung cấp”" className="mt-4">
+                    <Field label="Nội dung dịch vụ sau chữ “cung cấp”" className="mt-3">
                       <Textarea rows={3} value={serviceScopeDetail} onChange={event => updateDraft({ service_scope: composeServiceScope(event.target.value) })} />
                     </Field>
 
-                    <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
+                    <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200">
                       <div className="overflow-x-auto">
                         <table className="w-full min-w-[720px] text-left text-[13px]">
                           <thead className="bg-slate-50 text-[11px] uppercase tracking-[0.12em] text-slate-500">
@@ -1387,6 +1403,7 @@ export default function ContractEditorModal({
                         entities={legalEntities}
                         sticky={false}
                         tableOnly
+                        subtotalLabel={CONTRACT_SUBTOTAL_LABEL}
                       />
                     </div>
                     <div className="mt-3 space-y-1">
@@ -1406,9 +1423,9 @@ export default function ContractEditorModal({
                     </div>
                   </section>
 
-                  <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                     <div className="grid items-end gap-3 lg:grid-cols-[110px_repeat(3,minmax(0,1fr))]">
-                      <h2 className="pb-2.5 text-[16px] font-semibold text-slate-900">Thanh toán</h2>
+                      <h2 className="pb-2 text-[16px] font-semibold text-slate-900">Thanh toán</h2>
                       <Field label="Tạm ứng (%)">
                         <TextInput type="number" min="0" max="100" value={draft.payment_config?.deposit_percent ?? 50} onChange={event => updatePaymentConfig({ deposit_percent: Number(event.target.value) })} />
                       </Field>
@@ -1422,12 +1439,12 @@ export default function ContractEditorModal({
                         </Select>
                       </Field>
                     </div>
-                    <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                    <div className="mt-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-2.5">
                       <ContractPaymentSummary
                         quote={baseQuoteSnapshot}
                         paymentConfig={paymentConfig}
                       />
-                      <p className="mt-4 text-[13px] font-semibold text-slate-900">Hồ sơ thanh toán:</p>
+                      <p className="mt-3 text-[13px] font-semibold text-slate-900">Hồ sơ thanh toán:</p>
                       <ul className="mt-1 list-disc space-y-1 pl-5 text-[13px] leading-6 text-slate-700">
                         {paymentDocuments.map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}
                       </ul>

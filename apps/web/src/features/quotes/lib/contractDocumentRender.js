@@ -292,6 +292,14 @@ export function hasAcceptanceCostDifference(document = {}) {
   )
 }
 
+export function shouldShowAcceptanceAmountTables(document = {}, summary = getAcceptanceSummary(document)) {
+  return Boolean(
+    hasAcceptanceCostDifference(document) ||
+    summary.contract_rows?.length ||
+    summary.actual_rows?.length
+  )
+}
+
 function getAcceptanceTemplateTokenValues(document = {}) {
   const contract = getContractFromDocument(document)
   const customer = getCustomerProfile(document)
