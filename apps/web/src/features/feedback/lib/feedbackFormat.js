@@ -143,6 +143,28 @@ export function buildDefaultFeedbackName(sequence = 1) {
   return `Feedback #${safeSequence}`
 }
 
+export function formatFeedbackCloneCount(count = 0) {
+  const safeCount = Math.max(0, Math.floor(Number(count) || 0))
+  return String(safeCount).padStart(2, '0')
+}
+
+export function getFeedbackEditorFirstName(editorName = '') {
+  const parts = String(editorName || '').trim().split(/\s+/).filter(Boolean)
+  return parts.at(-1) || ''
+}
+
+export function buildFeedbackCloneTitleText({ editorName = '', feedbackName = '', count = 0 } = {}) {
+  const safeEditorName = getFeedbackEditorFirstName(editorName) || 'Editor'
+  const safeFeedbackName = String(feedbackName || '').trim() || 'Bản feedback gần nhất'
+  const countText = formatFeedbackCloneCount(count)
+  return `${safeEditorName} ơi, ${safeFeedbackName} vẫn còn ${countText} feedback chưa được sửa.`
+}
+
+export function buildFeedbackClonePromptText(count = 0) {
+  const countText = formatFeedbackCloneCount(count)
+  return `Bạn có muốn clone ${countText} feedback chưa được sửa đó sang bản mới này không ?`
+}
+
 export function parseTimeToSeconds(value) {
   if (value === undefined || value === null || value === '') return null
   if (typeof value === 'number') return Number.isFinite(value) ? value : null

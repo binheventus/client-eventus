@@ -73,7 +73,14 @@ export async function ensureFeedback(jobId) {
   return result.feedback
 }
 
-export async function createFeedback({ jobId, feedbackId, access, feedback }) {
+export async function createFeedback({
+  jobId,
+  feedbackId,
+  access,
+  feedback,
+  cloneUnresolved = false,
+  cloneUnresolvedFromFeedbackId = '',
+}) {
   const result = await requestFeedbackApi('', {
     method: 'POST',
     body: {
@@ -82,6 +89,8 @@ export async function createFeedback({ jobId, feedbackId, access, feedback }) {
       feedback_id: feedbackId,
       access,
       feedback,
+      clone_unresolved_feedbacks: cloneUnresolved,
+      clone_unresolved_from_feedback_id: cloneUnresolvedFromFeedbackId,
     },
   })
   return result.feedback

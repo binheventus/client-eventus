@@ -64,6 +64,30 @@ const EDITABLE_COMMENT_COLUMNS = new Set([
   'time_reply_2',
   'is_done_2',
 ])
+const CLONED_COMMENT_COLUMNS = [
+  'comment_1',
+  'image_comment_1',
+  'author_name',
+  'reply_1',
+  'image_reply_1',
+  'time_comment_1',
+  'time_reply_1',
+  'comment_2',
+  'image_comment_2',
+  'reply_2',
+  'image_reply_2',
+  'time_comment_2',
+  'time_reply_2',
+]
+const CLONED_ATTACHMENT_COLUMNS = [
+  'file_name',
+  'url',
+  'storage_path',
+  'preview_url',
+  'field_name',
+  'file_type',
+  'delete_at',
+]
 
 const DEFAULT_SURVEY_QUESTIONS = [
   {
@@ -424,6 +448,24 @@ function normalizeCommentRow(row = {}) {
   }
 }
 
+function pickColumns(row = {}, columns = []) {
+  return columns.reduce((payload, column) => {
+    payload[column] = row[column] ?? null
+    return payload
+  }, {})
+}
+
+function summarizeFeedbackCloneSource(feedback = null) {
+  if (!feedback?.id) return null
+  return {
+    id: feedback.id,
+    share_token: feedback.share_token || null,
+    public_code: feedback.public_code || null,
+    name: feedback.name || null,
+    created_at: feedback.created_at || null,
+  }
+}
+
 function normalizeJobRow(row = {}) {
   if (!row) return null
   return {
@@ -634,6 +676,53 @@ async function getFeedbackByShareToken(shareToken) {
   return normalizeFeedbackRow(rows?.[0])
 }
 
+async function getLatestFeedbackForJob(jobId) {
+  if (!jobId) return null
+  const rows = await query(
+    `select ${getFeedbackListSelect()}
+     from ${tables.feedbacks} f
+     left join ${tables.jobs} j on j.id = f.job_id
+     where f.job_id = ? and f.deleted_at is null
+     order by f.created_at desc, f.id desc
+     limit 1`,
+    [jobId],
+  )
+  return normalizeFeedbackRow(rows?.[0])
+}
+
+async function countUnresolvedFeedbackComments(feedbackId) {
+  if (!feedbackId) return 0
+  const rows = await query(
+    `select count(*) as count
+     from ${tables.feedbackComments}
+     where feedback_id = ? and coalesce(is_done_1, 0) = 0`,
+    [feedbackId],
+  )
+  return Number(rows?.[0]?.count || 0)
+}
+
+async function getFeedbackCloneSuggestion(jobId) {
+  const sourceFeedback = await getLatestFeedbackForJob(jobId)
+  const unresolvedCount = sourceFeedback?.id ? await countUnresolvedFeedbackComments(sourceFeedback.id) : 0
+  return {
+    source_feedback: summarizeFeedbackCloneSource(sourceFeedback),
+    unresolved_count: unresolvedCount,
+  }
+}
+
+async function resolveFeedbackCloneSource(jobId, sourceIdentifier = '') {
+  const requestedSource = trimText(sourceIdentifier, 80)
+  const sourceFeedback = requestedSource
+    ? await getFeedbackByIdentifier(requestedSource)
+    : await getLatestFeedbackForJob(jobId)
+
+  if (!sourceFeedback?.id) return null
+  if (String(sourceFeedback.job_id) !== String(jobId)) {
+    throw makeHttpError('Bản feedback nguồn không cùng job.', 400, 'FEEDBACK_CLONE_SOURCE_INVALID')
+  }
+  return sourceFeedback
+}
+
 export async function getPublicFeedbackOpenGraphData(identifier) {
   const shareToken = trimText(identifier, 80)
   if (!isFeedbackShareToken(shareToken)) return null
@@ -702,32 +791,49 @@ async function createFeedback(jobId, payload = {}) {
 
   const rows = await query(`select count(*) as count from ${tables.feedbacks} where job_id = ? and deleted_at is null`, [job.id])
   const count = Number(rows?.[0]?.count || 0)
+  const cloneSource = normalizeBoolean(payload.clone_unresolved_feedbacks)
+    ? await resolveFeedbackCloneSource(job.id, payload.clone_unresolved_from_feedback_id || payload.clone_source_feedback_id)
+    : null
+
   for (let attempt = 0; attempt < 8; attempt += 1) {
     const id = makeId('fb')
     const shareToken = await makeUniqueShareToken()
+    let clonedUnresolvedCount = 0
     try {
-      await query(
-        `insert into ${tables.feedbacks}
-           (id, public_code, job_id, share_token, name, video_url, video_title, direct_video_url, drive_url,
-            editor_employee_id, editor_name, editor_phone, started_at, created_at, updated_at)
-         values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp(3), current_timestamp(3))`,
-        [
-          id,
-          await makeUniquePublicCode(),
-          job.id,
-          shareToken,
-          sanitizeFeedbackName(payload.name) || buildDefaultFeedbackName(count + 1),
-          emptyToNull(payload.video_url),
-          emptyToNull(payload.video_title),
-          emptyToNull(payload.direct_video_url),
-          emptyToNull(payload.drive_url),
-          emptyToNull(payload.editor_employee_id),
-          emptyToNull(payload.editor_name || job.editor_name),
-          emptyToNull(payload.editor_phone || job.editor_phone),
-          payload.video_url ? nowMysql() : null,
-        ],
-      )
-      return getFeedbackByIdentifier(id)
+      const publicCode = await makeUniquePublicCode()
+      await withTransaction(async connection => {
+        await connection.query(
+          `insert into ${tables.feedbacks}
+             (id, public_code, job_id, share_token, name, video_url, video_title, direct_video_url, drive_url,
+              editor_employee_id, editor_name, editor_phone, started_at, created_at, updated_at)
+           values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp(3), current_timestamp(3))`,
+          [
+            id,
+            publicCode,
+            job.id,
+            shareToken,
+            sanitizeFeedbackName(payload.name) || buildDefaultFeedbackName(count + 1),
+            emptyToNull(payload.video_url),
+            emptyToNull(payload.video_title),
+            emptyToNull(payload.direct_video_url),
+            emptyToNull(payload.drive_url),
+            emptyToNull(payload.editor_employee_id),
+            emptyToNull(payload.editor_name || job.editor_name),
+            emptyToNull(payload.editor_phone || job.editor_phone),
+            payload.video_url ? nowMysql() : null,
+          ],
+        )
+
+        if (cloneSource?.id) {
+          clonedUnresolvedCount = await cloneUnresolvedFeedbackComments(connection, cloneSource.id, id)
+        }
+      })
+      const feedback = await getFeedbackByIdentifier(id)
+      return {
+        ...feedback,
+        cloned_unresolved_count: clonedUnresolvedCount,
+        cloned_unresolved_from_feedback_id: cloneSource?.id || null,
+      }
     } catch (error) {
       if ((!isPublicCodeDuplicate(error) && !isShareTokenDuplicate(error)) || attempt === 7) throw error
     }
@@ -779,6 +885,55 @@ async function getFeedbackComments(feedbackId) {
   }))
 }
 
+async function cloneUnresolvedFeedbackComments(connection, sourceFeedbackId, targetFeedbackId) {
+  if (!sourceFeedbackId || !targetFeedbackId) return 0
+
+  const [sourceComments] = await connection.query(
+    `select *
+     from ${tables.feedbackComments}
+     where feedback_id = ? and coalesce(is_done_1, 0) = 0
+     order by coalesce(time_comment_1, time_comment_2, 999999), created_at asc`,
+    [sourceFeedbackId],
+  )
+  if (!sourceComments.length) return 0
+
+  const sourceCommentIds = sourceComments.map(comment => comment.id)
+  const placeholders = sourceCommentIds.map(() => '?').join(', ')
+  const [sourceAttachments] = await connection.query(
+    `select *
+     from ${tables.feedbackAttachments}
+     where comment_id in (${placeholders})
+     order by created_at asc`,
+    sourceCommentIds,
+  )
+  const attachmentMap = sourceAttachments.reduce((map, attachment) => {
+    if (!map.has(attachment.comment_id)) map.set(attachment.comment_id, [])
+    map.get(attachment.comment_id).push(attachment)
+    return map
+  }, new Map())
+
+  for (const sourceComment of sourceComments) {
+    const nextCommentId = makeId('fbc')
+    await insertRow(connection, tables.feedbackComments, {
+      id: nextCommentId,
+      feedback_id: targetFeedbackId,
+      ...pickColumns(sourceComment, CLONED_COMMENT_COLUMNS),
+      is_done_1: 0,
+      is_done_2: 0,
+    })
+
+    for (const sourceAttachment of attachmentMap.get(sourceComment.id) || []) {
+      await insertRow(connection, tables.feedbackAttachments, {
+        id: makeId('fba'),
+        comment_id: nextCommentId,
+        ...pickColumns(sourceAttachment, CLONED_ATTACHMENT_COLUMNS),
+      })
+    }
+  }
+
+  return sourceComments.length
+}
+
 async function assertFeedbackAccess(req, feedback, access = {}) {
   if (!feedback?.id) throw makeHttpError('Không tìm thấy feedback.', 404, 'FEEDBACK_NOT_FOUND')
   if (req.eventusUser) return true
@@ -826,11 +981,12 @@ async function getFeedbackDetail(req, identifier, access = {}) {
     : access
   await assertFeedbackAccess(req, feedback, detailAccess)
 
-  const [comments, feedbacks, employees, surveyResponses] = await Promise.all([
+  const [comments, feedbacks, employees, surveyResponses, cloneSuggestion] = await Promise.all([
     getFeedbackComments(feedback.id),
     listFeedbacksForJob(feedback.job_id),
     listJobEmployees(feedback.job_id),
     listSurveyResponsesForJob(feedback.job_id),
+    getFeedbackCloneSuggestion(feedback.job_id),
   ])
 
   return {
@@ -839,6 +995,7 @@ async function getFeedbackDetail(req, identifier, access = {}) {
     feedbacks,
     employees,
     survey_responses: surveyResponses,
+    clone_suggestion: cloneSuggestion,
     permissions: await getFeedbackPermissions(req, feedback),
     public_url: getFeedbackPublicPath(feedback),
   }
@@ -1824,7 +1981,12 @@ export default async function handler(req, res) {
         if (current) await assertFeedbackAccess(req, current, parseAccess(body))
         if (!current && !req.eventusUser) req.eventusUser = await getEventusAuthUser(req)
         if (!current && !req.eventusUser) throw makeHttpError('Bạn cần đăng nhập để tạo feedback trực tiếp từ job.', 401, 'AUTH_REQUIRED')
-        const feedback = await createFeedback(body.job_id || current?.job_id, body.feedback || body)
+        const feedbackPayload = body.feedback || body
+        const feedback = await createFeedback(body.job_id || current?.job_id, {
+          ...feedbackPayload,
+          clone_unresolved_feedbacks: body.clone_unresolved_feedbacks ?? body.cloneUnresolved ?? feedbackPayload.clone_unresolved_feedbacks,
+          clone_unresolved_from_feedback_id: body.clone_unresolved_from_feedback_id ?? body.cloneUnresolvedFromFeedbackId ?? feedbackPayload.clone_unresolved_from_feedback_id,
+        })
         return res.status(201).json({ feedback })
       }
 

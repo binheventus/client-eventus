@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
+  AlertTriangle,
   BellRing,
   CheckCircle2,
   ChevronDown,
@@ -29,10 +30,13 @@ import {
   uploadFeedbackAttachment,
 } from '../hooks/useFeedback'
 import {
+  buildFeedbackClonePromptText,
+  buildFeedbackCloneTitleText,
   buildDefaultFeedbackName,
   formatFeedbackDateDots,
   formatFeedbackDayMonth,
   formatFeedbackDateTime,
+  formatFeedbackCloneCount,
   formatTimeline,
   getFeedbackAccessFromSearch,
   getFeedbackNameParts,
@@ -195,7 +199,19 @@ function LinkedEditableText({
   )
 }
 
-function SetupPanel({ detail, access, mode = 'edit', defaultName = '', dateBadge = '', onSaved, onCreated, onCancel }) {
+function SetupPanel({
+  detail,
+  access,
+  mode = 'edit',
+  defaultName = '',
+  dateBadge = '',
+  cloneUnresolved = false,
+  cloneUnresolvedFromFeedbackId = '',
+  cloneUnresolvedCount = 0,
+  onSaved,
+  onCreated,
+  onCancel,
+}) {
   const feedback = detail.feedback
   const employees = detail.employees || []
   const existingEditorName = feedback.editor_name || feedback.job?.editor_name || ''
@@ -215,27 +231,42 @@ function SetupPanel({ detail, access, mode = 'edit', defaultName = '', dateBadge
     setDriveUrl(isCreateMode ? '' : feedback.drive_url || '')
   }, [defaultName, feedback.id, feedback.name, feedback.video_url, feedback.drive_url, isCreateMode])
 
-  async function handleSubmit(event) {
-    event.preventDefault()
+  async function createNewFeedback(payload) {
     setSaving(true)
     setError('')
     try {
-      const payload = {
-        name: feedbackName.trim(),
-        editor_employee_id: editorId || undefined,
-        video_url: videoUrl.trim(),
-        drive_url: driveUrl.trim(),
-      }
+      const nextFeedback = await createFeedback({
+        jobId: feedback.job_id,
+        feedbackId: feedback.id,
+        access,
+        feedback: payload,
+        cloneUnresolved,
+        cloneUnresolvedFromFeedbackId: cloneUnresolved ? cloneUnresolvedFromFeedbackId : '',
+      })
+      onCreated?.(nextFeedback)
+    } catch (err) {
+      setError(err?.message || 'Không tạo được bản feedback mới.')
+    } finally {
+      setSaving(false)
+    }
+  }
 
+  async function handleSubmit(event) {
+    event.preventDefault()
+    if (saving) return
+    setError('')
+    const payload = {
+      name: feedbackName.trim(),
+      editor_employee_id: editorId || undefined,
+      video_url: videoUrl.trim(),
+      drive_url: driveUrl.trim(),
+    }
+
+    try {
       if (isCreateMode) {
-        const nextFeedback = await createFeedback({
-          jobId: feedback.job_id,
-          feedbackId: feedback.id,
-          access,
-          feedback: payload,
-        })
-        onCreated?.(nextFeedback)
+        await createNewFeedback(payload)
       } else {
+        setSaving(true)
         const nextDetail = await saveFeedbackSetup(feedback.id, payload, access)
         onSaved?.(nextDetail)
       }
@@ -249,7 +280,14 @@ function SetupPanel({ detail, access, mode = 'edit', defaultName = '', dateBadge
   return (
     <section className="h-full rounded-lg border border-[#f79820]/30 bg-[#f79820]/10 p-5">
       <div className="flex items-center">
-        <h2 className="text-[12px] font-semibold uppercase text-slate-950">{isCreateMode ? 'Thêm bản feedback mới' : 'Cài đặt bản feedback'}</h2>
+        <h2 className="text-[12px] font-semibold uppercase text-slate-950">
+          {isCreateMode ? 'Thêm bản feedback mới' : 'Cài đặt bản feedback'}
+          {isCreateMode && cloneUnresolved && (
+            <span className="normal-case text-slate-950">
+              {' '}(Bản này sẽ clone {formatFeedbackCloneCount(cloneUnresolvedCount)} feedback từ bản trước chưa sửa.)
+            </span>
+          )}
+        </h2>
         {isCreateMode && onCancel && (
           <button
             type="button"
@@ -836,16 +874,25 @@ export default function FeedbackDetailPage() {
   const [feedbackAuthorName, setFeedbackAuthorName] = useState('')
   const [currentVideoTime, setCurrentVideoTime] = useState(0)
   const [videoDuration, setVideoDuration] = useState(0)
+  const [videoClickToPlayActive, setVideoClickToPlayActive] = useState(false)
   const [selectedTimelineCommentId, setSelectedTimelineCommentId] = useState('')
   const [notifyingEditor, setNotifyingEditor] = useState(false)
   const [feedbackMenuOpen, setFeedbackMenuOpen] = useState(false)
   const [newFeedbackName, setNewFeedbackName] = useState('')
   const [newFeedbackDraftOpen, setNewFeedbackDraftOpen] = useState(false)
+  const [newFeedbackClonePromptOpen, setNewFeedbackClonePromptOpen] = useState(false)
+  const [newFeedbackCloneUnresolved, setNewFeedbackCloneUnresolved] = useState(false)
+  const [newFeedbackCloneSourceId, setNewFeedbackCloneSourceId] = useState('')
 
   const feedback = detail?.feedback
   const comments = detail?.comments || []
   const feedbackVersions = detail?.feedbacks || []
   const surveyResponses = detail?.survey_responses || []
+  const cloneSuggestion = detail?.clone_suggestion || {}
+  const cloneSourceFeedback = cloneSuggestion.source_feedback || null
+  const unresolvedCloneCount = Math.max(0, Math.floor(Number(cloneSuggestion.unresolved_count) || 0))
+  const cloneSourceFeedbackName = getFeedbackNameParts(cloneSourceFeedback || {}).name
+  const cloneEditorName = feedback?.editor_name || feedback?.job?.editor_name || ''
   const sortedFeedbackVersions = useMemo(() => [...feedbackVersions].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)), [feedbackVersions])
   const currentFeedbackNameParts = getFeedbackNameParts(feedback || {})
   const permissions = detail?.permissions || {}
@@ -858,6 +905,7 @@ export default function FeedbackDetailPage() {
   const jobDateTitle = formatFeedbackDateDots(feedback?.job?.job_date)
   const pageJobTitle = jobDateTitle ? `${jobDateTitle} ${jobTitle}` : jobTitle
   const newFeedbackDateBadge = formatFeedbackDayMonth(new Date())
+  const shouldOfferNewFeedbackClone = Boolean(cloneSourceFeedback?.id) && unresolvedCloneCount > 0
 
   async function load() {
     setLoading(true)
@@ -921,6 +969,10 @@ export default function FeedbackDetailPage() {
     setFooterEditorOpen(false)
   }, footerEditorOpen)
 
+  useEscapeToClose(() => {
+    setNewFeedbackClonePromptOpen(false)
+  }, newFeedbackClonePromptOpen)
+
   useEffect(() => {
     if (!embedUrl) return undefined
     setVideoDuration(0)
@@ -947,6 +999,7 @@ export default function FeedbackDetailPage() {
       const nextPlayerState = data?.info?.playerState
       if (Number.isFinite(nextPlayerState)) {
         youtubePlayerStateRef.current = nextPlayerState
+        if (nextPlayerState === 1) setVideoClickToPlayActive(false)
 
         if (nextPlayerState === 0) {
           window.setTimeout(() => {
@@ -1039,16 +1092,29 @@ export default function FeedbackDetailPage() {
     return true
   }
 
+  function clearSeekPauseTimers() {
+    if (!seekPauseTimerRef.current) return
+    const timers = Array.isArray(seekPauseTimerRef.current) ? seekPauseTimerRef.current : [seekPauseTimerRef.current]
+    timers.forEach(timer => window.clearTimeout(timer))
+    seekPauseTimerRef.current = null
+  }
+
+  function playVideoFromShell() {
+    clearSeekPauseTimers()
+    sendYoutubeCommand('unMute')
+    if (!sendYoutubeCommand('playVideo')) return
+    youtubePlayerStateRef.current = 1
+    setVideoClickToPlayActive(false)
+  }
+
   function seekTo(seconds) {
     const iframe = document.getElementById('feedback-youtube-player')
     if (!iframe?.contentWindow || !embedUrl) return
     const nextSeconds = Math.max(0, parseTimeToSeconds(seconds) || 0)
     setCurrentVideoTime(nextSeconds)
     const isColdPlayer = youtubePlayerStateRef.current === -1 || youtubePlayerStateRef.current === 5
-    if (seekPauseTimerRef.current) {
-      const timers = Array.isArray(seekPauseTimerRef.current) ? seekPauseTimerRef.current : [seekPauseTimerRef.current]
-      timers.forEach(timer => window.clearTimeout(timer))
-    }
+    clearSeekPauseTimers()
+    setVideoClickToPlayActive(true)
 
     if (isColdPlayer) {
       const url = new URL(embedUrl)
@@ -1088,12 +1154,42 @@ export default function FeedbackDetailPage() {
     if (!feedback?.id) return
     setFeedbackMenuOpen(false)
     setNewFeedbackName(current => current.trim() || buildDefaultFeedbackName(feedbackVersions.length + 1))
+    setNewFeedbackCloneUnresolved(false)
+    setNewFeedbackCloneSourceId('')
+    setError('')
+    if (shouldOfferNewFeedbackClone) {
+      setNewFeedbackDraftOpen(false)
+      setNewFeedbackClonePromptOpen(true)
+      return
+    }
+    setNewFeedbackDraftOpen(true)
+  }
+
+  function cancelNewFeedbackClonePrompt() {
+    setNewFeedbackClonePromptOpen(false)
+    setNewFeedbackCloneUnresolved(false)
+    setNewFeedbackCloneSourceId('')
+  }
+
+  function chooseNewFeedbackClonePreference(cloneUnresolved) {
+    setNewFeedbackClonePromptOpen(false)
+    setNewFeedbackCloneUnresolved(cloneUnresolved)
+    setNewFeedbackCloneSourceId(cloneUnresolved ? cloneSourceFeedback?.id || '' : '')
     setNewFeedbackDraftOpen(true)
     setError('')
   }
 
+  function cancelNewFeedbackDraft() {
+    setNewFeedbackDraftOpen(false)
+    setNewFeedbackCloneUnresolved(false)
+    setNewFeedbackCloneSourceId('')
+  }
+
   function handleNewFeedbackCreated(nextFeedback) {
     setNewFeedbackDraftOpen(false)
+    setNewFeedbackClonePromptOpen(false)
+    setNewFeedbackCloneUnresolved(false)
+    setNewFeedbackCloneSourceId('')
     navigate(getFeedbackPublicPath(nextFeedback))
   }
 
@@ -1299,12 +1395,15 @@ export default function FeedbackDetailPage() {
                 <SetupPanel
                   detail={detail}
                   access={access}
-                  mode="create"
-                  defaultName={newFeedbackName}
-                  dateBadge={newFeedbackDateBadge}
-                  onCreated={handleNewFeedbackCreated}
-                  onCancel={() => setNewFeedbackDraftOpen(false)}
-                />
+	                  mode="create"
+	                  defaultName={newFeedbackName}
+	                  dateBadge={newFeedbackDateBadge}
+	                  cloneUnresolved={newFeedbackCloneUnresolved}
+	                  cloneUnresolvedFromFeedbackId={newFeedbackCloneSourceId}
+	                  cloneUnresolvedCount={unresolvedCloneCount}
+	                  onCreated={handleNewFeedbackCreated}
+	                  onCancel={cancelNewFeedbackDraft}
+	                />
                 <OverallFeedbackPanel feedback={feedback} access={access} onChanged={refresh} fillHeight />
               </div>
             ) : !feedback.video_url && (
@@ -1330,6 +1429,14 @@ export default function FeedbackDetailPage() {
 		                    allow="accelerometer; autoplay; encrypted-media; gyroscope"
 		                    referrerPolicy="strict-origin-when-cross-origin"
 			                  />
+                    {videoClickToPlayActive && (
+                      <button
+                        type="button"
+                        onClick={playVideoFromShell}
+                        className="absolute inset-0 z-10 cursor-pointer bg-transparent focus:outline-none"
+                        aria-label="Phát video từ timecode đã chọn"
+                      />
+                    )}
 			                </div>
 	              ) : (
 	                <div className="grid aspect-video place-items-center bg-slate-100 text-center">
@@ -1416,7 +1523,12 @@ export default function FeedbackDetailPage() {
                 <textarea
                   value={commentText}
                   onChange={event => setCommentText(event.target.value)}
-                  placeholder="Nhập feedback..."
+                  onKeyDown={event => {
+                    if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent?.isComposing) return
+                    event.preventDefault()
+                    event.currentTarget.form?.requestSubmit()
+                  }}
+                  placeholder={'Nhập feedback rồi bấm Enter để gửi\nShift+Enter để xuống dòng'}
                   rows={5}
                   className="block min-h-[100px] w-full resize-none border-0 bg-transparent p-0 pr-10 text-[13px] leading-5 text-slate-900 outline-none placeholder:text-slate-400"
                 />
@@ -1426,10 +1538,57 @@ export default function FeedbackDetailPage() {
               </div>
             </form>
           </aside>
-        </section>
-      </div>
-      {footerEditorOpen && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 px-4 py-6">
+	        </section>
+	      </div>
+	      {newFeedbackClonePromptOpen && (
+	        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/45 px-4 py-6">
+	          <section className="w-full max-w-[36rem] rounded-lg border border-[#f79820]/40 bg-white p-5 shadow-xl" role="dialog" aria-modal="true" aria-labelledby="feedback-clone-title">
+	            <div className="flex items-start gap-3">
+	              <span className="mt-0.5 flex h-6 w-5 shrink-0 items-center justify-center text-[#f79820]">
+	                <AlertTriangle className="h-4 w-4" />
+	              </span>
+	              <div className="min-w-0">
+	                <h2 id="feedback-clone-title" className="whitespace-nowrap text-[16px] font-semibold leading-6 text-slate-950">
+	                  {buildFeedbackCloneTitleText({
+	                    editorName: cloneEditorName,
+	                    feedbackName: cloneSourceFeedbackName,
+	                    count: unresolvedCloneCount,
+	                  })}
+	                </h2>
+	              </div>
+	            </div>
+	            <p className="mt-3 text-[13px] leading-6 text-slate-600">
+	              {buildFeedbackClonePromptText(unresolvedCloneCount)}
+	            </p>
+	            <div className="mt-5 flex flex-nowrap justify-end gap-2">
+	              <button
+	                type="button"
+	                onClick={cancelNewFeedbackClonePrompt}
+	                className="inline-flex h-9 shrink-0 items-center justify-center whitespace-nowrap rounded-lg border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-700 hover:bg-slate-50"
+	              >
+	                Hủy
+	              </button>
+	              <button
+	                type="button"
+	                onClick={() => chooseNewFeedbackClonePreference(false)}
+	                className="inline-flex h-9 shrink-0 items-center justify-center whitespace-nowrap rounded-lg border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-700 hover:bg-slate-50"
+	              >
+	                Tạo mới mà không clone
+	              </button>
+	              <button
+	                type="button"
+	                onClick={() => chooseNewFeedbackClonePreference(true)}
+	                className="inline-flex h-9 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-[#f79820] px-4 text-[13px] font-semibold text-white hover:bg-[#df861d]"
+	              >
+	                <Plus className="h-4 w-4" />
+	                Có, clone feedback
+	              </button>
+	            </div>
+	          </section>
+	        </div>
+	      )}
+	      {footerEditorOpen && (
+	        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 px-4 py-6">
           <section className="w-full max-w-xl rounded-lg border border-slate-200 bg-white p-5 shadow-xl" role="dialog" aria-modal="true" aria-labelledby="feedback-link-editor-title">
             <div className="flex items-center justify-between gap-3">
               <h2 id="feedback-link-editor-title" className="text-[16px] font-semibold text-[#f79820]">Cài đặt Feedback</h2>

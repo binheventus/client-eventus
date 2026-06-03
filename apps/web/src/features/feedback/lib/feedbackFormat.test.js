@@ -2,8 +2,11 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   buildDefaultFeedbackName,
+  buildFeedbackClonePromptText,
+  buildFeedbackCloneTitleText,
   formatFeedbackDateDots,
   formatFeedbackDayMonth,
+  formatFeedbackCloneCount,
   getFeedbackNameParts,
   getFeedbackVideoEmbedUrl,
   linkifyFeedbackText,
@@ -13,6 +16,18 @@ import {
 
 test('feedback default name uses sequence without editable date', () => {
   assert.equal(buildDefaultFeedbackName(8), 'Feedback #8')
+})
+
+test('feedback clone prompt keeps two digit unresolved count', () => {
+  assert.equal(formatFeedbackCloneCount(5), '05')
+  assert.equal(
+    buildFeedbackCloneTitleText({ editorName: 'Đàm Trọng Huy', feedbackName: 'Feedback #12', count: 1 }),
+    'Huy ơi, Feedback #12 vẫn còn 01 feedback chưa được sửa.',
+  )
+  assert.equal(
+    buildFeedbackClonePromptText(5),
+    'Bạn có muốn clone 05 feedback chưa được sửa đó sang bản mới này không ?',
+  )
 })
 
 test('feedback date badge uses Vietnam day-month with dot separator', () => {
