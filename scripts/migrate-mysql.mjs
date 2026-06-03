@@ -15,6 +15,8 @@ const schemaSql = await fs.readFile(schemaPath, 'utf8')
 const pool = getPool()
 const PUBLIC_CODE_ALPHABET = '23456789abcdefghjkmnpqrstuvwxyz'
 const PUBLIC_CODE_LENGTH = 4
+const PUBLIC_TOKEN_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
+const JOB_PUBLIC_TOKEN_LENGTH = 18
 const legacyPrefix = ['ai', 'lab'].join('_')
 const legacyAiLabTables = [
   'quote_views',
@@ -150,6 +152,11 @@ const feedbackJobColumns = [
   },
   {
     tableName: 'jobs',
+    columnName: 'public_token',
+    definition: 'varchar(40) null after `zalo_id`',
+  },
+  {
+    tableName: 'jobs',
     columnName: 'editor_name',
     definition: 'varchar(255) null',
   },
@@ -234,6 +241,16 @@ const legacyFeedbackIndexes = [
   {
     tableName: 'client_feedback_survey_responses',
     indexName: 'client_feedback_survey_responses_job_type_unique',
+  },
+]
+
+const feedbackJobIndexes = [
+  {
+    tableName: 'jobs',
+    indexName: 'jobs_public_token_unique',
+    columns: ['public_token'],
+    unique: true,
+    skipIfDuplicateRows: true,
   },
 ]
 
@@ -328,6 +345,20 @@ async function ensureConfiguredIndex(pool, { tableName, indexName, columns, uniq
   return true
 }
 
+async function ensureConfiguredIndexIfTableExists(pool, config) {
+  const [tables] = await pool.query(
+    `select 1
+     from information_schema.tables
+     where table_schema = database()
+       and table_name = ?
+     limit 1`,
+    [config.tableName],
+  )
+
+  if (!tables.length) return false
+  return ensureConfiguredIndex(pool, config)
+}
+
 async function dropIndexIfExists(pool, { tableName, indexName }) {
   const [rows] = await pool.query(
     `select 1
@@ -346,6 +377,16 @@ async function dropIndexIfExists(pool, { tableName, indexName }) {
 }
 
 async function hasDuplicateRowsForIndex(pool, { tableName, columns }) {
+  const [tables] = await pool.query(
+    `select 1
+     from information_schema.tables
+     where table_schema = database()
+       and table_name = ?
+     limit 1`,
+    [tableName],
+  )
+  if (!tables.length) return false
+
   const columnSql = columns.map(column => `\`${column}\``).join(', ')
   const presentSql = columns.map(column => `\`${column}\` is not null`).join(' and ')
   const [rows] = await pool.query(
@@ -369,6 +410,12 @@ function makePublicCode(length = PUBLIC_CODE_LENGTH) {
   throw new Error('Khong tao duoc public_code hop le.')
 }
 
+function makePublicToken(length = JOB_PUBLIC_TOKEN_LENGTH) {
+  return Array.from(randomBytes(length), value => (
+    PUBLIC_TOKEN_ALPHABET[value % PUBLIC_TOKEN_ALPHABET.length]
+  )).join('')
+}
+
 async function makeUniquePublicCode(pool, usedCodes) {
   for (let attempt = 0; attempt < 128; attempt += 1) {
     const code = makePublicCode()
@@ -380,6 +427,58 @@ async function makeUniquePublicCode(pool, usedCodes) {
     }
   }
   throw new Error('Khong tao duoc public_code khong trung.')
+}
+
+async function makeUniqueJobPublicToken(pool, usedTokens) {
+  for (let attempt = 0; attempt < 128; attempt += 1) {
+    const token = makePublicToken()
+    if (usedTokens.has(token)) continue
+    const [rows] = await pool.query('select 1 from `jobs` where `public_token` = ? limit 1', [token])
+    if (!rows.length) {
+      usedTokens.add(token)
+      return token
+    }
+  }
+  throw new Error('Khong tao duoc public_token job khong trung.')
+}
+
+async function backfillJobPublicTokens(pool) {
+  const [tables] = await pool.query(
+    `select 1
+     from information_schema.tables
+     where table_schema = database()
+       and table_name = 'jobs'
+     limit 1`,
+  )
+  if (!tables.length) return 0
+
+  const [columns] = await pool.query(
+    `select 1
+     from information_schema.columns
+     where table_schema = database()
+       and table_name = 'jobs'
+       and column_name = 'public_token'
+     limit 1`,
+  )
+  if (!columns.length) return 0
+
+  const [existingRows] = await pool.query(
+    'select `public_token` from `jobs` where `public_token` is not null and `public_token` <> ""',
+  )
+  const usedTokens = new Set(existingRows.map(row => String(row.public_token || '').trim()).filter(Boolean))
+  const [rows] = await pool.query(
+    'select `id` from `jobs` where `public_token` is null or `public_token` = "" order by `id` asc',
+  )
+
+  for (const row of rows) {
+    const publicToken = await makeUniqueJobPublicToken(pool, usedTokens)
+    await pool.query(
+      'update `jobs` set `public_token` = ? where `id` = ? and (`public_token` is null or `public_token` = "")',
+      [publicToken, row.id],
+    )
+  }
+
+  return rows.length
 }
 
 async function backfillFeedbackPublicCodes(pool) {
@@ -444,6 +543,21 @@ async function backfillFeedbackSurveySubmissionNumbers(pool) {
   }
 
   return updated
+}
+
+async function ensureFeedbackSurveyTypeDefault(pool) {
+  const [columns] = await pool.query(
+    `select column_default as columnDefault
+     from information_schema.columns
+     where table_schema = database()
+       and table_name = 'client_feedback_survey_responses'
+       and column_name = 'survey_type'
+     limit 1`,
+  )
+  if (!columns.length || columns?.[0]?.columnDefault === 'general') return false
+
+  await pool.query("alter table `client_feedback_survey_responses` modify column `survey_type` varchar(40) not null default 'general'")
+  return true
 }
 
 async function ensureContractQuoteNullable(pool) {
@@ -554,8 +668,10 @@ try {
     if (await ensureColumnIfTableExists(pool, columnConfig)) createdColumns.push(`${columnConfig.tableName}.${columnConfig.columnName}`)
   }
 
+  const backfilledJobPublicTokens = await backfillJobPublicTokens(pool)
   const backfilledFeedbackPublicCodes = await backfillFeedbackPublicCodes(pool)
   const backfilledFeedbackSurveySubmissionNumbers = await backfillFeedbackSurveySubmissionNumbers(pool)
+  if (await ensureFeedbackSurveyTypeDefault(pool)) createdColumns.push('client_feedback_survey_responses.survey_type default general')
 
   if (await ensureContractQuoteNullable(pool)) createdColumns.push('client_contracts.quote_id nullable')
   const quoteDraftModeCleanup = await removeQuoteDraftMode(pool)
@@ -564,12 +680,20 @@ try {
     if (await ensureConfiguredIndex(pool, indexConfig)) createdIndexes.push(indexConfig.indexName)
   }
 
+  const skippedIndexes = []
+  for (const indexConfig of feedbackJobIndexes) {
+    if (indexConfig.skipIfDuplicateRows && await hasDuplicateRowsForIndex(pool, indexConfig)) {
+      skippedIndexes.push(`${indexConfig.indexName}: duplicate rows exist`)
+      continue
+    }
+    if (await ensureConfiguredIndexIfTableExists(pool, indexConfig)) createdIndexes.push(indexConfig.indexName)
+  }
+
   const droppedIndexes = []
   for (const indexConfig of legacyFeedbackIndexes) {
     if (await dropIndexIfExists(pool, indexConfig)) droppedIndexes.push(indexConfig.indexName)
   }
 
-  const skippedIndexes = []
   for (const indexConfig of feedbackIndexes) {
     if (indexConfig.skipIfDuplicateRows && await hasDuplicateRowsForIndex(pool, indexConfig)) {
       skippedIndexes.push(`${indexConfig.indexName}: duplicate rows exist`)
@@ -598,6 +722,7 @@ try {
     created_indexes: createdIndexes,
     dropped_indexes: droppedIndexes,
     skipped_indexes: skippedIndexes,
+    backfilled_job_public_tokens: backfilledJobPublicTokens,
     backfilled_feedback_public_codes: backfilledFeedbackPublicCodes,
     backfilled_feedback_survey_submission_numbers: backfilledFeedbackSurveySubmissionNumbers,
     quote_draft_mode_cleanup: quoteDraftModeCleanup,

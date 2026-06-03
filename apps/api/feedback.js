@@ -20,6 +20,7 @@ import {
   withTransaction,
 } from './lib/mysql.js'
 import { getEventusAuthUser, requireEventusAuth } from './lib/eventus-auth.js'
+import { loadServerEnv } from './lib/server-env.js'
 
 const execFileAsync = promisify(execFile)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -29,6 +30,7 @@ const publicRoot = path.join(webRoot, 'public')
 const SHARE_TOKEN_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
 const SHARE_TOKEN_LENGTH = 14
 const SHARE_TOKEN_PUBLIC_PATTERN = /^[A-Z2-9]{12,40}$/
+const JOB_PUBLIC_TOKEN_LENGTH = 18
 const PUBLIC_CODE_ALPHABET = '23456789abcdefghjkmnpqrstuvwxyz'
 const PUBLIC_CODE_LENGTH = 4
 const DEFAULT_PAGE_SIZE = 20
@@ -36,12 +38,13 @@ const MAX_UPLOAD_BYTES = 8 * 1024 * 1024
 const SURVEY_DOUBLE_SUBMIT_WINDOW_SECONDS = 15
 const DEFAULT_RCLONE_REMOTE = 'eventus'
 const DEFAULT_RCLONE_FEEDBACK_DIR = 'feedback'
+const DEFAULT_NHANSU_URL = 'https://lichlamviec.eventusproduction.com'
 const FEEDBACK_NOTIFICATION_ADMIN_PHONE = '0972554172'
 const CSS_SINCE_062026_VERSION_NAME = 'CSS Since 06.2026'
 const CSS_SURVEY_COPY = {
   title: 'Chia sẻ trải nghiệm của Anh/Chị cùng Eventus',
   description: 'Cảm ơn anh/chị đã tin tưởng lựa chọn Eventus. Khảo sát này chỉ mất khoảng 2 phút để hoàn\u00a0thành. Những chia sẻ của anh/chị sẽ giúp chúng tôi tiếp tục nâng cao chất lượng dịch vụ và mang đến trải nghiệm tốt hơn trong các dự án sắp tới.',
-  thank_you: 'Cảm ơn anh/chị đã dành thời gian chia sẻ ý kiến.\nMỗi phản hồi đều là nguồn thông tin quý giá giúp Eventus Production không ngừng hoàn thiện chất lượng dịch vụ và mang đến những trải nghiệm tốt hơn trong tương lai.\nChúng tôi trân trọng sự đồng hành và tin tưởng của anh/chị. Hẹn gặp lại trong những dự án tiếp theo!',
+  thank_you: 'Cảm ơn anh/chị đã chia sẻ ý kiến\n\nMỗi phản hồi đều là nguồn thông tin quý giá giúp Eventus Production tiếp tục\nhoàn thiện chất lượng dịch vụ và mang đến những trải nghiệm tốt hơn.\n\nChúng tôi trân trọng sự đồng hành và tin tưởng của anh/chị.\nHẹn gặp lại trong những dự án tiếp theo!',
 }
 const DEFAULT_SURVEY_COPY = {
   title: 'Form khảo sát sự hài lòng',
@@ -258,6 +261,15 @@ async function makeUniqueShareToken() {
   throw makeHttpError('Không tạo được mã chia sẻ feedback.', 500, 'SHARE_TOKEN_UNAVAILABLE')
 }
 
+async function makeUniqueJobPublicToken() {
+  for (let attempt = 0; attempt < 128; attempt += 1) {
+    const token = makeReadableToken(JOB_PUBLIC_TOKEN_LENGTH)
+    const rows = await query(`select 1 from ${tables.jobs} where public_token = ? limit 1`, [token])
+    if (!rows.length) return token
+  }
+  throw makeHttpError('Không tạo được mã public cho job.', 500, 'JOB_PUBLIC_TOKEN_UNAVAILABLE')
+}
+
 function isPublicCodeDuplicate(error) {
   return (error?.code === 'ER_DUP_ENTRY' || error?.errno === 1062)
     && String(error?.sqlMessage || error?.message || '').includes('public_code')
@@ -268,10 +280,21 @@ function isShareTokenDuplicate(error) {
     && String(error?.sqlMessage || error?.message || '').includes('share_token')
 }
 
+function isPublicTokenDuplicate(error) {
+  return (error?.code === 'ER_DUP_ENTRY' || error?.errno === 1062)
+    && String(error?.sqlMessage || error?.message || '').includes('public_token')
+}
+
 function getFeedbackPublicPath(feedback = {}) {
   const identifier = feedback.share_token
   if (!identifier) return '/feedbacks'
   return `/feedbacks/${encodeURIComponent(identifier)}`
+}
+
+function getSurveyPublicPath(job = {}) {
+  const identifier = job.public_token || job.id
+  if (!identifier) return '/survey'
+  return `/survey?job=${encodeURIComponent(identifier)}`
 }
 
 export function buildFeedbackOpenGraphText(feedback = {}) {
@@ -300,13 +323,12 @@ function sanitizeFeedbackName(value = '') {
 }
 
 function getSurveyType(value = 'video') {
-  return value === 'image' ? 'image' : 'video'
+  return 'general'
 }
 
-export function buildSurveyResponseName(type = 'video', submissionNo = 1) {
+export function buildSurveyResponseName(type = 'general', submissionNo = 1) {
   const safeNo = Math.max(1, Math.floor(Number(submissionNo) || 1))
-  const label = getSurveyType(type) === 'image' ? 'Khảo sát hình ảnh' : 'Khảo sát video'
-  return `${label} #${safeNo}`
+  return `Khảo sát #${safeNo}`
 }
 
 function trimText(value = '', maxLength = 500) {
@@ -355,6 +377,16 @@ function buildFeedbackDoneNotificationPayload(feedback = {}, recipients = []) {
     title: 'Khách đã hoàn thành Feedback!',
     content: `Khách hàng đã hoàn thành ${feedbackName} của job ${jobTitle}.\nBạn hãy check và confirm thời gian gửi bản tiếp theo cho khách nhé.`,
   }
+}
+
+function getNhansuBaseUrl() {
+  loadServerEnv()
+  const baseUrl = [
+    process.env.NHANSU_URL,
+    process.env.EVENTUS_AUTH_BASE_URL,
+    DEFAULT_NHANSU_URL,
+  ].map(value => String(value || '').trim()).find(Boolean) || ''
+  return baseUrl.replace(/\/+$/, '')
 }
 
 function getAuthUserRole(user = {}) {
@@ -471,6 +503,7 @@ function normalizeJobRow(row = {}) {
   return {
     ...row,
     id: row.id,
+    public_token: row.public_token || row.job_public_token || '',
     title: row.job_title || row.title || '',
     customer_name: row.customer_name || row.customer_company_name || row.company_name || '',
     zalo_id: row.zalo_id || '',
@@ -517,6 +550,7 @@ function getFeedbackListSelect() {
     j.customer_id,
     j.job_date,
     j.zalo_id,
+    j.public_token as job_public_token,
     j.drive_feedback as job_drive_feedback,
     j.gallery_drive,
     j.editor_name as job_editor_name,
@@ -528,6 +562,46 @@ async function getJobById(id) {
   if (!id) return null
   const rows = await query(`select * from ${tables.jobs} where id = ? limit 1`, [id])
   return normalizeJobRow(rows?.[0])
+}
+
+async function getJobByPublicToken(token) {
+  if (!token) return null
+  const rows = await query(`select * from ${tables.jobs} where public_token = ? limit 1`, [token])
+  return normalizeJobRow(rows?.[0])
+}
+
+async function getJobBySurveyIdentifier(identifier) {
+  const value = trimText(identifier, 80)
+  if (!value) return null
+  const byToken = SHARE_TOKEN_PUBLIC_PATTERN.test(value) ? await getJobByPublicToken(value) : null
+  if (byToken?.id) return byToken
+  if (/^\d+$/.test(value)) return getJobById(value)
+  return null
+}
+
+async function ensureJobPublicToken(job = null) {
+  if (!job?.id || job.public_token) return job
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const publicToken = await makeUniqueJobPublicToken()
+    try {
+      const result = await query(
+        `update ${tables.jobs}
+         set public_token = ?
+         where id = ? and (public_token is null or public_token = '')`,
+        [publicToken, job.id],
+      )
+      if (!result?.affectedRows) return getJobById(job.id)
+      return {
+        ...job,
+        public_token: publicToken,
+      }
+    } catch (error) {
+      if (!isPublicTokenDuplicate(error) || attempt === 7) throw error
+    }
+  }
+
+  return getJobById(job.id)
 }
 
 async function getJobByZaloId(zaloId) {
@@ -980,6 +1054,7 @@ async function getFeedbackDetail(req, identifier, access = {}) {
     ? { ...access, token: access.token || feedback.share_token }
     : access
   await assertFeedbackAccess(req, feedback, detailAccess)
+  feedback.job = await ensureJobPublicToken(feedback.job)
 
   const [comments, feedbacks, employees, surveyResponses, cloneSuggestion] = await Promise.all([
     getFeedbackComments(feedback.id),
@@ -1464,7 +1539,7 @@ async function findEmployeeIdByPhone(phone) {
 }
 
 async function notifyFeedbackDone(feedback) {
-  const baseUrl = String(process.env.NHANSU_URL || '').replace(/\/+$/, '')
+  const baseUrl = getNhansuBaseUrl()
   if (!baseUrl) throw makeHttpError('Chưa cấu hình NHANSU_URL để gửi thông báo tới Editor.', 500, 'NHANSU_URL_MISSING')
 
   const editorEmployeeId = await findEmployeeIdByPhone(getFeedbackNotificationEditorPhone(feedback)) || feedback.editor_employee_id
@@ -1585,10 +1660,11 @@ async function getSurveyQuestions(type = 'video') {
   const activeSurvey = await getActiveSurveyQuestions(type)
   if (activeSurvey.questions.length) return activeSurvey
 
-  const legacyQuestions = await getLegacyFeedbackSurveyQuestions(type)
+  const fallbackType = type === 'general' ? 'video' : type
+  const legacyQuestions = await getLegacyFeedbackSurveyQuestions(fallbackType)
   return {
     version: null,
-    questions: legacyQuestions.length ? legacyQuestions : DEFAULT_SURVEY_QUESTIONS.filter(question => question.type === type),
+    questions: legacyQuestions.length ? legacyQuestions : DEFAULT_SURVEY_QUESTIONS.filter(question => question.type === fallbackType),
   }
 }
 
@@ -1644,22 +1720,23 @@ async function listSurveyResponsesForJob(jobId) {
 }
 
 async function getSurvey(req) {
-  const jobId = getQueryValue(req.query?.job || req.query?.job_id, '')
-  const type = getSurveyType(getQueryValue(req.query?.type, 'video'))
-  const job = await getJobById(jobId)
+  const jobIdentifier = getQueryValue(req.query?.job || req.query?.job_id, '')
+  const type = getSurveyType()
+  const job = await getJobBySurveyIdentifier(jobIdentifier)
   if (!job?.id) throw makeHttpError('Không tìm thấy job.', 404, 'JOB_NOT_FOUND')
+  const publicJob = await ensureJobPublicToken(job)
 
   const responseRows = await query(
     `select count(*) as count, coalesce(max(submission_no), 0) as max_submission_no
      from ${tables.feedbackSurveyResponses}
-     where job_id = ? and survey_type = ?`,
-    [job.id, type],
+     where job_id = ?`,
+    [publicJob.id],
   )
   const submissionCount = Number(responseRows?.[0]?.count || 0)
   const nextSubmissionNo = Number(responseRows?.[0]?.max_submission_no || 0) + 1
   const survey = await getSurveyQuestions(type)
   return {
-    job,
+    job: publicJob,
     type,
     already_submitted: false,
     submission_count: submissionCount,
@@ -1685,9 +1762,9 @@ async function getSurveyResponseBySubmissionKey(submissionKey) {
 }
 
 async function submitSurvey(req, body = {}) {
-  const jobId = body.job || body.job_id
-  const type = getSurveyType(body.type)
-  const job = await getJobById(jobId)
+  const jobIdentifier = body.job || body.job_id
+  const type = getSurveyType()
+  const job = await getJobBySurveyIdentifier(jobIdentifier)
   if (!job?.id) throw makeHttpError('Không tìm thấy job.', 404, 'JOB_NOT_FOUND')
 
   const answers = body.answers || {}
@@ -1715,13 +1792,12 @@ async function submitSurvey(req, body = {}) {
             `select *
              from ${tables.feedbackSurveyResponses}
              where job_id = ?
-               and survey_type = ?
                and user_agent = ?
                and created_at >= date_sub(current_timestamp(3), interval ? second)
              order by created_at desc
              limit 1
              for update`,
-            [job.id, type, userAgent, SURVEY_DOUBLE_SUBMIT_WINDOW_SECONDS],
+            [job.id, userAgent, SURVEY_DOUBLE_SUBMIT_WINDOW_SECONDS],
           )
           if (recentRows.length) {
             return {
@@ -1734,11 +1810,11 @@ async function submitSurvey(req, body = {}) {
         const [latestRows] = await connection.query(
           `select submission_no
            from ${tables.feedbackSurveyResponses}
-           where job_id = ? and survey_type = ?
+           where job_id = ?
            order by submission_no desc
            limit 1
            for update`,
-          [job.id, type],
+          [job.id],
         )
         const submissionNo = Number(latestRows?.[0]?.submission_no || 0) + 1
         const responseId = makeId('fbsr')
@@ -1838,7 +1914,7 @@ async function submitSurvey(req, body = {}) {
 }
 
 async function notifySurveySubmitted(job, answers = {}, response = {}) {
-  const baseUrl = String(process.env.NHANSU_URL || '').replace(/\/+$/, '')
+  const baseUrl = getNhansuBaseUrl()
   if (!baseUrl) return
 
   const recipients = await query(`select id from ${tables.employees} where is_bod = 1`).catch(() => [])
@@ -1860,13 +1936,13 @@ async function notifySurveySubmitted(job, answers = {}, response = {}) {
 async function getGallery(req) {
   const shareToken = trimText(getQueryValue(req.query?.token || req.query?.share_token, ''), 80)
   const feedback = await getFeedbackByShareToken(shareToken)
-  const job = feedback?.job_id ? await getJobById(feedback.job_id) : null
+  const job = feedback?.job_id ? await ensureJobPublicToken(await getJobById(feedback.job_id)) : null
   if (!job?.id) throw makeHttpError('Không tìm thấy gallery.', 404, 'GALLERY_NOT_FOUND')
   return {
     feedback,
     job,
     drive_link: job.gallery_drive || job.drive_feedback || '',
-    survey_link: `/survey?type=image&job=${encodeURIComponent(job.id)}`,
+    survey_link: getSurveyPublicPath(job),
   }
 }
 
@@ -1921,6 +1997,7 @@ export const __feedbackTestInternals = Object.freeze({
   buildFeedbackDoneNotificationPayload,
   getEmployeePhoneLookupValues,
   getFeedbackNotificationEditorPhone,
+  getNhansuBaseUrl,
   normalizeVietnamPhone,
 })
 

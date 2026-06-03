@@ -5,7 +5,7 @@ import { getFeedbackSurvey, submitFeedbackSurvey } from '../hooks/useFeedback'
 const DEFAULT_COPY = {
   title: 'Chia sẻ trải nghiệm của Anh/Chị cùng Eventus',
   description: 'Cảm ơn anh/chị đã tin tưởng lựa chọn Eventus. Khảo sát này chỉ mất khoảng 2 phút để hoàn\u00a0thành. Những chia sẻ của anh/chị sẽ giúp chúng tôi tiếp tục nâng cao chất lượng dịch vụ và mang đến trải nghiệm tốt hơn trong các dự án sắp tới.',
-  thank_you: 'Cảm ơn anh/chị đã dành thời gian chia sẻ ý kiến.\nMỗi phản hồi đều là nguồn thông tin quý giá giúp Eventus Production không ngừng hoàn thiện chất lượng dịch vụ và mang đến những trải nghiệm tốt hơn trong tương lai.\nChúng tôi trân trọng sự đồng hành và tin tưởng của anh/chị. Hẹn gặp lại trong những dự án tiếp theo!',
+  thank_you: 'Cảm ơn anh/chị đã chia sẻ ý kiến\n\nMỗi phản hồi đều là nguồn thông tin quý giá giúp Eventus Production tiếp tục\nhoàn thiện chất lượng dịch vụ và mang đến những trải nghiệm tốt hơn.\n\nChúng tôi trân trọng sự đồng hành và tin tưởng của anh/chị.\nHẹn gặp lại trong những dự án tiếp theo!',
 }
 const SURVEY_PAGE_TITLE = 'Chia sẻ ý kiến của bạn - Eventus CSS'
 const DOUBLE_SUBMIT_LOCK_MS = 15000
@@ -15,8 +15,8 @@ function createSubmissionKey() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
-function getSubmitLockKey({ jobId = '', type = 'video' } = {}) {
-  return `eventus.feedbackSurveySubmitLock.${type}.${jobId}`
+function getSubmitLockKey({ jobId = '' } = {}) {
+  return `eventus.feedbackSurveySubmitLock.${jobId}`
 }
 
 function readSubmitLock(key) {
@@ -40,8 +40,7 @@ function useSurveyParams() {
   return useMemo(() => {
     const params = new URLSearchParams(location.search)
     return {
-      jobId: params.get('job') || params.get('job_id') || '',
-      type: params.get('type') === 'image' ? 'image' : 'video',
+      jobId: params.get('job') || params.get('job_id') || params.get('token') || params.get('t') || '',
     }
   }, [location.search])
 }
@@ -62,23 +61,62 @@ function getQuestionKind(question = {}) {
   }
 }
 
+function getSurveySuccessContent(copy = DEFAULT_COPY) {
+  const fallbackTitle = 'Cảm ơn anh/chị đã chia sẻ ý kiến'
+  const rawMessage = String(copy?.thank_you || DEFAULT_COPY.thank_you).trim()
+  const blocks = rawMessage
+    .split(/\n\s*\n/)
+    .map(block => block.trim())
+    .filter(Boolean)
+
+  if (blocks.length > 1) {
+    return {
+      title: blocks[0],
+      paragraphs: blocks.slice(1),
+    }
+  }
+
+  const lines = rawMessage
+    .split(/\n+/)
+    .map(line => line.trim())
+    .filter(Boolean)
+
+  if (lines.length > 1) {
+    return {
+      title: lines[0],
+      paragraphs: lines.slice(1),
+    }
+  }
+
+  return {
+    title: fallbackTitle,
+    paragraphs: rawMessage && rawMessage !== fallbackTitle ? [rawMessage] : [],
+  }
+}
+
 function SurveySuccess({ copy = DEFAULT_COPY, response = null }) {
+  const thankYouContent = getSurveySuccessContent(copy)
+
   return (
     <main className="flex min-h-screen items-center justify-center bg-[#f4f5f8] px-3 py-7 font-['Montserrat','Segoe_UI',system-ui,sans-serif] text-[#333]">
-      <section className="relative w-full max-w-[620px] overflow-hidden rounded-2xl border border-[#e5e9f1] bg-[linear-gradient(135deg,rgba(255,247,237,0.92),rgba(255,255,255,0.96)_46%,rgba(232,246,242,0.92))] px-5 py-7 text-center shadow-[0_18px_46px_rgba(31,45,61,0.1)] sm:px-8 sm:py-9">
+      <section className="relative w-full max-w-[760px] overflow-hidden rounded-2xl border border-[#e5e9f1] bg-[linear-gradient(135deg,rgba(255,247,237,0.92),rgba(255,255,255,0.96)_46%,rgba(232,246,242,0.92))] px-5 py-7 text-center shadow-[0_18px_46px_rgba(31,45,61,0.1)] sm:px-7 sm:py-10">
         <div className="pointer-events-none absolute right-0 top-0 h-full w-[42%] bg-[repeating-linear-gradient(135deg,rgba(247,152,32,0.08)_0_1px,transparent_1px_16px)]" />
-        <div className="relative z-10 mb-6">
+        <div className="relative z-10 mb-7">
           <img src="/logos/logo_eventus.png" alt="Eventus Production" className="mx-auto h-auto w-[min(176px,58vw)]" />
         </div>
-        <h1 className="relative z-10 text-[20px] font-bold leading-[1.28] text-[#202b3c] sm:text-[23px]">Cảm ơn Anh/Chị đã thực hiện khảo sát</h1>
+        <h1 className="relative z-10 mx-auto max-w-[560px] text-[22px] font-bold leading-[1.25] text-[#202b3c] sm:text-[26px]">{thankYouContent.title}</h1>
         {response?.display_name && (
           <p className="relative z-10 mx-auto mt-3 inline-flex rounded-full bg-white/70 px-3 py-1 text-[12px] font-bold text-[#f79820]">
             Đã ghi nhận {response.display_name}
           </p>
         )}
-        <p className="relative z-10 mx-auto mt-5 max-w-[510px] whitespace-pre-line text-[14px] leading-[1.75] text-[#4b5563]">
-          {copy.thank_you || DEFAULT_COPY.thank_you}
-        </p>
+        <div className="relative z-10 mx-auto mt-5 max-w-[700px] space-y-3 text-[14px] leading-[1.75] text-[#4b5563] sm:text-[15px]">
+          {thankYouContent.paragraphs.map((paragraph, index) => (
+            <p key={index} className="m-0 whitespace-pre-line">
+              {paragraph}
+            </p>
+          ))}
+        </div>
         <a href="https://eventusproduction.com/" className="relative z-10 mt-6 inline-flex min-h-11 items-center justify-center rounded-lg bg-[#f79820] px-6 text-[14px] font-semibold text-white no-underline shadow-[0_10px_20px_rgba(247,152,32,0.18)] transition hover:-translate-y-px hover:bg-[#d97706] hover:text-white">
           Eventus Production
         </a>
@@ -271,7 +309,7 @@ export default function FeedbackSurveyPage() {
     return () => {
       cancelled = true
     }
-  }, [params.jobId, params.type])
+  }, [params.jobId])
 
   useEffect(() => () => {
     Object.values(savedStatusTimerRef.current).forEach(timer => window.clearTimeout(timer))
@@ -324,7 +362,6 @@ export default function FeedbackSurveyPage() {
     try {
       const result = await submitFeedbackSurvey({
         job: params.jobId,
-        type: params.type,
         submission_key: submissionKeyRef.current,
         answers,
         free_text: freeText,

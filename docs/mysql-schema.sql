@@ -356,7 +356,7 @@ create table if not exists client_feedback_survey_responses (
   id varchar(64) primary key,
   job_id bigint unsigned not null,
   feedback_id varchar(64) null,
-  survey_type varchar(40) not null default 'video',
+  survey_type varchar(40) not null default 'general',
   submission_no int not null default 1,
   submission_key varchar(80) null,
   respondent_name varchar(255) null,

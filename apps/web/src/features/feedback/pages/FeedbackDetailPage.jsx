@@ -898,7 +898,8 @@ export default function FeedbackDetailPage() {
   const permissions = detail?.permissions || {}
   const embedUrl = getFeedbackVideoEmbedUrl(feedback?.video_url)
   const fourKDownloadUrl = feedback?.drive_url || ''
-  const videoSurveyUrl = feedback?.job_id ? `/survey?type=video&job=${encodeURIComponent(feedback.job_id)}` : ''
+  const surveyJobIdentifier = feedback?.job?.public_token || feedback?.job_id || ''
+  const videoSurveyUrl = surveyJobIdentifier ? `/survey?job=${encodeURIComponent(surveyJobIdentifier)}` : ''
   const canDeleteFeedback = Boolean(permissions.can_delete_feedback)
   const showFeedbackStatusPanel = Boolean(message || error || !feedback?.video_url || newFeedbackDraftOpen)
   const jobTitle = feedback?.job?.title || `Job #${feedback?.job_id || ''}`

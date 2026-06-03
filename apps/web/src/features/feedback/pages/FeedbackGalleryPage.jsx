@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { Download, Image, MessageSquareText } from 'lucide-react'
 import { getFeedbackGallery, markFeedbackJobDone } from '../hooks/useFeedback'
 import { formatFeedbackDate } from '../lib/feedbackFormat'
 
@@ -35,43 +34,40 @@ export default function FeedbackGalleryPage() {
     }
   }, [shareToken])
 
+  const jobTitle = gallery?.job?.title || (gallery?.job?.id ? `Job #${gallery.job.id}` : 'Bộ ảnh Eventus')
+  const jobName = gallery?.job ? `${formatFeedbackDate(gallery.job.job_date)} ${jobTitle}`.trim() : jobTitle
+
   return (
-    <main className="grid min-h-screen place-items-center bg-slate-100 px-4 py-8">
-      <section className="w-full max-w-2xl rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex items-center gap-3">
-          <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-slate-900 text-white">
-            <Image className="h-5 w-5" />
-          </span>
-          <div>
-            <p className="text-[12px] font-semibold uppercase text-amber-600">Eventus Gallery</p>
-            <h1 className="text-[24px] font-semibold text-slate-950">Tải file ảnh</h1>
-          </div>
+    <main className="grid min-h-screen place-items-center bg-[#f4f5f8] px-3 py-7 font-['Montserrat','Segoe_UI',system-ui,sans-serif] text-[#333] sm:px-4 sm:py-10">
+      <section className="relative w-full max-w-2xl overflow-hidden rounded-lg border border-[#e5e9f1] bg-[linear-gradient(135deg,rgba(255,247,237,0.92),rgba(255,255,255,0.96)_46%,rgba(232,246,242,0.92))] p-[18px] shadow-[0_12px_32px_rgba(31,45,61,0.07)] sm:p-7">
+        <div className="pointer-events-none absolute right-0 top-0 h-full w-[38%] bg-[repeating-linear-gradient(135deg,rgba(247,152,32,0.08)_0_1px,transparent_1px_16px)]" />
+        <div className="relative z-10 mb-5 flex justify-center">
+          <img src="/logos/logo_eventus.png" alt="Eventus Production" className="h-auto w-[min(184px,54vw)]" />
+        </div>
+        <div className="relative z-10">
+          <p className="text-[13px] font-bold leading-[1.6] text-[#f79820]">Bạn đang xem bộ ảnh</p>
+          <h1 className="mt-2 text-[11px] font-bold leading-[1.45] text-[#202b3c] sm:text-[13px]">
+            {loading ? 'Đang tải bộ ảnh...' : error ? 'Bộ ảnh Eventus' : jobName}
+          </h1>
         </div>
 
         {loading ? (
-          <div className="mt-6 text-[13px] font-semibold text-slate-400">Đang tải gallery...</div>
+          <div className="relative z-10 mt-6 text-[13px] font-semibold text-[#7a8597]">Đang tải gallery...</div>
         ) : error ? (
-          <div className="mt-6 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-[13px] font-semibold text-rose-700">
+          <div className="relative z-10 mt-6 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-[13px] font-semibold text-rose-700">
             {error}
           </div>
         ) : (
-          <div className="mt-6">
-            <p className="text-[13px] text-slate-500">Bạn đang xem bộ ảnh</p>
-            <h2 className="mt-2 text-[20px] font-semibold leading-8 text-slate-950">
-              {formatFeedbackDate(gallery.job?.job_date)} {gallery.job?.title || `Job #${gallery.job?.id}`}
-            </h2>
-            <p className="mt-1 text-[13px] text-slate-500">{gallery.job?.customer_name || 'Eventus Production'}</p>
-
+          <div className="relative z-10 mt-6">
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
               {gallery.drive_link ? (
                 <a
                   href={gallery.drive_link}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-[14px] font-semibold text-white hover:bg-blue-700"
+                  className="inline-flex min-h-11 items-center justify-center rounded-lg bg-[#f79820] px-4 text-center text-[14px] font-extrabold leading-tight text-white shadow-[0_10px_20px_rgba(247,152,32,0.18)] transition hover:-translate-y-px hover:bg-[#d97706]"
                 >
-                  <Download className="h-4 w-4" />
-                  Lấy link tải bộ ảnh
+                  <span>Tải ảnh từ Google Drive</span>
                 </a>
               ) : (
                 <div className="rounded-lg border border-dashed border-slate-300 px-4 py-3 text-center text-[13px] font-semibold text-slate-500">
@@ -80,10 +76,9 @@ export default function FeedbackGalleryPage() {
               )}
               <Link
                 to={gallery.survey_link}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-[14px] font-semibold text-slate-700 hover:bg-slate-50"
+                className="inline-flex min-h-11 items-center justify-center rounded-lg bg-[#f79820] px-4 text-center text-[14px] font-extrabold leading-tight text-white shadow-[0_10px_20px_rgba(247,152,32,0.18)] transition hover:-translate-y-px hover:bg-[#d97706]"
               >
-                <MessageSquareText className="h-4 w-4" />
-                Góp ý cho Eventus
+                <span className="whitespace-nowrap">Phản hồi về trải nghiệm tại Eventus</span>
               </Link>
             </div>
           </div>

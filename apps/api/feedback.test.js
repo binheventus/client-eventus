@@ -54,9 +54,9 @@ test('default feedback name includes sequence without editable date', () => {
   assert.equal(buildDefaultFeedbackName(4), 'Feedback #4')
 })
 
-test('survey response name includes type and submission number', () => {
-  assert.equal(buildSurveyResponseName('video', 2), 'Khảo sát video #2')
-  assert.equal(buildSurveyResponseName('image', 3), 'Khảo sát hình ảnh #3')
+test('survey response name is shared across survey sources', () => {
+  assert.equal(buildSurveyResponseName('video', 2), 'Khảo sát #2')
+  assert.equal(buildSurveyResponseName('image', 3), 'Khảo sát #3')
 })
 
 test('feedback done notification uses the job editor phone like the legacy app', () => {
@@ -87,4 +87,34 @@ test('feedback done notification payload keeps the legacy Feedback prefix', () =
   assert.deepEqual(payload.need_to_send, [10, 20])
   assert.match(payload.content, /Feedback #2/)
   assert.match(payload.content, /Year End Party 2026/)
+})
+
+test('feedback notification uses NHANSU_URL when configured', () => {
+  const previousNhansuUrl = process.env.NHANSU_URL
+  const previousAuthBaseUrl = process.env.EVENTUS_AUTH_BASE_URL
+  process.env.NHANSU_URL = 'https://nhansu.example.com///'
+  process.env.EVENTUS_AUTH_BASE_URL = 'https://auth.example.com'
+  try {
+    assert.equal(__feedbackTestInternals.getNhansuBaseUrl(), 'https://nhansu.example.com')
+  } finally {
+    if (previousNhansuUrl === undefined) delete process.env.NHANSU_URL
+    else process.env.NHANSU_URL = previousNhansuUrl
+    if (previousAuthBaseUrl === undefined) delete process.env.EVENTUS_AUTH_BASE_URL
+    else process.env.EVENTUS_AUTH_BASE_URL = previousAuthBaseUrl
+  }
+})
+
+test('feedback notification falls back to Eventus auth URL', () => {
+  const previousNhansuUrl = process.env.NHANSU_URL
+  const previousAuthBaseUrl = process.env.EVENTUS_AUTH_BASE_URL
+  process.env.NHANSU_URL = '   '
+  process.env.EVENTUS_AUTH_BASE_URL = 'https://lichlamviec.example.com///'
+  try {
+    assert.equal(__feedbackTestInternals.getNhansuBaseUrl(), 'https://lichlamviec.example.com')
+  } finally {
+    if (previousNhansuUrl === undefined) delete process.env.NHANSU_URL
+    else process.env.NHANSU_URL = previousNhansuUrl
+    if (previousAuthBaseUrl === undefined) delete process.env.EVENTUS_AUTH_BASE_URL
+    else process.env.EVENTUS_AUTH_BASE_URL = previousAuthBaseUrl
+  }
 })
