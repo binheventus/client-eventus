@@ -1,6 +1,52 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { getFeedbackVideoEmbedUrl } from './feedbackFormat.js'
+import {
+  buildDefaultFeedbackName,
+  formatFeedbackDateDots,
+  formatFeedbackDayMonth,
+  getFeedbackNameParts,
+  getFeedbackVideoEmbedUrl,
+  linkifyFeedbackText,
+  normalizeFeedbackLinkHref,
+  stripFeedbackDateSuffix,
+} from './feedbackFormat.js'
+
+test('feedback default name uses sequence without editable date', () => {
+  assert.equal(buildDefaultFeedbackName(8), 'Feedback #8')
+})
+
+test('feedback date badge uses Vietnam day-month with dot separator', () => {
+  assert.equal(formatFeedbackDayMonth(new Date('2026-06-02T18:00:00.000Z')), '03.06')
+})
+
+test('feedback job title date uses full Vietnam date with dot separator', () => {
+  assert.equal(formatFeedbackDateDots('2026-03-15'), '15.03.2026')
+})
+
+test('feedback name parts split legacy editable date suffix into badge', () => {
+  assert.deepEqual(stripFeedbackDateSuffix('Feedback #8 03-06'), {
+    name: 'Feedback #8',
+    dateBadge: '03.06',
+  })
+  assert.deepEqual(getFeedbackNameParts({
+    name: 'Feedback #10 02-06',
+    created_at: '2026-06-02T18:00:00.000Z',
+  }), {
+    name: 'Feedback #10',
+    dateBadge: '03.06',
+  })
+})
+
+test('feedback text linkifier turns urls into safe link parts', () => {
+  assert.equal(normalizeFeedbackLinkHref('www.eventusproduction.com'), 'https://www.eventusproduction.com/')
+  assert.deepEqual(linkifyFeedbackText('Xem tại https://example.com/video?id=1. Rồi gửi www.eventusproduction.com nhé'), [
+    { type: 'text', text: 'Xem tại ' },
+    { type: 'link', text: 'https://example.com/video?id=1', href: 'https://example.com/video?id=1' },
+    { type: 'text', text: '. Rồi gửi ' },
+    { type: 'link', text: 'www.eventusproduction.com', href: 'https://www.eventusproduction.com/' },
+    { type: 'text', text: ' nhé' },
+  ])
+})
 
 test('feedback YouTube embed uses privacy host and restricted player tools', () => {
   const embedUrl = getFeedbackVideoEmbedUrl('https://www.youtube.com/watch?v=AbC123_xYz0')

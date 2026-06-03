@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
   BellRing,
-  Check,
   CheckCircle2,
   ChevronDown,
   ClipboardCheck,
@@ -31,11 +30,15 @@ import {
 } from '../hooks/useFeedback'
 import {
   buildDefaultFeedbackName,
+  formatFeedbackDateDots,
+  formatFeedbackDayMonth,
   formatFeedbackDateTime,
   formatTimeline,
   getFeedbackAccessFromSearch,
+  getFeedbackNameParts,
   getFeedbackPublicPath,
   getFeedbackVideoEmbedUrl,
+  linkifyFeedbackText,
   parseTimeToSeconds,
   readFileAsDataUrl,
 } from '../lib/feedbackFormat'
@@ -64,37 +67,180 @@ function TextInput(props) {
   )
 }
 
-function SetupPanel({ detail, access, onSaved }) {
+function FeedbackDateBadge({ dateBadge, className = '', inParens = false }) {
+  if (!dateBadge) return null
+  const label = inParens ? `(${dateBadge})` : dateBadge
+  const styles = className || 'text-[11px] font-normal leading-4 text-black'
+  return (
+    <span className={`shrink-0 ${styles}`}>
+      {label}
+    </span>
+  )
+}
+
+function FeedbackNameInput({ value, onChange, placeholder, dateBadge, dateBadgeClassName = '', className = '' }) {
+  return (
+    <div className={`flex h-10 w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 focus-within:border-[#f79820] focus-within:ring-2 focus-within:ring-[#f79820]/20 ${className}`}>
+      <input
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        className="min-w-0 flex-1 border-0 bg-transparent p-0 text-[13px] text-slate-900 outline-none placeholder:text-slate-400"
+      />
+      <FeedbackDateBadge dateBadge={dateBadge} className={dateBadgeClassName} />
+    </div>
+  )
+}
+
+function FeedbackNameInline({ feedback, fallbackDate, className = '', nameClassName = '', badgeClassName = '', dateInParens = false }) {
+  const { name, dateBadge } = getFeedbackNameParts(feedback, fallbackDate)
+  return (
+    <span className={`flex min-w-0 items-center gap-1.5 ${className}`}>
+      <span className={`min-w-0 truncate ${nameClassName}`}>{name}</span>
+      <FeedbackDateBadge dateBadge={dateBadge} className={badgeClassName} inParens={dateInParens} />
+    </span>
+  )
+}
+
+function LinkifiedFeedbackText({ value }) {
+  const parts = useMemo(() => linkifyFeedbackText(value), [value])
+  return (
+    <>
+      {parts.map((part, index) => part.type === 'link' ? (
+        <a
+          key={`${part.href}-${index}`}
+          href={part.href}
+          target="_blank"
+          rel="noreferrer"
+          onClick={event => event.stopPropagation()}
+          className="text-[13px] font-normal text-blue-600 underline-offset-2 hover:underline"
+        >
+          {part.text}
+        </a>
+      ) : (
+        <span key={`text-${index}`}>{part.text}</span>
+      ))}
+    </>
+  )
+}
+
+function LinkedEditableText({
+  value,
+  onChange,
+  onBlur,
+  placeholder = '',
+  rows = 1,
+  minHeightClass = 'min-h-[34px]',
+  className = '',
+}) {
+  const [editing, setEditing] = useState(false)
+  const textareaRef = useRef(null)
+  const hasValue = String(value || '').trim().length > 0
+
+  function fitTextareaHeight() {
+    const node = textareaRef.current
+    if (!node) return
+    node.style.height = 'auto'
+    node.style.height = `${node.scrollHeight}px`
+  }
+
+  function startEditing() {
+    setEditing(true)
+  }
+
+  useEffect(() => {
+    if (!editing) return
+    const node = textareaRef.current
+    if (!node) return
+    node.focus()
+    node.setSelectionRange(node.value.length, node.value.length)
+    fitTextareaHeight()
+  }, [editing])
+
+  useEffect(() => {
+    if (editing) fitTextareaHeight()
+  }, [editing, value])
+
+  if (editing) {
+    return (
+      <textarea
+        ref={textareaRef}
+        value={value}
+        onBlur={event => {
+          onBlur?.(event)
+          setEditing(false)
+        }}
+        onChange={event => onChange?.(event.target.value)}
+        placeholder={placeholder}
+        rows={rows}
+        className={`block ${minHeightClass} w-full resize-none overflow-hidden border-0 bg-transparent p-0 text-[13px] leading-5 text-slate-900 outline-none placeholder:text-slate-400 ${className}`}
+      />
+    )
+  }
+
+  return (
+    <div
+      role="textbox"
+      tabIndex={0}
+      onClick={startEditing}
+      onKeyDown={event => {
+        if (event.key !== 'Enter' && event.key !== ' ') return
+        event.preventDefault()
+        startEditing()
+      }}
+      className={`block ${minHeightClass} w-full cursor-text whitespace-pre-wrap break-words text-[13px] leading-5 outline-none focus:ring-2 focus:ring-[#f79820]/20 ${hasValue ? 'text-slate-900' : 'text-slate-400'} ${className}`}
+    >
+      {hasValue ? <LinkifiedFeedbackText value={value} /> : placeholder}
+    </div>
+  )
+}
+
+function SetupPanel({ detail, access, mode = 'edit', defaultName = '', dateBadge = '', onSaved, onCreated, onCancel }) {
   const feedback = detail.feedback
   const employees = detail.employees || []
   const existingEditorName = feedback.editor_name || feedback.job?.editor_name || ''
-  const [feedbackName, setFeedbackName] = useState(feedback.name || '')
+  const feedbackNameParts = getFeedbackNameParts(feedback)
+  const isCreateMode = mode === 'create'
+  const displayDateBadge = dateBadge || feedbackNameParts.dateBadge
+  const [feedbackName, setFeedbackName] = useState(isCreateMode ? defaultName : feedbackNameParts.name)
   const [editorId, setEditorId] = useState('')
-  const [videoUrl, setVideoUrl] = useState(feedback.video_url || '')
-  const [driveUrl, setDriveUrl] = useState(feedback.drive_url || '')
+  const [videoUrl, setVideoUrl] = useState(isCreateMode ? '' : feedback.video_url || '')
+  const [driveUrl, setDriveUrl] = useState(isCreateMode ? '' : feedback.drive_url || '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    setFeedbackName(feedback.name || '')
-    setVideoUrl(feedback.video_url || '')
-    setDriveUrl(feedback.drive_url || '')
-  }, [feedback.id, feedback.name, feedback.video_url, feedback.drive_url])
+    setFeedbackName(isCreateMode ? defaultName : getFeedbackNameParts(feedback).name)
+    setVideoUrl(isCreateMode ? '' : feedback.video_url || '')
+    setDriveUrl(isCreateMode ? '' : feedback.drive_url || '')
+  }, [defaultName, feedback.id, feedback.name, feedback.video_url, feedback.drive_url, isCreateMode])
 
   async function handleSubmit(event) {
     event.preventDefault()
     setSaving(true)
     setError('')
     try {
-      const nextDetail = await saveFeedbackSetup(feedback.id, {
+      const payload = {
         name: feedbackName.trim(),
         editor_employee_id: editorId || undefined,
         video_url: videoUrl.trim(),
         drive_url: driveUrl.trim(),
-      }, access)
-      onSaved(nextDetail)
+      }
+
+      if (isCreateMode) {
+        const nextFeedback = await createFeedback({
+          jobId: feedback.job_id,
+          feedbackId: feedback.id,
+          access,
+          feedback: payload,
+        })
+        onCreated?.(nextFeedback)
+      } else {
+        const nextDetail = await saveFeedbackSetup(feedback.id, payload, access)
+        onSaved?.(nextDetail)
+      }
     } catch (err) {
-      setError(err?.message || 'Không lưu được thông tin feedback.')
+      setError(err?.message || (isCreateMode ? 'Không tạo được bản feedback mới.' : 'Không lưu được thông tin feedback.'))
     } finally {
       setSaving(false)
     }
@@ -103,7 +249,17 @@ function SetupPanel({ detail, access, onSaved }) {
   return (
     <section className="h-full rounded-lg border border-[#f79820]/30 bg-[#f79820]/10 p-5">
       <div className="flex items-center">
-        <h2 className="text-[12px] font-semibold uppercase text-slate-950">Thêm bản feedback mới</h2>
+        <h2 className="text-[12px] font-semibold uppercase text-slate-950">{isCreateMode ? 'Thêm bản feedback mới' : 'Cài đặt bản feedback'}</h2>
+        {isCreateMode && onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="ml-auto inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-white hover:text-slate-700"
+            aria-label="Đóng form thêm feedback"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       <form onSubmit={handleSubmit} className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(140px,0.75fr)_minmax(180px,1fr)_minmax(160px,0.8fr)_auto]">
@@ -125,10 +281,12 @@ function SetupPanel({ detail, access, onSaved }) {
 
         <div>
           <FieldLabel>Tên bản mới</FieldLabel>
-          <TextInput
+          <FeedbackNameInput
             value={feedbackName}
             onChange={event => setFeedbackName(event.target.value)}
             placeholder={buildDefaultFeedbackName()}
+            dateBadge={displayDateBadge}
+            dateBadgeClassName={isCreateMode ? 'rounded-md bg-[#f79820]/10 px-2 py-1 text-[11px] font-semibold leading-none text-[#f79820] ring-1 ring-[#f79820]/25' : ''}
             className="mt-1"
           />
         </div>
@@ -210,47 +368,70 @@ function AttachmentList({ attachments = [], access, onChanged }) {
 function InlineFeedbackField({ comment, column, access, className = '', placeholder = '' }) {
   const [value, setValue] = useState(comment[column] || '')
   const [saving, setSaving] = useState(false)
-  const textareaRef = useRef(null)
-
-  function fitTextareaHeight() {
-    const node = textareaRef.current
-    if (!node) return
-    node.style.height = 'auto'
-    node.style.height = `${node.scrollHeight}px`
-  }
+  const saveTimerRef = useRef(null)
+  const lastSavedValueRef = useRef(comment[column] || '')
 
   useEffect(() => {
-    setValue(comment[column] || '')
-  }, [comment.id, comment[column]])
+    const nextValue = comment[column] || ''
+    lastSavedValueRef.current = nextValue
+    setValue(nextValue)
+  }, [comment.id, column, comment[column]])
 
   useEffect(() => {
-    fitTextareaHeight()
-  }, [value])
+    if (value === lastSavedValueRef.current) return undefined
 
-  useEffect(() => {
-    if (value === (comment[column] || '')) return undefined
-
-    const timer = window.setTimeout(async () => {
+    if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = window.setTimeout(async () => {
+      const nextValue = value
       setSaving(true)
       try {
-        await updateFeedbackComment(comment.id, column, value, access)
+        await updateFeedbackComment(comment.id, column, nextValue, access)
+        lastSavedValueRef.current = nextValue
       } finally {
         setSaving(false)
+        saveTimerRef.current = null
       }
     }, 700)
 
-    return () => window.clearTimeout(timer)
-  }, [access, column, comment, value])
+    return () => {
+      if (saveTimerRef.current) {
+        window.clearTimeout(saveTimerRef.current)
+        saveTimerRef.current = null
+      }
+    }
+  }, [access, column, comment.id, value])
+
+  useEffect(() => () => {
+    if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current)
+  }, [])
+
+  async function saveNow() {
+    if (saveTimerRef.current) {
+      window.clearTimeout(saveTimerRef.current)
+      saveTimerRef.current = null
+    }
+
+    const nextValue = value
+    if (nextValue === lastSavedValueRef.current) return
+    setSaving(true)
+    try {
+      await updateFeedbackComment(comment.id, column, nextValue, access)
+      lastSavedValueRef.current = nextValue
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <>
-      <textarea
-        ref={textareaRef}
+      <LinkedEditableText
         value={value}
-        onChange={event => setValue(event.target.value)}
+        onChange={setValue}
+        onBlur={saveNow}
         placeholder={placeholder}
         rows={1}
-        className={`min-h-[34px] flex-1 resize-none overflow-hidden border-0 bg-transparent p-0 text-[13px] leading-5 text-slate-900 outline-none placeholder:text-slate-400 ${className}`}
+        minHeightClass="min-h-[34px]"
+        className={`flex-1 ${className}`}
       />
       {saving && <span className="mt-1 shrink-0 text-[10px] font-semibold text-slate-400">Đang lưu</span>}
     </>
@@ -358,6 +539,30 @@ function FeedbackTimelineBar({ comments = [], duration = 0, onSelect }) {
   )
 }
 
+function DoneSwitch({ checked, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition focus:outline-none focus:ring-2 focus:ring-blue-200 ${
+        checked
+          ? 'border-blue-500 bg-blue-500'
+          : 'border-slate-300 bg-slate-200 hover:border-blue-300 hover:bg-slate-300'
+      }`}
+      title={checked ? 'Bỏ đánh dấu đã sửa' : 'Đánh dấu đã sửa'}
+      aria-label={checked ? 'Bỏ đánh dấu đã sửa' : 'Đánh dấu đã sửa'}
+      aria-checked={checked}
+      role="switch"
+    >
+      <span
+        className={`h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+          checked ? 'translate-x-4' : 'translate-x-0.5'
+        }`}
+      />
+    </button>
+  )
+}
+
 function CommentCard({ comment, showSecondColumn, access, onChanged, onSeek, cardRef, isHighlighted = false }) {
   const image = comment.image_comment_1 || comment.image_comment_2
   const [uploading, setUploading] = useState(false)
@@ -418,16 +623,7 @@ function CommentCard({ comment, showSecondColumn, access, onChanged, onSeek, car
           </div>
 
           <div className="flex shrink-0 items-center gap-1">
-            <button
-              type="button"
-              onClick={markDone}
-              className={`inline-flex h-6 w-6 items-center justify-center rounded-full border transition ${comment.is_done_1 ? 'border-blue-500 bg-blue-500 text-white' : 'border-slate-300 bg-white hover:border-blue-400'}`}
-              title={comment.is_done_1 ? 'Bỏ đánh dấu đã sửa' : 'Đánh dấu đã sửa'}
-              aria-label={comment.is_done_1 ? 'Bỏ đánh dấu đã sửa' : 'Đánh dấu đã sửa'}
-              aria-pressed={comment.is_done_1}
-            >
-              {comment.is_done_1 && <Check className="h-4 w-4 stroke-[3]" />}
-            </button>
+            <DoneSwitch checked={Boolean(comment.is_done_1)} onClick={markDone} />
             <label className={`inline-flex h-7 items-center justify-center gap-1.5 rounded-md border border-[#f79820]/40 bg-white px-2 text-[11px] font-semibold text-[#f79820] hover:bg-[#f79820]/10 ${uploading ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`} title="Upload file">
               <FileUp className="h-3 w-3" />
               <span>{uploading ? 'Đang upload' : 'Upload'}</span>
@@ -472,7 +668,6 @@ function CommentCard({ comment, showSecondColumn, access, onChanged, onSeek, car
 
 function OverallFeedbackPanel({ feedback, access, onChanged, fillHeight = false }) {
   const initialValue = (feedback.overall_feedback || []).join('\n')
-  const textareaRef = useRef(null)
   const saveStatusTimerRef = useRef(null)
   const lastSavedValueRef = useRef(initialValue.trim())
   const [value, setValue] = useState(initialValue)
@@ -483,13 +678,6 @@ function OverallFeedbackPanel({ feedback, access, onChanged, fillHeight = false 
     lastSavedValueRef.current = nextValue.trim()
     setValue(nextValue)
   }, [feedback.id, feedback.overall_feedback])
-
-  useEffect(() => {
-    const textarea = textareaRef.current
-    if (!textarea) return
-    textarea.style.height = 'auto'
-    textarea.style.height = `${textarea.scrollHeight}px`
-  }, [value])
 
   useEffect(() => () => {
     if (saveStatusTimerRef.current) window.clearTimeout(saveStatusTimerRef.current)
@@ -532,17 +720,16 @@ function OverallFeedbackPanel({ feedback, access, onChanged, fillHeight = false 
       </div>
       <div className="mt-2">
         <div className="rounded-md border border-slate-200 bg-white px-2.5 py-2 focus-within:border-[#f79820] focus-within:ring-2 focus-within:ring-[#f79820]/20">
-          <textarea
-            ref={textareaRef}
+          <LinkedEditableText
             value={value}
             onBlur={save}
-            onChange={event => {
-              setValue(event.target.value)
+            onChange={nextValue => {
+              setValue(nextValue)
               setSaveStatus('')
             }}
             placeholder="Nhập nhận xét tổng quan..."
             rows={3}
-            className="block min-h-[60px] w-full resize-none overflow-hidden border-0 bg-transparent p-0 text-[13px] leading-5 text-slate-900 outline-none placeholder:text-slate-400"
+            minHeightClass="min-h-[60px]"
           />
         </div>
       </div>
@@ -651,21 +838,26 @@ export default function FeedbackDetailPage() {
   const [videoDuration, setVideoDuration] = useState(0)
   const [selectedTimelineCommentId, setSelectedTimelineCommentId] = useState('')
   const [notifyingEditor, setNotifyingEditor] = useState(false)
-  const [creatingFeedbackVersion, setCreatingFeedbackVersion] = useState(false)
   const [feedbackMenuOpen, setFeedbackMenuOpen] = useState(false)
   const [newFeedbackName, setNewFeedbackName] = useState('')
+  const [newFeedbackDraftOpen, setNewFeedbackDraftOpen] = useState(false)
 
   const feedback = detail?.feedback
   const comments = detail?.comments || []
   const feedbackVersions = detail?.feedbacks || []
   const surveyResponses = detail?.survey_responses || []
   const sortedFeedbackVersions = useMemo(() => [...feedbackVersions].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)), [feedbackVersions])
+  const currentFeedbackNameParts = getFeedbackNameParts(feedback || {})
   const permissions = detail?.permissions || {}
   const embedUrl = getFeedbackVideoEmbedUrl(feedback?.video_url)
   const fourKDownloadUrl = feedback?.drive_url || ''
   const videoSurveyUrl = feedback?.job_id ? `/survey?type=video&job=${encodeURIComponent(feedback.job_id)}` : ''
   const canDeleteFeedback = Boolean(permissions.can_delete_feedback)
-  const showFeedbackStatusPanel = Boolean(message || error || !feedback?.video_url)
+  const showFeedbackStatusPanel = Boolean(message || error || !feedback?.video_url || newFeedbackDraftOpen)
+  const jobTitle = feedback?.job?.title || `Job #${feedback?.job_id || ''}`
+  const jobDateTitle = formatFeedbackDateDots(feedback?.job?.job_date)
+  const pageJobTitle = jobDateTitle ? `${jobDateTitle} ${jobTitle}` : jobTitle
+  const newFeedbackDateBadge = formatFeedbackDayMonth(new Date())
 
   async function load() {
     setLoading(true)
@@ -892,28 +1084,21 @@ export default function FeedbackDetailPage() {
     card.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
 
-  async function addFeedbackVersion() {
-    if (!feedback?.id || creatingFeedbackVersion) return
-    const name = newFeedbackName.trim() || buildDefaultFeedbackName(feedbackVersions.length + 1)
+  function addFeedbackVersion() {
+    if (!feedback?.id) return
     setFeedbackMenuOpen(false)
-    setCreatingFeedbackVersion(true)
+    setNewFeedbackName(current => current.trim() || buildDefaultFeedbackName(feedbackVersions.length + 1))
+    setNewFeedbackDraftOpen(true)
     setError('')
-    try {
-      const nextFeedback = await createFeedback({
-        feedbackId: feedback.id,
-        access,
-        feedback: { name },
-      })
-      navigate(getFeedbackPublicPath(nextFeedback))
-    } catch (err) {
-      setError(err?.message || 'Không tạo được bản feedback mới.')
-    } finally {
-      setCreatingFeedbackVersion(false)
-    }
+  }
+
+  function handleNewFeedbackCreated(nextFeedback) {
+    setNewFeedbackDraftOpen(false)
+    navigate(getFeedbackPublicPath(nextFeedback))
   }
 
   function openFooterEditor() {
-    setFooterFeedbackName(feedback?.name || '')
+    setFooterFeedbackName(getFeedbackNameParts(feedback || {}).name)
     setFooterVideoUrl(feedback?.video_url || '')
     setFooterDriveUrl(feedback?.drive_url || '')
     setDeleteFeedbackDialogOpen(false)
@@ -980,8 +1165,11 @@ export default function FeedbackDetailPage() {
       const next = await markFeedbackDone(feedback.id, access)
       setDetail(next)
       const editorName = feedback.editor_name || feedback.job?.editor_name || 'Editor'
-      setMessage(`Đã ghi nhận Feedback hoàn tất và thông báo tới Editor ${editorName}.`)
+      setMessage(next.notification?.sent
+        ? `Đã ghi nhận Feedback hoàn tất và thông báo tới Editor ${editorName}.`
+        : `Đã ghi nhận Feedback hoàn tất, nhưng chưa xác nhận được thông báo tới Editor ${editorName}.`)
     } catch (err) {
+      refresh().catch(() => {})
       setError(err?.message || 'Không thông báo được tới Editor.')
     } finally {
       setNotifyingEditor(false)
@@ -1018,7 +1206,7 @@ export default function FeedbackDetailPage() {
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex min-w-0 flex-col items-stretch justify-start gap-1.5 lg:flex-row lg:items-center lg:gap-2">
-                    <h1 className="min-w-0 text-[13px] font-semibold leading-snug text-slate-950 lg:truncate lg:text-[16px]">{feedback.job?.title || `Job #${feedback.job_id}`}</h1>
+                    <h1 className="min-w-0 text-[13px] font-semibold leading-snug text-slate-950 lg:truncate lg:text-[16px]">{pageJobTitle}</h1>
                     <div ref={feedbackMenuRef} className="relative inline-block w-full lg:w-auto lg:max-w-[260px] lg:shrink-0">
                       <button
                         type="button"
@@ -1031,7 +1219,12 @@ export default function FeedbackDetailPage() {
                         aria-expanded={feedbackMenuOpen}
                         aria-haspopup="menu"
                       >
-                        <span className="min-w-0 truncate">{feedback.name || 'Feedback'}</span>
+                        <FeedbackNameInline
+                          feedback={feedback}
+                          className="flex-1"
+                          badgeClassName="text-[12px] font-semibold leading-none text-white lg:text-[13px]"
+                          dateInParens
+                        />
                         <ChevronDown className={`h-4 w-4 shrink-0 text-white transition ${feedbackMenuOpen ? 'rotate-180' : ''}`} />
                       </button>
                       {feedbackMenuOpen && (
@@ -1044,18 +1237,18 @@ export default function FeedbackDetailPage() {
                               className={`block px-3 py-2 text-[12px] font-semibold ${item.id === feedback.id ? 'bg-[#fff7ed] text-slate-950' : 'text-slate-700 hover:bg-[#fff7ed] hover:text-slate-950'}`}
                               role="menuitem"
                             >
-                              {item.name || 'Feedback'}
+                              <FeedbackNameInline feedback={item} />
                             </Link>
                           ))}
                           <button
                             type="button"
                             onClick={addFeedbackVersion}
-                            disabled={creatingFeedbackVersion}
+                            disabled={newFeedbackDraftOpen}
                             className="flex w-full items-center gap-1.5 border-t border-slate-100 px-3 py-2 text-left text-[12px] font-semibold text-[#f79820] hover:bg-[#fff7ed] disabled:cursor-not-allowed disabled:opacity-60"
                             role="menuitem"
                           >
                             <Plus className="h-3.5 w-3.5 shrink-0" />
-                            {creatingFeedbackVersion ? 'Đang thêm...' : 'Thêm bản mới'}
+                            {newFeedbackDraftOpen ? 'Đang nhập...' : 'Thêm bản mới'}
                           </button>
                         </div>
                       )}
@@ -1101,7 +1294,20 @@ export default function FeedbackDetailPage() {
           <div className="mt-2 shrink-0 space-y-2">
             {message && <Alert type="success" className="text-center !text-slate-950">{message}</Alert>}
             {error && <Alert type="error">{error}</Alert>}
-            {!feedback.video_url && (
+            {newFeedbackDraftOpen ? (
+              <div className="lg:grid lg:gap-3 lg:grid-cols-[minmax(0,2.2fr)_minmax(380px,0.85fr)] xl:grid-cols-[minmax(0,2.35fr)_minmax(410px,0.9fr)]">
+                <SetupPanel
+                  detail={detail}
+                  access={access}
+                  mode="create"
+                  defaultName={newFeedbackName}
+                  dateBadge={newFeedbackDateBadge}
+                  onCreated={handleNewFeedbackCreated}
+                  onCancel={() => setNewFeedbackDraftOpen(false)}
+                />
+                <OverallFeedbackPanel feedback={feedback} access={access} onChanged={refresh} fillHeight />
+              </div>
+            ) : !feedback.video_url && (
               <div className="lg:grid lg:gap-3 lg:grid-cols-[minmax(0,2.2fr)_minmax(380px,0.85fr)] xl:grid-cols-[minmax(0,2.35fr)_minmax(410px,0.9fr)]">
                 <SetupPanel detail={detail} access={access} onSaved={setDetail} />
                 <OverallFeedbackPanel feedback={feedback} access={access} onChanged={refresh} fillHeight />
@@ -1183,7 +1389,7 @@ export default function FeedbackDetailPage() {
 
             </div>
 
-            <form onSubmit={addComment} className="shrink-0 rounded-lg border border-slate-200 bg-white p-2 shadow-[0_-2px_10px_rgba(15,23,42,0.06)]">
+            <form onSubmit={addComment} className="shrink-0 rounded-lg border border-[#f79820]/30 bg-[#f79820]/10 p-2 shadow-[0_-2px_10px_rgba(15,23,42,0.06)]">
               <div className="mb-2 flex items-center gap-2 px-1 text-[11px] font-semibold text-slate-500">
                 <span className="shrink-0 rounded-md bg-[#f79820]/10 px-2 py-1 text-[11px] font-bold text-[#f79820] ring-1 ring-[#f79820]/25">
                   {formatTimeline(currentVideoTime)}
@@ -1246,10 +1452,11 @@ export default function FeedbackDetailPage() {
             <form onSubmit={saveFooterLinks} className="mt-4 space-y-4">
               <div>
                 <FieldLabel>Tên feedback</FieldLabel>
-                <TextInput
+                <FeedbackNameInput
                   value={footerFeedbackName}
                   onChange={event => setFooterFeedbackName(event.target.value)}
-                  placeholder="Feedback #4 02.06.2026"
+                  placeholder={buildDefaultFeedbackName(4)}
+                  dateBadge={currentFeedbackNameParts.dateBadge}
                   className="mt-1"
                 />
               </div>

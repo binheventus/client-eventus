@@ -93,6 +93,12 @@ function getFeedbackIdentifier(url = '') {
   return match ? decodeURIComponent(match[1]) : ''
 }
 
+function getGalleryIdentifier(url = '') {
+  const pathname = new URL(url, 'http://localhost').pathname
+  const match = pathname.match(/^\/gallery\/([^/]+)\/?$/)
+  return match ? decodeURIComponent(match[1]) : ''
+}
+
 function isSurveyPageUrl(url = '') {
   const pathname = new URL(url, 'http://localhost').pathname
   return pathname === '/survey' || pathname === '/survey/'
@@ -192,6 +198,18 @@ async function handleStaticRequest(req, res, next) {
     const metadata = await getPublicFeedbackOpenGraphData(feedbackIdentifier).catch(() => null)
     if (metadata) {
       sendHtml(res, renderOpenGraphIndexHtml(req, metadata))
+      return
+    }
+  }
+
+  const galleryIdentifier = req.method === 'GET' ? getGalleryIdentifier(req.url) : ''
+  if (galleryIdentifier) {
+    const metadata = await getPublicFeedbackOpenGraphData(galleryIdentifier).catch(() => null)
+    if (metadata) {
+      sendHtml(res, renderOpenGraphIndexHtml(req, {
+        ...metadata,
+        path: new URL(req.url || '/', 'http://localhost').pathname,
+      }))
       return
     }
   }

@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from 'node:crypto'
 import { execFile } from 'node:child_process'
+import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -35,6 +36,7 @@ const MAX_UPLOAD_BYTES = 8 * 1024 * 1024
 const SURVEY_DOUBLE_SUBMIT_WINDOW_SECONDS = 15
 const DEFAULT_RCLONE_REMOTE = 'eventus'
 const DEFAULT_RCLONE_FEEDBACK_DIR = 'feedback'
+const FEEDBACK_NOTIFICATION_ADMIN_PHONE = '0972554172'
 const CSS_SINCE_062026_VERSION_NAME = 'CSS Since 06.2026'
 const CSS_SURVEY_COPY = {
   title: 'Chia sẻ trải nghiệm của Anh/Chị cùng Eventus',
@@ -260,15 +262,17 @@ export function buildFeedbackOpenGraphText(feedback = {}) {
   }
 }
 
-export function buildDefaultFeedbackName(sequence = 1, date = new Date()) {
+export function buildDefaultFeedbackName(sequence = 1) {
   const safeSequence = Math.max(1, Math.floor(Number(sequence) || 1))
-  const formattedDate = new Intl.DateTimeFormat('vi-VN', {
-    timeZone: 'Asia/Ho_Chi_Minh',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  }).format(date).replace(/\//g, '.')
-  return `Feedback #${safeSequence} ${formattedDate}`
+  return `Feedback #${safeSequence}`
+}
+
+function stripFeedbackDateSuffix(value = '') {
+  return String(value || '').trim().replace(/\s+\d{1,2}[\s./-]+\d{1,2}(?:[\s./-]+\d{2,4})?$/, '').trim()
+}
+
+function sanitizeFeedbackName(value = '') {
+  return trimText(stripFeedbackDateSuffix(value), 255)
 }
 
 function getSurveyType(value = 'video') {
@@ -288,6 +292,45 @@ function trimText(value = '', maxLength = 500) {
 
 function normalizePhone(value = '') {
   return String(value || '').replace(/\D+/g, '')
+}
+
+function normalizeVietnamPhone(value = '') {
+  const digits = normalizePhone(value)
+  if (digits.startsWith('84') && digits.length >= 10) return `0${digits.slice(2)}`
+  return digits
+}
+
+function getEmployeePhoneLookupValues(value = '') {
+  const raw = String(value || '').trim()
+  const digits = normalizePhone(raw)
+  const localDigits = normalizeVietnamPhone(raw)
+  const internationalDigits = localDigits.startsWith('0') ? `84${localDigits.slice(1)}` : ''
+  return [...new Set([
+    raw,
+    digits,
+    localDigits,
+    internationalDigits,
+  ].filter(Boolean))]
+}
+
+function getFeedbackNotificationEditorPhone(feedback = {}) {
+  return trimText(feedback.job?.editor_phone || feedback.editor_phone, 80)
+}
+
+function getFeedbackDoneName(feedback = {}) {
+  const name = trimText(feedback.name, 255) || 'Feedback'
+  return name.toLowerCase().includes('feedback') ? name : `Feedback ${name}`
+}
+
+function buildFeedbackDoneNotificationPayload(feedback = {}, recipients = []) {
+  const feedbackName = getFeedbackDoneName(feedback)
+  const jobTitle = feedback.job?.title || feedback.job?.job_title || feedback.job_id || ''
+  return {
+    type: 1,
+    need_to_send: recipients,
+    title: 'Khách đã hoàn thành Feedback!',
+    content: `Khách hàng đã hoàn thành ${feedbackName} của job ${jobTitle}.\nBạn hãy check và confirm thời gian gửi bản tiếp theo cho khách nhé.`,
+  }
 }
 
 function getAuthUserRole(user = {}) {
@@ -638,7 +681,7 @@ async function ensureFeedbackForJob(jobId, patch = {}) {
           await makeUniquePublicCode(),
           job.id,
           await makeUniqueShareToken(),
-          trimText(patch.name, 255) || buildDefaultFeedbackName(1),
+          sanitizeFeedbackName(patch.name) || buildDefaultFeedbackName(1),
           patch.drive_url || null,
           patch.editor_name || job.editor_name || null,
           patch.editor_phone || job.editor_phone || null,
@@ -673,7 +716,7 @@ async function createFeedback(jobId, payload = {}) {
           await makeUniquePublicCode(),
           job.id,
           shareToken,
-          trimText(payload.name, 255) || buildDefaultFeedbackName(count + 1),
+          sanitizeFeedbackName(payload.name) || buildDefaultFeedbackName(count + 1),
           emptyToNull(payload.video_url),
           emptyToNull(payload.video_title),
           emptyToNull(payload.direct_video_url),
@@ -1015,7 +1058,7 @@ async function saveFeedbackSetup(req, body = {}) {
     : { title: '', directUrl: '' }
 
   const payload = {
-    name: patch.name === undefined ? undefined : emptyToNull(trimText(patch.name, 255)),
+    name: patch.name === undefined ? undefined : emptyToNull(sanitizeFeedbackName(patch.name)),
     video_url: patch.video_url === undefined ? undefined : emptyToNull(patch.video_url),
     video_title: patch.video_title === undefined && !metadata.title ? undefined : emptyToNull(patch.video_title || metadata.title),
     direct_video_url: patch.direct_video_url === undefined && !metadata.directUrl ? undefined : emptyToNull(patch.direct_video_url || metadata.directUrl),
@@ -1240,29 +1283,66 @@ async function markFeedbackDone(req, body = {}) {
      where id = ?`,
     [feedback.id],
   )
-  notifyFeedbackDone(feedback).catch(() => {})
-  return getFeedbackDetail(req, feedback.id, parseAccess(body))
+  const notification = await notifyFeedbackDone(feedback)
+  const detail = await getFeedbackDetail(req, feedback.id, parseAccess(body))
+  return { ...detail, notification }
+}
+
+async function findEmployeeIdByPhone(phone) {
+  const lookupValues = getEmployeePhoneLookupValues(phone)
+  if (!lookupValues.length) return null
+
+  const placeholders = lookupValues.map(() => '?').join(', ')
+  const exactRows = await query(
+    `select id, phone from ${tables.employees} where phone in (${placeholders}) limit 1`,
+    lookupValues,
+  )
+  if (exactRows?.[0]?.id) return exactRows[0].id
+
+  const normalizedPhone = normalizeVietnamPhone(phone)
+  if (!normalizedPhone) return null
+
+  const rows = await query(`select id, phone from ${tables.employees} where phone is not null`)
+  return rows.find(row => normalizeVietnamPhone(row.phone) === normalizedPhone)?.id || null
 }
 
 async function notifyFeedbackDone(feedback) {
   const baseUrl = String(process.env.NHANSU_URL || '').replace(/\/+$/, '')
-  if (!baseUrl || !feedback.editor_phone) return
+  if (!baseUrl) throw makeHttpError('Chưa cấu hình NHANSU_URL để gửi thông báo tới Editor.', 500, 'NHANSU_URL_MISSING')
 
-  const employeeRows = await query(`select id from ${tables.employees} where phone = ? limit 1`, [feedback.editor_phone]).catch(() => [])
-  const adminRows = await query(`select id from ${tables.employees} where phone = ? limit 1`, ['0972554172']).catch(() => [])
-  const recipients = [employeeRows?.[0]?.id, adminRows?.[0]?.id].filter(Boolean)
-  if (!recipients.length) return
+  const editorEmployeeId = await findEmployeeIdByPhone(getFeedbackNotificationEditorPhone(feedback)) || feedback.editor_employee_id
+  if (!editorEmployeeId) {
+    throw makeHttpError('Không tìm thấy Editor trong danh sách nhân sự để gửi thông báo.', 422, 'FEEDBACK_EDITOR_NOT_FOUND')
+  }
 
-  await fetch(`${baseUrl}/api/notifications/send`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      type: 1,
-      need_to_send: recipients,
-      title: 'Khách đã hoàn thành Feedback!',
-      content: `Khách hàng đã hoàn thành ${feedback.name || 'Feedback'} của job ${feedback.job?.title || feedback.job_id}.\nBạn hãy check và confirm thời gian gửi bản tiếp theo cho khách nhé.`,
-    }),
-  }).catch(() => {})
+  const adminEmployeeId = await findEmployeeIdByPhone(FEEDBACK_NOTIFICATION_ADMIN_PHONE)
+  const recipients = [...new Set([editorEmployeeId, adminEmployeeId].filter(Boolean))]
+
+  let response
+  try {
+    response = await fetch(`${baseUrl}/api/notifications/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(buildFeedbackDoneNotificationPayload(feedback, recipients)),
+    })
+  } catch (error) {
+    throw makeHttpError(
+      `Không kết nối được Nhân sự API để gửi thông báo tới Editor: ${error?.message || 'request failed'}.`,
+      502,
+      'FEEDBACK_NOTIFICATION_FAILED',
+    )
+  }
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '')
+    throw makeHttpError(
+      `Không gửi được thông báo tới Editor qua Nhân sự API${text ? `: ${trimText(text, 160)}` : '.'}`,
+      502,
+      'FEEDBACK_NOTIFICATION_FAILED',
+    )
+  }
+
+  return { sent: true, recipients }
 }
 
 function normalizeSurveyQuestionRows(rows = [], type = 'video') {
@@ -1679,6 +1759,13 @@ export function isPublicFeedbackRequest(req) {
 
   return false
 }
+
+export const __feedbackTestInternals = Object.freeze({
+  buildFeedbackDoneNotificationPayload,
+  getEmployeePhoneLookupValues,
+  getFeedbackNotificationEditorPhone,
+  normalizeVietnamPhone,
+})
 
 export default async function handler(req, res) {
   try {

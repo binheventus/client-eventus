@@ -8,7 +8,7 @@ import {
   listFeedbacks,
   lookupFeedbackJob,
 } from '../hooks/useFeedback'
-import { formatFeedbackDate, getFeedbackPublicPath } from '../lib/feedbackFormat'
+import { formatFeedbackDate, getFeedbackNameParts, getFeedbackPublicPath } from '../lib/feedbackFormat'
 
 function EmptyState({ title, desc }) {
   return (
@@ -53,6 +53,8 @@ function JobRow({ job, onOpen, onCreate }) {
 }
 
 function FeedbackCard({ feedback, onOpen }) {
+  const { name, dateBadge } = getFeedbackNameParts(feedback)
+
   return (
     <button
       type="button"
@@ -61,7 +63,14 @@ function FeedbackCard({ feedback, onOpen }) {
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-[14px] font-semibold text-slate-900">{feedback.name || 'Feedback'}</p>
+          <p className="flex min-w-0 items-center gap-1.5 text-[14px] font-semibold text-slate-900">
+            <span className="min-w-0 truncate">{name}</span>
+            {dateBadge && (
+              <span className="shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold leading-4 text-slate-500">
+                {dateBadge}
+              </span>
+            )}
+          </p>
           <p className="mt-1 line-clamp-2 text-[12px] leading-5 text-slate-500">
             {feedback.job?.title || `Job #${feedback.job_id}`} · {feedback.job?.customer_name || 'Chưa có khách hàng'}
           </p>

@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { buildDefaultFeedbackName, buildFeedbackOpenGraphText, buildSurveyResponseName, isPublicFeedbackRequest } from './feedback.js'
+import {
+  __feedbackTestInternals,
+  buildDefaultFeedbackName,
+  buildFeedbackOpenGraphText,
+  buildSurveyResponseName,
+  isPublicFeedbackRequest,
+} from './feedback.js'
 
 test('feedback detail can be opened publicly with a share token path id', () => {
   assert.equal(isPublicFeedbackRequest({
@@ -44,11 +50,41 @@ test('feedback open graph title uses the banner job title first', () => {
   assert.equal(meta.description, 'Feedback 1')
 })
 
-test('default feedback name includes sequence and Vietnam date', () => {
-  assert.equal(buildDefaultFeedbackName(4, new Date('2026-06-01T18:00:00.000Z')), 'Feedback #4 02.06.2026')
+test('default feedback name includes sequence without editable date', () => {
+  assert.equal(buildDefaultFeedbackName(4), 'Feedback #4')
 })
 
 test('survey response name includes type and submission number', () => {
   assert.equal(buildSurveyResponseName('video', 2), 'Khảo sát video #2')
   assert.equal(buildSurveyResponseName('image', 3), 'Khảo sát hình ảnh #3')
+})
+
+test('feedback done notification uses the job editor phone like the legacy app', () => {
+  assert.equal(__feedbackTestInternals.getFeedbackNotificationEditorPhone({
+    editor_phone: '0111111111',
+    job: {
+      editor_phone: '0972554172',
+    },
+  }), '0972554172')
+})
+
+test('feedback done notification lookup supports Vietnam phone variants', () => {
+  assert.deepEqual(
+    __feedbackTestInternals.getEmployeePhoneLookupValues('+84 972 554 172'),
+    ['+84 972 554 172', '84972554172', '0972554172'],
+  )
+  assert.equal(__feedbackTestInternals.normalizeVietnamPhone('+84 972 554 172'), '0972554172')
+})
+
+test('feedback done notification payload keeps the legacy Feedback prefix', () => {
+  const payload = __feedbackTestInternals.buildFeedbackDoneNotificationPayload({
+    name: '#2',
+    job: {
+      title: 'Year End Party 2026',
+    },
+  }, [10, 20])
+
+  assert.deepEqual(payload.need_to_send, [10, 20])
+  assert.match(payload.content, /Feedback #2/)
+  assert.match(payload.content, /Year End Party 2026/)
 })
