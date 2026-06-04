@@ -99,7 +99,48 @@ function IconButton({ title, disabled, onClick, children }) {
   )
 }
 
-function QuoteItemRow({ item, index, onChangeItem, onRemoveItem }) {
+function RowIconButton({ title, disabled, muted = false, onClick, children }) {
+  const colorClass = muted
+    ? 'text-slate-400 hover:bg-slate-100 hover:text-slate-600 focus:bg-slate-100 focus:text-slate-600 disabled:hover:text-slate-400'
+    : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 focus:bg-slate-100 focus:text-slate-800 disabled:hover:text-slate-500'
+
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      disabled={disabled}
+      onClick={onClick}
+      className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded focus:outline-none disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent ${colorClass}`}
+    >
+      {children}
+    </button>
+  )
+}
+
+function MoveItemControls({ canMoveUp, canMoveDown, onMoveUp, onMoveDown }) {
+  return (
+    <div className="flex shrink-0 flex-col items-center leading-none">
+      <RowIconButton title="Đưa dịch vụ lên" disabled={!canMoveUp} onClick={onMoveUp}>
+        <ArrowUp className="h-3 w-3" strokeWidth={2.5} />
+      </RowIconButton>
+      <RowIconButton title="Đưa dịch vụ xuống" disabled={!canMoveDown} onClick={onMoveDown}>
+        <ArrowDown className="h-3 w-3" strokeWidth={2.5} />
+      </RowIconButton>
+    </div>
+  )
+}
+
+function QuoteItemRow({
+  item,
+  index,
+  canMoveUp,
+  canMoveDown,
+  onChangeItem,
+  onMoveUp,
+  onMoveDown,
+  onRemoveItem,
+}) {
   const [editingName, setEditingName] = useState(false)
   const [nameDraft, setNameDraft] = useState('')
   const nameInputRef = useRef(null)
@@ -136,55 +177,71 @@ function QuoteItemRow({ item, index, onChangeItem, onRemoveItem }) {
     <tr className="align-top">
       <td className="py-2 pl-5 pr-3">
         {item.is_custom ? (
-          <textarea
-            value={item.service_name || ''}
-            rows={1}
-            placeholder="Nhập tên hạng mục tùy chỉnh..."
-            onChange={event => onChangeItem?.(index, { service_name: event.target.value })}
-            className="min-h-8 w-full resize-none rounded-lg border border-transparent bg-transparent px-2 py-1 font-medium leading-5 text-black outline-none placeholder:text-slate-400 focus:border-slate-200 focus:bg-white"
-          />
+          <div className="flex items-start gap-1">
+            <textarea
+              value={item.service_name || ''}
+              rows={1}
+              placeholder="Nhập tên hạng mục tùy chỉnh..."
+              onChange={event => onChangeItem?.(index, { service_name: event.target.value })}
+              className="min-h-8 min-w-0 flex-1 resize-none rounded-lg border border-transparent bg-transparent px-2 py-1 font-medium leading-5 text-black outline-none placeholder:text-slate-400 focus:border-slate-200 focus:bg-white"
+            />
+            <MoveItemControls
+              canMoveUp={canMoveUp}
+              canMoveDown={canMoveDown}
+              onMoveUp={onMoveUp}
+              onMoveDown={onMoveDown}
+            />
+          </div>
         ) : (
           <div className="grid min-h-8 grid-cols-[minmax(150px,1.7fr)_minmax(90px,1fr)] items-start gap-x-3 gap-y-1.5">
             <div className="min-w-[150px] shrink grow-0">
               {editingName ? (
-                <input
-                  ref={nameInputRef}
-                  value={nameDraft}
-                  onChange={event => setNameDraft(event.target.value)}
-                  onBlur={commitNameEdit}
-                  onKeyDown={event => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault()
-                      commitNameEdit()
-                    } else if (event.key === 'Escape') {
-                      event.preventDefault()
-                      cancelNameEdit()
-                    }
-                  }}
-                  className="min-h-8 w-full rounded-lg border border-slate-200 bg-white px-2 py-1 font-medium leading-5 text-black outline-none focus:border-[#f8981d] focus:ring-2 focus:ring-orange-100"
-                />
+                <div className="px-2 py-1">
+                  <input
+                    ref={nameInputRef}
+                    value={nameDraft}
+                    onChange={event => setNameDraft(event.target.value)}
+                    onBlur={commitNameEdit}
+                    onKeyDown={event => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault()
+                        commitNameEdit()
+                      } else if (event.key === 'Escape') {
+                        event.preventDefault()
+                        cancelNameEdit()
+                      }
+                    }}
+                    className="min-h-8 w-full rounded-lg border border-slate-200 bg-white px-2 py-1 font-medium leading-5 text-black outline-none focus:border-[#f8981d] focus:ring-2 focus:ring-orange-100"
+                  />
+                </div>
               ) : (
                 <div className="flex items-start gap-1 px-2 py-1">
-                  <span className="min-w-0 flex-1 break-words font-medium leading-5 text-black">
-                    {getServiceName(item)}
-                  </span>
-                  <button
-                    type="button"
-                    title="Sửa tên dịch vụ"
-                    aria-label="Sửa tên dịch vụ"
-                    onClick={startNameEdit}
-                    className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded text-slate-300 hover:bg-slate-100 hover:text-slate-600 focus:bg-slate-100 focus:text-slate-600 focus:outline-none"
-                  >
-                    <Pencil className="h-3 w-3" strokeWidth={2.2} />
-                  </button>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex min-w-0 items-start gap-0.5">
+                      <span className="min-w-0 break-words font-medium leading-5 text-black">
+                        {getServiceName(item)}
+                      </span>
+                      <RowIconButton title="Sửa tên dịch vụ" muted onClick={startNameEdit}>
+                        <Pencil className="h-3 w-3" strokeWidth={2.5} />
+                      </RowIconButton>
+                    </div>
+                    <span
+                      title="Mã dịch vụ"
+                      className="mt-0.5 inline-flex w-fit rounded-full border border-orange-100/70 bg-orange-50/60 px-1.5 py-0 text-[9px] font-semibold leading-3 text-orange-300"
+                    >
+                      {getServiceCode(item)}
+                    </span>
+                  </div>
+                  <div className="mt-0.5 flex shrink-0 items-center">
+                    <MoveItemControls
+                      canMoveUp={canMoveUp}
+                      canMoveDown={canMoveDown}
+                      onMoveUp={onMoveUp}
+                      onMoveDown={onMoveDown}
+                    />
+                  </div>
                 </div>
               )}
-              <span
-                title="Mã dịch vụ"
-                className="ml-2 mt-0.5 inline-flex w-fit rounded-full border border-orange-100/70 bg-orange-50/60 px-1.5 py-0 text-[9px] font-semibold leading-3 text-orange-300"
-              >
-                {getServiceCode(item)}
-              </span>
             </div>
             {getServiceRawName(item) ? (
               <span className="min-w-0 break-words px-2 py-1 text-[12px] font-medium leading-5 text-slate-500">
@@ -268,6 +325,7 @@ export default function QuoteItemsTable({
   onAddGroup,
   onRenameGroup,
   onMoveGroup,
+  onMoveItem,
   onRemoveGroup,
 }) {
   const groups = buildGroups(items, groupOptions)
@@ -374,15 +432,24 @@ export default function QuoteItemsTable({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {group.items.length ? group.items.map(({ item, index }) => (
-                    <QuoteItemRow
-                      key={item.local_id || index}
-                      item={item}
-                      index={index}
-                      onChangeItem={onChangeItem}
-                      onRemoveItem={onRemoveItem}
-                    />
-                  )) : (
+                  {group.items.length ? group.items.map(({ item, index }, itemIndex) => {
+                    const previousItem = group.items[itemIndex - 1]
+                    const nextItem = group.items[itemIndex + 1]
+
+                    return (
+                      <QuoteItemRow
+                        key={item.local_id || index}
+                        item={item}
+                        index={index}
+                        canMoveUp={Boolean(previousItem)}
+                        canMoveDown={Boolean(nextItem)}
+                        onChangeItem={onChangeItem}
+                        onMoveUp={() => onMoveItem?.(index, previousItem?.index)}
+                        onMoveDown={() => onMoveItem?.(index, nextItem?.index)}
+                        onRemoveItem={onRemoveItem}
+                      />
+                    )
+                  }) : (
                     <tr>
                       <td colSpan={7} className="px-5 py-5 text-center text-[13px] text-slate-400">
                         Chưa có hạng mục trong nhóm này.

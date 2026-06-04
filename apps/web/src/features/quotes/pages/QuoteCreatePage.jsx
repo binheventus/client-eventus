@@ -36,6 +36,8 @@ const DEFAULT_QUOTE = {
   sent_at: null,
 }
 
+const QUOTE_SOFT_GRADIENT = 'linear-gradient(135deg, rgba(255,247,237,.92), rgba(255,255,255,.96) 46%, rgba(232,246,242,.92))'
+
 const FIELD_LABELS = {
   location: 'Địa điểm',
   duration_hours: 'Thời lượng',
@@ -414,16 +416,31 @@ function getQuoteItemSortRank(item = {}) {
   return 7
 }
 
+function getQuoteItemSavedSortOrder(item = {}) {
+  const sortOrder = Number(item.sort_order)
+  return Number.isFinite(sortOrder) && sortOrder > 0 ? sortOrder : null
+}
+
 function sortQuoteItems(items = []) {
   return [...items]
     .map((item, index) => ({ item, index }))
     .sort((a, b) => {
       const groupDiff = getItemGroupSortOrder(a.item) - getItemGroupSortOrder(b.item)
       if (groupDiff) return groupDiff
+      const savedOrderA = getQuoteItemSavedSortOrder(a.item)
+      const savedOrderB = getQuoteItemSavedSortOrder(b.item)
+      if (savedOrderA !== null || savedOrderB !== null) {
+        const orderDiff = (savedOrderA ?? Number.POSITIVE_INFINITY) - (savedOrderB ?? Number.POSITIVE_INFINITY)
+        if (orderDiff) return orderDiff
+      }
       const rankDiff = getQuoteItemSortRank(a.item) - getQuoteItemSortRank(b.item)
       return rankDiff || a.index - b.index
     })
     .map(entry => entry.item)
+}
+
+function renumberQuoteItems(items = []) {
+  return items.map((item, index) => ({ ...item, sort_order: index + 1 }))
 }
 
 function calculateQuoteItemTotal(item = {}) {
@@ -982,11 +999,36 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
           next.override_reason = ''
         }
 
-        shouldSort = Boolean(patch.service_name || patch.service_name_raw || patch.service_code || patch.group_code || patch.group_sort_order)
+        shouldSort = Boolean(patch.service_name_raw || patch.service_code || patch.group_code || patch.group_sort_order || patch.custom_sort_rank)
         return next
       })
       return shouldSort ? sortQuoteItems(nextItems) : nextItems
     })
+  }
+
+  function moveQuoteItem(fromIndex, toIndex) {
+    setItems(prev => {
+      if (
+        !Number.isInteger(fromIndex) ||
+        !Number.isInteger(toIndex) ||
+        fromIndex < 0 ||
+        toIndex < 0 ||
+        fromIndex >= prev.length ||
+        toIndex >= prev.length ||
+        fromIndex === toIndex
+      ) {
+        return prev
+      }
+
+      const reordered = [...prev]
+      const [movedItem] = reordered.splice(fromIndex, 1)
+      reordered.splice(toIndex, 0, movedItem)
+      return renumberQuoteItems(reordered)
+    })
+  }
+
+  function removeQuoteItem(index) {
+    setItems(prev => renumberQuoteItems(prev.filter((_, itemIndex) => itemIndex !== index)))
   }
 
   function upsertQuoteGroup(group) {
@@ -1276,7 +1318,7 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
 
       <div className="grid gap-5 xl:grid-cols-2">
         <div className="space-y-5">
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <section className="rounded-2xl border border-slate-200 p-5 shadow-sm" style={{ background: QUOTE_SOFT_GRADIENT }}>
             <QuoteChatInput
               value={inputText}
               onChange={setInputText}
@@ -1390,16 +1432,17 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
             items={displayItems}
             groupOptions={quoteGroupOptions}
             onChangeItem={updateItem}
-            onRemoveItem={index => setItems(prev => prev.filter((_, itemIndex) => itemIndex !== index))}
+            onRemoveItem={removeQuoteItem}
             onAddService={openServicePicker}
             onAddCustomItem={openCustomItemModal}
             onAddGroup={addQuoteGroup}
             onRenameGroup={renameQuoteGroup}
             onMoveGroup={moveQuoteGroup}
+            onMoveItem={moveQuoteItem}
             onRemoveGroup={removeQuoteGroup}
           />
 
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <section className="rounded-2xl border border-slate-200 p-5 shadow-sm" style={{ background: QUOTE_SOFT_GRADIENT }}>
             <div className="grid gap-4 md:grid-cols-[minmax(360px,0.85fr)_minmax(280px,1.15fr)]">
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
