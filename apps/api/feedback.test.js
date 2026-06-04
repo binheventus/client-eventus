@@ -119,13 +119,13 @@ test('feedback notification uses NHANSU_URL when configured', () => {
   }
 })
 
-test('feedback notification falls back to Eventus auth URL', () => {
+test('feedback notification falls back to the Nhansu URL instead of Eventus auth URL', () => {
   const previousNhansuUrl = process.env.NHANSU_URL
   const previousAuthBaseUrl = process.env.EVENTUS_AUTH_BASE_URL
   process.env.NHANSU_URL = '   '
   process.env.EVENTUS_AUTH_BASE_URL = 'https://lichlamviec.example.com///'
   try {
-    assert.equal(__feedbackTestInternals.getNhansuBaseUrl(), 'https://lichlamviec.example.com')
+    assert.equal(__feedbackTestInternals.getNhansuBaseUrl(), 'https://nhansu.eventusproduction.com')
   } finally {
     if (previousNhansuUrl === undefined) delete process.env.NHANSU_URL
     else process.env.NHANSU_URL = previousNhansuUrl

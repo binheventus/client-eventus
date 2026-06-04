@@ -38,7 +38,7 @@ const MAX_UPLOAD_BYTES = 8 * 1024 * 1024
 const SURVEY_DOUBLE_SUBMIT_WINDOW_SECONDS = 15
 const DEFAULT_RCLONE_REMOTE = 'eventus'
 const DEFAULT_RCLONE_FEEDBACK_DIR = 'feedback'
-const DEFAULT_NHANSU_URL = 'https://lichlamviec.eventusproduction.com'
+const DEFAULT_NHANSU_URL = 'https://nhansu.eventusproduction.com'
 const FEEDBACK_NOTIFICATION_ADMIN_PHONE = '0972554172'
 const CSS_SINCE_062026_VERSION_NAME = 'CSS Since 06.2026'
 const CSS_SURVEY_COPY = {
@@ -391,7 +391,6 @@ function getNhansuBaseUrl() {
   loadServerEnv()
   const baseUrl = [
     process.env.NHANSU_URL,
-    process.env.EVENTUS_AUTH_BASE_URL,
     DEFAULT_NHANSU_URL,
   ].map(value => String(value || '').trim()).find(Boolean) || ''
   return baseUrl.replace(/\/+$/, '')
