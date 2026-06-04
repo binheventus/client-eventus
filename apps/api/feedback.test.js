@@ -68,6 +68,21 @@ test('feedback done notification uses the job editor phone like the legacy app',
   }), '0972554172')
 })
 
+test('feedback done notification can use stored editor employee id without phone lookup', () => {
+  assert.equal(__feedbackTestInternals.getFeedbackNotificationEditorEmployeeId({
+    editor_employee_id: 282,
+  }), '282')
+})
+
+test('feedback done notification can fall back to the job editor name', () => {
+  assert.equal(__feedbackTestInternals.getFeedbackNotificationEditorName({
+    editor_name: 'Old Editor',
+    job: {
+      editor_name: 'Đàm Trọng Huy',
+    },
+  }), 'Đàm Trọng Huy')
+})
+
 test('feedback done notification lookup supports Vietnam phone variants', () => {
   assert.deepEqual(
     __feedbackTestInternals.getEmployeePhoneLookupValues('+84 972 554 172'),

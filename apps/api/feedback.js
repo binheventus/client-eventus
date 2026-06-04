@@ -363,6 +363,14 @@ function getFeedbackNotificationEditorPhone(feedback = {}) {
   return trimText(feedback.job?.editor_phone || feedback.editor_phone, 80)
 }
 
+function getFeedbackNotificationEditorEmployeeId(feedback = {}) {
+  return String(feedback.editor_employee_id || feedback.job?.editor_employee_id || '').trim()
+}
+
+function getFeedbackNotificationEditorName(feedback = {}) {
+  return trimText(feedback.job?.editor_name || feedback.editor_name, 255)
+}
+
 function getFeedbackDoneName(feedback = {}) {
   const name = trimText(feedback.name, 255) || 'Feedback'
   return name.toLowerCase().includes('feedback') ? name : `Feedback ${name}`
@@ -545,6 +553,7 @@ function normalizeSurveyResponseRow(row = {}) {
 function getFeedbackListSelect() {
   return `
     f.*,
+    f.editor_employee_id,
     j.job_title,
     j.customer_name,
     j.customer_id,
@@ -1538,11 +1547,55 @@ async function findEmployeeIdByPhone(phone) {
   return rows.find(row => normalizeVietnamPhone(row.phone) === normalizedPhone)?.id || null
 }
 
+async function findEmployeeIdByName(name) {
+  const editorName = trimText(name, 255)
+  if (!editorName) return null
+
+  const rows = await query(
+    `select id, name, zalo_name
+     from ${tables.employees}
+     where lower(trim(zalo_name)) = lower(trim(?))
+        or lower(trim(name)) = lower(trim(?))
+     limit 1`,
+    [editorName, editorName],
+  )
+
+  return rows?.[0]?.id || null
+}
+
+async function findFeedbackJobEditorEmployeeId(feedback = {}) {
+  const jobId = feedback.job_id || feedback.job?.id
+  if (!jobId) return null
+
+  const rows = await query(
+    `select e.id
+     from ${tables.employeeJobs} ej
+     inner join ${tables.employees} e on e.id = ej.employee_id
+     inner join employee_skill es on es.employee_id = e.id
+     inner join skills s on s.id = es.skill_id
+     where ej.job_id = ?
+       and ej.status = 'accepted'
+       and s.name = 'Dựng'
+     order by e.id asc
+     limit 1`,
+    [jobId],
+  )
+
+  return rows?.[0]?.id || null
+}
+
+async function findFeedbackEditorEmployeeId(feedback) {
+  return getFeedbackNotificationEditorEmployeeId(feedback)
+    || await findEmployeeIdByPhone(getFeedbackNotificationEditorPhone(feedback))
+    || await findEmployeeIdByName(getFeedbackNotificationEditorName(feedback))
+    || await findFeedbackJobEditorEmployeeId(feedback)
+}
+
 async function notifyFeedbackDone(feedback) {
   const baseUrl = getNhansuBaseUrl()
   if (!baseUrl) throw makeHttpError('Chưa cấu hình NHANSU_URL để gửi thông báo tới Editor.', 500, 'NHANSU_URL_MISSING')
 
-  const editorEmployeeId = await findEmployeeIdByPhone(getFeedbackNotificationEditorPhone(feedback)) || feedback.editor_employee_id
+  const editorEmployeeId = await findFeedbackEditorEmployeeId(feedback)
   if (!editorEmployeeId) {
     throw makeHttpError('Không tìm thấy Editor trong danh sách nhân sự để gửi thông báo.', 422, 'FEEDBACK_EDITOR_NOT_FOUND')
   }
@@ -1996,6 +2049,8 @@ export function isPublicFeedbackRequest(req) {
 export const __feedbackTestInternals = Object.freeze({
   buildFeedbackDoneNotificationPayload,
   getEmployeePhoneLookupValues,
+  getFeedbackNotificationEditorEmployeeId,
+  getFeedbackNotificationEditorName,
   getFeedbackNotificationEditorPhone,
   getNhansuBaseUrl,
   normalizeVietnamPhone,
