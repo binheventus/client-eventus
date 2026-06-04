@@ -39,6 +39,7 @@ const SURVEY_DOUBLE_SUBMIT_WINDOW_SECONDS = 15
 const DEFAULT_RCLONE_REMOTE = 'eventus'
 const DEFAULT_RCLONE_FEEDBACK_DIR = 'feedback'
 const DEFAULT_NHANSU_URL = 'https://nhansu.eventusproduction.com'
+const EVENTUS_AUTH_HOST = 'lichlamviec.eventusproduction.com'
 const FEEDBACK_NOTIFICATION_ADMIN_PHONE = '0972554172'
 const CSS_SINCE_062026_VERSION_NAME = 'CSS Since 06.2026'
 const CSS_SURVEY_COPY = {
@@ -387,13 +388,31 @@ function buildFeedbackDoneNotificationPayload(feedback = {}, recipients = []) {
   }
 }
 
+function getBaseUrlHost(value = '') {
+  const text = String(value || '').trim()
+  if (!text) return ''
+  try {
+    return new URL(text).hostname.toLowerCase()
+  } catch {
+    try {
+      return new URL(`https://${text}`).hostname.toLowerCase()
+    } catch {
+      return ''
+    }
+  }
+}
+
+function normalizeNhansuBaseUrl(value = '') {
+  const baseUrl = String(value || '').trim().replace(/\/+$/, '')
+  if (!baseUrl) return ''
+  const host = getBaseUrlHost(baseUrl)
+  if (host === EVENTUS_AUTH_HOST) return ''
+  return /^https?:\/\//i.test(baseUrl) ? baseUrl : `https://${baseUrl}`
+}
+
 function getNhansuBaseUrl() {
   loadServerEnv()
-  const baseUrl = [
-    process.env.NHANSU_URL,
-    DEFAULT_NHANSU_URL,
-  ].map(value => String(value || '').trim()).find(Boolean) || ''
-  return baseUrl.replace(/\/+$/, '')
+  return normalizeNhansuBaseUrl(process.env.NHANSU_URL) || DEFAULT_NHANSU_URL
 }
 
 function getAuthUserRole(user = {}) {
