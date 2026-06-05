@@ -123,6 +123,41 @@ test('feedback done notification payload sends only the editor employee id', () 
   })
 })
 
+test('survey submitted notification payload points to the dashboard', () => {
+  const payload = __feedbackTestInternals.buildSurveySubmittedNotificationPayload({
+    job: {
+      id: 25,
+      title: 'Year End Party 2026',
+      job_date: '2026-06-05',
+      customer_name: 'Eventus',
+    },
+    response: {
+      display_name: 'Khảo sát #2',
+    },
+    recipients: [1, 2],
+    answerCount: 8,
+    dashboardUrl: 'https://lichlamviec.eventusproduction.com/admin/survey/dashboard',
+  })
+
+  assert.deepEqual(payload, {
+    type: 5,
+    need_to_send: [1, 2],
+    title: 'Khách vừa hoàn thành khảo sát CSS',
+    content: 'Khảo sát #2 từ job 2026-06-05 Year End Party 2026.\n\nTên khách hàng: Eventus\n\nSố câu trả lời: 8\n\nXem kết quả tại dashboard: https://lichlamviec.eventusproduction.com/admin/survey/dashboard',
+  })
+})
+
+test('survey answer count includes selected answers and free text', () => {
+  assert.equal(__feedbackTestInternals.countSurveySubmittedAnswers({
+    1: ['10'],
+    2: ['20', '21'],
+    3: [],
+  }, {
+    4: 'Góp ý thêm',
+    5: '   ',
+  }), 4)
+})
+
 test('feedback notification uses BASE_NHANSU_URL when configured', () => {
   withEnv({
     BASE_NHANSU_URL: 'https://nhansu.example.com///',

@@ -39,6 +39,7 @@ const SURVEY_DOUBLE_SUBMIT_WINDOW_SECONDS = 15
 const DEFAULT_RCLONE_REMOTE = 'eventus'
 const DEFAULT_RCLONE_FEEDBACK_DIR = 'feedback'
 const DEFAULT_NHANSU_URL = 'https://nhansu.eventusproduction.com'
+const DEFAULT_SURVEY_DASHBOARD_URL = 'https://lichlamviec.eventusproduction.com/admin/survey/dashboard'
 const EVENTUS_AUTH_HOST = 'lichlamviec.eventusproduction.com'
 const CSS_SINCE_062026_VERSION_NAME = 'CSS Since 06.2026'
 const CSS_SURVEY_COPY = {
@@ -387,6 +388,27 @@ function buildFeedbackDoneNotificationPayload(feedback = {}, editorEmployeeId = 
   }
 }
 
+function getSurveyDashboardUrl() {
+  loadServerEnv()
+  return trimText(process.env.SURVEY_DASHBOARD_URL || DEFAULT_SURVEY_DASHBOARD_URL, 500)
+}
+
+function buildSurveySubmittedNotificationPayload({
+  job = {},
+  response = {},
+  recipients = [],
+  answerCount = 0,
+  dashboardUrl = DEFAULT_SURVEY_DASHBOARD_URL,
+} = {}) {
+  const jobTitle = trimText([job.job_date, job.title || job.job_title || job.id].filter(Boolean).join(' '), 255)
+  return {
+    type: 5,
+    need_to_send: recipients.filter(Boolean),
+    title: 'Khách vừa hoàn thành khảo sát CSS',
+    content: `${response.display_name || 'Khảo sát mới'} từ job ${jobTitle || '-'}.\n\nTên khách hàng: ${job.customer_name || '-'}\n\nSố câu trả lời: ${answerCount}\n\nXem kết quả tại dashboard: ${dashboardUrl}`,
+  }
+}
+
 function getBaseUrlHost(value = '') {
   const text = String(value || '').trim()
   if (!text) return ''
@@ -488,6 +510,7 @@ function normalizeFeedbackRow(row = {}) {
 
   return {
     ...row,
+    drive_url: job?.drive_feedback || row.drive_url || '',
     editor_name: row.editor_name || job?.editor_name || '',
     editor_phone: row.editor_phone || job?.editor_phone || '',
     overall_feedback: normalizeOverallFeedback(row.overall_feedback),
@@ -906,9 +929,9 @@ async function createFeedback(jobId, payload = {}) {
       await withTransaction(async connection => {
         await connection.query(
           `insert into ${tables.feedbacks}
-             (id, public_code, job_id, share_token, name, video_url, video_title, direct_video_url, drive_url,
+             (id, public_code, job_id, share_token, name, video_url, video_title, direct_video_url,
               editor_employee_id, editor_name, editor_phone, started_at, created_at, updated_at)
-           values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp(3), current_timestamp(3))`,
+           values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp(3), current_timestamp(3))`,
           [
             id,
             publicCode,
@@ -918,13 +941,18 @@ async function createFeedback(jobId, payload = {}) {
             emptyToNull(payload.video_url),
             emptyToNull(payload.video_title),
             emptyToNull(payload.direct_video_url),
-            emptyToNull(payload.drive_url),
             emptyToNull(payload.editor_employee_id),
             emptyToNull(payload.editor_name || job.editor_name),
             emptyToNull(payload.editor_phone || job.editor_phone),
             payload.video_url ? nowMysql() : null,
           ],
         )
+        await updateRow(connection, tables.jobs, {
+          drive_feedback: payload.drive_url === undefined ? undefined : emptyToNull(payload.drive_url),
+        }, 'id = ?', [job.id])
+        if (payload.drive_url !== undefined) {
+          await updateRow(connection, tables.feedbacks, { drive_url: null }, 'job_id = ?', [job.id])
+        }
 
         if (cloneSource?.id) {
           clonedUnresolvedCount = await cloneUnresolvedFeedbackComments(connection, cloneSource.id, id)
@@ -1084,20 +1112,32 @@ async function getFeedbackDetail(req, identifier, access = {}) {
   await assertFeedbackAccess(req, feedback, detailAccess)
   feedback.job = await ensureJobPublicToken(feedback.job)
 
-  const [comments, feedbacks, employees, surveyResponses, cloneSuggestion] = await Promise.all([
+  const [comments, feedbacks, employees, cloneSuggestion] = await Promise.all([
     getFeedbackComments(feedback.id),
     listFeedbacksForJob(feedback.job_id),
     listJobEmployees(feedback.job_id),
-    listSurveyResponsesForJob(feedback.job_id),
     getFeedbackCloneSuggestion(feedback.job_id),
   ])
+  const sharedDriveUrl = feedback.job?.drive_feedback
+    || feedbacks.find(item => item.job?.drive_feedback)?.job?.drive_feedback
+    || feedbacks.find(item => item.drive_url)?.drive_url
+    || feedback.drive_url
+    || ''
+
+  if (sharedDriveUrl) {
+    feedback.drive_url = sharedDriveUrl
+    feedback.job.drive_feedback = sharedDriveUrl
+    feedbacks.forEach(item => {
+      item.drive_url = sharedDriveUrl
+      if (item.job) item.job.drive_feedback = sharedDriveUrl
+    })
+  }
 
   return {
     feedback,
     comments,
     feedbacks,
     employees,
-    survey_responses: surveyResponses,
     clone_suggestion: cloneSuggestion,
     permissions: await getFeedbackPermissions(req, feedback),
     public_url: getFeedbackPublicPath(feedback),
@@ -1322,7 +1362,6 @@ async function saveFeedbackSetup(req, body = {}) {
     video_url: patch.video_url === undefined ? undefined : emptyToNull(patch.video_url),
     video_title: patch.video_title === undefined && !metadata.title ? undefined : emptyToNull(patch.video_title || metadata.title),
     direct_video_url: patch.direct_video_url === undefined && !metadata.directUrl ? undefined : emptyToNull(patch.direct_video_url || metadata.directUrl),
-    drive_url: patch.drive_url === undefined ? undefined : emptyToNull(patch.drive_url),
     video_preview_url: patch.video_preview_url === undefined ? undefined : emptyToNull(patch.video_preview_url),
     audio_preview_url: patch.audio_preview_url === undefined ? undefined : emptyToNull(patch.audio_preview_url),
     started_at: patch.video_url ? (feedback.started_at || nowMysql()) : undefined,
@@ -1339,6 +1378,9 @@ async function saveFeedbackSetup(req, body = {}) {
       start_feedback: patch.video_url ? nowMysql() : undefined,
     }
     await updateRow(connection, tables.jobs, jobPatch, 'id = ?', [feedback.job_id])
+    if (patch.drive_url !== undefined) {
+      await updateRow(connection, tables.feedbacks, { drive_url: null }, 'job_id = ?', [feedback.job_id])
+    }
   })
 
   return getFeedbackDetail(req, feedback.id, parseAccess(body))
@@ -1737,57 +1779,6 @@ async function getSurveyQuestions(type = 'video') {
   }
 }
 
-async function listSurveyResponsesForJob(jobId) {
-  if (!jobId) return []
-
-  const rows = await query(
-    `select sr.*,
-       sra.id as response_answer_id,
-       sra.question_id,
-       sra.answer_id,
-       sra.answer_text,
-       coalesce(q.question, lq.question, sra.question_id) as question_text,
-       coalesce(q.sort_order, lq.sort_order, 999999) as question_sort_order,
-       coalesce(a.answer, la.answer, '') as answer_label,
-       coalesce(a.sort_order, la.sort_order, 999999) as answer_sort_order
-     from ${tables.feedbackSurveyResponses} sr
-     left join ${tables.feedbackSurveyResponseAnswers} sra on sra.response_id = sr.id
-     left join ${tables.surveyQuestions} q on q.id = sra.question_id
-     left join ${tables.feedbackSurveyQuestions} lq on lq.id = sra.question_id
-     left join ${tables.surveyAnswers} a on a.id = sra.answer_id
-     left join ${tables.feedbackSurveyAnswers} la on la.id = sra.answer_id
-     where sr.job_id = ?
-     order by sr.created_at desc, sr.submission_no desc, question_sort_order asc, sra.created_at asc, answer_sort_order asc`,
-    [jobId],
-  )
-
-  const responses = new Map()
-  rows.forEach(row => {
-    if (!responses.has(row.id)) {
-      responses.set(row.id, {
-        ...normalizeSurveyResponseRow(row),
-        answers: [],
-      })
-    }
-
-    if (!row.response_answer_id) return
-    const answerLabel = String(row.answer_label || '').trim()
-    responses.get(row.id).answers.push({
-      id: row.response_answer_id,
-      question_id: row.question_id,
-      question: row.question_text || row.question_id,
-      answer_id: row.answer_id || null,
-      answer: row.answer_text || (answerLabel === '__free_text__' ? '' : answerLabel),
-      answer_text: row.answer_text || '',
-    })
-  })
-
-  return [...responses.values()].map(response => ({
-    ...response,
-    answer_count: response.answers.length,
-  }))
-}
-
 async function getSurvey(req) {
   const jobIdentifier = getQueryValue(req.query?.job || req.query?.job_id, '')
   const type = getSurveyType()
@@ -1830,6 +1821,63 @@ async function getSurveyResponseBySubmissionKey(submissionKey) {
   return normalizeSurveyResponseRow(rows?.[0])
 }
 
+function countSurveySubmittedAnswers(answers = {}, freeText = {}) {
+  const choiceCount = Object.values(answers).reduce((count, value) => {
+    const values = Array.isArray(value) ? value : [value]
+    return count + values.filter(item => item !== undefined && item !== null && String(item).trim() !== '').length
+  }, 0)
+  const freeTextCount = Object.values(freeText).filter(value => trimText(value, 4000)).length
+  return choiceCount + freeTextCount
+}
+
+async function getDashboardSurveyAnswerContext(connection, questionId, answerId) {
+  const safeQuestionId = String(questionId || '').trim()
+  const safeAnswerId = String(answerId || '').trim()
+  if (!/^\d+$/.test(safeQuestionId) || !/^\d+$/.test(safeAnswerId)) return null
+
+  const [rows] = await connection.query(
+    `select
+       q.id as question_id,
+       q.survey_version_id,
+       q.question,
+       q.sort_order as question_order,
+       a.id as answer_id,
+       a.answer,
+       a.sort_order as answer_order
+     from ${tables.surveyQuestions} q
+     inner join ${tables.surveyAnswers} a on a.question_id = q.id and a.id = ?
+     where q.id = ?
+     limit 1`,
+    [safeAnswerId, safeQuestionId],
+  )
+  return rows?.[0] || null
+}
+
+async function mirrorSurveyAnswerToDashboard(connection, {
+  jobId,
+  questionId,
+  answerId,
+  answerText = '',
+  createdAt = nowMysql(),
+} = {}) {
+  const context = await getDashboardSurveyAnswerContext(connection, questionId, answerId)
+  if (!context) return false
+
+  await insertRow(connection, tables.jobAnswers, {
+    question_id: context.question_id,
+    answer_id: context.answer_id,
+    job_id: jobId,
+    survey_version_id: context.survey_version_id,
+    question_text: context.question,
+    answer_text: trimText(answerText, 4000) || context.answer,
+    question_order: context.question_order,
+    answer_order: context.answer_order,
+    created_at: createdAt,
+    updated_at: createdAt,
+  })
+  return true
+}
+
 async function submitSurvey(req, body = {}) {
   const jobIdentifier = body.job || body.job_id
   const type = getSurveyType()
@@ -1840,6 +1888,7 @@ async function submitSurvey(req, body = {}) {
   const freeText = body.free_text || body.freeText || {}
   const submissionKey = trimText(body.submission_key || body.submissionKey, 80)
   const userAgent = req.headers?.['user-agent'] || null
+  const answerCount = countSurveySubmittedAnswers(answers, freeText)
   let result = null
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
@@ -1887,6 +1936,7 @@ async function submitSurvey(req, body = {}) {
         )
         const submissionNo = Number(latestRows?.[0]?.submission_no || 0) + 1
         const responseId = makeId('fbsr')
+        const createdAt = nowMysql()
 
         await insertRow(connection, tables.feedbackSurveyResponses, {
           id: responseId,
@@ -1897,6 +1947,7 @@ async function submitSurvey(req, body = {}) {
           submission_key: emptyToNull(submissionKey),
           respondent_name: emptyToNull(body.respondent_name),
           user_agent: userAgent,
+          created_at: createdAt,
         })
 
         for (const [questionId, answerValues] of Object.entries(answers)) {
@@ -1908,6 +1959,12 @@ async function submitSurvey(req, body = {}) {
               question_id: questionId,
               answer_id: String(answerId),
               answer_text: null,
+            })
+            await mirrorSurveyAnswerToDashboard(connection, {
+              jobId: job.id,
+              questionId,
+              answerId: String(answerId),
+              createdAt,
             })
           }
         }
@@ -1939,6 +1996,13 @@ async function submitSurvey(req, body = {}) {
             answer_id: emptyToNull(freeTextAnswer?.id),
             answer_text: answerText,
           })
+          await mirrorSurveyAnswerToDashboard(connection, {
+            jobId: job.id,
+            questionId,
+            answerId: emptyToNull(freeTextAnswer?.id),
+            answerText,
+            createdAt,
+          })
         }
 
         return {
@@ -1949,7 +2013,7 @@ async function submitSurvey(req, body = {}) {
             survey_type: type,
             submission_no: submissionNo,
             respondent_name: emptyToNull(body.respondent_name),
-            created_at: nowMysql(),
+            created_at: createdAt,
           }),
           duplicate: false,
         }
@@ -1972,7 +2036,7 @@ async function submitSurvey(req, body = {}) {
   }
 
   if (!result?.response) throw makeHttpError('Không tạo được khảo sát.', 500, 'SURVEY_CREATE_FAILED')
-  if (!result.duplicate) notifySurveySubmitted(job, answers, result.response).catch(() => {})
+  if (!result.duplicate) notifySurveySubmitted(job, answerCount, result.response).catch(() => {})
   return {
     ok: true,
     response_id: result.response.id,
@@ -1982,7 +2046,7 @@ async function submitSurvey(req, body = {}) {
   }
 }
 
-async function notifySurveySubmitted(job, answers = {}, response = {}) {
+async function notifySurveySubmitted(job, answerCount = 0, response = {}) {
   const baseUrl = getNhansuBaseUrl()
   if (!baseUrl) return
 
@@ -1993,12 +2057,13 @@ async function notifySurveySubmitted(job, answers = {}, response = {}) {
   await fetch(`${baseUrl}/api/notifications/send`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      type: 5,
-      need_to_send: needToSend,
-      title: 'Eventus Customer Satisfaction Survey',
-      content: `Thông báo ${response.display_name || 'CSS mới'} từ job ${job.job_date || ''} ${job.title || job.id}.\n\nTên khách hàng: ${job.customer_name || '-'}\n\nSố câu trả lời: ${Object.keys(answers).length}`,
-    }),
+    body: JSON.stringify(buildSurveySubmittedNotificationPayload({
+      job,
+      response,
+      recipients: needToSend,
+      answerCount,
+      dashboardUrl: getSurveyDashboardUrl(),
+    })),
   }).catch(() => {})
 }
 
@@ -2064,6 +2129,8 @@ export function isPublicFeedbackRequest(req) {
 
 export const __feedbackTestInternals = Object.freeze({
   buildFeedbackDoneNotificationPayload,
+  buildSurveySubmittedNotificationPayload,
+  countSurveySubmittedAnswers,
   getEmployeePhoneLookupValues,
   getFeedbackNotificationEditorEmployeeId,
   getFeedbackNotificationEditorName,

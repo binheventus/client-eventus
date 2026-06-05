@@ -38,6 +38,81 @@
   }
 }
 
+.feedback-detail-page--dark {
+  color-scheme: dark;
+  background-color: #0f172a;
+  color: #cbd5e1;
+}
+
+.feedback-detail-page--dark [class*="bg-white"],
+.feedback-detail-page--dark [class*="bg-\\[\\#fff7ed\\]"] {
+  background-color: #111827 !important;
+}
+
+.feedback-detail-page--dark [class*="bg-slate-50"] {
+  background-color: rgba(15, 23, 42, 0.82) !important;
+}
+
+.feedback-detail-page--dark [class*="bg-slate-100"] {
+  background-color: #1e293b !important;
+}
+
+.feedback-detail-page--dark [class*="bg-slate-200"],
+.feedback-detail-page--dark [class*="bg-slate-300"] {
+  background-color: #334155 !important;
+}
+
+.feedback-detail-page--dark [class*="bg-\\[\\#f79820\\]\\/10"] {
+  background-color: rgba(247, 152, 32, 0.14) !important;
+}
+
+.feedback-detail-page--dark [class*="border-slate-100"],
+.feedback-detail-page--dark [class*="border-slate-200"],
+.feedback-detail-page--dark [class*="border-slate-300"] {
+  border-color: #334155 !important;
+}
+
+.feedback-detail-page--dark [class*="text-slate-950"],
+.feedback-detail-page--dark [class*="text-slate-900"],
+.feedback-detail-page--dark [class*="text-slate-800"],
+.feedback-detail-page--dark [class*="text-black"] {
+  color: #f8fafc !important;
+}
+
+.feedback-detail-page--dark [class*="text-slate-700"],
+.feedback-detail-page--dark [class*="text-slate-600"] {
+  color: #cbd5e1 !important;
+}
+
+.feedback-detail-page--dark [class*="text-slate-500"],
+.feedback-detail-page--dark [class*="text-slate-400"],
+.feedback-detail-page--dark [class*="text-slate-300"] {
+  color: #94a3b8 !important;
+}
+
+.feedback-detail-page--dark a[class*="text-blue-600"] {
+  color: #fdba74 !important;
+}
+
+.feedback-detail-page--dark a[class*="text-blue-600"]:hover {
+  color: #fed7aa !important;
+}
+
+.feedback-detail-page--dark input,
+.feedback-detail-page--dark select,
+.feedback-detail-page--dark textarea {
+  color: #f8fafc;
+}
+
+.feedback-detail-page--dark input::placeholder,
+.feedback-detail-page--dark textarea::placeholder {
+  color: #64748b;
+}
+
+.feedback-detail-page--dark iframe {
+  background-color: #020617 !important;
+}
+
 .eventus-landing {
   display: flex;
   min-height: 100svh;

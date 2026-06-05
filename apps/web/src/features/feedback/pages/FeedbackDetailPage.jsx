@@ -5,13 +5,14 @@ import {
   BellRing,
   CheckCircle2,
   ChevronDown,
-  ClipboardCheck,
   ExternalLink,
   Film,
   FileUp,
+  Moon,
   Plus,
   Save,
   SendHorizontal,
+  Sun,
   Trash2,
   Video,
   X,
@@ -69,6 +70,10 @@ function TextInput(props) {
       className={`h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-900 outline-none focus:border-[#f79820] focus:ring-2 focus:ring-[#f79820]/20 ${props.className || ''}`}
     />
   )
+}
+
+function getSharedDriveUrl(feedback = {}) {
+  return feedback?.job?.drive_feedback || feedback?.drive_url || ''
 }
 
 function FeedbackDateBadge({ dateBadge, className = '', inParens = false }) {
@@ -218,18 +223,19 @@ function SetupPanel({
   const feedbackNameParts = getFeedbackNameParts(feedback)
   const isCreateMode = mode === 'create'
   const displayDateBadge = dateBadge || feedbackNameParts.dateBadge
+  const sharedDriveUrl = getSharedDriveUrl(feedback)
   const [feedbackName, setFeedbackName] = useState(isCreateMode ? defaultName : feedbackNameParts.name)
   const [editorId, setEditorId] = useState('')
   const [videoUrl, setVideoUrl] = useState(isCreateMode ? '' : feedback.video_url || '')
-  const [driveUrl, setDriveUrl] = useState(isCreateMode ? '' : feedback.drive_url || '')
+  const [driveUrl, setDriveUrl] = useState(sharedDriveUrl)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
     setFeedbackName(isCreateMode ? defaultName : getFeedbackNameParts(feedback).name)
     setVideoUrl(isCreateMode ? '' : feedback.video_url || '')
-    setDriveUrl(isCreateMode ? '' : feedback.drive_url || '')
-  }, [defaultName, feedback.id, feedback.name, feedback.video_url, feedback.drive_url, isCreateMode])
+    setDriveUrl(sharedDriveUrl)
+  }, [defaultName, feedback.id, feedback.name, feedback.video_url, sharedDriveUrl, isCreateMode])
 
   async function createNewFeedback(payload) {
     setSaving(true)
@@ -482,8 +488,8 @@ function getTimecodeColor(comment) {
 
 function getTimecodeButtonClass(comment) {
   return getTimecodeColor(comment) === 'blue'
-    ? 'bg-blue-500 ring-blue-500 hover:bg-blue-600'
-    : 'bg-[#f79820] ring-[#f79820] hover:bg-[#df861d]'
+    ? 'bg-blue-500 text-white ring-blue-500 hover:bg-blue-600'
+    : 'bg-[#f79820]/10 text-[#f79820] ring-[#f79820]/25 hover:bg-[#f79820]/15'
 }
 
 function getTimelineDotClass(comment) {
@@ -508,7 +514,7 @@ function TimelineDotTooltip({ comment, seconds, align = 'center' }) {
     <div className={`pointer-events-none absolute bottom-full z-30 mb-2 hidden w-[260px] max-w-[70vw] rounded-lg border border-slate-200 bg-white p-2.5 text-left shadow-xl group-hover:block group-focus-within:block ${alignClass}`}>
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1.5">
-          <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold text-white ring-1 ${getTimecodeButtonClass(comment)}`}>
+          <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ring-1 ${getTimecodeButtonClass(comment)}`}>
             {formatTimeline(seconds)}
           </span>
           {authorName && <span className="min-w-0 truncate text-[11px] font-semibold text-slate-500">{authorName}</span>}
@@ -646,7 +652,7 @@ function CommentCard({ comment, showSecondColumn, access, onChanged, onSeek, car
             <button
               type="button"
               onClick={() => onSeek(comment.time_comment_1)}
-              className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold text-white ring-1 ${getTimecodeButtonClass(comment)}`}
+              className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ring-1 ${getTimecodeButtonClass(comment)}`}
             >
               {formatTimeline(comment.time_comment_1)}
             </button>
@@ -777,74 +783,6 @@ function OverallFeedbackPanel({ feedback, access, onChanged, fillHeight = false 
   )
 }
 
-function groupSurveyAnswers(answers = []) {
-  const groups = new Map()
-  answers.forEach(answer => {
-    const key = answer.question_id || answer.question || answer.id
-    if (!groups.has(key)) {
-      groups.set(key, {
-        question: answer.question || 'Câu hỏi',
-        values: [],
-      })
-    }
-
-    const value = String(answer.answer_text || answer.answer || '').trim()
-    if (value) groups.get(key).values.push(value)
-  })
-  return [...groups.values()]
-}
-
-function FeedbackSurveyResponsesPanel({ responses = [] }) {
-  if (!responses.length) return null
-
-  return (
-    <section className="rounded-lg border border-slate-200 bg-white p-2.5 shadow-sm">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="inline-flex items-center gap-1.5 text-[12px] font-semibold uppercase text-slate-950">
-          <ClipboardCheck className="h-3.5 w-3.5 text-[#f79820]" />
-          Survey khách hàng
-        </h2>
-        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
-          {responses.length} lượt
-        </span>
-      </div>
-
-      <div className="mt-2 space-y-2">
-        {responses.map((response, index) => {
-          const answerGroups = groupSurveyAnswers(response.answers || [])
-          return (
-            <details key={response.id} open={index === 0} className="rounded-lg border border-slate-200 bg-slate-50">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-left marker:hidden">
-                <span className="min-w-0">
-                  <span className="block truncate text-[13px] font-bold text-slate-900">{response.display_name || `Khảo sát #${response.submission_no || index + 1}`}</span>
-                  <span className="mt-0.5 block text-[11px] font-semibold text-slate-500">{formatFeedbackDateTime(response.created_at)}</span>
-                </span>
-                <span className="shrink-0 rounded-full border border-[#f79820]/25 bg-[#fff7ed] px-2 py-0.5 text-[11px] font-semibold text-[#f79820]">
-                  {response.answer_count || answerGroups.length} câu
-                </span>
-              </summary>
-              <div className="border-t border-slate-200 bg-white px-3 py-2">
-                {answerGroups.length ? (
-                  <div className="space-y-2">
-                    {answerGroups.map(group => (
-                      <div key={group.question}>
-                        <p className="text-[12px] font-semibold leading-5 text-slate-700">{group.question}</p>
-                        <p className="mt-0.5 whitespace-pre-wrap text-[12px] leading-5 text-slate-500">{group.values.join(', ') || '-'}</p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-[12px] font-semibold text-slate-400">Chưa có câu trả lời.</p>
-                )}
-              </div>
-            </details>
-          )
-        })}
-      </div>
-    </section>
-  )
-}
-
 export default function FeedbackDetailPage() {
   const { id } = useParams()
   const location = useLocation()
@@ -863,7 +801,7 @@ export default function FeedbackDetailPage() {
   const [detail, setDetail] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [message, setMessage] = useState('')
+  const [feedbackDonePopup, setFeedbackDonePopup] = useState(null)
   const [footerStatus, setFooterStatus] = useState('')
   const [footerEditorOpen, setFooterEditorOpen] = useState(false)
   const [footerFeedbackName, setFooterFeedbackName] = useState('')
@@ -888,11 +826,14 @@ export default function FeedbackDetailPage() {
   const [newFeedbackClonePromptOpen, setNewFeedbackClonePromptOpen] = useState(false)
   const [newFeedbackCloneUnresolved, setNewFeedbackCloneUnresolved] = useState(false)
   const [newFeedbackCloneSourceId, setNewFeedbackCloneSourceId] = useState('')
+  const [feedbackDarkMode, setFeedbackDarkMode] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return window.localStorage?.getItem('eventus.feedbackDetail.darkMode') === '1'
+  })
 
   const feedback = detail?.feedback
   const comments = detail?.comments || []
   const feedbackVersions = detail?.feedbacks || []
-  const surveyResponses = detail?.survey_responses || []
   const cloneSuggestion = detail?.clone_suggestion || {}
   const cloneSourceFeedback = cloneSuggestion.source_feedback || null
   const unresolvedCloneCount = Math.max(0, Math.floor(Number(cloneSuggestion.unresolved_count) || 0))
@@ -902,11 +843,11 @@ export default function FeedbackDetailPage() {
   const currentFeedbackNameParts = getFeedbackNameParts(feedback || {})
   const permissions = detail?.permissions || {}
   const embedUrl = getFeedbackVideoEmbedUrl(feedback?.video_url)
-  const fourKDownloadUrl = feedback?.drive_url || ''
+  const fourKDownloadUrl = getSharedDriveUrl(feedback)
   const surveyJobIdentifier = feedback?.job?.public_token || feedback?.job_id || ''
   const videoSurveyUrl = surveyJobIdentifier ? `/survey?job=${encodeURIComponent(surveyJobIdentifier)}` : ''
   const canDeleteFeedback = Boolean(permissions.can_delete_feedback)
-  const showFeedbackStatusPanel = Boolean(message || error || !feedback?.video_url || newFeedbackDraftOpen)
+  const showFeedbackStatusPanel = Boolean(error || !feedback?.video_url || newFeedbackDraftOpen)
   const jobTitle = feedback?.job?.title || `Job #${feedback?.job_id || ''}`
   const jobDateTitle = formatFeedbackDateDots(feedback?.job?.job_date)
   const pageJobTitle = jobDateTitle ? `${jobDateTitle} ${jobTitle}` : jobTitle
@@ -1079,6 +1020,10 @@ export default function FeedbackDetailPage() {
   useEscapeToClose(() => {
     setNewFeedbackClonePromptOpen(false)
   }, newFeedbackClonePromptOpen)
+
+  useEscapeToClose(() => {
+    setFeedbackDonePopup(null)
+  }, Boolean(feedbackDonePopup))
 
   useEffect(() => {
     if (!embedUrl) return undefined
@@ -1303,7 +1248,7 @@ export default function FeedbackDetailPage() {
   function openFooterEditor() {
     setFooterFeedbackName(getFeedbackNameParts(feedback || {}).name)
     setFooterVideoUrl(feedback?.video_url || '')
-    setFooterDriveUrl(feedback?.drive_url || '')
+    setFooterDriveUrl(getSharedDriveUrl(feedback))
     setDeleteFeedbackDialogOpen(false)
     setDeleteConfirmText('')
     setDeleteFeedbackError('')
@@ -1360,17 +1305,37 @@ export default function FeedbackDetailPage() {
     window.setTimeout(() => window.location.assign(videoSurveyUrl), 0)
   }
 
+  function toggleFeedbackDarkMode() {
+    setFeedbackDarkMode(current => {
+      const next = !current
+      window.localStorage?.setItem('eventus.feedbackDetail.darkMode', next ? '1' : '0')
+      return next
+    })
+  }
+
   async function doneFeedback() {
+    const editorName = feedback.editor_name || feedback.job?.editor_name || 'Editor'
     setNotifyingEditor(true)
     setError('')
-    setMessage('')
+    setFeedbackDonePopup({
+      sent: true,
+      editorName,
+      intro: 'Đã ghi nhận Feedback hoàn tất và thông báo tới',
+      editorLine: `Editor ${editorName}.`,
+    })
     try {
       const next = await markFeedbackDone(feedback.id, access)
       setDetail(next)
-      const editorName = feedback.editor_name || feedback.job?.editor_name || 'Editor'
-      setMessage(next.notification?.sent
-        ? `Đã ghi nhận Feedback hoàn tất và thông báo tới Editor ${editorName}.`
-        : `Đã ghi nhận Feedback hoàn tất, nhưng chưa xác nhận được thông báo tới Editor ${editorName}.`)
+      const nextFeedback = next?.feedback || feedback
+      const confirmedEditorName = nextFeedback.editor_name || nextFeedback.job?.editor_name || editorName
+      setFeedbackDonePopup({
+        sent: Boolean(next.notification?.sent),
+        editorName: confirmedEditorName,
+        intro: next.notification?.sent
+          ? 'Đã ghi nhận Feedback hoàn tất và thông báo tới'
+          : 'Đã ghi nhận Feedback hoàn tất, nhưng chưa xác nhận được thông báo tới',
+        editorLine: `Editor ${confirmedEditorName}.`,
+      })
     } catch (err) {
       refresh().catch(() => {})
       setError(err?.message || 'Không thông báo được tới Editor.')
@@ -1398,7 +1363,7 @@ export default function FeedbackDetailPage() {
   }
 
   return (
-    <main className="h-[100dvh] overflow-hidden bg-slate-50">
+    <main className={`feedback-detail-page h-[100dvh] overflow-hidden bg-slate-50 ${feedbackDarkMode ? 'feedback-detail-page--dark' : ''}`}>
       <div className="flex h-full flex-col px-3 py-2 lg:pl-0 lg:pr-3">
         <header className="shrink-0 rounded-lg border border-slate-200 bg-white shadow-sm lg:rounded-l-none">
           <div className="flex flex-col gap-2 px-3 py-2 lg:flex-row lg:items-center lg:justify-between lg:gap-3 lg:px-4 lg:py-3">
@@ -1477,7 +1442,7 @@ export default function FeedbackDetailPage() {
                 type="button"
                 onClick={doneFeedback}
                 disabled={notifyingEditor}
-                className={`${fourKDownloadUrl ? '' : 'col-span-2'} inline-flex min-h-8 max-w-full items-center justify-center gap-1.5 rounded-lg bg-[#f79820] px-2 py-1 text-[11px] font-semibold leading-tight text-white hover:bg-[#df861d] disabled:cursor-not-allowed disabled:opacity-70 lg:gap-2 lg:px-2.5 lg:text-[13px]`}
+                className={`${fourKDownloadUrl ? '' : 'col-span-2'} inline-flex min-h-8 max-w-full items-center justify-center gap-1.5 rounded-lg border border-[#f79820]/30 bg-white px-2 py-1 text-[11px] font-semibold leading-tight text-[#f79820] hover:bg-[#f79820]/10 disabled:cursor-not-allowed disabled:opacity-70 lg:gap-2 lg:px-2.5 lg:text-[13px]`}
               >
                 {notifyingEditor ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 lg:h-4 lg:w-4" /> : <BellRing className="h-3.5 w-3.5 shrink-0 lg:h-4 lg:w-4" />}
                 {notifyingEditor ? (
@@ -1495,7 +1460,6 @@ export default function FeedbackDetailPage() {
 
         {showFeedbackStatusPanel && (
           <div className="mt-2 shrink-0 space-y-2">
-            {message && <Alert type="success" className="text-center !text-slate-950">{message}</Alert>}
             {error && <Alert type="error">{error}</Alert>}
             {newFeedbackDraftOpen ? (
               <div className="lg:grid lg:gap-3 lg:grid-cols-[minmax(0,2.2fr)_minmax(380px,0.85fr)] xl:grid-cols-[minmax(0,2.35fr)_minmax(410px,0.9fr)]">
@@ -1571,8 +1535,6 @@ export default function FeedbackDetailPage() {
 
           <aside className="flex min-h-0 flex-1 flex-col overflow-hidden lg:h-full lg:pr-1">
             <div className="feedback-detail-comment-list min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pb-0">
-              <FeedbackSurveyResponsesPanel responses={surveyResponses} />
-
 	              {comments.length ? comments.map(comment => (
 	                <CommentCard
 	                  key={comment.id}
@@ -1650,10 +1612,18 @@ export default function FeedbackDetailPage() {
               <span><span className="font-semibold text-slate-500">Editor:</span> {feedback.editor_name || feedback.job?.editor_name || '-'}</span>
               <span><span className="font-semibold text-slate-500">Điện thoại:</span> {feedback.editor_phone || feedback.job?.editor_phone || '-'}</span>
               <span><span className="font-semibold text-slate-500">Cập nhật:</span> {formatFeedbackDateTime(feedback.updated_at)}</span>
-              <span><span className="font-semibold text-slate-500">Trạng thái:</span> {feedback.done_feedback ? 'Khách hàng đã hoàn tất feedback' : 'Đang feedback'}</span>
             </div>
-            <div className="shrink-0 text-left lg:text-right">
+            <div className="flex shrink-0 items-center gap-2 text-left lg:text-right">
               <span>{footerCopyright}</span>
+              <button
+                type="button"
+                onClick={toggleFeedbackDarkMode}
+                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 transition hover:border-[#f79820]/40 hover:bg-[#f79820]/10 hover:text-[#f79820]"
+                aria-label={feedbackDarkMode ? 'Chuyển sang Light mode' : 'Chuyển sang Dark mode'}
+                title={feedbackDarkMode ? 'Light mode' : 'Dark mode'}
+              >
+                {feedbackDarkMode ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+              </button>
             </div>
           </div>
         </footer>
@@ -1774,6 +1744,36 @@ export default function FeedbackDetailPage() {
                 </button>
               </div>
             </form>
+          </section>
+        </div>
+      )}
+      {feedbackDonePopup && (
+        <div
+          className="fixed inset-0 z-[70] grid place-items-center bg-slate-950/35 px-4 py-6"
+          onClick={() => setFeedbackDonePopup(null)}
+        >
+          <section
+            className="w-full max-w-md rounded-lg border border-[#f79820]/30 p-5 text-center shadow-2xl ring-1 ring-white/70"
+            style={{ background: 'linear-gradient(135deg, rgb(255,237,213), rgb(255,251,245) 46%, rgb(209,239,231))' }}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Feedback đã hoàn tất"
+            onClick={event => event.stopPropagation()}
+          >
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-xl bg-[#f79820]/10 text-[#f79820] ring-1 ring-[#f79820]/25">
+              <CheckCircle2 className="h-10 w-10" />
+            </div>
+            <p className="mt-5 text-[15px] font-semibold leading-7 text-slate-800">
+              <span className="block">{feedbackDonePopup.intro}</span>
+              <span className="block">{feedbackDonePopup.editorLine}</span>
+            </p>
+            <button
+              type="button"
+              onClick={() => setFeedbackDonePopup(null)}
+              className="mt-5 inline-flex h-9 items-center justify-center rounded-lg bg-[#f79820] px-5 text-[13px] font-semibold text-white hover:bg-[#df861d]"
+            >
+              Đóng
+            </button>
           </section>
         </div>
       )}

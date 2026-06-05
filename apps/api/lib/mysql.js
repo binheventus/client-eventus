@@ -28,6 +28,7 @@ export const tables = {
   surveyQuestions: 'questions',
   surveyAnswers: 'answers',
   jobs: 'jobs',
+  jobAnswers: 'job_answers',
   employees: 'employees',
   employeeJobs: 'employee_job',
 }
