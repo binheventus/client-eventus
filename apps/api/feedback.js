@@ -40,7 +40,6 @@ const DEFAULT_RCLONE_REMOTE = 'eventus'
 const DEFAULT_RCLONE_FEEDBACK_DIR = 'feedback'
 const DEFAULT_NHANSU_URL = 'https://nhansu.eventusproduction.com'
 const EVENTUS_AUTH_HOST = 'lichlamviec.eventusproduction.com'
-const FEEDBACK_NOTIFICATION_ADMIN_PHONE = '0972554172'
 const CSS_SINCE_062026_VERSION_NAME = 'CSS Since 06.2026'
 const CSS_SURVEY_COPY = {
   title: 'Chia sẻ trải nghiệm của Anh/Chị cùng Eventus',
@@ -377,14 +376,14 @@ function getFeedbackDoneName(feedback = {}) {
   return name.toLowerCase().includes('feedback') ? name : `Feedback ${name}`
 }
 
-function buildFeedbackDoneNotificationPayload(feedback = {}, recipients = []) {
+function buildFeedbackDoneNotificationPayload(feedback = {}, editorEmployeeId = null) {
   const feedbackName = getFeedbackDoneName(feedback)
-  const jobTitle = feedback.job?.title || feedback.job?.job_title || feedback.job_id || ''
+  const jobTitle = feedback.job?.job_title || feedback.job?.title || feedback.job_id || ''
   return {
     type: 1,
-    need_to_send: recipients,
+    need_to_send: [editorEmployeeId].filter(Boolean),
     title: 'Khách đã hoàn thành Feedback!',
-    content: `Khách hàng đã hoàn thành ${feedbackName} của job ${jobTitle}.\nBạn hãy check và confirm thời gian gửi bản tiếp theo cho khách nhé.`,
+    content: `Khách hàng đã hoàn thành ${feedbackName} của job ${jobTitle}\nBạn hãy check và confirm thời gian gửi bản tiếp theo cho khách nhé. \n`,
   }
 }
 
@@ -412,7 +411,9 @@ function normalizeNhansuBaseUrl(value = '') {
 
 function getNhansuBaseUrl() {
   loadServerEnv()
-  return normalizeNhansuBaseUrl(process.env.NHANSU_URL) || DEFAULT_NHANSU_URL
+  return normalizeNhansuBaseUrl(process.env.BASE_NHANSU_URL)
+    || normalizeNhansuBaseUrl(process.env.NHANSU_URL)
+    || DEFAULT_NHANSU_URL
 }
 
 function getAuthUserRole(user = {}) {
@@ -1611,22 +1612,19 @@ async function findFeedbackEditorEmployeeId(feedback) {
 
 async function notifyFeedbackDone(feedback) {
   const baseUrl = getNhansuBaseUrl()
-  if (!baseUrl) throw makeHttpError('Chưa cấu hình NHANSU_URL để gửi thông báo tới Editor.', 500, 'NHANSU_URL_MISSING')
+  if (!baseUrl) throw makeHttpError('Chưa cấu hình BASE_NHANSU_URL để gửi thông báo tới Editor.', 500, 'NHANSU_URL_MISSING')
 
   const editorEmployeeId = await findFeedbackEditorEmployeeId(feedback)
   if (!editorEmployeeId) {
     throw makeHttpError('Không tìm thấy Editor trong danh sách nhân sự để gửi thông báo.', 422, 'FEEDBACK_EDITOR_NOT_FOUND')
   }
 
-  const adminEmployeeId = await findEmployeeIdByPhone(FEEDBACK_NOTIFICATION_ADMIN_PHONE)
-  const recipients = [...new Set([editorEmployeeId, adminEmployeeId].filter(Boolean))]
-
   let response
   try {
     response = await fetch(`${baseUrl}/api/notifications/send`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(buildFeedbackDoneNotificationPayload(feedback, recipients)),
+      body: JSON.stringify(buildFeedbackDoneNotificationPayload(feedback, editorEmployeeId)),
     })
   } catch (error) {
     throw makeHttpError(
@@ -1645,7 +1643,7 @@ async function notifyFeedbackDone(feedback) {
     )
   }
 
-  return { sent: true, recipients }
+  return { sent: true, recipients: [editorEmployeeId] }
 }
 
 function normalizeSurveyQuestionRows(rows = [], type = 'video') {

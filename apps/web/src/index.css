@@ -23,6 +23,21 @@
   }
 }
 
+@media (min-width: 1024px) {
+  .feedback-detail-workspace {
+    grid-template-columns: minmax(0, var(--feedback-video-column-width, 1fr)) minmax(360px, 1fr);
+  }
+
+  .feedback-detail-workspace[data-feedback-layout-ready="true"] .feedback-detail-video-stack {
+    width: var(--feedback-video-column-width);
+  }
+
+  .feedback-detail-workspace[data-feedback-layout-ready="true"] .feedback-detail-comment-list {
+    flex: 0 0 var(--feedback-detail-form-offset);
+    height: var(--feedback-detail-form-offset);
+  }
+}
+
 .eventus-landing {
   display: flex;
   min-height: 100svh;

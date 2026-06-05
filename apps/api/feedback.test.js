@@ -8,6 +8,21 @@ import {
   isPublicFeedbackRequest,
 } from './feedback.js'
 
+function setEnv(name, value) {
+  if (value === undefined) delete process.env[name]
+  else process.env[name] = value
+}
+
+function withEnv(values, callback) {
+  const previous = new Map(Object.keys(values).map(name => [name, process.env[name]]))
+  Object.entries(values).forEach(([name, value]) => setEnv(name, value))
+  try {
+    callback()
+  } finally {
+    previous.forEach((value, name) => setEnv(name, value))
+  }
+}
+
 test('feedback detail can be opened publicly with a share token path id', () => {
   assert.equal(isPublicFeedbackRequest({
     method: 'GET',
@@ -91,56 +106,58 @@ test('feedback done notification lookup supports Vietnam phone variants', () => 
   assert.equal(__feedbackTestInternals.normalizeVietnamPhone('+84 972 554 172'), '0972554172')
 })
 
-test('feedback done notification payload keeps the legacy Feedback prefix', () => {
+test('feedback done notification payload sends only the editor employee id', () => {
   const payload = __feedbackTestInternals.buildFeedbackDoneNotificationPayload({
     name: '#2',
     job: {
-      title: 'Year End Party 2026',
+      title: 'Fallback Title',
+      job_title: 'Year End Party 2026',
     },
-  }, [10, 20])
+  }, 10)
 
-  assert.deepEqual(payload.need_to_send, [10, 20])
-  assert.match(payload.content, /Feedback #2/)
-  assert.match(payload.content, /Year End Party 2026/)
+  assert.deepEqual(payload, {
+    type: 1,
+    need_to_send: [10],
+    title: 'Khách đã hoàn thành Feedback!',
+    content: 'Khách hàng đã hoàn thành Feedback #2 của job Year End Party 2026\nBạn hãy check và confirm thời gian gửi bản tiếp theo cho khách nhé. \n',
+  })
 })
 
-test('feedback notification uses NHANSU_URL when configured', () => {
-  const previousNhansuUrl = process.env.NHANSU_URL
-  const previousAuthBaseUrl = process.env.EVENTUS_AUTH_BASE_URL
-  process.env.NHANSU_URL = 'https://nhansu.example.com///'
-  process.env.EVENTUS_AUTH_BASE_URL = 'https://auth.example.com'
-  try {
+test('feedback notification uses BASE_NHANSU_URL when configured', () => {
+  withEnv({
+    BASE_NHANSU_URL: 'https://nhansu.example.com///',
+    NHANSU_URL: 'https://fallback.example.com',
+    EVENTUS_AUTH_BASE_URL: 'https://auth.example.com',
+  }, () => {
     assert.equal(__feedbackTestInternals.getNhansuBaseUrl(), 'https://nhansu.example.com')
-  } finally {
-    if (previousNhansuUrl === undefined) delete process.env.NHANSU_URL
-    else process.env.NHANSU_URL = previousNhansuUrl
-    if (previousAuthBaseUrl === undefined) delete process.env.EVENTUS_AUTH_BASE_URL
-    else process.env.EVENTUS_AUTH_BASE_URL = previousAuthBaseUrl
-  }
+  })
+})
+
+test('feedback notification falls back to NHANSU_URL when BASE_NHANSU_URL is blank', () => {
+  withEnv({
+    BASE_NHANSU_URL: '   ',
+    NHANSU_URL: 'https://fallback.example.com///',
+    EVENTUS_AUTH_BASE_URL: 'https://auth.example.com',
+  }, () => {
+    assert.equal(__feedbackTestInternals.getNhansuBaseUrl(), 'https://fallback.example.com')
+  })
 })
 
 test('feedback notification ignores legacy lichlamviec NHANSU_URL', () => {
-  const previousNhansuUrl = process.env.NHANSU_URL
-  process.env.NHANSU_URL = 'https://lichlamviec.eventusproduction.com///'
-  try {
+  withEnv({
+    BASE_NHANSU_URL: '   ',
+    NHANSU_URL: 'https://lichlamviec.eventusproduction.com///',
+  }, () => {
     assert.equal(__feedbackTestInternals.getNhansuBaseUrl(), 'https://nhansu.eventusproduction.com')
-  } finally {
-    if (previousNhansuUrl === undefined) delete process.env.NHANSU_URL
-    else process.env.NHANSU_URL = previousNhansuUrl
-  }
+  })
 })
 
 test('feedback notification falls back to the Nhansu URL instead of Eventus auth URL', () => {
-  const previousNhansuUrl = process.env.NHANSU_URL
-  const previousAuthBaseUrl = process.env.EVENTUS_AUTH_BASE_URL
-  process.env.NHANSU_URL = '   '
-  process.env.EVENTUS_AUTH_BASE_URL = 'https://lichlamviec.example.com///'
-  try {
+  withEnv({
+    BASE_NHANSU_URL: '   ',
+    NHANSU_URL: '   ',
+    EVENTUS_AUTH_BASE_URL: 'https://lichlamviec.example.com///',
+  }, () => {
     assert.equal(__feedbackTestInternals.getNhansuBaseUrl(), 'https://nhansu.eventusproduction.com')
-  } finally {
-    if (previousNhansuUrl === undefined) delete process.env.NHANSU_URL
-    else process.env.NHANSU_URL = previousNhansuUrl
-    if (previousAuthBaseUrl === undefined) delete process.env.EVENTUS_AUTH_BASE_URL
-    else process.env.EVENTUS_AUTH_BASE_URL = previousAuthBaseUrl
-  }
+  })
 })
