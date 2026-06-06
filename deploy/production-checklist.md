@@ -56,16 +56,27 @@ Expected:
 
 ## Feedback environment
 
-Feedback upload dùng Google Drive qua `rclone`, nên production cần có:
+Feedback upload lưu ảnh trực tiếp trên VPS. Production nên trỏ upload root ra
+thư mục runtime ngoài source/build và chạy cleanup hằng ngày:
 
 ```bash
-RCLONE_BIN=rclone
-RCLONE_REMOTE=eventus
-RCLONE_FEEDBACK_DIR=feedback
-FEEDBACK_UPLOAD_STORAGE=rclone
+FEEDBACK_UPLOAD_ROOT=/var/www/client-eventus/uploads
+FEEDBACK_UPLOAD_PUBLIC_PREFIX=/feedback-assets/uploads
+FEEDBACK_ATTACHMENT_TTL_DAYS=20
+FEEDBACK_IMAGE_MAX_COUNT=4
+FEEDBACK_IMAGE_MAX_BYTES=3145728
+VITE_FEEDBACK_IMAGE_MAX_COUNT=4
+VITE_FEEDBACK_IMAGE_MAX_EDGE=1600
+VITE_FEEDBACK_IMAGE_MAX_BYTES=3145728
 YT_DLP_BIN=/usr/local/bin/yt-dlp
 FFMPEG_BINARIES=ffmpeg
 NHANSU_URL=https://...
+```
+
+Ví dụ cron cleanup:
+
+```bash
+0 3 * * * cd /path/to/client-eventus && npm run feedback:cleanup-attachments -- --force >> /var/log/client-eventus-feedback-cleanup.log 2>&1
 ```
 
 Trước khi tắt deploy `feedback-eventus`, kiểm tra link cũ theo mẫu:

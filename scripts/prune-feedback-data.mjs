@@ -160,8 +160,8 @@ try {
       dry_run: true,
       next_step: 'Chay lai voi --force neu muon xoa cac dong tren.',
       note: includePhysicalFiles
-        ? 'Flag --include-physical-files hien chi duoc ghi nhan; script nay khong xoa file Google Drive/local de tranh pha link ngoai y muon.'
-        : 'Script chi xoa DB trong client_feedback_*. Khong xoa bang legacy va khong xoa file Google Drive/local.',
+        ? 'Flag --include-physical-files hien chi duoc ghi nhan; file attachment het han nen xoa bang feedback:cleanup-attachments.'
+        : 'Script chi xoa DB trong client_feedback_*. Khong xoa bang legacy va khong xoa file attachment.',
     }, null, 2))
     process.exit(0)
   }
@@ -173,7 +173,7 @@ try {
     dry_run: false,
     after: after.before,
     remaining_old_rows: after.prune,
-    note: 'Da xoa DB trong client_feedback_*. Khong xoa bang legacy va khong xoa file Google Drive/local.',
+    note: 'Da xoa DB trong client_feedback_*. Khong xoa bang legacy va khong xoa file attachment.',
   }, null, 2))
 } finally {
   await pool.end()

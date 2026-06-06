@@ -45,9 +45,13 @@ import {
   getFeedbackVideoEmbedUrl,
   linkifyFeedbackText,
   parseTimeToSeconds,
-  readFileAsDataUrl,
+  prepareFeedbackImageUpload,
 } from '../lib/feedbackFormat'
 import { useEscapeToClose } from '../../../hooks/useEscapeToClose'
+
+const MAX_FEEDBACK_COMMENT_IMAGES = Math.max(1, Number(import.meta.env.VITE_FEEDBACK_IMAGE_MAX_COUNT || 4))
+const FEEDBACK_IMAGE_MAX_EDGE = Math.max(320, Number(import.meta.env.VITE_FEEDBACK_IMAGE_MAX_EDGE || 1600))
+const FEEDBACK_IMAGE_MAX_BYTES = Math.max(128 * 1024, Number(import.meta.env.VITE_FEEDBACK_IMAGE_MAX_BYTES || 3 * 1024 * 1024))
 
 function Alert({ type = 'info', children, className = '' }) {
   const styles = type === 'error'
@@ -216,12 +220,14 @@ function SetupPanel({
   onSaved,
   onCreated,
   onCancel,
+  surface = 'panel',
 }) {
   const feedback = detail.feedback
   const employees = detail.employees || []
   const existingEditorName = feedback.editor_name || feedback.job?.editor_name || ''
   const feedbackNameParts = getFeedbackNameParts(feedback)
   const isCreateMode = mode === 'create'
+  const isPopupSurface = surface === 'popup'
   const displayDateBadge = dateBadge || feedbackNameParts.dateBadge
   const sharedDriveUrl = getSharedDriveUrl(feedback)
   const [feedbackName, setFeedbackName] = useState(isCreateMode ? defaultName : feedbackNameParts.name)
@@ -284,12 +290,18 @@ function SetupPanel({
   }
 
   return (
-    <section className="h-full rounded-lg border border-[#f79820]/30 bg-[#f79820]/10 p-5">
+    <section className={isPopupSurface
+      ? 'rounded-lg border border-[#f79820]/30 bg-white p-5 shadow-xl'
+      : 'h-full rounded-lg border border-[#f79820]/30 bg-[#f79820]/10 p-5'}
+    >
       <div className="flex items-center">
-        <h2 className="text-[12px] font-semibold uppercase text-slate-950">
+        <h2
+          id={isPopupSurface && isCreateMode ? 'feedback-create-title' : undefined}
+          className={`${isPopupSurface ? 'text-[16px]' : 'text-[12px] uppercase'} font-semibold text-slate-950`}
+        >
           {isCreateMode ? 'Thêm bản feedback mới' : 'Cài đặt bản feedback'}
           {isCreateMode && cloneUnresolved && (
-            <span className="normal-case text-slate-950">
+            <span className={`${isPopupSurface ? 'mt-1 block text-[12px] font-medium leading-5 text-slate-500' : 'normal-case text-slate-950'}`}>
               {' '}(Bản này sẽ clone {formatFeedbackCloneCount(cloneUnresolvedCount)} feedback từ bản trước chưa sửa.)
             </span>
           )}
@@ -306,9 +318,14 @@ function SetupPanel({
         )}
       </div>
 
-      <form onSubmit={handleSubmit} className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(140px,0.75fr)_minmax(180px,1fr)_minmax(160px,0.8fr)_auto]">
+      <form
+        onSubmit={handleSubmit}
+        className={isPopupSurface
+          ? 'mt-4 grid gap-4 sm:grid-cols-2'
+          : 'mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(140px,0.75fr)_minmax(180px,1fr)_minmax(160px,0.8fr)_auto]'}
+      >
         {!existingEditorName && (
-          <div className="md:col-span-2 xl:col-span-4">
+          <div className={isPopupSurface ? 'sm:col-span-2' : 'md:col-span-2 xl:col-span-4'}>
             <FieldLabel>Editor</FieldLabel>
             <select
               value={editorId}
@@ -335,7 +352,7 @@ function SetupPanel({
           />
         </div>
 
-        <div>
+        <div className={isPopupSurface ? 'sm:col-span-2' : ''}>
           <FieldLabel>Youtube URL</FieldLabel>
           <TextInput
             value={videoUrl}
@@ -346,7 +363,7 @@ function SetupPanel({
           />
         </div>
 
-        <div>
+        <div className={isPopupSurface ? 'sm:col-span-2' : ''}>
           <FieldLabel>Link Google Drive tải file</FieldLabel>
           <TextInput
             value={driveUrl}
@@ -356,52 +373,58 @@ function SetupPanel({
           />
         </div>
 
-        <div className="flex items-end">
+        <div className={isPopupSurface ? 'flex items-end sm:col-span-2 sm:justify-end' : 'flex items-end'}>
           <button
             type="submit"
             disabled={saving}
-            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-[#f79820] px-5 text-[13px] font-semibold whitespace-nowrap text-white hover:bg-[#df861d] disabled:cursor-not-allowed disabled:opacity-60 md:w-auto"
+            className={`inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-[#f79820] px-5 text-[13px] font-semibold whitespace-nowrap text-white hover:bg-[#df861d] disabled:cursor-not-allowed disabled:opacity-60 ${isPopupSurface ? 'sm:w-auto' : 'md:w-auto'}`}
           >
             <Save className="h-4 w-4" />
-            {saving ? 'Đang lưu...' : 'Lưu và vào Feedback'}
+            {saving ? 'Đang lưu...' : isCreateMode ? 'Tạo bản mới' : 'Lưu và vào Feedback'}
           </button>
         </div>
 
-        {error && <div className="md:col-span-2 xl:col-span-4"><Alert type="error">{error}</Alert></div>}
+        {error && <div className={isPopupSurface ? 'sm:col-span-2' : 'md:col-span-2 xl:col-span-4'}><Alert type="error">{error}</Alert></div>}
       </form>
     </section>
   )
 }
 
 function AttachmentList({ attachments = [], access, onChanged }) {
+  const [deletingId, setDeletingId] = useState('')
   if (!attachments.length) return null
 
   return (
-    <div className="mt-2 flex flex-wrap gap-1.5">
+    <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
       {attachments.map(file => (
-        <div key={file.id} className="flex max-w-full items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-1.5 py-1">
+        <div key={file.id} className="relative aspect-[4/3] overflow-hidden rounded-md border border-slate-200 bg-slate-50">
           {file.file_type === 'image' && file.preview_url ? (
-            <a href={file.url} target="_blank" rel="noreferrer" className="block h-6 w-8 shrink-0 overflow-hidden rounded border border-slate-200 bg-white">
-              <img src={file.preview_url} alt={file.file_name} className="h-full w-full object-cover" />
+            <a href={file.url} target="_blank" rel="noreferrer" className="block h-full w-full bg-white">
+              <img src={file.preview_url} alt={file.file_name} loading="lazy" className="h-full w-full object-cover" />
             </a>
           ) : (
-            <span className="flex h-6 w-8 shrink-0 items-center justify-center rounded bg-white text-[9px] font-bold text-slate-400">
+            <a href={file.url} target="_blank" rel="noreferrer" className="flex h-full w-full items-center justify-center bg-white text-[10px] font-bold text-slate-400">
               FILE
-            </span>
+            </a>
           )}
-          <a href={file.url} target="_blank" rel="noreferrer" className="min-w-0 max-w-[180px] truncate text-[11px] font-semibold text-[#f79820] hover:underline">
-            {file.file_name}
-          </a>
           <button
             type="button"
             onClick={async () => {
-              await deleteFeedbackAttachment(file.id, access)
-              onChanged()
+              if (deletingId) return
+              setDeletingId(file.id)
+              try {
+                await deleteFeedbackAttachment(file.id, access)
+                onChanged()
+              } finally {
+                setDeletingId('')
+              }
             }}
-            className="shrink-0 rounded px-1 text-[11px] font-semibold text-slate-400 hover:bg-[#f79820]/10 hover:text-[#f79820]"
-            aria-label="Xóa file"
+            disabled={Boolean(deletingId)}
+            className="absolute right-1 top-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-950/70 text-white shadow-sm hover:bg-[#f79820] disabled:cursor-not-allowed disabled:opacity-60"
+            aria-label="Xóa ảnh"
+            title="Xóa ảnh"
           >
-            ×
+            <X className="h-3 w-3" />
           </button>
         </div>
       ))}
@@ -612,6 +635,9 @@ function CommentCard({ comment, showSecondColumn, access, onChanged, onSeek, car
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
   const authorName = String(comment.author_name || '').trim()
+  const attachments = comment.attachments || []
+  const imageAttachmentCount = attachments.filter(file => file.file_type === 'image').length
+  const remainingImageSlots = Math.max(0, MAX_FEEDBACK_COMMENT_IMAGES - imageAttachmentCount)
 
   async function deleteComment() {
     await deleteFeedbackComment(comment.id, access)
@@ -624,18 +650,35 @@ function CommentCard({ comment, showSecondColumn, access, onChanged, onSeek, car
   }
 
   async function upload(event) {
-    const file = event.target.files?.[0]
+    const files = Array.from(event.target.files || [])
     event.target.value = ''
-    if (!file || uploading) return
+    if (!files.length || uploading) return
+    if (remainingImageSlots <= 0) {
+      setUploadError(`Mỗi comment chỉ được upload tối đa ${MAX_FEEDBACK_COMMENT_IMAGES} ảnh.`)
+      return
+    }
+
+    const selectedFiles = files.slice(0, remainingImageSlots)
     setUploading(true)
-    setUploadError('')
+    setUploadError(files.length > selectedFiles.length
+      ? `Chỉ upload ${selectedFiles.length} ảnh vì comment còn ${remainingImageSlots} vị trí trống.`
+      : '')
     try {
-      const dataUrl = await readFileAsDataUrl(file)
-      await uploadFeedbackAttachment(comment.id, {
-        file_name: file.name,
-        data_url: dataUrl,
-        field_name: 'comment_1',
-      }, access)
+      const preparedFiles = []
+      for (const file of selectedFiles) {
+        preparedFiles.push(await prepareFeedbackImageUpload(file, {
+          maxEdge: FEEDBACK_IMAGE_MAX_EDGE,
+          maxBytes: FEEDBACK_IMAGE_MAX_BYTES,
+        }))
+      }
+
+      for (let index = 0; index < preparedFiles.length; index += 2) {
+        const batch = preparedFiles.slice(index, index + 2)
+        await Promise.all(batch.map(file => uploadFeedbackAttachment(comment.id, {
+          file,
+          field_name: 'comment_1',
+        }, access)))
+      }
       onChanged()
     } catch (err) {
       setUploadError(err?.message || 'Không upload được file.')
@@ -668,10 +711,10 @@ function CommentCard({ comment, showSecondColumn, access, onChanged, onSeek, car
 
           <div className="flex shrink-0 items-center gap-1">
             <DoneSwitch checked={Boolean(comment.is_done_1)} onClick={markDone} />
-            <label className={`inline-flex h-7 items-center justify-center gap-1.5 rounded-md border border-[#f79820]/40 bg-white px-2 text-[11px] font-semibold text-[#f79820] hover:bg-[#f79820]/10 ${uploading ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`} title="Upload file">
+            <label className={`inline-flex h-7 items-center justify-center gap-1.5 rounded-md border border-[#f79820]/40 bg-white px-2 text-[11px] font-semibold text-[#f79820] hover:bg-[#f79820]/10 ${uploading || remainingImageSlots <= 0 ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`} title="Upload ảnh">
               <FileUp className="h-3 w-3" />
-              <span>{uploading ? 'Đang upload' : 'Upload'}</span>
-              <input type="file" className="hidden" onChange={upload} disabled={uploading} />
+              <span>{uploading ? 'Đang upload' : remainingImageSlots <= 0 ? 'Đủ ảnh' : 'Upload'}</span>
+              <input type="file" accept="image/*" multiple className="hidden" onChange={upload} disabled={uploading || remainingImageSlots <= 0} />
             </label>
             <button
               type="button"
@@ -699,7 +742,7 @@ function CommentCard({ comment, showSecondColumn, access, onChanged, onSeek, car
           )}
         </div>
 
-        <AttachmentList attachments={comment.attachments} access={access} onChanged={onChanged} />
+        <AttachmentList attachments={attachments} access={access} onChanged={onChanged} />
         {uploadError && (
           <div className="mt-2 rounded-md border border-[#f79820]/30 bg-[#f79820]/10 px-2.5 py-2 text-[12px] font-semibold text-[#b86414]">
             {uploadError}
@@ -756,7 +799,7 @@ function OverallFeedbackPanel({ feedback, access, onChanged, fillHeight = false 
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-[12px] font-semibold uppercase text-slate-950">Feedback tổng quan</h2>
         {saveStatus && (
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-right text-[11px] font-semibold text-emerald-700">
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[#f79820]/25 bg-[#f79820]/10 px-2 py-0.5 text-right text-[11px] font-semibold text-[#f79820]">
             <CheckCircle2 className="h-3 w-3" />
             {saveStatus}
           </span>
@@ -847,7 +890,7 @@ export default function FeedbackDetailPage() {
   const surveyJobIdentifier = feedback?.job?.public_token || feedback?.job_id || ''
   const videoSurveyUrl = surveyJobIdentifier ? `/survey?job=${encodeURIComponent(surveyJobIdentifier)}` : ''
   const canDeleteFeedback = Boolean(permissions.can_delete_feedback)
-  const showFeedbackStatusPanel = Boolean(error || !feedback?.video_url || newFeedbackDraftOpen)
+  const showFeedbackStatusPanel = Boolean(error || !feedback?.video_url)
   const jobTitle = feedback?.job?.title || `Job #${feedback?.job_id || ''}`
   const jobDateTitle = formatFeedbackDateDots(feedback?.job?.job_date)
   const pageJobTitle = jobDateTitle ? `${jobDateTitle} ${jobTitle}` : jobTitle
@@ -1020,6 +1063,10 @@ export default function FeedbackDetailPage() {
   useEscapeToClose(() => {
     setNewFeedbackClonePromptOpen(false)
   }, newFeedbackClonePromptOpen)
+
+  useEscapeToClose(() => {
+    cancelNewFeedbackDraft()
+  }, newFeedbackDraftOpen)
 
   useEscapeToClose(() => {
     setFeedbackDonePopup(null)
@@ -1381,8 +1428,8 @@ export default function FeedbackDetailPage() {
                         onClick={() => setFeedbackMenuOpen(value => !value)}
                         className={`inline-flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-[12px] font-semibold leading-none transition lg:text-[13px] ${
                           feedbackMenuOpen
-                            ? 'bg-[#df861d] text-white ring-2 ring-[#f79820]/20'
-                            : 'bg-[#f79820] text-white shadow-sm hover:bg-[#df861d]'
+                            ? 'border border-[#f79820]/30 bg-[#f79820]/10 text-[#f79820] ring-2 ring-[#f79820]/20'
+                            : 'border border-[#f79820]/30 bg-white text-[#f79820] shadow-sm hover:bg-[#f79820]/10'
                         }`}
                         aria-expanded={feedbackMenuOpen}
                         aria-haspopup="menu"
@@ -1390,10 +1437,10 @@ export default function FeedbackDetailPage() {
                         <FeedbackNameInline
                           feedback={feedback}
                           className="flex-1"
-                          badgeClassName="text-[12px] font-semibold leading-none text-white lg:text-[13px]"
+                          badgeClassName="text-[12px] font-semibold leading-none text-[#f79820] lg:text-[13px]"
                           dateInParens
                         />
-                        <ChevronDown className={`h-4 w-4 shrink-0 text-white transition ${feedbackMenuOpen ? 'rotate-180' : ''}`} />
+                        <ChevronDown className={`h-4 w-4 shrink-0 text-[#f79820] transition ${feedbackMenuOpen ? 'rotate-180' : ''}`} />
                       </button>
                       {feedbackMenuOpen && (
                         <div className="absolute left-0 z-20 mt-2 w-56 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg" role="menu">
@@ -1461,23 +1508,7 @@ export default function FeedbackDetailPage() {
         {showFeedbackStatusPanel && (
           <div className="mt-2 shrink-0 space-y-2">
             {error && <Alert type="error">{error}</Alert>}
-            {newFeedbackDraftOpen ? (
-              <div className="lg:grid lg:gap-3 lg:grid-cols-[minmax(0,2.2fr)_minmax(380px,0.85fr)] xl:grid-cols-[minmax(0,2.35fr)_minmax(410px,0.9fr)]">
-                <SetupPanel
-                  detail={detail}
-                  access={access}
-	                  mode="create"
-	                  defaultName={newFeedbackName}
-	                  dateBadge={newFeedbackDateBadge}
-	                  cloneUnresolved={newFeedbackCloneUnresolved}
-	                  cloneUnresolvedFromFeedbackId={newFeedbackCloneSourceId}
-	                  cloneUnresolvedCount={unresolvedCloneCount}
-	                  onCreated={handleNewFeedbackCreated}
-	                  onCancel={cancelNewFeedbackDraft}
-	                />
-                <OverallFeedbackPanel feedback={feedback} access={access} onChanged={refresh} fillHeight />
-              </div>
-            ) : !feedback.video_url && (
+            {!feedback.video_url && (
               <div className="lg:grid lg:gap-3 lg:grid-cols-[minmax(0,2.2fr)_minmax(380px,0.85fr)] xl:grid-cols-[minmax(0,2.35fr)_minmax(410px,0.9fr)]">
                 <SetupPanel detail={detail} access={access} onSaved={setDetail} />
                 <OverallFeedbackPanel feedback={feedback} access={access} onChanged={refresh} fillHeight />
@@ -1628,6 +1659,25 @@ export default function FeedbackDetailPage() {
           </div>
         </footer>
 	      </div>
+	      {newFeedbackDraftOpen && (
+	        <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-slate-950/45 px-4 py-6">
+	          <div className="w-full max-w-2xl" role="dialog" aria-modal="true" aria-labelledby="feedback-create-title">
+	            <SetupPanel
+	              detail={detail}
+	              access={access}
+	              mode="create"
+	              defaultName={newFeedbackName}
+	              dateBadge={newFeedbackDateBadge}
+	              cloneUnresolved={newFeedbackCloneUnresolved}
+	              cloneUnresolvedFromFeedbackId={newFeedbackCloneSourceId}
+	              cloneUnresolvedCount={unresolvedCloneCount}
+	              onCreated={handleNewFeedbackCreated}
+	              onCancel={cancelNewFeedbackDraft}
+	              surface="popup"
+	            />
+	          </div>
+	        </div>
+	      )}
 	      {newFeedbackClonePromptOpen && (
 	        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/45 px-4 py-6">
 	          <section className="w-full max-w-[36rem] rounded-lg border border-[#f79820]/40 bg-white p-5 shadow-xl" role="dialog" aria-modal="true" aria-labelledby="feedback-clone-title">

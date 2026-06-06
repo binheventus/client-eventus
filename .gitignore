@@ -9,3 +9,4 @@ apps/web/dist/
 *credentials*.json
 .vercel/
 .tmp/
+storage/

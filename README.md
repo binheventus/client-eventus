@@ -71,13 +71,25 @@ Feedback chạy trong `client-eventus` với routes:
 - `/feedbacks/:id`: link feedback khách hàng; link cũ theo legacy id vẫn mở được sau khi import dữ liệu.
 - `/redirect/:zaloId`, `/survey`, `/gallery/:zaloId`: routes công khai tương thích flow cũ.
 
-Upload file feedback dùng Google Drive qua `rclone` theo mặc định:
+Upload ảnh feedback lưu trực tiếp trên server hiện tại:
 
 ```bash
-RCLONE_BIN=rclone
-RCLONE_REMOTE=eventus
-RCLONE_FEEDBACK_DIR=feedback
-FEEDBACK_UPLOAD_STORAGE=rclone
+FEEDBACK_UPLOAD_ROOT=/var/www/client-eventus/uploads
+FEEDBACK_UPLOAD_PUBLIC_PREFIX=/feedback-assets/uploads
+FEEDBACK_ATTACHMENT_TTL_DAYS=20
+FEEDBACK_IMAGE_MAX_COUNT=4
+FEEDBACK_IMAGE_MAX_BYTES=3145728
+VITE_FEEDBACK_IMAGE_MAX_COUNT=4
+VITE_FEEDBACK_IMAGE_MAX_EDGE=1600
+VITE_FEEDBACK_IMAGE_MAX_BYTES=3145728
+```
+
+Frontend tự resize/nén ảnh trước khi upload; backend chỉ nhận ảnh JPG/PNG/WebP đã tối ưu.
+Để xóa thật file hết hạn khỏi ổ cứng, chạy cleanup định kỳ:
+
+```bash
+npm run feedback:cleanup-attachments
+npm run feedback:cleanup-attachments -- --force
 ```
 
 Các biến bổ sung:
@@ -103,7 +115,8 @@ npm run feedback:prune -- --months=6
 npm run feedback:prune -- --months=6 --force
 ```
 
-Script prune không xóa bảng legacy gốc và không xóa file Google Drive/local.
+Script prune không xóa bảng legacy gốc. File attachment hết hạn được xóa bằng
+`npm run feedback:cleanup-attachments -- --force`.
 
 ## Deploy production
 

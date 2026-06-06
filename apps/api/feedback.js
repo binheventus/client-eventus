@@ -2,10 +2,16 @@ import { randomBytes, randomUUID } from 'node:crypto'
 import { execFile } from 'node:child_process'
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
-import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
+import {
+  buildFeedbackUploadUrl,
+  ensureFeedbackUploadSubdir,
+  removeFeedbackUploadFile,
+  resolveFeedbackUploadPublicPath,
+  isFeedbackUploadStoragePath,
+} from './lib/feedback-upload-storage.js'
 import {
   emptyToNull,
   fromJson,
@@ -34,10 +40,10 @@ const JOB_PUBLIC_TOKEN_LENGTH = 18
 const PUBLIC_CODE_ALPHABET = '23456789abcdefghjkmnpqrstuvwxyz'
 const PUBLIC_CODE_LENGTH = 4
 const DEFAULT_PAGE_SIZE = 20
-const MAX_UPLOAD_BYTES = 8 * 1024 * 1024
+const DEFAULT_FEEDBACK_IMAGE_MAX_BYTES = 3 * 1024 * 1024
+const DEFAULT_FEEDBACK_IMAGE_MAX_COUNT = 4
+const DEFAULT_FEEDBACK_ATTACHMENT_TTL_DAYS = 20
 const SURVEY_DOUBLE_SUBMIT_WINDOW_SECONDS = 15
-const DEFAULT_RCLONE_REMOTE = 'eventus'
-const DEFAULT_RCLONE_FEEDBACK_DIR = 'feedback'
 const DEFAULT_NHANSU_URL = 'https://nhansu.eventusproduction.com'
 const DEFAULT_SURVEY_DASHBOARD_URL = 'https://lichlamviec.eventusproduction.com/admin/survey/dashboard'
 const EVENTUS_AUTH_HOST = 'lichlamviec.eventusproduction.com'
@@ -210,6 +216,107 @@ function getRequestBody(req) {
   return req.body
 }
 
+function isMultipartRequest(req) {
+  return /^multipart\/form-data/i.test(String(req.headers?.['content-type'] || ''))
+}
+
+function getMultipartBoundary(req) {
+  const contentType = String(req.headers?.['content-type'] || '')
+  const match = contentType.match(/boundary=(?:"([^"]+)"|([^;]+))/i)
+  return match?.[1] || match?.[2] || ''
+}
+
+async function readRequestBuffer(req, maxBytes) {
+  const chunks = []
+  let total = 0
+
+  for await (const chunk of req) {
+    total += chunk.length
+    if (total > maxBytes) throw makeHttpError('Ảnh vượt quá dung lượng cho phép.', 413, 'FEEDBACK_UPLOAD_TOO_LARGE')
+    chunks.push(chunk)
+  }
+
+  return Buffer.concat(chunks)
+}
+
+function parseContentDisposition(value = '') {
+  return String(value || '').split(';').reduce((acc, part) => {
+    const [rawKey, ...rest] = part.trim().split('=')
+    const key = rawKey.trim().toLowerCase()
+    if (!key) return acc
+    const rawValue = rest.join('=').trim().replace(/^"|"$/g, '')
+    acc[key] = rawValue
+    return acc
+  }, {})
+}
+
+function parseMultipartBuffer(buffer, boundary) {
+  const delimiter = Buffer.from(`--${boundary}`)
+  const headerDelimiter = Buffer.from('\r\n\r\n')
+  const fields = {}
+  const files = {}
+  let position = buffer.indexOf(delimiter)
+
+  while (position >= 0) {
+    position += delimiter.length
+    const marker = buffer.slice(position, position + 2).toString('latin1')
+    if (marker === '--') break
+    if (marker === '\r\n') position += 2
+
+    const headerEnd = buffer.indexOf(headerDelimiter, position)
+    if (headerEnd < 0) break
+
+    const headers = buffer.slice(position, headerEnd).toString('utf8')
+      .split(/\r?\n/)
+      .reduce((acc, line) => {
+        const separatorIndex = line.indexOf(':')
+        if (separatorIndex < 0) return acc
+        acc[line.slice(0, separatorIndex).trim().toLowerCase()] = line.slice(separatorIndex + 1).trim()
+        return acc
+      }, {})
+
+    const dataStart = headerEnd + headerDelimiter.length
+    const nextDelimiter = buffer.indexOf(delimiter, dataStart)
+    if (nextDelimiter < 0) break
+
+    let dataEnd = nextDelimiter
+    if (dataEnd >= 2 && buffer[dataEnd - 2] === 13 && buffer[dataEnd - 1] === 10) dataEnd -= 2
+    const data = buffer.slice(dataStart, dataEnd)
+    const disposition = parseContentDisposition(headers['content-disposition'])
+    const name = disposition.name
+
+    if (name) {
+      if (disposition.filename !== undefined) {
+        files[name] = {
+          buffer: data,
+          fileName: disposition.filename || 'feedback-image',
+          mimeType: headers['content-type'] || 'application/octet-stream',
+        }
+      } else {
+        fields[name] = data.toString('utf8')
+      }
+    }
+
+    position = nextDelimiter
+  }
+
+  return { fields, files }
+}
+
+async function parseMultipartRequest(req) {
+  if (!isMultipartRequest(req) || req.body) return
+  const boundary = getMultipartBoundary(req)
+  if (!boundary) throw makeHttpError('Multipart upload thiếu boundary.', 400, 'MULTIPART_BOUNDARY_MISSING')
+
+  const maxBytes = getFeedbackImageMaxBytes() + 512 * 1024
+  const buffer = await readRequestBuffer(req, maxBytes)
+  const { fields, files } = parseMultipartBuffer(buffer, boundary)
+  req.body = {
+    ...fields,
+    file: files.image || files.file || Object.values(files)[0] || null,
+  }
+}
+
 function getQueryValue(value, fallback = '') {
   if (Array.isArray(value)) return value[0] ?? fallback
   return value ?? fallback
@@ -218,6 +325,38 @@ function getQueryValue(value, fallback = '') {
 function getPositiveInteger(value, fallback = 1) {
   const number = Number(getQueryValue(value))
   return Number.isFinite(number) && number > 0 ? Math.floor(number) : fallback
+}
+
+function getPositiveEnvInteger(name, fallback, { min = 1, max = Number.MAX_SAFE_INTEGER } = {}) {
+  loadServerEnv()
+  const number = Number(process.env[name])
+  if (!Number.isFinite(number)) return fallback
+  return Math.min(max, Math.max(min, Math.floor(number)))
+}
+
+function getFeedbackImageMaxBytes() {
+  return getPositiveEnvInteger('FEEDBACK_IMAGE_MAX_BYTES', DEFAULT_FEEDBACK_IMAGE_MAX_BYTES, {
+    min: 128 * 1024,
+    max: 20 * 1024 * 1024,
+  })
+}
+
+function getFeedbackImageMaxCount() {
+  return getPositiveEnvInteger('FEEDBACK_IMAGE_MAX_COUNT', DEFAULT_FEEDBACK_IMAGE_MAX_COUNT, {
+    min: 1,
+    max: 12,
+  })
+}
+
+function getFeedbackAttachmentTtlDays() {
+  return getPositiveEnvInteger('FEEDBACK_ATTACHMENT_TTL_DAYS', DEFAULT_FEEDBACK_ATTACHMENT_TTL_DAYS, {
+    min: 1,
+    max: 365,
+  })
+}
+
+function getFeedbackAttachmentDeleteAt() {
+  return new Date(Date.now() + getFeedbackAttachmentTtlDays() * 24 * 60 * 60 * 1000)
 }
 
 function makeId(prefix = '') {
@@ -988,6 +1127,7 @@ async function getFeedbackComments(feedbackId) {
   const attachments = await query(
     `select * from ${tables.feedbackAttachments}
      where comment_id in (${placeholders})
+       and (delete_at is null or delete_at > current_timestamp(3))
      order by created_at asc`,
     ids,
   )
@@ -1181,23 +1321,12 @@ function sanitizeFileName(fileName = 'file') {
   return `${base}${ext}`
 }
 
-function getRcloneConfig() {
-  const configuredBinary = String(process.env.RCLONE_BIN || '').trim()
-  const defaultBinary = [
-    '/usr/bin/rclone',
-    '/usr/local/bin/rclone',
-    '/snap/bin/rclone',
-  ].find(binaryPath => fs.existsSync(binaryPath)) || 'rclone'
-
-  return {
-    binary: configuredBinary || defaultBinary,
-    remote: String(process.env.RCLONE_REMOTE || DEFAULT_RCLONE_REMOTE).replace(/:+$/, ''),
-    baseDir: String(process.env.RCLONE_FEEDBACK_DIR || DEFAULT_RCLONE_FEEDBACK_DIR).replace(/^\/+|\/+$/g, ''),
-  }
-}
-
 function getFeedbackStorageKey(feedback) {
   return sanitizeFileName(String(feedback?.legacy_id || feedback?.id || 'feedback')).replace(/\./g, '-')
+}
+
+function makeStorageSegment(value = '', fallback = 'item') {
+  return sanitizeFileName(String(value || fallback)).replace(/\./g, '-')
 }
 
 function getPublicFilePath(publicUrl = '') {
@@ -1207,77 +1336,81 @@ function getPublicFilePath(publicUrl = '') {
   return filePath.startsWith(publicRoot) ? filePath : ''
 }
 
-async function saveLocalFeedbackFile(buffer, feedback, fileName) {
-  const dir = await ensurePublicSubdir(`feedback-assets/uploads/${getFeedbackStorageKey(feedback)}`)
+function detectImageMime(buffer) {
+  if (!Buffer.isBuffer(buffer) || buffer.length < 12) return ''
+  if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return 'image/jpeg'
+  if (buffer.slice(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'image/png'
+  if (buffer.slice(0, 4).toString('ascii') === 'RIFF' && buffer.slice(8, 12).toString('ascii') === 'WEBP') return 'image/webp'
+  return ''
+}
+
+function getImageExtension(mimeType = '') {
+  return {
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'image/webp': 'webp',
+  }[mimeType] || ''
+}
+
+function normalizeImageUpload(file = {}) {
+  const buffer = Buffer.isBuffer(file.buffer) ? file.buffer : null
+  if (!buffer?.length) throw makeHttpError('Ảnh upload không hợp lệ.', 400, 'FEEDBACK_IMAGE_INVALID')
+  if (buffer.length > getFeedbackImageMaxBytes()) {
+    throw makeHttpError(`Ảnh vượt quá dung lượng cho phép ${Math.round(getFeedbackImageMaxBytes() / 1024 / 1024)}MB.`, 400, 'FEEDBACK_IMAGE_TOO_LARGE')
+  }
+
+  const detectedMime = detectImageMime(buffer)
+  const declaredMime = String(file.mimeType || '').toLowerCase()
+  const mimeType = detectedMime || declaredMime
+  const extension = getImageExtension(mimeType)
+  if (!extension) throw makeHttpError('Chỉ hỗ trợ ảnh JPG, PNG hoặc WebP.', 400, 'FEEDBACK_IMAGE_TYPE_INVALID')
+
+  return { buffer, mimeType, extension }
+}
+
+function getUploadDateSegments(date = new Date()) {
+  const year = String(date.getFullYear())
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  return { year, month }
+}
+
+async function saveLocalFeedbackFile(buffer, feedback, comment, fileName) {
+  const { year, month } = getUploadDateSegments()
+  const relativeDir = [
+    year,
+    month,
+    `feedback-${getFeedbackStorageKey(feedback)}`,
+    `comment-${makeStorageSegment(comment?.id, 'comment')}`,
+  ].join('/')
+  const dir = await ensureFeedbackUploadSubdir(relativeDir)
   const filePath = path.join(dir, fileName)
   await fsp.writeFile(filePath, buffer)
+  const relativePath = `${relativeDir}/${fileName}`
   return {
-    url: `/feedback-assets/uploads/${getFeedbackStorageKey(feedback)}/${fileName}`,
+    url: buildFeedbackUploadUrl(relativePath),
     storagePath: filePath,
   }
 }
 
-async function uploadFeedbackFileToDrive(buffer, feedback, fileName) {
-  const { binary, remote, baseDir } = getRcloneConfig()
-  const tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'eventus-feedback-'))
-  const tempPath = path.join(tempDir, fileName)
-  const remotePath = `${remote}:/${baseDir}/feedback-${getFeedbackStorageKey(feedback)}/${fileName}`
-
-  try {
-    await fsp.writeFile(tempPath, buffer)
-    await execFileAsync(binary, ['copyto', tempPath, remotePath], { timeout: 60000, maxBuffer: 1024 * 1024 * 3 })
-    const result = await execFileAsync(binary, [
-      'link',
-      remotePath,
-      '--drive-use-shared-date',
-      '--drive-acknowledge-abuse',
-    ], { timeout: 30000, maxBuffer: 1024 * 1024 })
-    const driveUrl = String(result.stdout || '').trim().split(/\r?\n/).find(Boolean)
-    if (!driveUrl) throw makeHttpError('Không lấy được link Google Drive sau khi upload.', 502, 'RCLONE_LINK_FAILED')
-    return { url: driveUrl, storagePath: remotePath }
-  } catch (error) {
-    if (error?.statusCode) throw error
-    throw makeHttpError('Không upload được file lên Google Drive qua rclone.', 502, 'RCLONE_UPLOAD_FAILED')
-  } finally {
-    await fsp.rm(tempDir, { recursive: true, force: true }).catch(() => {})
-  }
-}
-
-async function storeFeedbackAttachmentFile(buffer, feedback, fileName, fileType) {
-  if (process.env.FEEDBACK_UPLOAD_STORAGE === 'local') {
-    const local = await saveLocalFeedbackFile(buffer, feedback, fileName)
-    return {
-      url: local.url,
-      storagePath: local.storagePath,
-      previewUrl: fileType === 'image' ? local.url : null,
-    }
-  }
-
-  const [drive, preview] = await Promise.all([
-    uploadFeedbackFileToDrive(buffer, feedback, fileName),
-    fileType === 'image' ? saveLocalFeedbackFile(buffer, feedback, fileName) : Promise.resolve(null),
-  ])
-
+async function storeFeedbackAttachmentFile(buffer, feedback, comment, fileName) {
+  const local = await saveLocalFeedbackFile(buffer, feedback, comment, fileName)
   return {
-    url: drive.url,
-    storagePath: drive.storagePath,
-    previewUrl: preview?.url || null,
+    url: local.url,
+    storagePath: local.storagePath,
+    previewUrl: local.url,
   }
 }
 
 async function deleteStoredAttachment(attachment = {}) {
-  const storagePath = String(attachment.storage_path || '')
-  if (storagePath.startsWith(getRuntimePublicRoot())) {
+  const storagePath = String(attachment.storage_path || attachment.storagePath || '')
+  if (storagePath && isFeedbackUploadStoragePath(storagePath)) {
+    await removeFeedbackUploadFile(storagePath).catch(() => {})
+  } else if (storagePath.startsWith(getRuntimePublicRoot())) {
     await fsp.unlink(storagePath).catch(() => {})
-  } else if (storagePath.includes(':')) {
-    const { binary } = getRcloneConfig()
-    await execFileAsync(binary, ['delete', storagePath, '--drive-use-trash=false'], {
-      timeout: 30000,
-      maxBuffer: 1024 * 1024,
-    }).catch(() => {})
   }
 
-  const previewPath = getPublicFilePath(attachment.preview_url)
+  const previewPath = resolveFeedbackUploadPublicPath(attachment.preview_url || attachment.previewUrl)
+    || getPublicFilePath(attachment.preview_url || attachment.previewUrl)
   if (previewPath) await fsp.unlink(previewPath).catch(() => {})
 }
 
@@ -1445,7 +1578,9 @@ async function deleteFeedbackComment(req, body = {}) {
 
   const feedback = await getFeedbackByIdentifier(comment.feedback_id)
   await assertFeedbackAccess(req, feedback, parseAccess(body))
+  const attachments = await query(`select * from ${tables.feedbackAttachments} where comment_id = ?`, [comment.id])
   await query(`delete from ${tables.feedbackComments} where id = ?`, [comment.id])
+  await Promise.all(attachments.map(attachment => deleteStoredAttachment(attachment)))
   return { ok: true, comments: await getFeedbackComments(feedback.id) }
 }
 
@@ -1457,33 +1592,61 @@ async function saveAttachment(req, body = {}) {
   const feedback = await getFeedbackByIdentifier(comment.feedback_id)
   await assertFeedbackAccess(req, feedback, parseAccess(body))
 
-  const dataUrl = String(body.data_url || '')
-  const match = dataUrl.match(/^data:([^;,]+);base64,(.+)$/)
-  if (!match) throw makeHttpError('File upload không hợp lệ.', 400)
-
-  const buffer = Buffer.from(match[2], 'base64')
-  if (buffer.length > MAX_UPLOAD_BYTES) throw makeHttpError('File vượt quá dung lượng cho phép 8MB.', 400)
-
-  const fileName = `${Date.now()}-${sanitizeFileName(body.file_name || 'feedback-file')}`
-  const attachmentId = makeId('fba')
-  const fileType = /^image\//.test(match[1]) ? 'image' : 'file'
-  const storedFile = await storeFeedbackAttachmentFile(buffer, feedback, fileName, fileType)
-  await query(
-    `insert into ${tables.feedbackAttachments}
-       (id, comment_id, file_name, url, storage_path, preview_url, field_name, file_type, delete_at, created_at, updated_at)
-     values (?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp(3), current_timestamp(3))`,
-    [
-      attachmentId,
-      comment.id,
-      fileName,
-      storedFile.url,
-      storedFile.storagePath,
-      storedFile.previewUrl,
-      trimText(body.field_name || body.for_comment, 80) || null,
-      fileType,
-      toMysqlDateTime(new Date(Date.now() + 1000 * 60 * 60 * 24 * 62)),
-    ],
+  const currentCountRows = await query(
+    `select count(*) as count
+     from ${tables.feedbackAttachments}
+     where comment_id = ? and file_type = 'image' and (delete_at is null or delete_at > current_timestamp(3))`,
+    [comment.id],
   )
+  if (Number(currentCountRows?.[0]?.count || 0) >= getFeedbackImageMaxCount()) {
+    throw makeHttpError(`Mỗi comment chỉ được upload tối đa ${getFeedbackImageMaxCount()} ảnh.`, 400, 'FEEDBACK_IMAGE_LIMIT_REACHED')
+  }
+
+  const upload = normalizeImageUpload(body.file)
+  const fileName = `${Date.now()}-${makeReadableToken(10).toLowerCase()}.${upload.extension}`
+  const attachmentId = makeId('fba')
+  let storedFile = null
+
+  try {
+    storedFile = await storeFeedbackAttachmentFile(upload.buffer, feedback, comment, fileName)
+    await withTransaction(async db => {
+      const [lockedComments] = await db.query(
+        `select id from ${tables.feedbackComments} where id = ? for update`,
+        [comment.id],
+      )
+      if (!lockedComments?.length) throw makeHttpError('Không tìm thấy comment.', 404, 'COMMENT_NOT_FOUND')
+
+      const [countRows] = await db.query(
+        `select count(*) as count
+         from ${tables.feedbackAttachments}
+         where comment_id = ? and file_type = 'image' and (delete_at is null or delete_at > current_timestamp(3))`,
+        [comment.id],
+      )
+      if (Number(countRows?.[0]?.count || 0) >= getFeedbackImageMaxCount()) {
+        throw makeHttpError(`Mỗi comment chỉ được upload tối đa ${getFeedbackImageMaxCount()} ảnh.`, 400, 'FEEDBACK_IMAGE_LIMIT_REACHED')
+      }
+
+      await db.query(
+        `insert into ${tables.feedbackAttachments}
+           (id, comment_id, file_name, url, storage_path, preview_url, field_name, file_type, delete_at, created_at, updated_at)
+         values (?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp(3), current_timestamp(3))`,
+        [
+          attachmentId,
+          comment.id,
+          fileName,
+          storedFile.url,
+          storedFile.storagePath,
+          storedFile.previewUrl,
+          trimText(body.field_name || body.for_comment, 80) || 'comment_1',
+          'image',
+          toMysqlDateTime(getFeedbackAttachmentDeleteAt()),
+        ],
+      )
+    })
+  } catch (error) {
+    if (storedFile) await deleteStoredAttachment(storedFile)
+    throw error
+  }
 
   return { ok: true, comments: await getFeedbackComments(feedback.id) }
 }
@@ -1504,7 +1667,7 @@ async function deleteAttachment(req, body = {}) {
   await assertFeedbackAccess(req, feedback, parseAccess(body))
 
   await query(`delete from ${tables.feedbackAttachments} where id = ?`, [attachment.id])
-  deleteStoredAttachment(attachment).catch(() => {})
+  await deleteStoredAttachment(attachment)
   return { ok: true, comments: await getFeedbackComments(feedback.id) }
 }
 
@@ -2141,6 +2304,8 @@ export const __feedbackTestInternals = Object.freeze({
 
 export default async function handler(req, res) {
   try {
+    if (req.method === 'POST') await parseMultipartRequest(req)
+
     if (!isPublicFeedbackRequest(req) && !await requireEventusAuth(req, res)) return
 
     if (req.method === 'GET') {

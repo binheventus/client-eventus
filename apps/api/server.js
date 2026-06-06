@@ -3,8 +3,12 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { NestFactory } from '@nestjs/core'
 import { protectQuotePage } from './lib/eventus-auth.js'
+import { resolveFeedbackUploadRequestPath } from './lib/feedback-upload-storage.js'
+import { loadServerEnv } from './lib/server-env.js'
 import { getPublicFeedbackOpenGraphData } from './feedback.js'
 import { ApiModule } from './nest-app.js'
+
+loadServerEnv()
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const projectRoot = path.resolve(__dirname, '../..')
@@ -174,6 +178,12 @@ async function handleStaticRequest(req, res, next) {
   const publicPath = resolvePublicPath(req.url)
   if (publicPath && fs.existsSync(publicPath) && fs.statSync(publicPath).isFile()) {
     sendFile(res, publicPath)
+    return
+  }
+
+  const uploadPath = resolveFeedbackUploadRequestPath(req.url)
+  if (uploadPath && fs.existsSync(uploadPath) && fs.statSync(uploadPath).isFile()) {
+    sendFile(res, uploadPath)
     return
   }
 

@@ -246,11 +246,81 @@ export function getFeedbackPublicPath(feedback) {
   return `/feedbacks/${encodeURIComponent(feedback.share_token)}`
 }
 
-export function readFileAsDataUrl(file) {
+function loadImageFromFile(file) {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result)
-    reader.onerror = () => reject(reader.error || new Error('Không đọc được file.'))
-    reader.readAsDataURL(file)
+    const url = URL.createObjectURL(file)
+    const image = new Image()
+    image.onload = () => {
+      URL.revokeObjectURL(url)
+      resolve(image)
+    }
+    image.onerror = () => {
+      URL.revokeObjectURL(url)
+      reject(new Error('Không đọc được ảnh.'))
+    }
+    image.src = url
+  })
+}
+
+function canvasToBlob(canvas, type, quality) {
+  return new Promise(resolve => {
+    canvas.toBlob(blob => resolve(blob), type, quality)
+  })
+}
+
+function replaceFileExtension(fileName = 'feedback-image', extension = 'webp') {
+  const base = String(fileName || 'feedback-image').replace(/\.[^.]+$/, '') || 'feedback-image'
+  return `${base}.${extension}`
+}
+
+export async function prepareFeedbackImageUpload(file, {
+  maxEdge = 1600,
+  maxBytes = 3 * 1024 * 1024,
+  quality = 0.82,
+} = {}) {
+  if (!file?.type?.startsWith('image/')) throw new Error('Chỉ upload file ảnh.')
+
+  const image = await loadImageFromFile(file)
+  const width = image.naturalWidth || image.width
+  const height = image.naturalHeight || image.height
+  if (!width || !height) throw new Error('Ảnh upload không hợp lệ.')
+
+  const scale = Math.min(1, maxEdge / Math.max(width, height))
+  const targetWidth = Math.max(1, Math.round(width * scale))
+  const targetHeight = Math.max(1, Math.round(height * scale))
+  const canvas = document.createElement('canvas')
+  canvas.width = targetWidth
+  canvas.height = targetHeight
+  const context = canvas.getContext('2d')
+  if (!context) throw new Error('Trình duyệt không hỗ trợ nén ảnh.')
+
+  context.drawImage(image, 0, 0, targetWidth, targetHeight)
+
+  const attempts = [
+    ['image/webp', quality],
+    ['image/webp', 0.74],
+    ['image/jpeg', quality],
+    ['image/jpeg', 0.74],
+    ['image/jpeg', 0.66],
+  ]
+
+  let selectedBlob = null
+  for (const [type, attemptQuality] of attempts) {
+    const blob = await canvasToBlob(canvas, type, attemptQuality)
+    if (!blob) continue
+    if (!selectedBlob || blob.size < selectedBlob.size) selectedBlob = blob
+    if (blob.size <= maxBytes) {
+      selectedBlob = blob
+      break
+    }
+  }
+
+  if (!selectedBlob) throw new Error('Không nén được ảnh.')
+  if (selectedBlob.size > maxBytes) throw new Error('Ảnh quá lớn, vui lòng chọn ảnh nhẹ hơn.')
+
+  const extension = selectedBlob.type === 'image/webp' ? 'webp' : 'jpg'
+  return new File([selectedBlob], replaceFileExtension(file.name, extension), {
+    type: selectedBlob.type,
+    lastModified: Date.now(),
   })
 }

@@ -27,6 +27,29 @@ async function requestFeedbackApi(path = '', { method = 'GET', body } = {}) {
   return payload
 }
 
+async function requestFeedbackFormApi(path = '', formData) {
+  const response = await fetch(`/api/feedback${path}`, {
+    method: 'POST',
+    body: formData,
+  })
+
+  const contentType = response.headers.get('content-type') || ''
+  if (!contentType.includes('application/json')) {
+    throw new Error('Feedback API unavailable.')
+  }
+
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    redirectToLoginIfAuthRequired(response, payload)
+    const error = new Error(payload?.error || 'Không gọi được Feedback API.')
+    error.status = response.status
+    error.code = payload?.code
+    throw error
+  }
+
+  return payload
+}
+
 function buildQuery(params = {}) {
   const query = new URLSearchParams()
   Object.entries(params).forEach(([key, value]) => {
@@ -152,15 +175,16 @@ export async function deleteFeedbackComment(commentId, access = {}) {
 }
 
 export async function uploadFeedbackAttachment(commentId, payload = {}, access = {}) {
-  return requestFeedbackApi('', {
-    method: 'POST',
-    body: {
-      action: 'upload_attachment',
-      comment_id: commentId,
-      access,
-      ...payload,
-    },
-  })
+  const formData = new FormData()
+  formData.append('action', 'upload_attachment')
+  formData.append('comment_id', commentId)
+  formData.append('field_name', payload.field_name || 'comment_1')
+  if (access?.zalo) formData.append('zalo', access.zalo)
+  if (access?.token) formData.append('token', access.token)
+  if (payload.file) {
+    formData.append('image', payload.file, payload.file.name || payload.file_name || 'feedback-image.webp')
+  }
+  return requestFeedbackFormApi('', formData)
 }
 
 export async function deleteFeedbackAttachment(attachmentId, access = {}) {
