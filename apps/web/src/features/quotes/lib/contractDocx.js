@@ -1,8 +1,11 @@
 import {
   CONTRACT_SUBTOTAL_LABEL,
+  getContractDepositPercent,
   getContractPreamble,
+  getContractPaymentDueDays,
   getContractPaymentNotes,
   getContractWorkProgressNotes,
+  hasContractAdvance,
   numberToVietnameseWords,
   sanitizeFilenamePart,
 } from './contractDefaults'
@@ -360,12 +363,26 @@ function serviceArticleXml(contract = {}) {
 function paymentArticleXml(contract = {}) {
   const quote = getQuote(contract)
   const payment = contract.payment_config || {}
-  const depositPercent = Number(payment.deposit_percent || 50)
+  const depositPercent = getContractDepositPercent(payment)
+  const finalDueDays = getContractPaymentDueDays(payment)
+  const hasAdvance = hasContractAdvance(payment)
   const depositAmount = Number(quote.total_amount || 0) * depositPercent / 100
   const docs = Array.isArray(payment.payment_documents) ? payment.payment_documents : []
   const paymentNotes = getContractPaymentNotes(payment)
   const contractValue = `${formatCurrency(quote.total_amount)} ${quote.has_vat !== false ? '(Đã bao gồm VAT)' : '(Chưa bao gồm VAT)'}`
   const depositValue = formatCurrency(depositAmount)
+  const paymentMethodXml = hasAdvance ? [
+    paragraph('Phương thức thanh toán: Việc thanh toán Hợp đồng sẽ thực hiện thành 02 lần:'),
+    richParagraph([
+      { text: `Lần 1: Bên A đặt cọc ${depositPercent}% giá trị hợp đồng tương ứng ` },
+      { text: depositValue, bold: true },
+      { text: ` cho Bên B sau khi ký hợp đồng${payment.issue_invoice_on_deposit ? ' và trước ngày thực hiện tối thiểu 02 ngày, đồng thời bên B xuất hóa đơn cho bên A sau khi nhận được thanh toán lần 1' : ''}.` },
+    ]),
+    paragraph(`Lần 2: Bên A thanh toán nốt số tiền còn lại cho Bên B trong vòng ${finalDueDays} ngày sau khi Bên B bàn giao cho Bên A đầy đủ sản phẩm & hóa đơn tài chính theo yêu cầu của Bên A.`),
+  ] : [
+    paragraph('Phương thức thanh toán:'),
+    paragraph(`Bên A thanh toán 100% giá trị hợp đồng cho Bên B trong vòng ${finalDueDays} ngày sau khi Bên B bàn giao cho Bên A đầy đủ sản phẩm & hóa đơn tài chính theo yêu cầu của Bên A.`),
+  ]
 
   return [
     paragraph('ĐIỀU 2: GIÁ TRỊ HỢP ĐỒNG', { style: 'Heading1', bold: true }),
@@ -374,13 +391,7 @@ function paymentArticleXml(contract = {}) {
       { text: contractValue, bold: true },
     ]),
     paragraph(`(Bằng chữ: ${numberToVietnameseWords(quote.total_amount)} ./.)`, { italic: true }),
-    paragraph('Phương thức thanh toán: Việc thanh toán Hợp đồng sẽ thực hiện thành 02 lần:'),
-    richParagraph([
-      { text: `Lần 1: Bên A đặt cọc ${depositPercent}% giá trị hợp đồng tương ứng ` },
-      { text: depositValue, bold: true },
-      { text: ` cho Bên B sau khi ký hợp đồng${payment.issue_invoice_on_deposit ? ' và trước ngày thực hiện tối thiểu 02 ngày, đồng thời bên B xuất hóa đơn cho bên A sau khi nhận được thanh toán lần 1' : ''}.` },
-    ]),
-    paragraph(`Lần 2: Bên A thanh toán nốt số tiền còn lại cho Bên B trong vòng ${Number(payment.final_due_days || 7)} ngày sau khi Bên B bàn giao cho Bên A đầy đủ sản phẩm & hóa đơn tài chính theo yêu cầu của Bên A.`),
+    ...paymentMethodXml,
     docs.length ? paragraph('Hồ sơ thanh toán bao gồm:', { bold: true }) : '',
     docs.map(item => paragraph(`- ${item}`)).join(''),
     paragraph('Lưu ý về thanh toán:', { bold: true }),

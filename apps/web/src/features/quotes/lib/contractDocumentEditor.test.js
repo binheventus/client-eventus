@@ -6,10 +6,32 @@ import {
   calculateAdvancePercent,
   calculatePaymentSummary,
   calculateTableTotals,
+  getContractDocumentCustomerCode,
   getCustomerValidationWarnings,
   getContractTotal,
   getContractVatConfig,
+  renderContractDocumentNumber,
 } from './contractDocumentEditor.js'
+
+test('renderContractDocumentNumber updates seller token while preserving allocated sequence', () => {
+  const contract = {
+    customer_snapshot: {
+      customer_code: 'ACME',
+    },
+  }
+
+  assert.equal(
+    renderContractDocumentNumber('{{sequence}}/{{document_type_code}}-{{seller}}/{{customer}}/{{year}}', {
+      sequence: '0007',
+      document_type: 'payment_request',
+      document_type_code: 'DNTT',
+      seller: 'MEDIAMONSTER',
+      customer: getContractDocumentCustomerCode(contract),
+      year: '2026',
+    }),
+    '0007/DNTT-MEDIAMONSTER/ACME/2026',
+  )
+})
 
 test('buildContractValueRows uses contract quote rows as pre-VAT values', () => {
   const contract = {

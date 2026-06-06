@@ -440,13 +440,37 @@ export function numberToVietnameseCardinal(value) {
   return readTriple(number, false).replace(/\s+/g, ' ').trim()
 }
 
+export function getContractDepositPercent(paymentConfig = {}) {
+  const number = Number(paymentConfig.deposit_percent ?? DEFAULT_PAYMENT_CONFIG.deposit_percent)
+  if (!Number.isFinite(number)) return DEFAULT_PAYMENT_CONFIG.deposit_percent
+  return Math.max(0, number)
+}
+
+export function hasContractAdvance(paymentConfig = {}) {
+  return getContractDepositPercent(paymentConfig) > 0
+}
+
+export function getContractPaymentDueDays(paymentConfig = {}) {
+  const number = Number(paymentConfig.final_due_days ?? DEFAULT_PAYMENT_CONFIG.final_due_days)
+  if (!Number.isFinite(number)) return DEFAULT_PAYMENT_CONFIG.final_due_days
+  return Math.max(0, Math.round(number))
+}
+
 export function getContractPaymentNotes(paymentConfig = {}) {
-  const finalDueDays = Math.max(0, Math.round(Number(paymentConfig.final_due_days ?? DEFAULT_PAYMENT_CONFIG.final_due_days) || DEFAULT_PAYMENT_CONFIG.final_due_days))
+  const finalDueDays = getContractPaymentDueDays(paymentConfig)
   const finalDueDaysText = `${String(finalDueDays).padStart(2, '0')} (${numberToVietnameseCardinal(finalDueDays)})`
+  const invoiceAcceptanceNote = 'Trường hợp Bên A có khiếu nại về tính hợp lệ của hóa đơn, phải thông báo bằng văn bản cho Bên B trong vòng 02 ngày làm việc kể từ ngày nhận hóa đơn, nêu rõ lý do. Quá thời hạn này, hóa đơn được coi là đã được Bên A chấp nhận và nghĩa vụ thanh toán được kích hoạt theo điều khoản nêu trên.'
+
+  if (!hasContractAdvance(paymentConfig)) {
+    return [
+      `Thời hạn thanh toán được hiểu là ${finalDueDaysText} ngày làm việc kể từ ngày Bên B bàn giao đầy đủ sản phẩm và xuất hóa đơn.`,
+      invoiceAcceptanceNote,
+    ]
+  }
 
   return [
     `Thời hạn thanh toán Lần 2 được hiểu là ${finalDueDaysText} ngày làm việc kể từ ngày Bên B bàn giao đầy đủ sản phẩm và xuất hóa đơn.`,
-    'Trường hợp Bên A có khiếu nại về tính hợp lệ của hóa đơn, phải thông báo bằng văn bản cho Bên B trong vòng 02 ngày làm việc kể từ ngày nhận hóa đơn, nêu rõ lý do. Quá thời hạn này, hóa đơn được coi là đã được Bên A chấp nhận và nghĩa vụ thanh toán được kích hoạt theo điều khoản nêu trên.',
+    invoiceAcceptanceNote,
   ]
 }
 

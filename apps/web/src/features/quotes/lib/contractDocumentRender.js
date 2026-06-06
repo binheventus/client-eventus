@@ -1,18 +1,18 @@
-import { numberToVietnameseWords, sanitizeFilenamePart } from './contractDefaults'
+import { numberToVietnameseWords, sanitizeFilenamePart } from './contractDefaults.js'
 import {
   calculatePaymentSummary,
   calculateTableTotals,
   getContractVatConfig,
   roundDocumentCurrency,
   toDocumentNumber,
-} from './contractDocumentEditor'
+} from './contractDocumentEditor.js'
 import {
   ADVANCE_REQUEST_TEMPLATE_BLOCKS,
   ACCEPTANCE_LIQUIDATION_TEMPLATE_BLOCKS,
   ACCEPTANCE_LIQUIDATION_WITH_DIFFERENCE_TEMPLATE_BLOCKS,
   CONTRACT_DOCUMENT_TYPES,
   PAYMENT_REQUEST_TEMPLATE_BLOCKS,
-} from './contractDocumentTemplates'
+} from './contractDocumentTemplates.js'
 
 export function hasDocumentText(value) {
   return String(value ?? '').trim().length > 0
@@ -26,6 +26,15 @@ export function formatDocumentDate(value) {
   const date = value ? new Date(value) : null
   if (!date || Number.isNaN(date.getTime())) return ''
   return new Intl.DateTimeFormat('vi-VN').format(date)
+}
+
+export function isDocumentIssuedDateHidden(document = {}) {
+  return Boolean(getDocumentFormData(document).hide_issued_date)
+}
+
+export function getDisplayDocumentIssuedDate(document = {}) {
+  if (isDocumentIssuedDateHidden(document)) return ''
+  return formatDocumentDate(document.issued_date || document.created_at)
 }
 
 export function getDocumentTypeLabel(documentType = '') {
@@ -77,6 +86,10 @@ export function getSellerProfile(documentOrContract = {}) {
 
 export function getProfileName(profile = {}) {
   return profile.company_name || profile.entity_name_full || profile.legal_name || profile.name || ''
+}
+
+export function getProfileLegalName(profile = {}) {
+  return profile.entity_name_full || profile.legal_name || profile.company_name || profile.name || ''
 }
 
 export function getBankAccountText(document = {}) {
@@ -182,7 +195,7 @@ function getAdvanceTemplateTokenValues(document = {}) {
   const customer = getCustomerProfile(document)
   const summary = getAdvanceSummary(document)
   const bank = getBankAccountDetails(document)
-  const issuedDate = formatDocumentDate(document.issued_date || document.created_at)
+  const issuedDate = getDisplayDocumentIssuedDate(document)
   const signingDate = formatDocumentDate(contract.signing_date || contract.quote_table_config?.signing_date)
 
   return {
@@ -293,11 +306,8 @@ export function hasAcceptanceCostDifference(document = {}) {
 }
 
 export function shouldShowAcceptanceAmountTables(document = {}, summary = getAcceptanceSummary(document)) {
-  return Boolean(
-    hasAcceptanceCostDifference(document) ||
-    summary.contract_rows?.length ||
-    summary.actual_rows?.length
-  )
+  void summary
+  return hasAcceptanceCostDifference(document)
 }
 
 function getAcceptanceTemplateTokenValues(document = {}) {
@@ -306,7 +316,7 @@ function getAcceptanceTemplateTokenValues(document = {}) {
   const seller = getSellerProfile(document)
   const summary = getAcceptanceSummary(document)
   const bank = getBankAccountDetails(document)
-  const issuedDate = formatDocumentDate(document.issued_date || document.created_at)
+  const issuedDate = getDisplayDocumentIssuedDate(document)
   const signingDate = formatDocumentDate(contract.signing_date || contract.quote_table_config?.signing_date)
 
   return {
@@ -318,7 +328,8 @@ function getAcceptanceTemplateTokenValues(document = {}) {
     '{{customer_position}}': customer.position || '-',
     '{{customer_address}}': customer.address || '-',
     '{{customer_tax_code}}': customer.tax_code || '-',
-    '{{seller_name}}': getProfileName(seller) || '-',
+    '{{seller_name}}': getProfileLegalName(seller) || '-',
+    '{{seller_entity_name_full}}': getProfileLegalName(seller) || '-',
     '{{seller_representative}}': seller.representative || '-',
     '{{seller_position}}': seller.position || '-',
     '{{seller_address}}': seller.address || '-',
@@ -413,7 +424,7 @@ function getPaymentTemplateTokenValues(document = {}) {
   const customer = getCustomerProfile(document)
   const summary = getPaymentSummary(document)
   const bank = getBankAccountDetails(document)
-  const issuedDate = formatDocumentDate(document.issued_date || document.created_at)
+  const issuedDate = getDisplayDocumentIssuedDate(document)
   const signingDate = formatDocumentDate(contract.signing_date || contract.quote_table_config?.signing_date)
   const acceptanceDate = formatDocumentDate(summary.acceptance_issued_date)
 

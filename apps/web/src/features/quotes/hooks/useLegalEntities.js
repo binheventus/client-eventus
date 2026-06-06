@@ -38,7 +38,7 @@ export function useLegalEntities() {
   ), [legalEntities])
 
   useEffect(() => {
-    if (!legalEntitiesCache) refetch()
+    refetch()
   }, [refetch])
 
   return useMemo(() => ({

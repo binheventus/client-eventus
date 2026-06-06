@@ -13,6 +13,7 @@ import {
   withTransaction,
 } from './lib/mysql.js'
 import { requireEventusAuth } from './lib/eventus-auth.js'
+import { loadServerEnv } from './lib/server-env.js'
 import { calculateQuotePricing } from '../web/src/features/quotes/lib/pricingCalculator.js'
 
 const require = createRequire(import.meta.url)
@@ -25,12 +26,22 @@ const SHARE_TOKEN_LENGTH = 7
 const SYSTEM_ACTOR_ID = '00000000-0000-0000-0000-000000000000'
 const DEFAULT_ENTITY_CODE = 'EVENTUS'
 const DEFAULT_TIER_CODE = 'TIER_2'
+const DEFAULT_NHANSU_URL = 'https://nhansu.eventusproduction.com'
+const EVENTUS_AUTH_HOST = 'lichlamviec.eventusproduction.com'
 const VALID_TIER_CODES = new Set(['TIER_1', 'TIER_2', 'TIER_3', 'TIER_4', 'TIER_5'])
 const SURVEY_RESPONSE_TYPES = new Set(['budget_fit', 'optimize_cost', 'premium_upgrade'])
 const SURVEY_RESPONSE_LABELS = {
   budget_fit: 'Khá hợp lý, tôi cần tư vấn thêm',
   optimize_cost: 'Giá hơi cao, tôi muốn tối ưu chi phí',
   premium_upgrade: 'Thấp hơn dự kiến, tôi cần gói cao cấp hơn',
+}
+const SURVEY_RESPONSE_SUGGESTIONS = {
+  budget_fit:
+    'Dạ em thấy mình vừa duyệt gói chi phí trên web rồi ạ. Để bên em sớm chuẩn bị mọi thứ cho sự kiện, mình có cần em soạn hợp đồng trước không ạ? Nếu anh/chị sẵn sàng, em xin phép gửi thông tin chuyển khoản tạm ứng để mình kịp giữ lịch nhé.',
+  optimize_cost:
+    'Em nhận được yêu cầu tối ưu chi phí của mình rồi ạ. Nếu sự kiện này mình bớt 1 máy quay phụ đi thì giá sẽ giảm được [X] triệu, anh/chị thấy phương án này ổn hơn không ạ?',
+  premium_upgrade:
+    'Em gửi anh/chị xem thêm một số dự án phân khúc cao cấp hơn bên em từng làm cho các tập đoàn lớn để mình tham khảo về chất lượng hình ảnh ạ...',
 }
 const LIST_QUOTE_COLUMNS = [
   'q.id',
@@ -479,6 +490,19 @@ async function getLatestSurveyResponses(quoteIds = []) {
   return responses
 }
 
+async function getSurveyResponseById(id) {
+  if (!id) return null
+  const rows = await query(
+    `select id, quote_id, response_type, response_label, selected_tag, created_at
+     from ${tables.quoteSurveyResponses}
+     where id = ?
+     limit 1`,
+    [id],
+  )
+
+  return normalizeSurveyResponseRow(rows?.[0])
+}
+
 async function attachQuoteSurveyResponses(quotes = []) {
   const responses = await getLatestSurveyResponses(quotes.map(quote => quote.id))
   return quotes.map(quote => ({
@@ -910,6 +934,126 @@ function getTruncatedText(value, maxLength = 255) {
   return text.length > maxLength ? text.slice(0, maxLength) : text
 }
 
+function getBaseUrlHost(value = '') {
+  try {
+    return new URL(value).host.toLowerCase()
+  } catch {
+    try {
+      return new URL(`https://${value}`).host.toLowerCase()
+    } catch {
+      return ''
+    }
+  }
+}
+
+function normalizeNhansuBaseUrl(value = '') {
+  const baseUrl = String(value || '').trim().replace(/\/+$/, '')
+  if (!baseUrl) return ''
+  const host = getBaseUrlHost(baseUrl)
+  if (host === EVENTUS_AUTH_HOST) return ''
+  return /^https?:\/\//i.test(baseUrl) ? baseUrl : `https://${baseUrl}`
+}
+
+function getNhansuBaseUrl() {
+  loadServerEnv()
+  return normalizeNhansuBaseUrl(process.env.BASE_NHANSU_URL)
+    || normalizeNhansuBaseUrl(process.env.NHANSU_URL)
+    || DEFAULT_NHANSU_URL
+}
+
+function makeHttpError(message, statusCode = 400, code) {
+  const error = new Error(message)
+  error.statusCode = statusCode
+  if (code) error.code = code
+  return error
+}
+
+function formatQuoteNotificationDate(value = '') {
+  const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (!match) return ''
+  return `${match[3]}/${match[2]}/${match[1]}`
+}
+
+function getQuoteSurveyNotificationCustomerName(quote = {}) {
+  return getTruncatedText(quote.client_name, 255)
+}
+
+function buildQuoteSurveyNotificationContent(response = {}) {
+  const suggestion = getTruncatedText(SURVEY_RESPONSE_SUGGESTIONS[response.response_type], 1000)
+  const customerResponse = [
+    getTruncatedText(response.response_label, 255),
+    getTruncatedText(response.selected_tag, 1000),
+  ].filter(Boolean).join('\n')
+
+  return [
+    customerResponse,
+    suggestion ? `Gợi ý tư vấn: ${suggestion}` : '',
+  ].filter(Boolean).join('\n\n')
+}
+
+function buildQuoteSurveyNotificationPayload(quote = {}, response = {}, recipients = []) {
+  const customerName = getQuoteSurveyNotificationCustomerName(quote)
+  const customerText = customerName ? `Khách ${customerName}` : 'Khách hàng'
+  const createdDate = formatQuoteNotificationDate(quote.created_at) || 'không rõ ngày'
+
+  return {
+    type: 1,
+    need_to_send: recipients.filter(Boolean),
+    title: `${customerText} đã phản hồi báo giá ngày ${createdDate}`,
+    content: buildQuoteSurveyNotificationContent(response),
+  }
+}
+
+async function getAccountEmployeeIds() {
+  const rows = await query(
+    `select distinct e.id
+     from ${tables.employees} e
+     inner join employee_skill es on es.employee_id = e.id
+     inner join skills s on s.id = es.skill_id
+     where lower(trim(s.name)) = lower(trim(?))
+     order by e.id asc`,
+    ['Account'],
+  )
+
+  return rows.map(row => row.id).filter(Boolean)
+}
+
+async function notifyQuoteSurveyResponse(quote = {}, response = {}) {
+  const baseUrl = getNhansuBaseUrl()
+  if (!baseUrl) throw makeHttpError('Chưa cấu hình BASE_NHANSU_URL để gửi thông báo tới Account.', 500, 'NHANSU_URL_MISSING')
+
+  const accountEmployeeIds = await getAccountEmployeeIds()
+  if (!accountEmployeeIds.length) {
+    throw makeHttpError('Không tìm thấy nhân sự chuyên môn Account để gửi thông báo.', 422, 'QUOTE_ACCOUNT_NOT_FOUND')
+  }
+
+  let notificationResponse
+  try {
+    notificationResponse = await fetch(`${baseUrl}/api/notifications/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(buildQuoteSurveyNotificationPayload(quote, response, accountEmployeeIds)),
+    })
+  } catch (error) {
+    throw makeHttpError(
+      `Không kết nối được Nhân sự API để gửi thông báo tới Account: ${error?.message || 'request failed'}.`,
+      502,
+      'QUOTE_SURVEY_NOTIFICATION_FAILED',
+    )
+  }
+
+  if (!notificationResponse.ok) {
+    const text = await notificationResponse.text().catch(() => '')
+    throw makeHttpError(
+      `Không gửi được thông báo tới Account qua Nhân sự API${text ? `: ${getTruncatedText(text, 160)}` : '.'}`,
+      502,
+      'QUOTE_SURVEY_NOTIFICATION_FAILED',
+    )
+  }
+
+  return { sent: true, recipients: accountEmployeeIds }
+}
+
 async function createQuoteSurveyResponse(body = {}, userAgent) {
   const shareToken = getTruncatedText(body.share_token || body.token, 32)
   const responseType = getTruncatedText(body.response_type, 60)
@@ -934,7 +1078,7 @@ async function createQuoteSurveyResponse(body = {}, userAgent) {
   }
 
   const rows = await query(
-    `select id from ${tables.quotes} where share_token = ? and deleted_at is null limit 1`,
+    `select id, client_name, created_at from ${tables.quotes} where share_token = ? and deleted_at is null limit 1`,
     [shareToken],
   )
   const quote = rows?.[0]
@@ -954,8 +1098,9 @@ async function createQuoteSurveyResponse(body = {}, userAgent) {
     [responseId, quote.id, responseType, responseLabel, selectedTag || null, userAgent || null],
   )
 
-  const latestResponses = await getLatestSurveyResponses([quote.id])
-  return latestResponses.get(quote.id) || null
+  const response = await getSurveyResponseById(responseId)
+  if (response) await notifyQuoteSurveyResponse(quote, response)
+  return response
 }
 
 export default async function handler(req, res) {
@@ -1027,5 +1172,8 @@ export default async function handler(req, res) {
 
 export const __quotesTestInternals = Object.freeze({
   buildDuplicatedQuotePayload,
+  buildQuoteSurveyNotificationContent,
+  buildQuoteSurveyNotificationPayload,
+  formatQuoteNotificationDate,
   getDuplicateEventName,
 })

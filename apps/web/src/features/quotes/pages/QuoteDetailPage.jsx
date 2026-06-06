@@ -138,7 +138,7 @@ function QuoteSurveyResponseSummary({ response }) {
       ) : null}
       {suggestion ? (
         <p className="mt-2 leading-5 text-slate-700">
-          <span className="font-semibold">Gợi ý:</span> {suggestion}
+          <span className="font-semibold">Gợi ý tư vấn:</span> {suggestion}
         </p>
       ) : null}
       <p className="mt-2 text-[11px] text-slate-400">Gửi lúc: {formatDateTime(response.created_at)}</p>

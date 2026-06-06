@@ -5,6 +5,7 @@ import {
   buildDocumentPayload,
   ContractDocumentEditorForm,
 } from '../components/ContractDocumentsPanel'
+import ContractEntityMismatchPopup from '../components/ContractEntityMismatchPopup'
 import ContractDocumentDocxDownloadButton from '../components/ContractDocumentDocxDownloadButton'
 import ContractDocumentPDFDownloadButton from '../components/ContractDocumentPDFDownloadButton'
 import ContractDocumentPreview from '../components/ContractDocumentPreview'
@@ -113,8 +114,8 @@ export default function ContractDocumentEditorPage() {
   const [shareCopied, setShareCopied] = useState(false)
   const shareCopiedTimerRef = useRef(null)
   const formKey = useMemo(
-    () => [contract?.id || contractId, document?.id || 'new', document?.document_type || documentType || ''].join(':'),
-    [contract?.id, contractId, document?.id, document?.document_type, documentType],
+    () => [contract?.id || contractId, document?.id || 'new', document?.document_type || documentType || '', document?.updated_at || ''].join(':'),
+    [contract?.id, contractId, document?.id, document?.document_type, document?.updated_at, documentType],
   )
 
   useEffect(() => {
@@ -234,11 +235,16 @@ export default function ContractDocumentEditorPage() {
 
   const activeDocumentType = document?.document_type || documentType || 'advance_request'
   const pageLabel = isEditMode ? 'Sửa chứng từ' : DOCUMENT_TYPES[activeDocumentType]?.actionLabel || 'Tạo chứng từ'
-  const canDownloadPreview = Boolean(previewDocument?.id || previewDocument?.document_number)
+  const canDownloadPreview = Boolean(previewDocument)
   const publicDocumentUrl = getPublicDocumentUrl(previewDocument || document || {})
 
   return (
     <div className="min-h-screen bg-slate-50 px-5 py-5 lg:px-7">
+      <ContractEntityMismatchPopup
+        contract={contract}
+        documents={documents}
+        currentDocument={previewDocument || document}
+      />
       <div className="mx-auto max-w-[1700px] space-y-5">
         <QuoteBreadcrumb
           root={{ label: 'Hợp đồng', to: '/contracts' }}

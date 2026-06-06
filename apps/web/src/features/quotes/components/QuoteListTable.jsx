@@ -12,15 +12,10 @@ import {
   getQuoteSurveyResponseTone,
   hasQuoteSurveyResponse,
 } from '../lib/quoteSurvey'
+import { getContractDocumentEditRoute, getContractRoute } from '../lib/contractRouting'
 
 const DOCUMENT_BADGE_BASE = 'inline-flex h-7 max-w-full items-center rounded-full border px-2.5 text-[11px] font-semibold transition focus-visible:outline-none focus-visible:ring-2'
-const DOCUMENT_BADGE_TONES = {
-  contract: 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800 focus-visible:ring-blue-200',
-  advance_request: 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 hover:text-amber-800 focus-visible:ring-amber-200',
-  acceptance_liquidation: 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 focus-visible:ring-emerald-200',
-  payment_request: 'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 hover:text-rose-800 focus-visible:ring-rose-200',
-}
-const DEFAULT_DOCUMENT_BADGE_TONE = 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-700 focus-visible:ring-slate-200'
+const DOCUMENT_BADGE_TONE = 'border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 focus-visible:ring-blue-200'
 
 function EmptyRow({ children }) {
   return (
@@ -75,8 +70,13 @@ function QuoteOpenButton({ quote, children, className = '', align = 'left', labe
   )
 }
 
+function getQuoteDocumentEditHref(document = {}) {
+  if (document.type === 'contract') return getContractRoute(document)
+  return getContractDocumentEditRoute(document.contract_id, document)
+}
+
 function QuoteDocumentBadges({ quote, documents = [], onOpenContract }) {
-  const linkedDocuments = documents.filter(document => document?.url)
+  const linkedDocuments = documents.filter(document => document?.id || document?.url)
   const savedContract = hasSavedContract(quote)
   const canCreateContract = canCreateContractFromQuote(quote)
   const showCreateContract = !savedContract
@@ -99,16 +99,16 @@ function QuoteDocumentBadges({ quote, documents = [], onOpenContract }) {
         </button>
       ) : null}
       {linkedDocuments.map(document => {
-        const badgeTone = DOCUMENT_BADGE_TONES[document.type] || DEFAULT_DOCUMENT_BADGE_TONE
+        const editHref = getQuoteDocumentEditHref(document)
 
         return (
           <a
             key={`${document.type}-${document.id || document.url}`}
-            href={document.url}
+            href={editHref}
             target="_blank"
             rel="noreferrer"
             title={document.number ? `${document.label}: ${document.number}` : document.label}
-            className={`${DOCUMENT_BADGE_BASE} ${badgeTone}`}
+            className={`${DOCUMENT_BADGE_BASE} ${DOCUMENT_BADGE_TONE}`}
           >
             <span className="truncate">{document.label}</span>
           </a>

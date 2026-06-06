@@ -9,9 +9,12 @@ import {
   getContractDocumentFilename,
   getContractFromDocument,
   getCustomerProfile,
+  getDisplayDocumentIssuedDate,
   getDocumentTitle,
   getDocumentTypeLabel,
   getPaymentRequestContent,
+  getPaymentSummary,
+  getProfileLegalName,
   getProfileName,
   getSellerProfile,
   getVatLabel,
@@ -26,6 +29,7 @@ Font.register({
   family: PDF_FONT_FAMILY,
   fonts: [
     { src: `${FONT_PATH}/BeVietnamPro-Regular.ttf`, fontWeight: 400 },
+    { src: `${FONT_PATH}/BeVietnamPro-Regular.ttf`, fontWeight: 400, fontStyle: 'italic' },
     { src: `${FONT_PATH}/BeVietnamPro-Medium.ttf`, fontWeight: 500 },
     { src: `${FONT_PATH}/BeVietnamPro-SemiBold.ttf`, fontWeight: 600 },
     { src: `${FONT_PATH}/BeVietnamPro-Bold.ttf`, fontWeight: 700 },
@@ -40,11 +44,11 @@ export function getContractDocumentPdfFilename(document = {}) {
 
 const styles = StyleSheet.create({
   page: {
-    paddingHorizontal: 40,
-    paddingVertical: 34,
+    paddingHorizontal: 51,
+    paddingVertical: 28,
     fontFamily: PDF_FONT_FAMILY,
-    fontSize: 10,
-    lineHeight: 1.45,
+    fontSize: 9.75,
+    lineHeight: 1.58,
     color: '#0f172a',
   },
   center: {
@@ -52,15 +56,16 @@ const styles = StyleSheet.create({
   },
   national: {
     textAlign: 'center',
-    fontSize: 10,
-    marginBottom: 2,
+    fontSize: 9.75,
+    lineHeight: 1.58,
   },
   title: {
-    marginTop: 13,
-    marginBottom: 4,
+    marginTop: 16,
+    marginBottom: 0,
     textAlign: 'center',
-    fontSize: 16,
+    fontSize: 13.75,
     fontWeight: 700,
+    lineHeight: 1.25,
     textTransform: 'uppercase',
   },
   subtitle: {
@@ -137,28 +142,35 @@ const styles = StyleSheet.create({
   table: {
     borderWidth: 1,
     borderColor: '#d1d5db',
-    marginTop: 6,
+    marginTop: 4,
     marginBottom: 8,
   },
   headerRow: {
     flexDirection: 'row',
-    backgroundColor: '#f1f5f9',
   },
   row: {
     flexDirection: 'row',
-    borderTopWidth: 1,
-    borderTopColor: '#e2e8f0',
   },
   cell: {
-    paddingHorizontal: 5,
-    paddingVertical: 4,
-    fontSize: 7.8,
+    borderRightWidth: 1,
+    borderRightColor: '#d1d5db',
+    borderBottomWidth: 1,
+    borderBottomColor: '#d1d5db',
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    fontSize: 9.75,
+    lineHeight: 1.35,
+  },
+  lastCell: {
+    borderRightWidth: 0,
+  },
+  lastRowCell: {
+    borderBottomWidth: 0,
   },
   headerCell: {
     fontWeight: 700,
-    color: '#475569',
-    textTransform: 'uppercase',
-    fontSize: 7,
+    color: '#0f172a',
+    fontSize: 9.75,
   },
   desc: { width: '38%' },
   unit: { width: '11%', textAlign: 'center' },
@@ -197,8 +209,9 @@ const styles = StyleSheet.create({
   },
   signatureWrap: {
     flexDirection: 'row',
-    gap: 20,
-    marginTop: 24,
+    gap: 24,
+    marginTop: 18,
+    paddingTop: 12,
   },
   signature: {
     flex: 1,
@@ -206,7 +219,7 @@ const styles = StyleSheet.create({
   },
   signatureHeading: {
     fontWeight: 700,
-    marginBottom: 46,
+    marginBottom: 72,
   },
   signatureName: {
     fontWeight: 700,
@@ -250,6 +263,9 @@ const styles = StyleSheet.create({
     lineHeight: 1.55,
     color: '#111827',
   },
+  paymentAmountWords: {
+    fontStyle: 'italic',
+  },
   paymentSignatureWrap: {
     marginTop: 28,
     alignItems: 'flex-end',
@@ -263,6 +279,54 @@ const styles = StyleSheet.create({
   },
   paymentSignatureSpace: {
     height: 58,
+  },
+  acceptanceBody: {
+    marginTop: 14,
+    marginBottom: 14,
+  },
+  acceptanceGroup: {
+    marginBottom: 8,
+  },
+  acceptancePartyBlock: {
+    marginBottom: 0,
+  },
+  acceptancePartyBlockEnd: {
+    marginBottom: 8,
+  },
+  acceptanceParagraph: {
+    fontSize: 9.75,
+    lineHeight: 1.58,
+    color: '#0f172a',
+  },
+  acceptanceInfoParagraph: {
+    fontSize: 9.75,
+    lineHeight: 1.58,
+    color: '#334155',
+  },
+  acceptancePartyTitle: {
+    fontSize: 9.75,
+    lineHeight: 1.58,
+    fontWeight: 700,
+    color: '#020617',
+    textTransform: 'uppercase',
+  },
+  acceptanceSectionTitle: {
+    marginBottom: 4,
+    fontSize: 10.25,
+    lineHeight: 1.3,
+    fontWeight: 700,
+    color: '#020617',
+    textTransform: 'uppercase',
+  },
+  acceptanceTableTitle: {
+    marginBottom: 4,
+    fontSize: 9.75,
+    lineHeight: 1.3,
+    fontWeight: 600,
+    color: '#0f172a',
+  },
+  acceptanceAmountTableSection: {
+    marginTop: 6,
   },
 })
 
@@ -281,6 +345,39 @@ function PartyCard({ title, profile = {}, bank = null }) {
       {bank?.bank_name ? (
         <Text style={styles.partyLine}>Ngân hàng: {bank.bank_name}</Text>
       ) : null}
+    </View>
+  )
+}
+
+function AcceptanceInfoLine({ label, value }) {
+  return (
+    <Text style={styles.acceptanceInfoParagraph}>
+      <Text style={styles.strong}>{label}: </Text>
+      {hasDocumentText(value) ? value : '-'}
+    </Text>
+  )
+}
+
+function AcceptanceRepresentativePositionLine({ profile = {} }) {
+  return (
+    <Text style={styles.acceptanceInfoParagraph}>
+      <Text style={styles.strong}>Đại diện: </Text>
+      {hasDocumentText(profile.representative) ? profile.representative : '-'}
+      <Text style={styles.strong}> | Chức vụ: </Text>
+      {hasDocumentText(profile.position) ? profile.position : '-'}
+    </Text>
+  )
+}
+
+function AcceptancePartyBlock({ title, profile = {}, bank = null, isLast = false, displayName = '' }) {
+  return (
+    <View style={isLast ? styles.acceptancePartyBlockEnd : styles.acceptancePartyBlock}>
+      <Text style={styles.acceptancePartyTitle}>{title}: {displayName || getProfileName(profile) || '-'}</Text>
+      <AcceptanceRepresentativePositionLine profile={profile} />
+      <AcceptanceInfoLine label="Địa chỉ" value={profile.address} />
+      <AcceptanceInfoLine label="Mã số thuế" value={profile.tax_code} />
+      {bank?.account_number ? <AcceptanceInfoLine label="Số tài khoản" value={bank.account_number} /> : null}
+      {bank?.bank_name ? <AcceptanceInfoLine label="Ngân hàng" value={bank.bank_name} /> : null}
     </View>
   )
 }
@@ -306,11 +403,62 @@ function BankAwarePdfParagraph({ line = '', style }) {
   )
 }
 
+function getAcceptanceLineSpacingStyle(line, index, lines = []) {
+  if (index >= lines.length - 1) return null
+  return getBankDetailLineParts(line) ? { marginBottom: 0 } : { marginBottom: 4 }
+}
+
 function BankPaymentLine({ label, value }) {
   return (
     <Text style={styles.paymentParagraph}>
       {label}: <Text style={styles.strong}>{value || '-'}</Text>
     </Text>
+  )
+}
+
+function HighlightedPdfText({ text = '', highlights = [] }) {
+  const source = String(text || '')
+  const highlightValues = highlights
+    .map(value => String(value || '').trim())
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length)
+
+  if (!source || !highlightValues.length) return <>{source}</>
+
+  const parts = []
+  let cursor = 0
+
+  while (cursor < source.length) {
+    let nextMatch = null
+
+    highlightValues.forEach(value => {
+      const index = source.indexOf(value, cursor)
+      if (index === -1) return
+      if (!nextMatch || index < nextMatch.index || (index === nextMatch.index && value.length > nextMatch.value.length)) {
+        nextMatch = { index, value }
+      }
+    })
+
+    if (!nextMatch) {
+      parts.push({ text: source.slice(cursor), highlighted: false })
+      break
+    }
+
+    if (nextMatch.index > cursor) {
+      parts.push({ text: source.slice(cursor, nextMatch.index), highlighted: false })
+    }
+    parts.push({ text: nextMatch.value, highlighted: true })
+    cursor = nextMatch.index + nextMatch.value.length
+  }
+
+  return (
+    <>
+      {parts.map((part, index) => (
+        part.highlighted
+          ? <Text key={`${part.text}-${index}`} style={styles.strong}>{part.text}</Text>
+          : <Text key={`${part.text}-${index}`}>{part.text}</Text>
+      ))}
+    </>
   )
 }
 
@@ -328,38 +476,61 @@ function SummaryRows({ rows = [] }) {
 }
 
 function PdfAcceptanceAmountTable({ title, rows = [], totals = {}, vatConfig = {} }) {
+  const dataRows = rows.length ? rows.map((row, index) => ({
+    key: row.id || index,
+    cells: [
+      { text: String(index + 1), width: '7%', align: 'center' },
+      { text: row.description || '-', width: '37%' },
+      { text: row.unit || '-', width: '10%' },
+      { text: String(row.quantity || 0), width: '11%', align: 'right' },
+      { text: formatDocumentCurrency(row.unit_price, ''), width: '17%', align: 'right' },
+      { text: formatDocumentCurrency(row.amount, ''), width: '18%', align: 'right' },
+    ],
+  })) : [{
+    key: 'empty',
+    cells: [{ text: 'Chưa có hạng mục.', width: '100%', align: 'center' }],
+  }]
+  const totalRows = [{
+    key: 'totals',
+    cells: [
+      { text: `Tổng\n${getVatLabel(vatConfig)}\nTổng chi phí`, width: '82%', align: 'right', bold: true, totalCell: true },
+      { text: `${formatDocumentCurrency(totals.subtotal, '')}\n${formatDocumentCurrency(totals.vat_amount, '')}\n${formatDocumentCurrency(totals.total_amount, '')}`, width: '18%', align: 'right', bold: true, totalCell: true },
+    ],
+  }]
+  const renderCell = (cell, index, rowIndex, rowCount, extraStyle = null) => (
+    <Text
+      key={`${cell.text}-${index}`}
+      style={[
+        styles.cell,
+        extraStyle,
+        cell.totalCell ? { backgroundColor: '#f8fafc' } : null,
+        cell.align ? { textAlign: cell.align } : null,
+        cell.bold ? { fontWeight: 700 } : null,
+        { width: cell.width },
+        index === 5 || cell.width === '100%' || (cell.width === '18%' && rowIndex >= 0) ? styles.lastCell : null,
+        rowIndex === rowCount - 1 ? styles.lastRowCell : null,
+      ]}
+    >
+      {cell.text}
+    </Text>
+  )
+  const allRows = [...dataRows, ...totalRows]
+
   return (
-    <View style={styles.section} wrap={false}>
-      <Text style={styles.sectionTitle}>{title}</Text>
+    <View style={styles.acceptanceAmountTableSection} wrap={false}>
+      <Text style={styles.acceptanceTableTitle}>{title}:</Text>
       <View style={styles.table}>
         <View style={styles.headerRow} fixed>
-          <Text style={[styles.cell, styles.headerCell, { width: '8%', textAlign: 'center' }]}>STT</Text>
-          <Text style={[styles.cell, styles.headerCell, { width: '34%' }]}>Hạng mục</Text>
+          <Text style={[styles.cell, styles.headerCell, { width: '7%', textAlign: 'center' }]}>STT</Text>
+          <Text style={[styles.cell, styles.headerCell, { width: '37%' }]}>Hạng mục</Text>
           <Text style={[styles.cell, styles.headerCell, { width: '10%' }]}>ĐVT</Text>
-          <Text style={[styles.cell, styles.headerCell, { width: '12%', textAlign: 'right' }]}>SL</Text>
-          <Text style={[styles.cell, styles.headerCell, { width: '18%', textAlign: 'right' }]}>Đơn giá</Text>
-          <Text style={[styles.cell, styles.headerCell, { width: '18%', textAlign: 'right' }]}>Thành tiền</Text>
+          <Text style={[styles.cell, styles.headerCell, { width: '11%', textAlign: 'right' }]}>Số lượng</Text>
+          <Text style={[styles.cell, styles.headerCell, { width: '17%', textAlign: 'right' }]}>Đơn giá (VNĐ)</Text>
+          <Text style={[styles.cell, styles.headerCell, styles.lastCell, { width: '18%', textAlign: 'right' }]}>Thành tiền (VNĐ)</Text>
         </View>
-        {rows.length ? rows.map((row, index) => (
-          <View key={row.id || index} style={styles.row} wrap={false}>
-            <Text style={[styles.cell, { width: '8%', textAlign: 'center' }]}>{index + 1}</Text>
-            <Text style={[styles.cell, { width: '34%' }]}>{row.description || '-'}</Text>
-            <Text style={[styles.cell, { width: '10%' }]}>{row.unit || '-'}</Text>
-            <Text style={[styles.cell, { width: '12%', textAlign: 'right' }]}>{row.quantity || 0}</Text>
-            <Text style={[styles.cell, { width: '18%', textAlign: 'right' }]}>{formatDocumentCurrency(row.unit_price, '')}</Text>
-            <Text style={[styles.cell, { width: '18%', textAlign: 'right' }]}>{formatDocumentCurrency(row.amount, '')}</Text>
-          </View>
-        )) : (
-          <View style={styles.row}><Text style={[styles.cell, { width: '100%', textAlign: 'center' }]}>Chưa có hạng mục.</Text></View>
-        )}
-        {[
-          ['Tổng (chưa bao gồm thuế GTGT)', totals.subtotal],
-          [getVatLabel(vatConfig), totals.vat_amount],
-          ['Tổng chi phí (Đã bao gồm VAT)', totals.total_amount],
-        ].map(([label, value]) => (
-          <View key={label} style={styles.row}>
-            <Text style={[styles.cell, { width: '82%', textAlign: 'right', fontWeight: 700 }]}>{label}</Text>
-            <Text style={[styles.cell, { width: '18%', textAlign: 'right', fontWeight: 700 }]}>{formatDocumentCurrency(value, '')}</Text>
+        {allRows.map((row, rowIndex) => (
+          <View key={row.key} style={styles.row} wrap={false}>
+            {row.cells.map((cell, index) => renderCell(cell, index, rowIndex, allRows.length))}
           </View>
         ))}
       </View>
@@ -432,13 +603,24 @@ function AcceptanceBody({ document }) {
 function PaymentBody({ document }) {
   const bank = getBankAccountDetails(document)
   const content = getPaymentRequestContent(document)
+  const summary = getPaymentSummary(document)
+  const paymentAmountText = formatDocumentCurrency(summary.payment_amount, '')
+  const paymentAmountWithCurrencyText = paymentAmountText ? `${paymentAmountText} VNĐ` : ''
 
   return (
     <View style={styles.section}>
       {content.greeting ? <Text style={styles.paymentParagraph}>{content.greeting}</Text> : null}
       {content.basis ? <Text style={styles.paymentParagraph}>{content.basis}</Text> : null}
-      {content.request ? <Text style={styles.paymentParagraph}>{content.request}</Text> : null}
-      {content.amount_words ? <Text style={styles.paymentParagraph}>{content.amount_words}</Text> : null}
+      {content.request ? (
+        <Text style={styles.paymentParagraph}>
+          <HighlightedPdfText text={content.request} highlights={[paymentAmountWithCurrencyText, paymentAmountText]} />
+        </Text>
+      ) : null}
+      {content.amount_words ? (
+        <Text style={[styles.paymentParagraph, styles.paymentAmountWords]}>
+          <HighlightedPdfText text={content.amount_words} highlights={[summary.amount_words]} />
+        </Text>
+      ) : null}
       {content.method ? <Text style={styles.paymentParagraph}>{content.method}</Text> : null}
       {content.bank_intro ? <Text style={styles.paymentParagraph}>{content.bank_intro}</Text> : null}
       <BankPaymentLine label="Tài khoản chuyển khoản" value={bank.account_number} />
@@ -460,7 +642,7 @@ export default function ContractDocumentPDFDocument({ document = {} }) {
   const customer = getCustomerProfile(document)
   const seller = getSellerProfile(document)
   const bank = getBankAccountDetails(document)
-  const issuedDate = formatDocumentDate(document.issued_date || document.created_at)
+  const issuedDate = getDisplayDocumentIssuedDate(document)
   const acceptanceContent = document.document_type === 'acceptance_liquidation'
     ? getAcceptanceLiquidationContent(document)
     : null
@@ -478,7 +660,7 @@ export default function ContractDocumentPDFDocument({ document = {} }) {
           <>
             <Text style={styles.paymentHeader}>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</Text>
             <Text style={styles.paymentHeader}>Độc lập - Tự do - Hạnh phúc</Text>
-            <Text style={styles.paymentDate}>Ngày {issuedDate || '-'}</Text>
+            {issuedDate ? <Text style={styles.paymentDate}>Ngày {issuedDate}</Text> : null}
             <Text style={styles.paymentTitle}>{getDocumentTitle(document)}</Text>
             <Text style={styles.paymentNumber}>Số: {document.document_number || '-'}</Text>
             {document.document_type === 'payment_request' ? <PaymentBody document={document} /> : <AdvanceBody document={document} />}
@@ -486,7 +668,6 @@ export default function ContractDocumentPDFDocument({ document = {} }) {
               <View style={styles.paymentSignature}>
                 <Text>ĐẠI DIỆN</Text>
                 <View style={styles.paymentSignatureSpace} />
-                <Text>{seller.representative || ''}</Text>
               </View>
             </View>
             <Text style={styles.pageNumber} render={({ pageNumber, totalPages }) => `Trang ${pageNumber}/${totalPages}`} fixed />
@@ -496,39 +677,52 @@ export default function ContractDocumentPDFDocument({ document = {} }) {
             <Text style={[styles.national, styles.strong]}>CỘNG HOÀ XÃ HỘI CHỦ NGHĨA VIỆT NAM</Text>
             <Text style={[styles.national, styles.strong]}>Độc lập - Tự do - Hạnh phúc</Text>
             <Text style={styles.title}>BIÊN BẢN NGHIỆM THU VÀ THANH LÝ HỢP ĐỒNG</Text>
-            {acceptanceContent?.basis_contract ? <Text style={styles.paragraph}>{acceptanceContent.basis_contract}</Text> : null}
-            {acceptanceContent?.basis_completed ? <Text style={styles.paragraph}>{acceptanceContent.basis_completed}</Text> : null}
-            {acceptanceContent?.party_intro ? <Text style={styles.paragraph}>{acceptanceContent.party_intro}</Text> : null}
 
-            <View style={styles.parties}>
-              <PartyCard title="BÊN A" profile={customer} />
-              <PartyCard title="BÊN B" profile={seller} bank={bank} />
-            </View>
-            {acceptanceContent?.signing_intro ? <Text style={styles.paragraph}>{acceptanceContent.signing_intro}</Text> : null}
-            {acceptanceContent?.articles.map(section => (
-              <View key={section.id} style={styles.section}>
-                <Text style={styles.sectionTitle}>{section.title}</Text>
-                {String(section.body || '').split(/\n+/).filter(Boolean).map((line, index) => (
-                  <BankAwarePdfParagraph key={`${section.id}-${index}`} line={line} style={styles.paragraph} />
-                ))}
-                {showAcceptanceAmountTables && section.id === 'acceptance-article-2' ? (
-                  <>
-                    <PdfAcceptanceAmountTable title="Bảng giá trị theo hợp đồng" rows={acceptanceSummary?.contract_rows || []} totals={acceptanceSummary?.contract_totals || {}} vatConfig={acceptanceSummary?.vat_config || {}} />
-                    <PdfAcceptanceAmountTable title="Bảng giá trị nghiệm thu/thực tế" rows={acceptanceSummary?.actual_rows || []} totals={acceptanceSummary?.actual_totals || {}} vatConfig={acceptanceSummary?.vat_config || {}} />
-                    {acceptanceContent.cost_difference_note ? <Text style={styles.paragraph}>{acceptanceContent.cost_difference_note}</Text> : null}
-                  </>
-                ) : null}
+            <View style={styles.acceptanceBody}>
+              <View style={styles.acceptanceGroup}>
+                {acceptanceContent?.basis_contract ? <Text style={styles.acceptanceParagraph}>{acceptanceContent.basis_contract}</Text> : null}
+                {acceptanceContent?.basis_completed ? <Text style={styles.acceptanceParagraph}>{acceptanceContent.basis_completed}</Text> : null}
+                {acceptanceContent?.party_intro ? <Text style={styles.acceptanceParagraph}>{acceptanceContent.party_intro}</Text> : null}
               </View>
-            ))}
+
+              <AcceptancePartyBlock title="BÊN A" profile={customer} />
+              <Text style={styles.acceptanceParagraph}>Và</Text>
+              <AcceptancePartyBlock title="BÊN B" profile={seller} bank={bank} isLast displayName={getProfileLegalName(seller)} />
+
+              {acceptanceContent?.signing_intro ? <Text style={[styles.acceptanceParagraph, styles.acceptanceGroup]}>{acceptanceContent.signing_intro}</Text> : null}
+              {acceptanceContent?.articles.map(section => {
+                const lines = String(section.body || '').split(/\n+/).filter(Boolean)
+
+                return (
+                  <View key={section.id} style={styles.acceptanceGroup}>
+                    <Text style={styles.acceptanceSectionTitle}>{section.title}</Text>
+                    {lines.map((line, index) => (
+                      <BankAwarePdfParagraph
+                        key={`${section.id}-${index}`}
+                        line={line}
+                        style={[styles.acceptanceParagraph, getAcceptanceLineSpacingStyle(line, index, lines)]}
+                      />
+                    ))}
+                    {showAcceptanceAmountTables && section.id === 'acceptance-article-2' ? (
+                      <>
+                        <PdfAcceptanceAmountTable title="Bảng giá trị theo hợp đồng" rows={acceptanceSummary?.contract_rows || []} totals={acceptanceSummary?.contract_totals || {}} vatConfig={acceptanceSummary?.vat_config || {}} />
+                        <PdfAcceptanceAmountTable title="Bảng giá trị nghiệm thu/thực tế" rows={acceptanceSummary?.actual_rows || []} totals={acceptanceSummary?.actual_totals || {}} vatConfig={acceptanceSummary?.vat_config || {}} />
+                        {acceptanceContent.cost_difference_note ? <Text style={styles.acceptanceParagraph}>{acceptanceContent.cost_difference_note}</Text> : null}
+                      </>
+                    ) : null}
+                  </View>
+                )
+              })}
+            </View>
 
             <View style={styles.signatureWrap}>
               <View style={styles.signature}>
                 <Text style={styles.signatureHeading}>ĐẠI DIỆN BÊN A</Text>
-                <Text style={styles.signatureName}>{customer.representative || ''}</Text>
+                <Text style={styles.signatureName} />
               </View>
               <View style={styles.signature}>
                 <Text style={styles.signatureHeading}>ĐẠI DIỆN BÊN B</Text>
-                <Text style={styles.signatureName}>{seller.representative || ''}</Text>
+                <Text style={styles.signatureName} />
               </View>
             </View>
             <Text style={styles.pageNumber} render={({ pageNumber, totalPages }) => `Trang ${pageNumber}/${totalPages}`} fixed />

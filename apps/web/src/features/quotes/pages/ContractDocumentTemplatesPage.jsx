@@ -3,6 +3,7 @@ import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { CopyPlus, Eye, FileText, Plus, Save, ScrollText, Trash2 } from 'lucide-react'
 import { useEscapeToClose } from '../../../hooks/useEscapeToClose'
 import QuoteBreadcrumb from '../components/QuoteBreadcrumb'
+import NoticePopup from '../components/NoticePopup'
 import ContractTemplatesPage from './ContractTemplatesPage'
 import {
   deleteContractDocumentTemplate,
@@ -108,8 +109,7 @@ function getAcceptanceLiquidationSections(template = {}) {
 }
 
 function hasAcceptanceCostDifference(template = {}) {
-  const sections = Array.isArray(template.content_sections) ? template.content_sections : []
-  return Boolean(template.fields_config?.acceptance_cost_difference || sections.some(section => section.id === 'acceptance-cost-difference-note'))
+  return Boolean(template.fields_config?.acceptance_cost_difference)
 }
 
 function getDocumentNumberPreview(template = {}) {
@@ -155,6 +155,7 @@ function getSellerPreviewTokenValues(entityCode = '', legalEntities = []) {
 
   return {
     seller_name: seller.company_name || '',
+    seller_entity_name_full: seller.entity_name_full || seller.legal_name || seller.company_name || '',
     seller_representative: seller.representative || '',
     seller_position: seller.position || '',
     seller_address: seller.address || '',
@@ -249,6 +250,7 @@ function buildEmptyTemplate(documentType = 'advance_request') {
       required_fields: documentType === 'payment_request'
         ? ['amount', 'issued_date', 'acceptance_document_id']
         : ['amount', 'issued_date'],
+      ...(documentType === 'acceptance_liquidation' ? { acceptance_cost_difference: false } : {}),
     },
     numbering_config: {
       sequence_scope: 'seller_entity_code + document_type + sequence_year',
@@ -961,7 +963,18 @@ export default function ContractDocumentTemplatesPage() {
   }
 
   function updateDraft(patch) {
-    setDraft(prev => normalizeDocumentTemplate({ ...prev, ...patch }))
+    setDraft(prev => {
+      const normalized = normalizeDocumentTemplate({ ...prev, ...patch })
+      const liveTextPatch = {}
+
+      ;['name', 'description', 'title', 'seller_entity_code', 'document_number_pattern', 'terms_text'].forEach(field => {
+        if (Object.prototype.hasOwnProperty.call(patch, field)) {
+          liveTextPatch[field] = String(patch[field] ?? '')
+        }
+      })
+
+      return { ...normalized, ...liveTextPatch }
+    })
     setNotice('')
   }
 
@@ -997,6 +1010,24 @@ export default function ContractDocumentTemplatesPage() {
       section.id === sectionId ? { ...section, body } : section
     ))
     updateDraft({
+      content_sections: nextSections,
+      terms_text: sectionsToDocumentTermsText(nextSections),
+    })
+  }
+
+  function updateAcceptanceCostDifference(enabled) {
+    const fieldsConfig = {
+      ...(draft.fields_config || {}),
+      acceptance_cost_difference: Boolean(enabled),
+    }
+    const nextTemplate = {
+      ...draft,
+      fields_config: fieldsConfig,
+    }
+    const nextSections = getAcceptanceLiquidationSections(nextTemplate)
+
+    updateDraft({
+      fields_config: fieldsConfig,
       content_sections: nextSections,
       terms_text: sectionsToDocumentTermsText(nextSections),
     })
@@ -1100,6 +1131,7 @@ export default function ContractDocumentTemplatesPage() {
 
   return (
     <div className="mx-auto max-w-[1500px] space-y-5">
+      <NoticePopup message={notice} onClose={() => setNotice('')} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <QuoteBreadcrumb root={{ label: 'Hợp đồng', to: '/contracts' }} items={[{ label: 'Mẫu tài liệu' }]} />
@@ -1155,11 +1187,10 @@ export default function ContractDocumentTemplatesPage() {
       <h2 className="text-[20px] font-semibold tracking-tight text-slate-950">{getTemplateKindTitle(selectedKind)}</h2>
 
       {selectedKind === CONTRACT_TEMPLATE_KIND ? (
-        <ContractTemplatesPage embedded onCreateNewReady={registerContractCreateNew} />
+        <ContractTemplatesPage embedded onCreateNewReady={registerContractCreateNew} onSuccessNotice={setNotice} />
       ) : (
         <>
           {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-[13px] text-red-700">{error}</p>}
-          {notice && <p className="rounded-xl bg-emerald-50 px-4 py-3 text-[13px] text-emerald-700">{notice}</p>}
 
       <div className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
         <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
@@ -1181,6 +1212,11 @@ export default function ContractDocumentTemplatesPage() {
                   <div className="flex items-start justify-between gap-2">
                     <span className="text-[13px] font-semibold text-slate-900">{template.name}</span>
                     <span className="flex shrink-0 flex-wrap justify-end gap-1">
+                      {template.document_type === 'acceptance_liquidation' ? (
+                        hasAcceptanceCostDifference(template)
+                          ? <span className="rounded-full bg-orange-50 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-orange-700">Có bảng</span>
+                          : <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-500">Không bảng</span>
+                      ) : null}
                       {template.is_default ? <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-emerald-700">Default</span> : null}
                     </span>
                   </div>
@@ -1208,6 +1244,18 @@ export default function ContractDocumentTemplatesPage() {
                 </span>
               </label>
             </div>
+            {draft.document_type === 'acceptance_liquidation' ? (
+              <div className="mt-4 grid gap-2 md:grid-cols-[340px_minmax(220px,360px)] md:items-center">
+                <span className="whitespace-nowrap text-[12px] font-semibold text-slate-600">Cơ chế hiển thị bảng giá trị nghiệm thu/thực tế:</span>
+                <Select
+                  value={hasAcceptanceCostDifference(draft) ? 'show' : 'hide'}
+                  onChange={event => updateAcceptanceCostDifference(event.target.value === 'show')}
+                >
+                  <option value="show">Hiển thị bảng giá trị nghiệm thu/thực tế</option>
+                  <option value="hide">Không hiển thị bảng</option>
+                </Select>
+              </div>
+            ) : null}
           </section>
 
           {draft.document_type === 'acceptance_liquidation' ? (

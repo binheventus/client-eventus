@@ -113,6 +113,32 @@
   background-color: #020617 !important;
 }
 
+.feedback-detail-page--dark .feedback-version-menu {
+  border-color: #334155 !important;
+  background-color: #111827 !important;
+  box-shadow: 0 18px 38px rgba(2, 6, 23, 0.42);
+}
+
+.feedback-detail-page--dark .feedback-version-item {
+  background-color: transparent !important;
+  color: #cbd5e1 !important;
+}
+
+.feedback-detail-page--dark .feedback-version-item:hover,
+.feedback-detail-page--dark .feedback-version-item--active {
+  background-color: rgba(247, 152, 32, 0.16) !important;
+  color: #f8fafc !important;
+}
+
+.feedback-detail-page--dark .feedback-version-add-button {
+  border-color: #334155 !important;
+  background-color: transparent !important;
+}
+
+.feedback-detail-page--dark .feedback-version-add-button:hover {
+  background-color: rgba(247, 152, 32, 0.16) !important;
+}
+
 .eventus-landing {
   display: flex;
   min-height: 100svh;

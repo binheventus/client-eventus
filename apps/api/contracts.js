@@ -1270,8 +1270,7 @@ async function listDocumentsByContract(queryParams = {}) {
   return rows.map(normalizeDocumentRow)
 }
 
-async function allocateDocumentNumber(connection, {
-  documentId,
+async function takeNextDocumentNumber(connection, {
   documentType,
   sellerEntityCode,
   customerCode,
@@ -1299,6 +1298,19 @@ async function allocateDocumentNumber(connection, {
     customer: customerCode,
     year: String(sequenceYear),
   })
+  return { sequenceNumber, documentNumber }
+}
+
+async function allocateDocumentNumber(connection, {
+  documentId,
+  ...numberConfig
+}) {
+  const { sequenceNumber, documentNumber } = await takeNextDocumentNumber(connection, numberConfig)
+  const {
+    documentType,
+    sellerEntityCode,
+    sequenceYear,
+  } = numberConfig
   const ledgerId = makeId('doc_no')
   await insertDataRow(connection, tables.contractDocumentNumberLedger, {
     id: ledgerId,
@@ -1309,6 +1321,41 @@ async function allocateDocumentNumber(connection, {
     sequence_number: sequenceNumber,
     document_number: documentNumber,
   })
+  return { sequenceNumber, documentNumber }
+}
+
+async function reassignDocumentNumber(connection, {
+  documentId,
+  ...numberConfig
+}) {
+  const { sequenceNumber, documentNumber } = await takeNextDocumentNumber(connection, numberConfig)
+  const {
+    documentType,
+    sellerEntityCode,
+    sequenceYear,
+  } = numberConfig
+  const [ledgerRows] = await connection.query(
+    `select id from ${tables.contractDocumentNumberLedger} where document_id = ? limit 1`,
+    [documentId],
+  )
+  const ledgerPayload = {
+    document_id: documentId,
+    seller_entity_code: sellerEntityCode,
+    document_type: documentType,
+    sequence_year: sequenceYear,
+    sequence_number: sequenceNumber,
+    document_number: documentNumber,
+  }
+
+  if (ledgerRows?.[0]?.id) {
+    await updateDataRow(connection, tables.contractDocumentNumberLedger, ledgerPayload, 'id = ?', [ledgerRows[0].id])
+  } else {
+    await insertDataRow(connection, tables.contractDocumentNumberLedger, {
+      id: makeId('doc_no'),
+      ...ledgerPayload,
+    })
+  }
+
   return { sequenceNumber, documentNumber }
 }
 
@@ -1331,6 +1378,16 @@ async function cleanDocumentPayload(document = {}, existing = null) {
     throw error
   }
 
+  if (
+    existing?.id
+    && document.refresh_template_snapshot
+    && [existing.status, status].some(value => normalizeDocumentStatus(value) === 'finalized')
+  ) {
+    const error = new Error('Khong doi mau chung tu da finalized.')
+    error.statusCode = 400
+    throw error
+  }
+
   const explicitTemplateSnapshot = document.template_snapshot && Object.keys(document.template_snapshot).length
     ? document.template_snapshot
     : null
@@ -1343,13 +1400,26 @@ async function cleanDocumentPayload(document = {}, existing = null) {
   const contractSnapshot = autoSyncContract && OPEN_DOCUMENT_STATUSES.has(status)
     ? buildDocumentContractSnapshot(contract)
     : document.contract_snapshot || existing?.contract_snapshot || buildDocumentContractSnapshot(contract)
-  const sellerEntityCode = String(
-    existing?.seller_entity_code
-      || document.seller_entity_code
+  const requestedSellerEntityCode = String(
+    document.seller_entity_code
+      || existing?.seller_entity_code
       || template?.seller_entity_code
       || contract.seller_entity_code
       || 'EVT',
   ).trim()
+  const sellerEntityChanged = Boolean(
+    existing?.id
+    && requestedSellerEntityCode
+    && requestedSellerEntityCode !== existing.seller_entity_code,
+  )
+  if (sellerEntityChanged && [existing.status, status].some(value => normalizeDocumentStatus(value) === 'finalized')) {
+    const error = new Error('Khong doi phap nhan cua chung tu da finalized.')
+    error.statusCode = 400
+    throw error
+  }
+  const sellerEntityCode = sellerEntityChanged
+    ? requestedSellerEntityCode
+    : String(existing?.seller_entity_code || requestedSellerEntityCode).trim()
   const sequenceYear = existing?.sequence_year || normalizeSequenceYear(document.sequence_year || document.issued_date)
   const documentNumberPattern = existing?.document_number_pattern
     || document.document_number_pattern
@@ -1417,6 +1487,17 @@ async function saveDocument(document = {}) {
       })
       sequenceNumber = allocated.sequenceNumber
       documentNumber = allocated.documentNumber
+    } else if (payload.seller_entity_code !== existing.seller_entity_code) {
+      const reassigned = await reassignDocumentNumber(connection, {
+        documentId: existing.id,
+        documentType: payload.document_type,
+        sellerEntityCode: payload.seller_entity_code,
+        customerCode,
+        sequenceYear: payload.sequence_year,
+        pattern: payload.document_number_pattern,
+      })
+      sequenceNumber = reassigned.sequenceNumber
+      documentNumber = reassigned.documentNumber
     }
 
     const rowPayload = {

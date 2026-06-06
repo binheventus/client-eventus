@@ -46,6 +46,21 @@ const FIELD_LABELS = {
 }
 
 const OPTIONAL_PARSE_FIELDS = new Set(['event_date', 'event_name', 'duration_hours'])
+const AI_FALLBACK_PATTERNS = [
+  /AI provider đang lỗi/i,
+  /AI provider không khả dụng/i,
+  /AI provider quá thời gian/i,
+  /Thiếu OPENAI_API_KEY/i,
+  /ANTHROPIC_API_KEY/i,
+  /AI chưa trả về/i,
+  /OpenAI API trả về lỗi/i,
+  /OpenAI-compatible API trả về lỗi/i,
+]
+const AI_FALLBACK_HIDDEN_LINE_PATTERNS = [
+  ...AI_FALLBACK_PATTERNS,
+  /parser nội bộ/i,
+  /Bạn hãy thêm thủ công/i,
+]
 
 const CUSTOM_ITEM_PLACEMENTS = [
   { value: 'after_photo', label: 'Ngay dưới hạng mục chụp ảnh', sortRank: 0.5 },
@@ -120,6 +135,18 @@ function getReasoningLines(value = '') {
     .map(line => line.trim())
     .filter(line => !/^sales\s+nh[aậ]p\b/i.test(line))
     .filter(Boolean)
+}
+
+function getAiFallbackDetail(value = '') {
+  const text = String(value || '').trim()
+  if (!text || !AI_FALLBACK_PATTERNS.some(pattern => pattern.test(text))) return ''
+  return getReasoningLines(text).join('\n') || 'AI provider không khả dụng.'
+}
+
+function getVisibleReasoningLines(value = '', hasAiFallback = false) {
+  const lines = getReasoningLines(value)
+  if (!hasAiFallback) return lines
+  return lines.filter(line => !AI_FALLBACK_HIDDEN_LINE_PATTERNS.some(pattern => pattern.test(line)))
 }
 
 function getHighlightedReasoningTerms(services = [], customerTiers = []) {
@@ -818,6 +845,7 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
   const [parseResult, setParseResult] = useState(null)
   const [parseLoading, setParseLoading] = useState(false)
   const [parseError, setParseError] = useState('')
+  const [showAiFallbackDetail, setShowAiFallbackDetail] = useState(false)
   const [validationError, setValidationError] = useState('')
   const [saveState, setSaveState] = useState('idle')
   const [initialLoading, setInitialLoading] = useState(isEditMode)
@@ -923,6 +951,11 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
       .filter(group => !removedGroupCodes.includes(getGroupCode(group.group_code)) || itemGroupCodes.has(getGroupCode(group.group_code)))
   }, [displayItems, quoteGroups, removedGroupCodes, serviceGroups])
   const highlightedReasoningTerms = useMemo(() => getHighlightedReasoningTerms(services, customerTiers), [services, customerTiers])
+  const aiFallbackDetail = useMemo(() => getAiFallbackDetail(parseResult?.ai_reasoning), [parseResult?.ai_reasoning])
+  const visibleReasoningLines = useMemo(
+    () => getVisibleReasoningLines(parseResult?.ai_reasoning, Boolean(aiFallbackDetail)),
+    [parseResult?.ai_reasoning, aiFallbackDetail],
+  )
   const totals = useMemo(() => calculateQuotePricing({
     items: displayItems,
     services,
@@ -946,6 +979,7 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
   async function analyzeInput() {
     setParseLoading(true)
     setParseError('')
+    setShowAiFallbackDetail(false)
     setValidationError('')
 
     try {
@@ -1328,15 +1362,38 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
             />
             {parseError && <p className="mt-3 rounded-xl bg-red-50 px-4 py-3 text-[13px] text-red-700">{parseError}</p>}
             {parseResult && (
-              <div className="mt-4 space-y-3 rounded-2xl bg-slate-50 p-4">
-                <div className="text-[13px] text-slate-600">
-                  <div className="font-semibold text-slate-900">AI hiểu:</div>
-                  <div className="mt-1 space-y-1 leading-5">
-                    {getReasoningLines(parseResult.ai_reasoning).map((line, index) => (
+              <div className="relative mt-4 space-y-3 rounded-2xl bg-slate-50 p-4">
+                {aiFallbackDetail ? (
+                  <div className="absolute right-3 top-3 z-20">
+                    <button
+                      type="button"
+                      onClick={() => setShowAiFallbackDetail(prev => !prev)}
+                      aria-expanded={showAiFallbackDetail}
+                      className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800 shadow-sm transition hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-200"
+                    >
+                      Trả lời không sử dụng AI
+                    </button>
+                    {showAiFallbackDetail ? (
+                      <div className="absolute right-0 top-full mt-2 w-[min(82vw,360px)] rounded-xl border border-amber-200 bg-white p-3 text-left shadow-lg">
+                        <div className="text-[11px] font-semibold text-slate-900">Chi tiết lỗi AI</div>
+                        <pre className="mt-1 whitespace-pre-wrap font-sans text-[11px] leading-4 text-slate-600">{aiFallbackDetail}</pre>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div className="absolute right-3 top-3">
+                    <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-800 shadow-sm">
+                      AI hiểu
+                    </span>
+                  </div>
+                )}
+                {visibleReasoningLines.length ? (
+                  <div className="space-y-1 pr-24 text-[13px] leading-5 text-slate-600 sm:pr-44">
+                    {visibleReasoningLines.map((line, index) => (
                       <div key={`${line}-${index}`}>{renderReasoningLine(line, highlightedReasoningTerms)}</div>
                     ))}
                   </div>
-                </div>
+                ) : null}
                 {parseResult.missing_fields?.length ? (
                   <div className="flex flex-wrap gap-2">
                     {parseResult.missing_fields.map(field => (

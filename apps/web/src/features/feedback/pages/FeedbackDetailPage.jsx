@@ -52,6 +52,8 @@ import { useEscapeToClose } from '../../../hooks/useEscapeToClose'
 const MAX_FEEDBACK_COMMENT_IMAGES = Math.max(1, Number(import.meta.env.VITE_FEEDBACK_IMAGE_MAX_COUNT || 4))
 const FEEDBACK_IMAGE_MAX_EDGE = Math.max(320, Number(import.meta.env.VITE_FEEDBACK_IMAGE_MAX_EDGE || 1600))
 const FEEDBACK_IMAGE_MAX_BYTES = Math.max(128 * 1024, Number(import.meta.env.VITE_FEEDBACK_IMAGE_MAX_BYTES || 3 * 1024 * 1024))
+const EVENTUS_FEEDBACK_LOGO = '/logos/logo_eventus.png'
+const EVENTUS_FEEDBACK_DARK_LOGO = '/logos/logo_eventus_dark.png'
 
 function Alert({ type = 'info', children, className = '' }) {
   const styles = type === 'error'
@@ -78,6 +80,28 @@ function TextInput(props) {
 
 function getSharedDriveUrl(feedback = {}) {
   return feedback?.job?.drive_feedback || feedback?.drive_url || ''
+}
+
+function escapeRegExp(value = '') {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function getFeedbackHeaderJobTitle(job = {}, fallbackId = '') {
+  const title = String(job?.title || job?.job_title || '').trim()
+  const fallbackTitle = `Job #${fallbackId || ''}`.trim()
+  if (!title) return fallbackTitle
+
+  const customerName = String(job?.customer_name || '').trim()
+  if (!customerName) return title
+
+  const escapedCustomerName = escapeRegExp(customerName)
+  const separator = String.raw`\s*(?:[-–—|/]+)\s*`
+  const withoutTrailingCustomer = title
+    .replace(new RegExp(`${separator}${escapedCustomerName}\\s*$`, 'iu'), '')
+    .replace(new RegExp(`^\\s*${escapedCustomerName}${separator}`, 'iu'), '')
+    .trim()
+
+  return withoutTrailingCustomer || title
 }
 
 function FeedbackDateBadge({ dateBadge, className = '', inParens = false }) {
@@ -630,7 +654,7 @@ function DoneSwitch({ checked, onClick }) {
   )
 }
 
-function CommentCard({ comment, showSecondColumn, access, onChanged, onSeek, cardRef, isHighlighted = false }) {
+function CommentCard({ comment, showSecondColumn, access, onChanged, onSeek, onSelect, cardRef, isHighlighted = false }) {
   const image = comment.image_comment_1 || comment.image_comment_2
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
@@ -689,7 +713,12 @@ function CommentCard({ comment, showSecondColumn, access, onChanged, onSeek, car
 
   return (
     <article ref={cardRef} className="group scroll-mt-3">
-      <div className={`rounded-lg border bg-white px-2.5 py-2 transition ${isHighlighted ? 'border-[#f79820] shadow-[0_0_0_3px_rgba(247,152,32,0.18),0_10px_24px_rgba(15,23,42,0.10)]' : 'border-slate-200 shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:border-slate-300'}`}>
+      <div
+        onClickCapture={() => onSelect?.(comment.id)}
+        onMouseDownCapture={() => onSelect?.(comment.id)}
+        onPointerDownCapture={() => onSelect?.(comment.id)}
+        className={`rounded-lg border bg-white px-2.5 py-2 transition ${isHighlighted ? 'border-[#f79820] shadow-[0_0_0_3px_rgba(247,152,32,0.22),0_12px_26px_rgba(15,23,42,0.12)]' : 'border-slate-200 shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:border-slate-300 hover:shadow-[0_6px_18px_rgba(15,23,42,0.08)]'}`}
+      >
         <div className="mb-1.5 flex items-center justify-between gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             <button
@@ -862,6 +891,7 @@ export default function FeedbackDetailPage() {
   const [videoDuration, setVideoDuration] = useState(0)
   const [videoClickToPlayActive, setVideoClickToPlayActive] = useState(false)
   const [selectedTimelineCommentId, setSelectedTimelineCommentId] = useState('')
+  const [selectedCommentId, setSelectedCommentId] = useState('')
   const [notifyingEditor, setNotifyingEditor] = useState(false)
   const [feedbackMenuOpen, setFeedbackMenuOpen] = useState(false)
   const [newFeedbackName, setNewFeedbackName] = useState('')
@@ -891,12 +921,13 @@ export default function FeedbackDetailPage() {
   const videoSurveyUrl = surveyJobIdentifier ? `/survey?job=${encodeURIComponent(surveyJobIdentifier)}` : ''
   const canDeleteFeedback = Boolean(permissions.can_delete_feedback)
   const showFeedbackStatusPanel = Boolean(error || !feedback?.video_url)
-  const jobTitle = feedback?.job?.title || `Job #${feedback?.job_id || ''}`
+  const jobTitle = getFeedbackHeaderJobTitle(feedback?.job, feedback?.job_id)
   const jobDateTitle = formatFeedbackDateDots(feedback?.job?.job_date)
   const pageJobTitle = jobDateTitle ? `${jobDateTitle} ${jobTitle}` : jobTitle
   const newFeedbackDateBadge = formatFeedbackDayMonth(new Date())
   const shouldOfferNewFeedbackClone = Boolean(cloneSourceFeedback?.id) && unresolvedCloneCount > 0
   const footerCopyright = footerStatus || 'Copyright © 2017 - 2026 Eventus Production. All rights reserved.'
+  const feedbackLogoSrc = feedbackDarkMode ? EVENTUS_FEEDBACK_DARK_LOGO : EVENTUS_FEEDBACK_LOGO
 
   async function load() {
     setLoading(true)
@@ -1426,7 +1457,7 @@ export default function FeedbackDetailPage() {
                       <button
                         type="button"
                         onClick={() => setFeedbackMenuOpen(value => !value)}
-                        className={`inline-flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-[12px] font-semibold leading-none transition lg:text-[13px] ${
+                        className={`feedback-version-trigger inline-flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-[12px] font-semibold leading-none transition lg:text-[13px] ${
                           feedbackMenuOpen
                             ? 'border border-[#f79820]/30 bg-[#f79820]/10 text-[#f79820] ring-2 ring-[#f79820]/20'
                             : 'border border-[#f79820]/30 bg-white text-[#f79820] shadow-sm hover:bg-[#f79820]/10'
@@ -1443,13 +1474,13 @@ export default function FeedbackDetailPage() {
                         <ChevronDown className={`h-4 w-4 shrink-0 text-[#f79820] transition ${feedbackMenuOpen ? 'rotate-180' : ''}`} />
                       </button>
                       {feedbackMenuOpen && (
-                        <div className="absolute left-0 z-20 mt-2 w-56 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg" role="menu">
+                        <div className="feedback-version-menu absolute left-0 z-20 mt-2 w-56 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg" role="menu">
                           {sortedFeedbackVersions.map(item => (
                             <Link
                               key={item.id}
                               to={getFeedbackPublicPath(item)}
                               onClick={() => setFeedbackMenuOpen(false)}
-                              className={`block px-3 py-2 text-[12px] font-semibold ${item.id === feedback.id ? 'bg-[#fff7ed] text-slate-950' : 'text-slate-700 hover:bg-[#fff7ed] hover:text-slate-950'}`}
+                              className={`feedback-version-item block px-3 py-2 text-[12px] font-semibold ${item.id === feedback.id ? 'feedback-version-item--active bg-[#fff7ed] text-slate-950' : 'text-slate-700 hover:bg-[#fff7ed] hover:text-slate-950'}`}
                               role="menuitem"
                             >
                               <FeedbackNameInline feedback={item} />
@@ -1459,7 +1490,7 @@ export default function FeedbackDetailPage() {
                             type="button"
                             onClick={addFeedbackVersion}
                             disabled={newFeedbackDraftOpen}
-                            className="flex w-full items-center gap-1.5 border-t border-slate-100 px-3 py-2 text-left text-[12px] font-semibold text-[#f79820] hover:bg-[#fff7ed] disabled:cursor-not-allowed disabled:opacity-60"
+                            className="feedback-version-add-button flex w-full items-center gap-1.5 border-t border-slate-100 px-3 py-2 text-left text-[12px] font-semibold text-[#f79820] hover:bg-[#fff7ed] disabled:cursor-not-allowed disabled:opacity-60"
                             role="menuitem"
                           >
                             <Plus className="h-3.5 w-3.5 shrink-0" />
@@ -1572,9 +1603,10 @@ export default function FeedbackDetailPage() {
 	                  comment={comment}
 	                  showSecondColumn={feedback.more_column}
 	                  access={access}
-	                  onChanged={refresh}
-	                  onSeek={seekTo}
-	                  isHighlighted={selectedTimelineCommentId === comment.id}
+                  onChanged={refresh}
+                  onSeek={seekTo}
+                  onSelect={setSelectedCommentId}
+                  isHighlighted={selectedCommentId === comment.id || selectedTimelineCommentId === comment.id}
 	                  cardRef={node => {
 	                    if (node) commentCardRefs.current[comment.id] = node
 	                    else delete commentCardRefs.current[comment.id]
@@ -1636,7 +1668,16 @@ export default function FeedbackDetailPage() {
           <div className="flex flex-col gap-1.5 lg:flex-row lg:items-center">
             <div className="shrink-0">
               <button type="button" onClick={openFooterEditor} className="flex h-5 cursor-pointer items-center" aria-label="Cập nhật link Feedback">
-                <img src="/logos/logo_eventus.png" alt="Eventus Production" className="h-5 w-auto opacity-100" />
+                <img
+                  src={feedbackLogoSrc}
+                  alt="Eventus Production"
+                  className="h-5 w-auto opacity-100"
+                  onError={event => {
+                    if (event.currentTarget.getAttribute('src') !== EVENTUS_FEEDBACK_LOGO) {
+                      event.currentTarget.src = EVENTUS_FEEDBACK_LOGO
+                    }
+                  }}
+                />
               </button>
             </div>
             <div className="flex flex-1 flex-wrap gap-x-4 gap-y-1 lg:pl-3">

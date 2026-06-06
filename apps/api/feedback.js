@@ -476,6 +476,22 @@ function trimText(value = '', maxLength = 500) {
   return text.length > maxLength ? text.slice(0, maxLength) : text
 }
 
+function normalizeHtmlText(value = '') {
+  return String(value || '')
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<\/(p|div|li|tr|h[1-6])>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&(nbsp|#160|#x[aA]0);/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\u00a0/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 function normalizePhone(value = '') {
   return String(value || '').replace(/\D+/g, '')
 }
@@ -649,6 +665,7 @@ function normalizeFeedbackRow(row = {}) {
 
   return {
     ...row,
+    job_title: job?.job_title || '',
     drive_url: job?.drive_feedback || row.drive_url || '',
     editor_name: row.editor_name || job?.editor_name || '',
     editor_phone: row.editor_phone || job?.editor_phone || '',
@@ -689,11 +706,13 @@ function summarizeFeedbackCloneSource(feedback = null) {
 
 function normalizeJobRow(row = {}) {
   if (!row) return null
+  const title = normalizeHtmlText(row.job_title || row.title)
   return {
     ...row,
     id: row.id,
     public_token: row.public_token || row.job_public_token || '',
-    title: row.job_title || row.title || '',
+    job_title: title,
+    title,
     customer_name: row.customer_name || row.customer_company_name || row.company_name || '',
     zalo_id: row.zalo_id || '',
     job_date: row.job_date || null,
@@ -2299,6 +2318,7 @@ export const __feedbackTestInternals = Object.freeze({
   getFeedbackNotificationEditorName,
   getFeedbackNotificationEditorPhone,
   getNhansuBaseUrl,
+  normalizeJobRow,
   normalizeVietnamPhone,
 })
 

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, ArrowLeft, Copy, Plus, Search, Trash2, X } from 'lucide-react'
 import { useEscapeToClose } from '../../../hooks/useEscapeToClose'
+import NoticePopup from './NoticePopup'
 import { useLegalEntities } from '../hooks/useLegalEntities'
 import {
   createContractDraftFromQuote,
@@ -33,6 +34,7 @@ import {
   getDefaultTemplate,
   getEntityProfile,
   getTodayInputDate,
+  hasContractAdvance,
   normalizeContractTemplate,
   sectionsToTermsText,
   termsTextToSections,
@@ -1041,6 +1043,7 @@ export default function ContractEditorModal({
   }
   const summaryQuote = quote || baseQuoteSnapshot || {}
   const paymentConfig = draft?.payment_config || {}
+  const hasPaymentAdvance = hasContractAdvance(paymentConfig)
   const contractVatMode = getContractVatMode(baseQuoteSnapshot)
   const contractValueInput = Number(baseQuoteSnapshot.contract_value_input || 0) ||
     (contractVatMode === 'included'
@@ -1101,12 +1104,14 @@ export default function ContractEditorModal({
 
     return (
       <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
-        <Field label="Số hợp đồng">
+        <label className="flex items-center gap-2">
+          <span className="w-[88px] shrink-0 text-[12px] font-semibold text-slate-600">Số hợp đồng</span>
           <TextInput value={draft.contract_number || ''} onChange={event => updateDraft({ contract_number: event.target.value })} />
-        </Field>
-        <Field label="Ngày ký hợp đồng">
+        </label>
+        <label className="flex items-center gap-2">
+          <span className="w-[88px] shrink-0 text-[12px] font-semibold text-slate-600">Ngày ký</span>
           <TextInput type="date" value={draft.signing_date || getTodayInputDate()} onChange={event => updateDraft({ signing_date: event.target.value })} />
-        </Field>
+        </label>
         <Field label="Mẫu hợp đồng">
           <Select value={draft.template_id || ''} onChange={event => handleTemplateChange(event.target.value)}>
             {templates.map(template => (
@@ -1131,30 +1136,30 @@ export default function ContractEditorModal({
             {savedContractMetaText}
           </p>
         ) : null}
-        <div className={savedContractMetaText ? 'mt-4 space-y-2' : 'space-y-2'}>
+        <div className={`flex gap-2 ${savedContractMetaText ? 'mt-4' : ''}`}>
+          {savedContract ? (
+            <button
+              type="button"
+              onClick={() => setDeleteConfirmOpen(true)}
+              disabled={saving || loading || deleting}
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-3 py-2.5 text-[12px] font-semibold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Xóa
+            </button>
+          ) : null}
           <ContractDocumentDownloads
             contract={downloadableContract}
             previewContract={previewContract}
             disabled={saving || loading || deleting || !draft || (!quoteIsReady && !savedContract)}
             showShareButton
             previewSavedByName={previewSavedByName}
-            className="w-full"
-            buttonClassName="w-full justify-center"
+            className="min-w-0 flex-[2]"
+            buttonClassName="w-full justify-center px-3"
             onBeforePreview={handleSave}
             buttonLabel="Lưu & Preview"
             loadingLabel="Đang lưu..."
           />
-          {savedContract ? (
-            <button
-              type="button"
-              onClick={() => setDeleteConfirmOpen(true)}
-              disabled={saving || loading || deleting}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-4 py-2.5 text-[12px] font-semibold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              Xoá hợp đồng
-            </button>
-          ) : null}
         </div>
       </section>
     )
@@ -1169,6 +1174,7 @@ export default function ContractEditorModal({
 
   return (
     <div className={shellClass}>
+      <NoticePopup message={notice} onClose={() => setNotice('')} />
       <section className={panelClass}>
         <header className="border-b border-slate-200 bg-white px-5 py-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1219,7 +1225,11 @@ export default function ContractEditorModal({
               </section>
 
               {renderActionPanel()}
-              <ContractDocumentsSidebarCard contract={documentContract} />
+              <ContractDocumentsSidebarCard
+                contract={documentContract}
+                comparisonContract={previewContract}
+                quote={quote}
+              />
             </div>
           </aside>
 
@@ -1232,7 +1242,6 @@ export default function ContractEditorModal({
                 </div>
               )}
               {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-[13px] text-red-700">{error}</p>}
-              {notice && <p className="rounded-xl bg-emerald-50 px-4 py-3 text-[13px] text-emerald-700">{notice}</p>}
 
               {draft && !loading && (
                 <>
@@ -1245,7 +1254,11 @@ export default function ContractEditorModal({
                       {renderContractSetupControls()}
                     </div>
                     {renderActionPanel()}
-                    <ContractDocumentsSidebarCard contract={documentContract} />
+                    <ContractDocumentsSidebarCard
+                      contract={documentContract}
+                      comparisonContract={previewContract}
+                      quote={quote}
+                    />
                   </section>
 
                   <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -1429,15 +1442,17 @@ export default function ContractEditorModal({
                       <Field label="Tạm ứng (%)">
                         <TextInput type="number" min="0" max="100" value={draft.payment_config?.deposit_percent ?? 50} onChange={event => updatePaymentConfig({ deposit_percent: Number(event.target.value) })} />
                       </Field>
-                      <Field label="Hạn thanh toán lần 2">
+                      <Field label={hasPaymentAdvance ? 'Hạn thanh toán lần 2' : 'Hạn thanh toán'}>
                         <TextInput type="number" min="0" value={draft.payment_config?.final_due_days ?? 7} onChange={event => updatePaymentConfig({ final_due_days: Number(event.target.value) })} />
                       </Field>
-                      <Field label="Xuất hoá đơn sau tạm ứng">
-                        <Select value={draft.payment_config?.issue_invoice_on_deposit ? 'yes' : 'no'} onChange={event => updatePaymentConfig({ issue_invoice_on_deposit: event.target.value === 'yes' })}>
-                          <option value="yes">Có</option>
-                          <option value="no">Không</option>
-                        </Select>
-                      </Field>
+                      {hasPaymentAdvance ? (
+                        <Field label="Xuất hoá đơn sau tạm ứng">
+                          <Select value={draft.payment_config?.issue_invoice_on_deposit ? 'yes' : 'no'} onChange={event => updatePaymentConfig({ issue_invoice_on_deposit: event.target.value === 'yes' })}>
+                            <option value="yes">Có</option>
+                            <option value="no">Không</option>
+                          </Select>
+                        </Field>
+                      ) : null}
                     </div>
                     <div className="mt-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-2.5">
                       <ContractPaymentSummary

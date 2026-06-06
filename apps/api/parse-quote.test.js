@@ -54,6 +54,32 @@ test('business rules replace an AI-provided wrong recap edit bracket', () => {
   assert.deepEqual(result.parsed.items.map(item => item.service_code), ['QUAY_RECAP_IN_4H', 'RECAP_3_4_CAM'])
 })
 
+test('full-day video shoots use half-day equivalent camera count for recap edit', () => {
+  const result = deterministicParseQuoteInput('3 quay cả ngày', { services: recapServices })
+
+  assert.deepEqual(result.parsed.items.map(item => item.service_code), ['QUAY_RECAP_IN_4H', 'RECAP_5_6_CAM'])
+  assert.equal(result.parsed.items[0].quantity, 3)
+  assert.equal(result.parsed.duration_hours, 8)
+})
+
+test('business rules replace full-day recap edit using half-day equivalent cameras', () => {
+  const result = applyBriefBusinessRules({
+    parsed: {
+      duration_hours: 8,
+      items: [
+        { service_code: 'QUAY_RECAP_IN_4H', quantity: 4, service_name_raw: 'quay' },
+        { service_code: 'RECAP_3_4_CAM', quantity: 1, service_name_raw: 'dựng recap 3-4 cam' },
+      ],
+    },
+    missing_fields: [],
+    ambiguous_fields: [],
+    confidence: 'high',
+    ai_reasoning: '',
+  }, '4 quay cả ngày', { services: recapServices })
+
+  assert.deepEqual(result.parsed.items.map(item => item.service_code), ['QUAY_RECAP_IN_4H', 'RECAP_7_CAM'])
+})
+
 test('explicit no-edit brief does not add default recap edit', () => {
   const result = deterministicParseQuoteInput('4 quay không dựng', { services: recapServices })
 
@@ -106,7 +132,7 @@ Ngày 2:
     'QUAY_RECAP_IN_4H',
     'CHUP_IN_4H',
     'QUAY_RECAP_IN_4H',
-    'RECAP_3_4_CAM',
+    'RECAP_5_6_CAM',
   ])
   assert.deepEqual(result.parsed.items.map(item => item.group_label), [
     'Ngày 1',

@@ -173,7 +173,6 @@ export default function QuoteListPage() {
     reload,
     userContext,
   } = useQuoteList()
-  const displayName = userContext.name || 'Eventus'
 
   function openContractPage(quote) {
     if (!canOpenContractFromQuote(quote)) return
@@ -226,8 +225,10 @@ export default function QuoteListPage() {
     <div className="mx-auto max-w-[1500px] space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-[13px] font-semibold text-slate-500">Xin chào, {displayName}</p>
-          <h1 className="mt-2 text-[28px] font-semibold tracking-tight text-slate-950">Báo giá</h1>
+          <h1 className="text-[24px] font-semibold tracking-tight text-slate-950">Hệ thống quản lý chứng từ Eventus</h1>
+          <p className="mt-2 text-[13px] font-semibold text-[#f8981d]">
+            Truy xuất nhanh chóng. Quản lý bảo mật. Tập trung dữ liệu.
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button

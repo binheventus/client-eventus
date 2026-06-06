@@ -9,6 +9,26 @@ export function roundDocumentCurrency(value) {
   return Math.round(toDocumentNumber(value, 0))
 }
 
+export function getContractDocumentCustomerCode(contract = {}) {
+  return String(
+    contract.customer_snapshot?.customer_code
+      || contract.customer_snapshot?.company_name
+      || contract.quote_snapshot?.client_name
+      || 'CUSTOMER',
+  ).trim().replace(/\s+/g, '-').toUpperCase().slice(0, 48)
+}
+
+export function renderContractDocumentNumber(pattern, values = {}) {
+  return String(pattern || '')
+    .replace(/\{\{\s*sequence\s*\}\}/gi, String(values.sequence || ''))
+    .replace(/\{\{\s*document_type\s*\}\}/gi, String(values.document_type || ''))
+    .replace(/\{\{\s*document_type_code\s*\}\}/gi, String(values.document_type_code || ''))
+    .replace(/\{\{\s*seller\s*\}\}/gi, String(values.seller || ''))
+    .replace(/\{\{\s*seller_entity_code\s*\}\}/gi, String(values.seller || ''))
+    .replace(/\{\{\s*customer\s*\}\}/gi, String(values.customer || ''))
+    .replace(/\{\{\s*year\s*\}\}/gi, String(values.year || ''))
+}
+
 export function getContractVatConfig(contract = {}) {
   const quote = contract.quote_snapshot || {}
   const vatRate = toDocumentNumber(quote.vat_rate ?? contract.quote_table_config?.vat_rate, DEFAULT_DOCUMENT_VAT_RATE)

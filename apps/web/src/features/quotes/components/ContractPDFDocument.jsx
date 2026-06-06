@@ -1,9 +1,12 @@
 import { Document, Font, Page, StyleSheet, Text, View } from '@react-pdf/renderer'
 import {
   CONTRACT_SUBTOTAL_LABEL,
+  getContractDepositPercent,
   getContractPreamble,
+  getContractPaymentDueDays,
   getContractPaymentNotes,
   getContractWorkProgressNotes,
+  hasContractAdvance,
   numberToVietnameseWords,
   sanitizeFilenamePart,
 } from '../lib/contractDefaults'
@@ -418,7 +421,9 @@ function ServiceArticle({ contract = {}, quote = {}, items = [] }) {
 
 function PaymentArticle({ contract = {}, quote = {} }) {
   const payment = contract.payment_config || {}
-  const depositPercent = Number(payment.deposit_percent || 50)
+  const depositPercent = getContractDepositPercent(payment)
+  const finalDueDays = getContractPaymentDueDays(payment)
+  const hasAdvance = hasContractAdvance(payment)
   const depositAmount = Number(quote.total_amount || 0) * depositPercent / 100
   const docs = Array.isArray(payment.payment_documents) ? payment.payment_documents : []
   const paymentNotes = getContractPaymentNotes(payment)
@@ -428,9 +433,18 @@ function PaymentArticle({ contract = {}, quote = {} }) {
       <Text style={styles.sectionTitle}>ĐIỀU 2: GIÁ TRỊ HỢP ĐỒNG</Text>
       <Text style={styles.paragraph}>Giá trị của hợp đồng là: {formatCurrency(quote.total_amount)} {quote.has_vat !== false ? '(Đã bao gồm VAT)' : '(Chưa bao gồm VAT)'}</Text>
       <Text style={styles.paragraph}>(Bằng chữ: {numberToVietnameseWords(quote.total_amount)}./.)</Text>
-      <Text style={styles.paragraph}>Phương thức thanh toán: Việc thanh toán Hợp đồng sẽ thực hiện thành 02 lần:</Text>
-      <Text style={styles.paragraph}>Lần 1: Bên A đặt cọc {depositPercent}% giá trị hợp đồng tương ứng {formatCurrency(depositAmount)} cho Bên B sau khi ký hợp đồng{payment.issue_invoice_on_deposit ? ' và trước ngày thực hiện tối thiểu 02 ngày, đồng thời bên B xuất hóa đơn cho bên A sau khi nhận được thanh toán lần 1' : ''}.</Text>
-      <Text style={styles.paragraph}>Lần 2: Bên A thanh toán nốt số tiền còn lại cho Bên B trong vòng {Number(payment.final_due_days || 7)} ngày sau khi Bên B bàn giao cho Bên A đầy đủ sản phẩm & hóa đơn tài chính theo yêu cầu của Bên A.</Text>
+      {hasAdvance ? (
+        <>
+          <Text style={styles.paragraph}>Phương thức thanh toán: Việc thanh toán Hợp đồng sẽ thực hiện thành 02 lần:</Text>
+          <Text style={styles.paragraph}>Lần 1: Bên A đặt cọc {depositPercent}% giá trị hợp đồng tương ứng {formatCurrency(depositAmount)} cho Bên B sau khi ký hợp đồng{payment.issue_invoice_on_deposit ? ' và trước ngày thực hiện tối thiểu 02 ngày, đồng thời bên B xuất hóa đơn cho bên A sau khi nhận được thanh toán lần 1' : ''}.</Text>
+          <Text style={styles.paragraph}>Lần 2: Bên A thanh toán nốt số tiền còn lại cho Bên B trong vòng {finalDueDays} ngày sau khi Bên B bàn giao cho Bên A đầy đủ sản phẩm & hóa đơn tài chính theo yêu cầu của Bên A.</Text>
+        </>
+      ) : (
+        <>
+          <Text style={styles.paragraph}>Phương thức thanh toán:</Text>
+          <Text style={styles.paragraph}>Bên A thanh toán 100% giá trị hợp đồng cho Bên B trong vòng {finalDueDays} ngày sau khi Bên B bàn giao cho Bên A đầy đủ sản phẩm & hóa đơn tài chính theo yêu cầu của Bên A.</Text>
+        </>
+      )}
       {docs.length ? (
         <>
           <Text style={styles.paragraphStrong}>Hồ sơ thanh toán bao gồm:</Text>

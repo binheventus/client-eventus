@@ -2,7 +2,12 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { __quotesTestInternals } from './quotes.js'
 
-const { buildDuplicatedQuotePayload } = __quotesTestInternals
+const {
+  buildDuplicatedQuotePayload,
+  buildQuoteSurveyNotificationContent,
+  buildQuoteSurveyNotificationPayload,
+  formatQuoteNotificationDate,
+} = __quotesTestInternals
 
 test('duplicated quote payload resets identity, ownership, status, and reprices service items', () => {
   const payload = buildDuplicatedQuotePayload({
@@ -103,4 +108,37 @@ test('duplicated quote payload keeps custom item manual pricing', () => {
   assert.equal(payload.items[0].service_code, 'CUSTOM')
   assert.equal(payload.items[0].unit_price, 800_000)
   assert.equal(payload.items[0].is_overridden, true)
+})
+
+test('quote survey notification title uses customer name and quote created date', () => {
+  const payload = buildQuoteSurveyNotificationPayload({
+    client_name: 'Công ty ABC',
+    created_at: '2026-06-06 09:30:00.000',
+  }, {
+    response_type: 'budget_fit',
+    response_label: 'Khá hợp lý, tôi cần tư vấn thêm',
+    selected_tag: '',
+  }, [3, 5])
+
+  assert.deepEqual(payload, {
+    type: 1,
+    need_to_send: [3, 5],
+    title: 'Khách Công ty ABC đã phản hồi báo giá ngày 06/06/2026',
+    content: 'Khá hợp lý, tôi cần tư vấn thêm\n\nGợi ý tư vấn: Dạ em thấy mình vừa duyệt gói chi phí trên web rồi ạ. Để bên em sớm chuẩn bị mọi thứ cho sự kiện, mình có cần em soạn hợp đồng trước không ạ? Nếu anh/chị sẵn sàng, em xin phép gửi thông tin chuyển khoản tạm ứng để mình kịp giữ lịch nhé.',
+  })
+})
+
+test('quote survey notification content includes optimize answer details', () => {
+  assert.equal(
+    buildQuoteSurveyNotificationContent({
+      response_type: 'optimize_cost',
+      response_label: 'Giá hơi cao, tôi muốn tối ưu chi phí',
+      selected_tag: 'Giảm bớt số lượng máy quay / máy chụp',
+    }),
+    'Giá hơi cao, tôi muốn tối ưu chi phí\nGiảm bớt số lượng máy quay / máy chụp\n\nGợi ý tư vấn: Em nhận được yêu cầu tối ưu chi phí của mình rồi ạ. Nếu sự kiện này mình bớt 1 máy quay phụ đi thì giá sẽ giảm được [X] triệu, anh/chị thấy phương án này ổn hơn không ạ?',
+  )
+})
+
+test('quote survey notification date formats mysql date strings', () => {
+  assert.equal(formatQuoteNotificationDate('2026-06-06 09:30:00'), '06/06/2026')
 })

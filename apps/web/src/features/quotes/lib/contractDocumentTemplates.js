@@ -109,7 +109,7 @@ export const ACCEPTANCE_LIQUIDATION_TEMPLATE_BLOCKS = [
   {
     id: 'acceptance-basis-contract',
     title: 'Căn cứ hợp đồng',
-    body: 'Căn cứ vào Hợp Đồng dịch vụ số: {{contract_number}} ký ngày {{contract_signing_date}} giữa {{customer_name}} và {{seller_name}};',
+    body: 'Căn cứ vào Hợp Đồng dịch vụ số: {{contract_number}} ký ngày {{contract_signing_date}} giữa {{customer_name}} và {{seller_entity_name_full}};',
   },
   {
     id: 'acceptance-basis-completed',

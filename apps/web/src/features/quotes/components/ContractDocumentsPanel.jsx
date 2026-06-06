@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { AlertTriangle, ArrowLeft, Check, Copy, ExternalLink, FileText, Link, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import ContractDocumentDocxDownloadButton from './ContractDocumentDocxDownloadButton'
 import ContractDocumentPDFDownloadButton from './ContractDocumentPDFDownloadButton'
+import ContractEntityMismatchPopup from './ContractEntityMismatchPopup'
+import NoticePopup from './NoticePopup'
 import {
   deleteContractDocument,
   listContractDocuments,
@@ -32,14 +34,16 @@ import {
   calculateAdvancePercent,
   calculatePaymentSummary,
   calculateTableTotals,
+  getContractDocumentCustomerCode,
   getContractTotal,
   getContractVatConfig,
   getCustomerValidationWarnings,
   normalizeAmountRows,
+  renderContractDocumentNumber,
   roundDocumentCurrency,
   toDocumentNumber,
 } from '../lib/contractDocumentEditor'
-import { getContractDocumentValidationWarnings } from '../lib/contractDocumentRender'
+import { getContractDocumentValidationWarnings, hasAcceptanceCostDifference } from '../lib/contractDocumentRender'
 import { formatQuoteCurrency, formatQuoteDate } from '../lib/quoteList'
 
 function Field({ label, children, className = '' }) {
@@ -459,6 +463,8 @@ function buildEditorDraft(document = null, documentType = 'advance_request', con
     seller_entity_code: sellerProfile.entity_code || sellerEntityCode,
     seller_snapshot: sellerProfile,
   }
+  const formData = buildDocumentFormData(document, resolvedDocumentType, sourceContract, documents, sellerProfile.entity_code || sellerEntityCode, legalEntities)
+  const hideIssuedDate = Boolean(formData.hide_issued_date)
   return {
     id: document?.id || '',
     contract_id: document?.contract_id || contract.id || '',
@@ -469,8 +475,10 @@ function buildEditorDraft(document = null, documentType = 'advance_request', con
     seller_entity_code: sellerProfile.entity_code || sellerEntityCode,
     document_number_pattern: document?.document_number_pattern || template?.document_number_pattern || '',
     document_number: document?.document_number || '',
-    issued_date: toDateInputValue(document?.issued_date) || getTodayInputDate(),
-    form_data: buildDocumentFormData(document, resolvedDocumentType, sourceContract, documents, sellerProfile.entity_code || sellerEntityCode, legalEntities),
+    sequence_number: Number(document?.sequence_number || 0),
+    sequence_year: Number(document?.sequence_year || 0),
+    issued_date: hideIssuedDate ? '' : toDateInputValue(document?.issued_date) || getTodayInputDate(),
+    form_data: formData,
     contract_source: sourceContract,
     content_sections: Array.isArray(document?.content_sections) ? document.content_sections : template?.content_sections || [],
     terms_text: document?.terms_text ?? template?.terms_text ?? '',
@@ -481,6 +489,7 @@ function buildEditorDraft(document = null, documentType = 'advance_request', con
 
 export function buildDocumentPayload(draft = {}, templates = [], documents = []) {
   const selectedTemplate = templates.find(template => template.id === draft.template_id)
+  const shouldRefreshTemplateSnapshot = Boolean(draft.id && draft.refresh_template_snapshot && selectedTemplate)
   return {
     id: draft.id || undefined,
     contract_id: draft.contract_id,
@@ -493,7 +502,8 @@ export function buildDocumentPayload(draft = {}, templates = [], documents = [])
     issued_date: draft.issued_date || null,
     auto_sync_contract: draft.auto_sync_contract,
     share_token: draft.share_token || undefined,
-    template_snapshot: !draft.id && selectedTemplate ? buildDocumentTemplateSnapshot(selectedTemplate) : undefined,
+    refresh_template_snapshot: shouldRefreshTemplateSnapshot || undefined,
+    template_snapshot: (!draft.id || shouldRefreshTemplateSnapshot) && selectedTemplate ? buildDocumentTemplateSnapshot(selectedTemplate) : undefined,
     content_sections: Array.isArray(draft.content_sections) ? draft.content_sections : undefined,
     terms_text: draft.terms_text,
     document_data: buildDocumentData(draft, documents),
@@ -742,7 +752,7 @@ function AdvanceRequestEditor({ draft, updateFormData }) {
   )
 }
 
-function AcceptanceLiquidationEditor({ draft, updateFormData }) {
+function AcceptanceLiquidationEditor({ draft, showCostDifferenceFields = false, updateFormData }) {
   const formData = draft.form_data || {}
   const vatConfig = getContractVatConfig(draft.contract_source || {})
 
@@ -763,24 +773,28 @@ function AcceptanceLiquidationEditor({ draft, updateFormData }) {
   return (
     <section className="space-y-4">
       <VatModeNotice vatConfig={vatConfig} />
-      <AmountRowsEditor
-        title="Bảng giá trị theo hợp đồng"
-        rows={formData.contract_rows || []}
-        vatConfig={vatConfig}
-        resetLabel="Lấy lại từ hợp đồng"
-        onReset={resetContractRows}
-        onChange={rows => updateFormData({ contract_rows: rows, sync_contract_rows: false })}
-      />
-      <AmountRowsEditor
-        title="Bảng giá trị nghiệm thu/thực tế"
-        rows={formData.actual_rows || []}
-        vatConfig={vatConfig}
-        allowNegative
-        addLabel="Thêm phát sinh"
-        resetLabel="Copy bảng hợp đồng"
-        onReset={resetActualRows}
-        onChange={rows => updateFormData({ actual_rows: rows, sync_actual_rows: false })}
-      />
+      {showCostDifferenceFields ? (
+        <>
+          <AmountRowsEditor
+            title="Bảng giá trị theo hợp đồng"
+            rows={formData.contract_rows || []}
+            vatConfig={vatConfig}
+            resetLabel="Lấy lại từ hợp đồng"
+            onReset={resetContractRows}
+            onChange={rows => updateFormData({ contract_rows: rows, sync_contract_rows: false })}
+          />
+          <AmountRowsEditor
+            title="Bảng giá trị nghiệm thu/thực tế"
+            rows={formData.actual_rows || []}
+            vatConfig={vatConfig}
+            allowNegative
+            addLabel="Thêm phát sinh"
+            resetLabel="Copy bảng hợp đồng"
+            onReset={resetActualRows}
+            onChange={rows => updateFormData({ actual_rows: rows, sync_actual_rows: false })}
+          />
+        </>
+      ) : null}
       <Field label="Ghi chú nghiệm thu/thanh lý">
         <Textarea rows={4} value={formData.acceptance_note || ''} onChange={event => updateFormData({ acceptance_note: event.target.value })} />
       </Field>
@@ -794,6 +808,7 @@ function PaymentRequestEditor({ draft, documents, updateFormData }) {
   const advanceDocuments = documents.filter(row => row.document_type === 'advance_request' && row.id !== draft.id)
   const amountConfig = buildDocumentAmountConfig(draft, documents)
   const selectedDeductions = new Map((formData.advance_deductions || []).map(row => [row.document_id, row]))
+  const hasAdvanceDeduction = selectedDeductions.size > 0
 
   function selectAcceptance(documentId) {
     const selected = acceptanceDocuments.find(row => row.id === documentId)
@@ -815,7 +830,7 @@ function PaymentRequestEditor({ draft, documents, updateFormData }) {
     const amount = getAdvanceDocumentAmount(document)
     updateFormData({
       advance_deductions: [
-        ...currentRows,
+        ...currentRows.filter(row => row.document_id !== document.id),
         {
           document_id: document.id,
           document_number: document.document_number || '',
@@ -825,6 +840,10 @@ function PaymentRequestEditor({ draft, documents, updateFormData }) {
         },
       ],
     })
+  }
+
+  function selectNoAdvance() {
+    updateFormData({ advance_deductions: [] })
   }
 
   function updateDeduction(documentId, value) {
@@ -866,23 +885,40 @@ function PaymentRequestEditor({ draft, documents, updateFormData }) {
           <p className="mt-1 text-[12px] text-slate-500">Chọn các đề nghị tạm ứng liên quan và sửa số tiền khấu trừ nếu cần.</p>
         </div>
         <div className="overflow-hidden rounded-xl border border-slate-200">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-left text-[13px]">
+          <div className="overflow-hidden">
+            <table className="w-full table-fixed text-left text-[12px]">
               <thead className="bg-slate-50 text-[11px] uppercase tracking-[0.1em] text-slate-500">
                 <tr>
-                  <th className="w-[56px] px-3 py-3" />
-                  <th className="px-3 py-3">Đề nghị tạm ứng</th>
-                  <th className="w-[170px] px-3 py-3 text-right">Số tiền tạm ứng</th>
-                  <th className="w-[190px] px-3 py-3 text-right">Số tiền khấu trừ</th>
+                  <th className="w-[36px] px-2 py-3" />
+                  <th className="px-2 py-3">Đề nghị tạm ứng</th>
+                  <th className="w-[148px] whitespace-nowrap px-2 py-3 text-right">Số tiền tạm ứng</th>
+                  <th className="w-[154px] whitespace-nowrap px-2 py-3 text-right">Số tiền khấu trừ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
+                <tr>
+                  <td className="px-2 py-3 text-center align-middle">
+                    <input
+                      type="checkbox"
+                      checked={!hasAdvanceDeduction}
+                      onChange={event => {
+                        if (event.target.checked) selectNoAdvance()
+                      }}
+                      className="h-4 w-4 rounded border-slate-300 text-[#f8981d] focus:ring-orange-100"
+                    />
+                  </td>
+                  <td className="px-2 py-3 font-semibold text-slate-800">Khách chưa tạm ứng</td>
+                  <td className="px-2 py-3 text-right tabular-nums text-slate-600">0đ</td>
+                  <td className="px-2 py-2">
+                    <TextInput readOnly value="0" className="bg-slate-50 text-right font-semibold text-slate-500" />
+                  </td>
+                </tr>
                 {advanceDocuments.length ? advanceDocuments.map(row => {
                   const deduction = selectedDeductions.get(row.id)
                   const checked = Boolean(deduction)
                   return (
                     <tr key={row.id}>
-                      <td className="px-3 py-3 text-center">
+                      <td className="px-2 py-3 text-center align-middle">
                         <input
                           type="checkbox"
                           checked={checked}
@@ -890,9 +926,9 @@ function PaymentRequestEditor({ draft, documents, updateFormData }) {
                           className="h-4 w-4 rounded border-slate-300 text-[#f8981d] focus:ring-orange-100"
                         />
                       </td>
-                      <td className="px-3 py-3 font-semibold text-slate-800">{getDocumentDisplayName(row)}</td>
-                      <td className="px-3 py-3 text-right tabular-nums text-slate-600">{formatQuoteCurrency(getAdvanceDocumentAmount(row))}đ</td>
-                      <td className="px-3 py-2">
+                      <td className="break-words px-2 py-3 font-semibold leading-5 text-slate-800">{getDocumentDisplayName(row)}</td>
+                      <td className="px-2 py-3 text-right tabular-nums text-slate-600">{formatQuoteCurrency(getAdvanceDocumentAmount(row))}đ</td>
+                      <td className="px-2 py-2">
                         <TextInput
                           inputMode="numeric"
                           value={checked ? formatCurrencyInput(deduction?.deduction_amount) : ''}
@@ -905,7 +941,7 @@ function PaymentRequestEditor({ draft, documents, updateFormData }) {
                   )
                 }) : (
                   <tr>
-                    <td colSpan={4} className="px-4 py-8 text-center text-slate-400">Chưa có đề nghị tạm ứng để khấu trừ.</td>
+                    <td colSpan={4} className="px-4 py-5 text-center text-slate-400">Chưa có đề nghị tạm ứng để khấu trừ.</td>
                   </tr>
                 )}
               </tbody>
@@ -935,9 +971,6 @@ function PaymentRequestEditor({ draft, documents, updateFormData }) {
         </div>
       ) : null}
 
-      <Field label="Nội dung đề nghị thanh toán">
-        <Textarea rows={4} value={formData.request_content || ''} onChange={event => updateFormData({ request_content: event.target.value })} />
-      </Field>
     </section>
   )
 }
@@ -958,8 +991,10 @@ export function ContractDocumentEditorForm({
 }) {
   const { legalEntities } = useLegalEntities()
   const [draft, setDraft] = useState(() => buildEditorDraft(document, documentType, contract, templates, documents, legalEntities))
+  const [pendingTemplateId, setPendingTemplateId] = useState('')
   const availableTemplates = templates.filter(template => template.document_type === draft.document_type)
   const isExistingDocument = Boolean(document?.id)
+  const isFinalizedDocument = isExistingDocument && String(document?.status || draft.status || '').toLowerCase() === 'finalized'
   const dateLabel = draft.document_type === 'acceptance_liquidation' ? 'Ngày nghiệm thu' : 'Ngày lập'
   const isPage = variant === 'page'
 
@@ -996,15 +1031,51 @@ export function ContractDocumentEditorForm({
   }
 
   function handleSellerEntityChange(entityCode) {
-    updateDraft(buildSellerEntityPatch(entityCode))
+    const sellerPatch = buildSellerEntityPatch(entityCode)
+    const resolvedSellerCode = sellerPatch.seller_entity_code || entityCode
+    const nextDocumentNumber = draft.id && draft.document_number_pattern && draft.sequence_number
+      ? renderContractDocumentNumber(draft.document_number_pattern, {
+          sequence: String(draft.sequence_number).padStart(4, '0'),
+          document_type: draft.document_type,
+          document_type_code: DOCUMENT_TYPES[draft.document_type]?.code || String(draft.document_type || '').toUpperCase(),
+          seller: resolvedSellerCode,
+          customer: getContractDocumentCustomerCode(draft.contract_source || contract),
+          year: String(draft.sequence_year || new Date().getFullYear()),
+        })
+      : draft.document_number
+    updateDraft({
+      ...sellerPatch,
+      document_number: nextDocumentNumber,
+    })
   }
 
   function applyTemplate(templateId) {
     const template = availableTemplates.find(row => row.id === templateId)
     if (!template) {
+      if (isExistingDocument) return
       updateDraft({ template_id: '' })
       return
     }
+
+    if (isExistingDocument) {
+      const sellerProfile = getSellerProfileForCode(draft.seller_entity_code, legalEntities)
+      const sourceContract = {
+        ...(draft.contract_source || {}),
+        seller_entity_code: sellerProfile.entity_code || draft.seller_entity_code,
+        seller_snapshot: sellerProfile,
+      }
+      updateDraft({
+        template_id: template.id,
+        title: template.title || DOCUMENT_TYPES[draft.document_type]?.defaultTitle || draft.title,
+        contract_source: sourceContract,
+        form_data: buildDocumentFormData(null, draft.document_type, sourceContract, documents, sellerProfile.entity_code || draft.seller_entity_code, legalEntities),
+        content_sections: Array.isArray(template.content_sections) ? template.content_sections : [],
+        terms_text: template.terms_text || '',
+        refresh_template_snapshot: true,
+      })
+      return
+    }
+
     const sellerPatch = buildSellerEntityPatch(template.seller_entity_code || draft.seller_entity_code)
     updateDraft({
       template_id: template.id,
@@ -1016,9 +1087,30 @@ export function ContractDocumentEditorForm({
     })
   }
 
+  function handleTemplateSelect(templateId) {
+    if (!templateId && isExistingDocument) return
+    if (templateId === (draft.template_id || '')) return
+    if (isExistingDocument) {
+      setPendingTemplateId(templateId)
+      return
+    }
+    applyTemplate(templateId)
+  }
+
+  function confirmTemplateReset() {
+    applyTemplate(pendingTemplateId)
+    setPendingTemplateId('')
+  }
+
   function renderTypeEditor() {
     if (draft.document_type === 'acceptance_liquidation') {
-      return <AcceptanceLiquidationEditor draft={draft} updateFormData={updateFormData} />
+      const selectedTemplate = availableTemplates.find(template => template.id === draft.template_id)
+      const showCostDifferenceFields = hasAcceptanceCostDifference({
+        ...draft,
+        fields_config: selectedTemplate?.fields_config,
+        template_snapshot: selectedTemplate ? { fields_config: selectedTemplate.fields_config } : undefined,
+      })
+      return <AcceptanceLiquidationEditor draft={draft} showCostDifferenceFields={showCostDifferenceFields} updateFormData={updateFormData} />
     }
     if (draft.document_type === 'payment_request') {
       return <PaymentRequestEditor draft={draft} documents={documents} updateFormData={updateFormData} />
@@ -1031,11 +1123,24 @@ export function ContractDocumentEditorForm({
     onSave(draft)
   }
 
+  function handleHideIssuedDateChange(checked) {
+    updateDraft({
+      issued_date: checked ? '' : getTodayInputDate(),
+      form_data: {
+        ...(draft.form_data || {}),
+        hide_issued_date: checked,
+      },
+    })
+  }
+
   const title = document?.id
     ? `Sửa ${DOCUMENT_TYPES[draft.document_type]?.label || 'chứng từ'}`
     : DOCUMENT_TYPES[draft.document_type]?.actionLabel || 'Tạo chứng từ'
 
+  const pendingTemplate = availableTemplates.find(template => template.id === pendingTemplateId)
+
   return (
+    <>
     <form onSubmit={submit} className={isPage ? 'overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm' : 'flex max-h-[88vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl'}>
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
           <div>
@@ -1049,46 +1154,78 @@ export function ContractDocumentEditorForm({
         </header>
 
         <div className={isPage ? 'space-y-4 p-5' : 'min-h-0 flex-1 space-y-4 overflow-y-auto p-5'}>
-          <div className="grid gap-3 md:grid-cols-2">
-            <Field label="Mẫu chứng từ">
-              <Select
-                value={draft.template_id || ''}
-                onChange={event => applyTemplate(event.target.value)}
-                disabled={isExistingDocument || !availableTemplates.length}
-              >
-                <option value="">{availableTemplates.length ? 'Không dùng mẫu' : 'Chưa có mẫu đang bật'}</option>
-                {availableTemplates.map(template => (
-                  <option key={template.id} value={template.id}>
-                    {template.name}{template.is_default ? ' (Default)' : ''}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Pattern số chứng từ">
-              <TextInput value={draft.document_number_pattern || ''} onChange={event => updateDraft({ document_number_pattern: event.target.value })} />
-            </Field>
-            <Field label="Tiêu đề">
-              <TextInput value={draft.title || ''} onChange={event => updateDraft({ title: event.target.value })} />
-            </Field>
-            <Field label="Số chứng từ">
-              <TextInput value={draft.document_number || 'Tự cấp khi lưu'} readOnly className="bg-slate-50 font-semibold text-slate-700" />
-            </Field>
-            <Field label="Pháp nhân">
-              <Select value={draft.seller_entity_code || ''} onChange={event => handleSellerEntityChange(event.target.value)}>
-                {!legalEntities.length ? <option value={draft.seller_entity_code || ''}>{draft.seller_entity_code || 'EVENTUS'}</option> : null}
-                {legalEntities.map(entity => {
-                  const code = getLegalEntityCode(entity)
-                  return (
-                    <option key={code} value={code}>
-                      {getLegalEntityLabel(entity)}
+          <div className="grid gap-3">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Mẫu chứng từ">
+                <Select
+                  value={draft.template_id || ''}
+                  onChange={event => handleTemplateSelect(event.target.value)}
+                  disabled={isFinalizedDocument || !availableTemplates.length}
+                >
+                  <option value="" disabled={isExistingDocument}>{availableTemplates.length ? 'Không dùng mẫu' : 'Chưa có mẫu đang bật'}</option>
+                  {availableTemplates.map(template => (
+                    <option key={template.id} value={template.id}>
+                      {template.name}{template.is_default ? ' (Default)' : ''}
                     </option>
-                  )
-                })}
-              </Select>
-            </Field>
-            <Field label={dateLabel}>
-              <TextInput type="date" value={draft.issued_date || ''} onChange={event => updateDraft({ issued_date: event.target.value })} />
-            </Field>
+                  ))}
+                </Select>
+                {isFinalizedDocument ? (
+                  <p className="mt-1.5 text-[11px] font-semibold text-slate-400">Chứng từ đã finalized nên không thể đổi mẫu.</p>
+                ) : isExistingDocument ? (
+                  <p className="mt-1.5 text-[11px] font-semibold text-amber-600">Đổi mẫu sẽ reset nội dung chứng từ sau khi xác nhận.</p>
+                ) : null}
+              </Field>
+              <Field label="Số chứng từ">
+                <TextInput value={draft.document_number || 'Tự cấp khi lưu'} readOnly className="bg-slate-50 font-semibold text-slate-700" />
+              </Field>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_148px_180px]">
+              <Field label="Pattern số chứng từ">
+                <TextInput value={draft.document_number_pattern || ''} onChange={event => updateDraft({ document_number_pattern: event.target.value })} />
+              </Field>
+              <Field label="Pháp nhân">
+                <Select
+                  value={draft.seller_entity_code || ''}
+                  onChange={event => handleSellerEntityChange(event.target.value)}
+                  disabled={isFinalizedDocument}
+                >
+                  {!legalEntities.length ? <option value={draft.seller_entity_code || ''}>{draft.seller_entity_code || 'EVENTUS'}</option> : null}
+                  {legalEntities.map(entity => {
+                    const code = getLegalEntityCode(entity)
+                    return (
+                      <option key={code} value={code}>
+                        {getLegalEntityLabel(entity)}
+                      </option>
+                    )
+                  })}
+                </Select>
+              </Field>
+              <div>
+                <span className="mb-1.5 block text-[12px] font-semibold text-slate-600">{dateLabel}</span>
+                <div className={`flex h-10 overflow-hidden rounded-xl border border-slate-200 transition focus-within:border-[#f8981d] focus-within:ring-2 focus-within:ring-orange-100 ${
+                  draft.form_data?.hide_issued_date ? 'bg-slate-50' : 'bg-white'
+                }`}>
+                  <input
+                    type="date"
+                    value={draft.issued_date || ''}
+                    onChange={event => updateDraft({ issued_date: event.target.value })}
+                    disabled={Boolean(draft.form_data?.hide_issued_date)}
+                    aria-label={dateLabel}
+                    className="min-w-0 flex-1 border-0 bg-transparent px-3 text-[13px] outline-none disabled:text-slate-400"
+                  />
+                  <label className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 border-l border-slate-200 px-2.5 text-[12px] font-semibold text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(draft.form_data?.hide_issued_date)}
+                      onChange={event => handleHideIssuedDateChange(event.target.checked)}
+                      className="h-4 w-4 rounded border-slate-300 text-[#f8981d] focus:ring-orange-100"
+                    />
+                    Ẩn
+                  </label>
+                </div>
+              </div>
+            </div>
           </div>
 
           <CustomerValidationBanner contract={draft.contract_source || contract} />
@@ -1127,6 +1264,43 @@ export function ContractDocumentEditorForm({
           </button>
         </footer>
     </form>
+    {pendingTemplate ? (
+      <TemplateResetConfirmModal
+        templateName={pendingTemplate.name}
+        onCancel={() => setPendingTemplateId('')}
+        onConfirm={confirmTemplateReset}
+      />
+    ) : null}
+    </>
+  )
+}
+
+function TemplateResetConfirmModal({ templateName, onCancel, onConfirm }) {
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/45 px-4 py-6">
+      <section className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl">
+        <div className="flex items-start gap-3">
+          <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+            <AlertTriangle className="h-5 w-5" />
+          </span>
+          <div>
+            <h2 className="text-[18px] font-semibold text-slate-950">Thay đổi mẫu chứng từ</h2>
+            <p className="mt-2 text-[13px] leading-6 text-slate-600">
+              Áp mẫu <span className="font-semibold text-slate-950">{templateName || 'mới'}</span> sẽ xóa toàn bộ nội dung đã chỉnh trong chứng từ hiện tại và tạo lại nội dung theo mẫu mới. Số chứng từ đã cấp vẫn được giữ nguyên.
+            </p>
+          </div>
+        </div>
+        <div className="mt-5 flex justify-end gap-2">
+          <button type="button" onClick={onCancel} className="rounded-xl border border-slate-200 px-4 py-2.5 text-[13px] font-semibold text-slate-700 hover:bg-slate-50">
+            Hủy
+          </button>
+          <button type="button" onClick={onConfirm} className="inline-flex items-center gap-2 rounded-xl bg-amber-600 px-4 py-2.5 text-[13px] font-semibold text-white shadow-sm hover:bg-amber-700">
+            <RefreshCw className="h-4 w-4" />
+            Áp mẫu mới
+          </button>
+        </div>
+      </section>
+    </div>
   )
 }
 
@@ -1162,7 +1336,7 @@ function DeleteDocumentConfirmModal({ document, deleting, error, onCancel, onCon
   )
 }
 
-export function ContractDocumentsSidebarCard({ contract }) {
+export function ContractDocumentsSidebarCard({ contract, comparisonContract = null, quote = null }) {
   const navigate = useNavigate()
   const [documents, setDocuments] = useState([])
   const [loading, setLoading] = useState(false)
@@ -1171,10 +1345,7 @@ export function ContractDocumentsSidebarCard({ contract }) {
   const [notice, setNotice] = useState('')
 
   const canManageDocuments = Boolean(contract?.id)
-  const linkedDocuments = useMemo(
-    () => documents.filter(document => Boolean(getPublicDocumentUrl(document))),
-    [documents],
-  )
+  const linkedDocuments = useMemo(() => documents.filter(document => Boolean(document?.id)), [documents])
 
   useEffect(() => {
     let mounted = true
@@ -1211,6 +1382,12 @@ export function ContractDocumentsSidebarCard({ contract }) {
 
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-4">
+      <ContractEntityMismatchPopup
+        contract={comparisonContract || contract}
+        quote={quote}
+        documents={documents}
+      />
+      <NoticePopup message={notice} onClose={() => setNotice('')} />
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-[#d97706]">
@@ -1272,18 +1449,17 @@ export function ContractDocumentsSidebarCard({ contract }) {
         </p>
       ) : null}
 
-      {notice ? <p className="mt-3 rounded-xl bg-emerald-50 px-3 py-2 text-[12px] text-emerald-700">{notice}</p> : null}
       {error ? <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-[12px] text-red-700">{error}</p> : null}
 
       <div className="mt-3 space-y-2">
         {loading ? (
           <p className="rounded-xl bg-slate-50 px-3 py-3 text-[12px] text-slate-500">Đang tải chứng từ...</p>
         ) : linkedDocuments.length ? linkedDocuments.map(document => {
-          const publicUrl = getPublicDocumentUrl(document)
+          const editUrl = getContractDocumentEditRoute(contract, document)
           return (
             <a
               key={document.id}
-              href={publicUrl}
+              href={editUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="group block rounded-xl border border-slate-100 px-3 py-2.5 hover:border-orange-200 hover:bg-orange-50/60"
@@ -1405,6 +1581,8 @@ export default function ContractDocumentsPanel({ contract }) {
 
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <ContractEntityMismatchPopup contract={contract} documents={documents} />
+      <NoticePopup message={notice} onClose={() => setNotice('')} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-orange-50 text-[#d97706]">
@@ -1449,7 +1627,6 @@ export default function ContractDocumentsPanel({ contract }) {
         </div>
       ) : null}
 
-      {notice ? <p className="mt-4 rounded-xl bg-emerald-50 px-4 py-3 text-[13px] text-emerald-700">{notice}</p> : null}
       {error ? <p className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-[13px] text-red-700">{error}</p> : null}
 
       <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">

@@ -92,6 +92,11 @@ function createFakeContractsApi() {
       return row ? [{ last_sequence: row.last_sequence }] : []
     }
 
+    if (compactSql.startsWith(`select id from ${tables.contractDocumentNumberLedger} where document_id = ?`)) {
+      return selectFirst(tables.contractDocumentNumberLedger, row => row.document_id === params[0])
+        .map(row => ({ id: row.id }))
+    }
+
     if (compactSql.startsWith(`update ${tables.contractDocuments} set deleted_at = current_timestamp(3) where id = ?`)) {
       const row = state[tables.contractDocuments].get(params[0])
       if (row && active(row)) row.deleted_at = nowText()
@@ -309,7 +314,7 @@ test('document numbers advance and are not reused after delete', () => withFakeC
   assert.match(third.document_number, /^0003\/DNTU-EVT\/ACME\/2026$/)
 }))
 
-test('document number metadata is immutable after a document has been numbered', () => withFakeContractsApi(async () => {
+test('changing document seller reallocates its number in the new seller sequence', () => withFakeContractsApi(async ({ state }) => {
   const contract = await createContract()
   const saved = await createDocument(contract, 'advance_request')
 
@@ -324,11 +329,34 @@ test('document number metadata is immutable after a document has been numbered',
     seller_entity_code: 'OTHER',
   })
 
-  assert.equal(updated.document_number, saved.document_number)
-  assert.equal(updated.sequence_number, saved.sequence_number)
+  assert.match(updated.document_number, /^0001\/DNTU-OTHER\/ACME\/2026$/)
+  assert.equal(updated.sequence_number, 1)
   assert.equal(updated.sequence_year, saved.sequence_year)
   assert.equal(updated.document_number_pattern, saved.document_number_pattern)
-  assert.equal(updated.seller_entity_code, saved.seller_entity_code)
+  assert.equal(updated.seller_entity_code, 'OTHER')
+
+  const ledger = Array.from(state[tables.contractDocumentNumberLedger].values())
+    .find(row => row.document_id === saved.id)
+  assert.equal(ledger.seller_entity_code, 'OTHER')
+  assert.equal(ledger.document_number, updated.document_number)
+}))
+
+test('changing seller uses the next available sequence in the target seller scope', () => withFakeContractsApi(async () => {
+  const contract = await createContract()
+  const saved = await createDocument(contract, 'advance_request')
+  await createDocument(contract, 'advance_request', { seller_entity_code: 'MEDIAMONSTER' })
+
+  const updated = await __contractsTestInternals.saveDocument({
+    id: saved.id,
+    contract_id: contract.id,
+    document_type: 'advance_request',
+    status: 'draft',
+    issued_date: '2026-05-27',
+    seller_entity_code: 'MEDIAMONSTER',
+  })
+
+  assert.equal(updated.sequence_number, 2)
+  assert.match(updated.document_number, /^0002\/DNTU-MEDIAMONSTER\/ACME\/2026$/)
 }))
 
 test('soft-deleting a contract also soft-deletes its documents', () => withFakeContractsApi(async () => {
@@ -439,6 +467,119 @@ test('template updates do not rewrite an already-created document snapshot', () 
   assert.equal(updated.template_snapshot.title, 'Title v1')
   assert.equal(updated.template_snapshot.terms_text, 'Terms v1')
   assert.equal(updated.terms_text, 'Terms v1')
+}))
+
+test('explicit document template refresh replaces the snapshot without changing numbering metadata', () => withFakeContractsApi(async ({ state }) => {
+  state[tables.contractDocumentTemplates].set('tpl-1', {
+    id: 'tpl-1',
+    document_type: 'advance_request',
+    name: 'Template v1',
+    title: 'Title v1',
+    seller_entity_code: 'EVT',
+    document_number_pattern: '{{sequence}}/{{document_type_code}}-{{seller}}/{{customer}}/{{year}}',
+    fields_config: '{}',
+    numbering_config: '{}',
+    content_sections: JSON.stringify([{ id: 'old-section', body: 'Old section' }]),
+    terms_text: 'Terms v1',
+    is_default: 1,
+    is_active: 1,
+    sort_order: 10,
+    deleted_at: null,
+    created_at: '2026-05-01 00:00:00',
+    updated_at: '2026-05-01 00:00:00',
+  })
+  state[tables.contractDocumentTemplates].set('tpl-2', {
+    id: 'tpl-2',
+    document_type: 'advance_request',
+    name: 'Template v2',
+    title: 'Title v2',
+    seller_entity_code: 'MEDIAMONSTER',
+    document_number_pattern: 'DIFF-{{sequence}}/{{seller}}/{{year}}',
+    fields_config: '{}',
+    numbering_config: '{}',
+    content_sections: JSON.stringify([{ id: 'new-section', body: 'New section' }]),
+    terms_text: 'Terms v2',
+    is_default: 0,
+    is_active: 1,
+    sort_order: 20,
+    deleted_at: null,
+    created_at: '2026-05-02 00:00:00',
+    updated_at: '2026-05-02 00:00:00',
+  })
+  const contract = await createContract()
+  const document = await createDocument(contract, 'advance_request', { template_id: 'tpl-1' })
+
+  const updated = await __contractsTestInternals.saveDocument({
+    id: document.id,
+    contract_id: contract.id,
+    document_type: 'advance_request',
+    status: 'draft',
+    template_id: 'tpl-2',
+    title: 'Title v2',
+    refresh_template_snapshot: true,
+    content_sections: [{ id: 'new-section', body: 'New section' }],
+    terms_text: 'Terms v2',
+    template_snapshot: {
+      id: 'tpl-2',
+      document_type: 'advance_request',
+      name: 'Template v2',
+      title: 'Title v2',
+      seller_entity_code: 'MEDIAMONSTER',
+      document_number_pattern: 'DIFF-{{sequence}}/{{seller}}/{{year}}',
+      content_sections: [{ id: 'new-section', body: 'New section' }],
+      terms_text: 'Terms v2',
+    },
+    document_data: {
+      form_data: { request_content: '' },
+    },
+  })
+
+  assert.equal(updated.template_id, 'tpl-2')
+  assert.equal(updated.template_snapshot.title, 'Title v2')
+  assert.equal(updated.template_snapshot.terms_text, 'Terms v2')
+  assert.equal(updated.title, 'Title v2')
+  assert.equal(updated.content_sections[0].id, 'new-section')
+  assert.equal(updated.terms_text, 'Terms v2')
+  assert.equal(updated.document_number, document.document_number)
+  assert.equal(updated.sequence_number, document.sequence_number)
+  assert.equal(updated.document_number_pattern, document.document_number_pattern)
+  assert.equal(updated.seller_entity_code, document.seller_entity_code)
+}))
+
+test('finalized documents cannot refresh their template snapshot', () => withFakeContractsApi(async ({ state }) => {
+  state[tables.contractDocumentTemplates].set('tpl-1', {
+    id: 'tpl-1',
+    document_type: 'advance_request',
+    name: 'Template v1',
+    title: 'Title v1',
+    seller_entity_code: 'EVT',
+    document_number_pattern: '{{sequence}}/{{document_type_code}}-{{seller}}/{{customer}}/{{year}}',
+    fields_config: '{}',
+    numbering_config: '{}',
+    content_sections: '[]',
+    terms_text: 'Terms v1',
+    is_default: 1,
+    is_active: 1,
+    sort_order: 10,
+    deleted_at: null,
+    created_at: '2026-05-01 00:00:00',
+    updated_at: '2026-05-01 00:00:00',
+  })
+  const contract = await createContract()
+  const document = await createDocument(contract, 'advance_request', { status: 'finalized', template_id: 'tpl-1' })
+
+  await assert.rejects(
+    () => __contractsTestInternals.saveDocument({
+      id: document.id,
+      contract_id: contract.id,
+      document_type: 'advance_request',
+      status: 'finalized',
+      template_id: 'tpl-1',
+      refresh_template_snapshot: true,
+      template_snapshot: { id: 'tpl-1', title: 'Changed' },
+    }),
+    /Khong doi mau chung tu da finalized/,
+  )
 }))
 
 test('open documents auto-sync contract snapshots when the contract changes', () => withFakeContractsApi(async () => {

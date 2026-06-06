@@ -53,7 +53,7 @@ test('feedback delete action can be handled with feedback access', () => {
 
 test('feedback open graph title uses the banner job title first', () => {
   const meta = buildFeedbackOpenGraphText({
-    name: 'Feedback 1',
+    name: 'Feedback #1',
     video_title: 'Video from YouTube',
     job: {
       title: 'Year End Party 2026',
@@ -62,11 +62,22 @@ test('feedback open graph title uses the banner job title first', () => {
   })
 
   assert.equal(meta.title, 'Year End Party 2026')
-  assert.equal(meta.description, 'Feedback 1')
+  assert.equal(meta.description, 'Feedback #1')
 })
 
 test('default feedback name includes sequence without editable date', () => {
+  assert.equal(buildDefaultFeedbackName(), 'Feedback #1')
   assert.equal(buildDefaultFeedbackName(4), 'Feedback #4')
+})
+
+test('feedback job title strips legacy html entities', () => {
+  const job = __feedbackTestInternals.normalizeJobRow({
+    id: 6617,
+    job_title: '&nbsp;Hội nghị VSDS&nbsp;<br>năm 2026 &amp; đối tác',
+  })
+
+  assert.equal(job.title, 'Hội nghị VSDS năm 2026 & đối tác')
+  assert.equal(job.job_title, 'Hội nghị VSDS năm 2026 & đối tác')
 })
 
 test('survey response name is shared across survey sources', () => {

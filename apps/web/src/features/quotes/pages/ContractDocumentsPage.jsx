@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { AlertTriangle, ArrowLeft } from 'lucide-react'
 import ContractDocumentsPanel from '../components/ContractDocumentsPanel'
+import NoticePopup from '../components/NoticePopup'
 import QuoteBreadcrumb from '../components/QuoteBreadcrumb'
 import { getContractById } from '../hooks/useContracts'
 import { getContractDocumentsRoute, getContractRoute } from '../lib/contractRouting'
@@ -41,7 +42,7 @@ export default function ContractDocumentsPage() {
   const [contract, setContract] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const notice = location.state?.notice || ''
+  const [notice, setNotice] = useState(() => location.state?.notice || '')
 
   useEffect(() => {
     let mounted = true
@@ -67,6 +68,11 @@ export default function ContractDocumentsPage() {
     }
   }, [contractId])
 
+  useEffect(() => {
+    if (!location.state?.notice) return
+    navigate(location.pathname, { replace: true, state: null })
+  }, [location.pathname, location.state?.notice, navigate])
+
   function backToContract() {
     navigate(contract ? getContractRoute(contract) : '/contracts')
   }
@@ -81,6 +87,7 @@ export default function ContractDocumentsPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 px-5 py-5 lg:px-7">
+      <NoticePopup message={notice} onClose={() => setNotice('')} />
       <div className="mx-auto max-w-[1500px] space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -99,7 +106,6 @@ export default function ContractDocumentsPage() {
           </button>
         </div>
 
-        {notice ? <p className="rounded-xl bg-emerald-50 px-4 py-3 text-[13px] text-emerald-700">{notice}</p> : null}
         <ContractDocumentsPanel contract={contract} key={getContractDocumentsRoute(contract)} />
       </div>
     </div>

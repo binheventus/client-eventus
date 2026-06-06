@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CopyPlus, Eye, Plus, Save, Trash2 } from 'lucide-react'
 import { useEscapeToClose } from '../../../hooks/useEscapeToClose'
 import QuoteBreadcrumb from '../components/QuoteBreadcrumb'
+import NoticePopup from '../components/NoticePopup'
 import {
   deleteContractTemplate,
   listContractTemplates,
@@ -17,6 +18,7 @@ import {
   DEFAULT_WORK_PROGRESS_NOTES,
   getContractPreamble,
   getContractPaymentNotes,
+  hasContractAdvance,
   normalizeContractTemplate,
   sectionsToTermsText,
   termsTextToSections,
@@ -188,7 +190,7 @@ function DeleteConfirmModal({ templateName, saving, onCancel, onConfirm }) {
   )
 }
 
-export default function ContractTemplatesPage({ embedded = false, onCreateNewReady = null } = {}) {
+export default function ContractTemplatesPage({ embedded = false, onCreateNewReady = null, onSuccessNotice = null } = {}) {
   const [templates, setTemplates] = useState([])
   const [selectedId, setSelectedId] = useState('')
   const [draft, setDraft] = useState(EMPTY_TEMPLATE)
@@ -218,7 +220,17 @@ export default function ContractTemplatesPage({ embedded = false, onCreateNewRea
   const paymentDocuments = Array.isArray(draft.payment_config?.payment_documents)
     ? draft.payment_config.payment_documents
     : DEFAULT_PAYMENT_CONFIG.payment_documents
+  const hasPaymentAdvance = hasContractAdvance(draft.payment_config)
   const preambleLines = useMemo(() => getContractPreamble(draft), [draft])
+
+  function showNotice(message) {
+    if (onSuccessNotice) {
+      onSuccessNotice(message)
+      return
+    }
+
+    setNotice(message)
+  }
 
   async function loadTemplates(nextSelectedId = '') {
     setLoading(true)
@@ -356,7 +368,7 @@ export default function ContractTemplatesPage({ embedded = false, onCreateNewRea
         content_sections: termsTextToSections(termsText),
       }
       const saved = await saveContractTemplate(payload)
-      setNotice('Đã lưu mẫu hợp đồng.')
+      showNotice('Đã lưu mẫu hợp đồng.')
       await loadTemplates(saved.id)
     } catch (err) {
       setError(err?.message || 'Không lưu được mẫu hợp đồng.')
@@ -372,7 +384,7 @@ export default function ContractTemplatesPage({ embedded = false, onCreateNewRea
     setNotice('')
     try {
       await deleteContractTemplate(draft.id)
-      setNotice('Đã xoá mẫu hợp đồng.')
+      showNotice('Đã xoá mẫu hợp đồng.')
       setDeleteConfirmOpen(false)
       await loadTemplates()
     } catch (err) {
@@ -384,6 +396,7 @@ export default function ContractTemplatesPage({ embedded = false, onCreateNewRea
 
   return (
     <div className={embedded ? 'space-y-5' : 'mx-auto max-w-[1500px] space-y-5'}>
+      {!onSuccessNotice ? <NoticePopup message={notice} onClose={() => setNotice('')} /> : null}
       {embedded ? null : (
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -406,7 +419,6 @@ export default function ContractTemplatesPage({ embedded = false, onCreateNewRea
       )}
 
       {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-[13px] text-red-700">{error}</p>}
-      {notice && <p className="rounded-xl bg-emerald-50 px-4 py-3 text-[13px] text-emerald-700">{notice}</p>}
 
       <div className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
         <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
@@ -531,15 +543,17 @@ export default function ContractTemplatesPage({ embedded = false, onCreateNewRea
               <Field label="Tạm ứng (%)">
                 <Input type="number" min="0" max="100" value={draft.payment_config?.deposit_percent ?? DEFAULT_PAYMENT_CONFIG.deposit_percent} onChange={event => updatePaymentConfig({ deposit_percent: Number(event.target.value) })} />
               </Field>
-              <Field label="Hạn thanh toán lần 2">
+              <Field label={hasPaymentAdvance ? 'Hạn thanh toán lần 2' : 'Hạn thanh toán'}>
                 <Input type="number" min="0" value={draft.payment_config?.final_due_days ?? DEFAULT_PAYMENT_CONFIG.final_due_days} onChange={event => updatePaymentConfig({ final_due_days: Number(event.target.value) })} />
               </Field>
-              <Field label="Xuất hoá đơn sau tạm ứng">
-                <Select value={draft.payment_config?.issue_invoice_on_deposit ? 'yes' : 'no'} onChange={event => updatePaymentConfig({ issue_invoice_on_deposit: event.target.value === 'yes' })}>
-                  <option value="yes">Có</option>
-                  <option value="no">Không</option>
-                </Select>
-              </Field>
+              {hasPaymentAdvance ? (
+                <Field label="Xuất hoá đơn sau tạm ứng">
+                  <Select value={draft.payment_config?.issue_invoice_on_deposit ? 'yes' : 'no'} onChange={event => updatePaymentConfig({ issue_invoice_on_deposit: event.target.value === 'yes' })}>
+                    <option value="yes">Có</option>
+                    <option value="no">Không</option>
+                  </Select>
+                </Field>
+              ) : null}
             </div>
             <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
               <p className="text-[13px] font-semibold text-slate-900">Hồ sơ thanh toán:</p>

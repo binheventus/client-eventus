@@ -7,9 +7,11 @@ import {
   buildInitialContractDraftFromSource,
   buildSingleLineQuoteSnapshot,
   generateContractNumber,
+  getContractPaymentNotes,
   getContractWorkDurationText,
   getContractWorkProgressNotes,
   getEntityProfile,
+  hasContractAdvance,
 } from './contractDefaults.js'
 
 const template = {
@@ -201,4 +203,30 @@ test('contract work duration text defaults to four hours per session', () => {
     'Thời gian làm việc tiêu chuẩn của nhân sự Bên B là tối đa 04 giờ/buổi theo thỏa thuận. Các yêu cầu phát sinh ngoài khung giờ này sẽ được tính phí ngoài giờ là 500.000 đồng/giờ/nhân sự, với điều kiện phải được Bên A xác nhận qua văn bản hoặc email/Zalo trước khi thực hiện.',
     'Đối với sản phẩm hậu kỳ: Ảnh sự kiện (đã chỉnh sửa màu sắc và bố cục) được bàn giao trong vòng 24 giờ và Video Recap trong vòng 03 ngày kể từ khi kết thúc sự kiện (nếu có). Tiến độ bàn giao Video được tính kể từ thời điểm Bên A cung cấp đầy đủ các tài liệu cần thiết (brief, logo, font, nhạc hoặc tư liệu liên quan tùy theo hạng mục). Trường hợp Bên A chậm cung cấp tài liệu, thời hạn bàn giao sẽ được gia hạn tương ứng.',
   ])
+})
+
+test('contract payment notes treat zero deposit as no advance payment', () => {
+  const paymentConfig = {
+    deposit_percent: 0,
+    final_due_days: 7,
+  }
+
+  assert.equal(hasContractAdvance(paymentConfig), false)
+  assert.deepEqual(getContractPaymentNotes(paymentConfig), [
+    'Thời hạn thanh toán được hiểu là 07 (bảy) ngày làm việc kể từ ngày Bên B bàn giao đầy đủ sản phẩm và xuất hóa đơn.',
+    'Trường hợp Bên A có khiếu nại về tính hợp lệ của hóa đơn, phải thông báo bằng văn bản cho Bên B trong vòng 02 ngày làm việc kể từ ngày nhận hóa đơn, nêu rõ lý do. Quá thời hạn này, hóa đơn được coi là đã được Bên A chấp nhận và nghĩa vụ thanh toán được kích hoạt theo điều khoản nêu trên.',
+  ])
+})
+
+test('contract payment notes keep second payment wording when deposit is positive', () => {
+  const paymentConfig = {
+    deposit_percent: 50,
+    final_due_days: 7,
+  }
+
+  assert.equal(hasContractAdvance(paymentConfig), true)
+  assert.equal(
+    getContractPaymentNotes(paymentConfig)[0],
+    'Thời hạn thanh toán Lần 2 được hiểu là 07 (bảy) ngày làm việc kể từ ngày Bên B bàn giao đầy đủ sản phẩm và xuất hóa đơn.',
+  )
 })

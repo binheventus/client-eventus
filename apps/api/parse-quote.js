@@ -43,7 +43,7 @@ Quy tắc bắt buộc:
 - Nếu sales chỉ ghi "chụp" hoặc "1 chụp" mà không nói gì thêm, mặc định chọn CHUP_IN_4H nếu service_code này có trong context.services.
 - Nếu sales chỉ ghi "quay", "1 quay" hoặc "quay phim" mà không ghi rõ "full", mặc định hiểu là quay recap và chọn QUAY_RECAP_IN_4H nếu service_code này có trong context.services.
 - Chỉ chọn service_code nhóm QUAY_FULL khi sales ghi rõ "quay full", "full video", "full không cắt" hoặc ý tương đương.
-- Nếu brief có hạng mục quay/quay phim/video nhưng sales không nói dựng gì, mặc định vẫn thêm hạng mục dựng recap, nhưng phải chọn theo tổng số máy quay: 1-2 máy = RECAP_1_2_CAM, 3-4 máy = RECAP_3_4_CAM, 5-6 máy = RECAP_5_6_CAM, từ 7 máy trở lên = RECAP_7_CAM nếu có trong context.services, nếu không thì dùng RECAP_7_8_CAM. Ví dụ "4 quay" phải thêm RECAP_3_4_CAM, không được dùng RECAP_1_2_CAM.
+- Nếu brief có hạng mục quay/quay phim/video nhưng sales không nói dựng gì, mặc định vẫn thêm hạng mục dựng recap, nhưng phải chọn theo tổng số máy quay quy đổi nửa ngày: 1 máy quay ≤4.5h = 1, 1 máy quay cả ngày/8H = 2. 1-2 máy quy đổi = RECAP_1_2_CAM, 3-4 máy quy đổi = RECAP_3_4_CAM, 5-6 máy quy đổi = RECAP_5_6_CAM, từ 7 máy quy đổi trở lên = RECAP_7_CAM nếu có trong context.services, nếu không thì dùng RECAP_7_8_CAM. Ví dụ "4 quay" nửa ngày phải thêm RECAP_3_4_CAM; "3 quay cả ngày" phải hiểu là 6 máy nửa ngày và thêm RECAP_5_6_CAM; "4 quay cả ngày" phải hiểu là 8 máy nửa ngày và thêm RECAP_7_CAM.
 - Khi đã tự thêm dựng recap theo quy tắc mặc định, KHÔNG thêm editing_service vào missing_fields hoặc ambiguous_fields.
 - Nếu một dịch vụ có thể map chắc chắn theo từ khóa rõ ràng thì chọn service_code phù hợp nhất từ context.services, có xét location IN/OUT và 4H/8H theo duration_hours. Với duration_hours > 4.5 và < 8, vẫn chọn service_code 4H.
 - Nếu không có service_code phù hợp trong context.services thì vẫn giữ service_name_raw và KHÔNG điền service_code bịa; có thể để service_code null và thêm ambiguous_fields.
@@ -272,15 +272,23 @@ function itemLooksLikeVideoShoot(item = {}) {
   return /\b(quay|quay phim|video|videographer)\b/.test(rawText)
 }
 
-function getVideoShootCameraCount(items = [], inputText = '') {
+function getHalfDayCameraMultiplier(durationHours) {
+  const duration = Number(durationHours)
+  if (!Number.isFinite(duration) || duration <= 0) return 1
+  return duration > 4.5 ? 2 : 1
+}
+
+function getVideoShootCameraCount(items = [], inputText = '', durationHours = null) {
+  const defaultMultiplier = getHalfDayCameraMultiplier(durationHours)
   const parsedCount = (Array.isArray(items) ? items : []).reduce((sum, item) => {
     if (!itemLooksLikeVideoShoot(item)) return sum
     const quantity = Number(item?.quantity)
-    return sum + (Number.isFinite(quantity) && quantity > 0 ? quantity : 1)
+    const multiplier = getHalfDayCameraMultiplier(item?.billable_duration_hours ?? durationHours) || defaultMultiplier
+    return sum + (Number.isFinite(quantity) && quantity > 0 ? quantity : 1) * multiplier
   }, 0)
 
   if (parsedCount > 0) return parsedCount
-  return parseVideoQuantityFromText(normalizeVietnameseText(inputText))
+  return parseVideoQuantityFromText(normalizeVietnameseText(inputText)) * defaultMultiplier
 }
 
 function getRecapEditServiceForCameraCount(context = {}, cameraCount = 1) {
@@ -397,7 +405,7 @@ export function applyBriefBusinessRules(result, inputText = '', context = {}) {
   const groupedResult = applyMultiDayBriefGroups(result, inputText, context)
   if (!briefNeedsDefaultRecapEdit(inputText)) return applySingleBriefGroup(groupedResult, inputText)
   const items = Array.isArray(groupedResult?.parsed?.items) ? groupedResult.parsed.items : []
-  const cameraCount = getVideoShootCameraCount(items, inputText)
+  const cameraCount = getVideoShootCameraCount(items, inputText, groupedResult?.parsed?.duration_hours)
   const defaultEditService = getRecapEditServiceForCameraCount(context, cameraCount)
   if (!defaultEditService || !serviceExists(context, defaultEditService)) return applySingleBriefGroup(groupedResult, inputText)
 
