@@ -1,9 +1,63 @@
 # AGENTS.md
 
+## Giao tiếp
+
 - Khi nói chuyện với người dùng bằng tiếng Việt, gọi người dùng là "Anh Bình".
 - Tự xưng là "Tôi".
-- Stack chính: Node.js monorepo với React/Vite frontend trong `apps/web`, NestJS/Express API trong `apps/api`, MySQL runtime.
-- Lệnh thường dùng: `npm install`, `npm run dev`, `npm run dev:background`, `npm run dev:status`, `npm run dev:stop`.
-- Lệnh kiểm tra/build: `npm run test:quotes`, `npm run build`.
-- Migration MySQL dùng `npm run db:migrate`; chỉ chạy khi chắc chắn đúng database local.
-- Không commit generated/local files như `node_modules/`, `vendor/`, `storage/`, `bootstrap/cache/`, `public/assets/`, `apps/web/dist/`, `dist/`, `.env*`, `.DS_Store`.
+
+## Tổng quan project
+
+- Project là Node.js monorepo cho client portal nội bộ Eventus Việt Nam.
+- Frontend: React 18 + Vite + Tailwind, nằm trong `apps/web`.
+- Backend: NestJS/Express style API chạy bằng Node.js, nằm trong `apps/api`.
+- Database runtime: MySQL local qua `apps/api/lib/mysql.js`; không dùng Supabase cho app hiện tại.
+- Production chạy VPS với Nginx + PM2; thông tin deploy nằm trong `deploy/`.
+
+## Cấu trúc quan trọng
+
+- `apps/web/src/features/quotes/`: quote, contract, PDF/DOCX/XLSX export.
+- `apps/web/src/features/feedback/`: feedback dashboard, public feedback/survey/gallery flows.
+- `apps/web/src/data/pricing/`: dữ liệu bảng giá generated từ Google Sheet.
+- `apps/api/`: API routes và business logic server-side.
+- `scripts/`: migration MySQL, dev server manager, import/prune/cleanup feedback, pricing export.
+- `docs/mysql-schema.sql`: schema nền cho MySQL.
+
+## Lệnh thường dùng
+
+- Cài dependencies: `npm install`
+- Chạy dev: `npm run dev`
+- Chạy dev background: `npm run dev:background`
+- Kiểm tra dev background: `npm run dev:status`
+- Dừng dev background: `npm run dev:stop`
+- Build frontend: `npm run build`
+- Chạy production-style server: `npm start`
+
+## Test và verification
+
+- Test liên quan quote/API: `npm run test:quotes`
+- Sau khi sửa UI/build pipeline, chạy `npm run build`.
+- Nếu build/test tạo file generated không liên quan đến thay đổi, restore file đó trước khi commit.
+- Build hiện có thể cảnh báo chunk lớn, nhưng vẫn thành công nếu command exit code 0.
+
+## Database và scripts có tác động dữ liệu
+
+- Migration MySQL: `npm run db:migrate`
+- Chỉ chạy migration/import/prune/cleanup khi chắc chắn đang dùng database local và tác vụ yêu cầu.
+- Các lệnh cần cẩn thận vì có thể sửa/xóa dữ liệu: `npm run db:migrate`, `npm run feedback:import-legacy`, `npm run feedback:prune`, `npm run feedback:cleanup-attachments -- --force`.
+- Không commit `.env`, `.env.local`, `.env.*.local`, service account key, credentials, hoặc secret.
+
+## Git và generated files
+
+- Trước khi commit, luôn kiểm tra `git status --short --branch` và staged diff.
+- Không stage/commit file local/build/generated ngoài phạm vi sửa: `.DS_Store`, `node_modules/`, `vendor/`, `storage/`, `bootstrap/cache/`, `public/assets/`, `apps/web/public/assets/`, `dist/`, `apps/web/dist/`, `.vercel/`, `.tmp/`.
+- Chỉ commit `package.json` và `package-lock.json` khi dependency/script thay đổi là một phần của yêu cầu.
+- Không revert thay đổi người dùng đã có sẵn nếu không được yêu cầu rõ.
+- Nếu cần commit, gom đúng các file liên quan và dùng message rõ ràng theo conventional commit khi phù hợp.
+
+## Lưu ý khi sửa code
+
+- Ưu tiên pattern sẵn có trong feature đang sửa; tránh thêm abstraction mới nếu chưa cần.
+- Với quote/contract export, giữ logic tính tiền, VAT, entity consistency và numbering đồng bộ giữa preview, PDF, DOCX, XLSX khi có liên quan.
+- Với API dùng MySQL, ưu tiên helper trong `apps/api/lib/mysql.js` và các module sẵn có.
+- Với frontend, giữ UI thực dụng, dễ quét, không thêm landing/marketing layout khi đang sửa tool nội bộ.
+- Khi thêm asset public có chủ đích, đặt đúng thư mục hiện có và đảm bảo không trùng với nhóm generated đã ignore.
