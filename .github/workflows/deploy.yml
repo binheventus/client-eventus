@@ -2,7 +2,7 @@ name: Deploy NextJS
 
 on:
   push:
-    branches: [ master ] # Tự động chạy khi bạn push code vào nhánh main
+    branches: [ main ] # Tự động chạy khi bạn push code vào nhánh main
 
 jobs:
   deploy:
