@@ -1,0 +1,23 @@
+name: Deploy NextJS
+
+on:
+  push:
+    branches: [ master ] # Tự động chạy khi bạn push code vào nhánh main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH and Deploy
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd ~/client.eventusproduction.com/client-eventus
+            git pull origin main
+            npm install
+            npm run db:migrate
+            npm run build
+            pm2 restart client-eventus
