@@ -1,7 +1,15 @@
 node_modules/
+vendor/
 dist/
 apps/web/dist/
 .DS_Store
+**/.DS_Store
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.Spotlight-V100/
+.Trashes/
 .env
 .env.local
 .env.*.local
@@ -10,3 +18,6 @@ apps/web/dist/
 .vercel/
 .tmp/
 storage/
+bootstrap/cache/
+public/assets/
+apps/web/public/assets/
