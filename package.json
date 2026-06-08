@@ -25,6 +25,7 @@
     "@nestjs/core": "^11.1.21",
     "@nestjs/platform-express": "^11.1.21",
     "@react-pdf/renderer": "^4.5.1",
+    "exceljs": "^4.4.0",
     "lucide-react": "^0.400.0",
     "mysql2": "^3.22.3",
     "react": "^18.2.0",

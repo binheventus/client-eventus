@@ -7,6 +7,7 @@ import { useLegalEntities } from '../hooks/useLegalEntities'
 import { normalizeQuoteValidityDays } from '../lib/quoteValidity'
 
 const QuotePDFDownloadButton = lazy(() => import('../components/QuotePDFDownloadButton'))
+const QuoteExcelDownloadButton = lazy(() => import('../components/QuoteExcelDownloadButton'))
 const QUOTE_PUBLIC_PAGE_TITLE = 'Báo giá chi tiết - Eventus Production'
 
 function getValidUntil(quote) {
@@ -112,7 +113,7 @@ export default function QuotePublicPage() {
       <div className="mx-auto max-w-4xl space-y-4">
         <QuotePreview quote={quote} items={quote.items || []} totals={quote} entities={legalEntities} sticky={false} />
         <QuoteMicroSurvey quote={quote} />
-        <div className="flex justify-center pb-4">
+        <div className="flex flex-wrap justify-center gap-3 pb-4">
           <Suspense fallback={<span className="inline-flex min-w-[220px] justify-center rounded-xl bg-[#f8981d] px-7 py-3 text-[14px] font-semibold text-white shadow-sm">Đang tải PDF...</span>}>
             <QuotePDFDownloadButton
               quote={quote}
@@ -121,6 +122,15 @@ export default function QuotePublicPage() {
             >
               Tải báo giá PDF
             </QuotePDFDownloadButton>
+          </Suspense>
+          <Suspense fallback={<span className="inline-flex min-w-[220px] justify-center rounded-xl border border-slate-300 bg-white px-7 py-3 text-[14px] font-semibold text-slate-700 shadow-sm">Đang tải Excel...</span>}>
+            <QuoteExcelDownloadButton
+              quote={quote}
+              items={quote.items || []}
+              className="inline-flex min-w-[220px] justify-center rounded-xl border border-slate-300 bg-white px-7 py-3 text-[14px] font-semibold text-slate-700 shadow-sm hover:border-[#f8981d] hover:text-[#f8981d]"
+            >
+              Tải báo giá Excel
+            </QuoteExcelDownloadButton>
           </Suspense>
         </div>
       </div>

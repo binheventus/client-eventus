@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useEscapeToClose } from '../../../hooks/useEscapeToClose'
 import { useLegalEntities } from '../hooks/useLegalEntities'
 import { getQuote } from '../hooks/useQuotes'
 import { getContractEntityMismatchWarning } from '../lib/contractEntityConsistency'
@@ -22,6 +23,7 @@ export default function ContractEntityMismatchPopup({
     currentDocument,
     legalEntities,
   })
+  const visibleWarning = warning && warning.signature !== dismissedSignature ? warning : null
 
   useEffect(() => {
     let mounted = true
@@ -47,15 +49,19 @@ export default function ContractEntityMismatchPopup({
     if (!warning && dismissedSignature) setDismissedSignature('')
   }, [dismissedSignature, warning])
 
-  if (!warning || warning.signature === dismissedSignature) return null
+  useEscapeToClose(() => {
+    if (visibleWarning) setDismissedSignature(visibleWarning.signature)
+  }, Boolean(visibleWarning))
+
+  if (!visibleWarning) return null
 
   return (
     <ImportantWarningPopup
-      title={warning.title}
-      description={warning.description}
-      items={warning.items}
+      title={visibleWarning.title}
+      description={visibleWarning.description}
+      items={visibleWarning.items}
       confirmLabel="Nguy hiểm quá, tôi sẽ check và sửa lại ngay"
-      onClose={() => setDismissedSignature(warning.signature)}
+      onClose={() => setDismissedSignature(visibleWarning.signature)}
     />
   )
 }

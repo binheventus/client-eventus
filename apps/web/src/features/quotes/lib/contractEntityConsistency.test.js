@@ -67,6 +67,23 @@ test('entity consistency warning includes a linked quote that differs from the c
   ])
 })
 
+test('entity consistency ignores quote snapshots when the contract has no linked quote', () => {
+  const warning = getContractEntityMismatchWarning({
+    contract: {
+      quote_id: null,
+      source_type: 'job',
+      seller_entity_code: 'MEDIAMONSTER',
+    },
+    quote: {
+      id: '',
+      entity_code: 'EVENTUS',
+    },
+    legalEntities,
+  })
+
+  assert.equal(warning, null)
+})
+
 test('entity consistency treats quote and contract entity aliases as the same legal entity', () => {
   const warning = getContractEntityMismatchWarning({
     contract: { seller_entity_code: 'EVENTUS' },

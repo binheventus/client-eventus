@@ -149,8 +149,8 @@ function AcceptanceArticleLines({ section }) {
 function AcceptanceAmountTable({ title, rows = [], totals = {}, vatConfig = {} }) {
   const cellClass = 'border border-slate-300 px-1 py-0.5 align-top [overflow-wrap:anywhere]'
   const numberCellClass = `${cellClass} text-right tabular-nums`
-  const totalLabelClass = `${cellClass} bg-slate-50 text-right font-semibold`
-  const totalValueClass = `${numberCellClass} bg-slate-50 font-semibold`
+  const totalLabelClass = `${cellClass} text-right font-semibold`
+  const totalValueClass = `${numberCellClass} font-semibold`
 
   return (
     <section className="space-y-1">

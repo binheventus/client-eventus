@@ -1,4 +1,4 @@
-import { normalizeQuoteValidityDays } from './quoteValidity'
+import { normalizeQuoteValidityDays } from './quoteValidity.js'
 
 export function getDefaultQuoteTerms(quote = {}) {
   const validityDays = normalizeQuoteValidityDays(quote.validity_days)

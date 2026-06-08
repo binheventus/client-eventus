@@ -39,7 +39,8 @@ function getRequestUrl(req) {
   const host = getHeader(req, 'x-forwarded-host') || getHeader(req, 'host') || 'client.eventusproduction.com'
   const inferredProto = /^(localhost|127\.0\.0\.1|\[::1\])(?::|$)/.test(host) ? 'http' : 'https'
   const proto = getHeader(req, 'x-forwarded-proto') || req?.protocol || inferredProto
-  return new URL(req?.originalUrl || req?.url || '/', `${proto}://${host}`).toString()
+  const requestPath = normalizeRequestPath(req?.originalUrl || req?.url)
+  return new URL(requestPath, `${proto}://${host}`).toString()
 }
 
 export function getEventusLoginUrl(req) {
@@ -50,10 +51,15 @@ export function getEventusLoginUrl(req) {
 }
 
 export function isProtectedQuotePageRequest(req) {
-  const pathname = new URL(req?.url || '/', 'http://client.local').pathname
+  const pathname = new URL(normalizeRequestPath(req?.url), 'http://client.local').pathname
   return pathname === '/quotes' || pathname.startsWith('/quotes/') ||
     pathname === '/contracts' || pathname.startsWith('/contracts/') ||
     pathname === '/feedback' || pathname.startsWith('/feedback/')
+}
+
+function normalizeRequestPath(value) {
+  const path = String(value || '/')
+  return path.startsWith('//') ? '/' : path
 }
 
 export async function getEventusAuthUser(req) {

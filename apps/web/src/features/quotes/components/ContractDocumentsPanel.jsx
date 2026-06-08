@@ -882,7 +882,6 @@ function PaymentRequestEditor({ draft, documents, updateFormData }) {
       <section className="space-y-3 border-t border-slate-100 pt-4">
         <div>
           <h3 className="text-[14px] font-semibold text-slate-900">Khấu trừ tạm ứng</h3>
-          <p className="mt-1 text-[12px] text-slate-500">Chọn các đề nghị tạm ứng liên quan và sửa số tiền khấu trừ nếu cần.</p>
         </div>
         <div className="overflow-hidden rounded-xl border border-slate-200">
           <div className="overflow-hidden">
@@ -1142,12 +1141,19 @@ export function ContractDocumentEditorForm({
   return (
     <>
     <form onSubmit={submit} className={isPage ? 'overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm' : 'flex max-h-[88vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl'}>
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-2">
           <div>
-            <h2 className="text-[18px] font-semibold text-slate-950">{title}</h2>
-            <p className="mt-1 text-[12px] font-semibold text-slate-500">{draft.document_number || 'Số chứng từ sẽ được cấp khi lưu lần đầu.'}</p>
+            <h2 className="text-[16px] font-semibold text-slate-950">
+              {title}
+              {draft.document_number ? (
+                <span className="ml-2 text-[#f8981d]">{draft.document_number}</span>
+              ) : null}
+            </h2>
+            {!draft.document_number ? (
+              <p className="mt-1 text-[12px] font-semibold text-slate-500">Số chứng từ sẽ được cấp khi lưu lần đầu.</p>
+            ) : null}
           </div>
-          <button type="button" onClick={onCancel} className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-[13px] font-semibold text-slate-600 hover:bg-slate-50">
+          <button type="button" onClick={onCancel} className="inline-flex h-8 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-[13px] font-semibold text-slate-600 hover:bg-slate-50">
             <ArrowLeft className="h-4 w-4" />
             Quay lại
           </button>
@@ -1395,7 +1401,7 @@ export function ContractDocumentsSidebarCard({ contract, comparisonContract = nu
           </span>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h2 className="truncate text-[14px] font-semibold text-slate-900">Chứng từ</h2>
+              <h2 className="truncate text-[14px] font-semibold text-slate-900">Chứng từ liên quan</h2>
               {linkedDocuments.length ? (
                 <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
                   {linkedDocuments.length}
@@ -1466,10 +1472,10 @@ export function ContractDocumentsSidebarCard({ contract, comparisonContract = nu
             >
               <span className="flex min-w-0 items-center gap-1.5 text-[13px] font-semibold text-blue-700 group-hover:text-blue-800">
                 <span className="truncate">{DOCUMENT_TYPES[document.document_type]?.label || document.document_type}</span>
+                <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[12px] font-semibold text-slate-500">
+                  {formatQuoteDate(document.issued_date) || '-'}
+                </span>
                 <ExternalLink className="h-3.5 w-3.5 shrink-0" />
-              </span>
-              <span className="mt-1 block text-[12px] text-slate-500">
-                Lập ngày {formatQuoteDate(document.issued_date) || '-'}
               </span>
             </a>
           )

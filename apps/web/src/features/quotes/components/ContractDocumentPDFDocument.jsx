@@ -493,8 +493,8 @@ function PdfAcceptanceAmountTable({ title, rows = [], totals = {}, vatConfig = {
   const totalRows = [{
     key: 'totals',
     cells: [
-      { text: `Tổng\n${getVatLabel(vatConfig)}\nTổng chi phí`, width: '82%', align: 'right', bold: true, totalCell: true },
-      { text: `${formatDocumentCurrency(totals.subtotal, '')}\n${formatDocumentCurrency(totals.vat_amount, '')}\n${formatDocumentCurrency(totals.total_amount, '')}`, width: '18%', align: 'right', bold: true, totalCell: true },
+      { text: `Tổng\n${getVatLabel(vatConfig)}\nTổng chi phí`, width: '82%', align: 'right', bold: true },
+      { text: `${formatDocumentCurrency(totals.subtotal, '')}\n${formatDocumentCurrency(totals.vat_amount, '')}\n${formatDocumentCurrency(totals.total_amount, '')}`, width: '18%', align: 'right', bold: true },
     ],
   }]
   const renderCell = (cell, index, rowIndex, rowCount, extraStyle = null) => (
@@ -503,7 +503,6 @@ function PdfAcceptanceAmountTable({ title, rows = [], totals = {}, vatConfig = {
       style={[
         styles.cell,
         extraStyle,
-        cell.totalCell ? { backgroundColor: '#f8fafc' } : null,
         cell.align ? { textAlign: cell.align } : null,
         cell.bold ? { fontWeight: 700 } : null,
         { width: cell.width },

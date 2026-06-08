@@ -29,6 +29,12 @@ function getQuoteWarningName(quote = {}) {
   return number ? `Báo giá ${number}` : 'Báo giá'
 }
 
+function shouldCompareQuoteEntity(contract = {}, quote = null) {
+  if (!quote) return false
+  if (quote?.id || contract?.quote_id) return true
+  return String(contract?.source_type || '').toLowerCase() === 'quote'
+}
+
 export function getContractEntityMismatchWarning({
   contract = {},
   quote = null,
@@ -58,7 +64,9 @@ export function getContractEntityMismatchWarning({
     }))
     .filter(document => document.entityCode && document.entityCode !== contractEntityCode)
 
-  const quoteEntityCode = normalizeEntityCode(quote?.entity_code, legalEntities)
+  const quoteEntityCode = shouldCompareQuoteEntity(contract, quote)
+    ? normalizeEntityCode(quote?.entity_code, legalEntities)
+    : ''
   const quoteMismatch = quoteEntityCode && quoteEntityCode !== contractEntityCode
     ? {
         id: quote.id || contract.quote_id || 'linked-quote',

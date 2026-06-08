@@ -459,12 +459,12 @@ function acceptanceAmountTable(title, rows = [], totals = {}, vatConfig = {}) {
       tableCell(formatDocumentCurrency(row.amount, ''), widths.amount, { align: 'right', size: tableFontSize }),
     ])) : [tableRow([tableCell('Chưa có hạng mục.', DOCX_ACCEPTANCE_CONTENT_WIDTH, { colSpan: 6, align: 'center', size: tableFontSize })])]),
     tableRow([
-      tableMultilineCell(['Tổng', getVatLabel(vatConfig), 'Tổng chi phí'], DOCX_ACCEPTANCE_CONTENT_WIDTH - widths.amount, { bold: true, shading: 'F8FAFC', align: 'right', colSpan: 5, size: tableFontSize }),
+      tableMultilineCell(['Tổng', getVatLabel(vatConfig), 'Tổng chi phí'], DOCX_ACCEPTANCE_CONTENT_WIDTH - widths.amount, { bold: true, align: 'right', colSpan: 5, size: tableFontSize }),
       tableMultilineCell([
         formatDocumentCurrency(totals.subtotal, ''),
         formatDocumentCurrency(totals.vat_amount, ''),
         formatDocumentCurrency(totals.total_amount, ''),
-      ], widths.amount, { bold: true, shading: 'F8FAFC', align: 'right', size: tableFontSize }),
+      ], widths.amount, { bold: true, align: 'right', size: tableFontSize }),
     ]),
   ]
   return acceptanceParagraph(`${title}:`, { bold: true, after: 80 }) + simpleTable(tableRows, { width: DOCX_ACCEPTANCE_CONTENT_WIDTH })

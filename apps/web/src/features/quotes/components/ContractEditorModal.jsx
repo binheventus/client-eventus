@@ -1103,7 +1103,7 @@ export default function ContractEditorModal({
     if (!draft) return null
 
     return (
-      <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
+      <div className="mt-2 space-y-2 border-t border-slate-100 pt-2">
         <label className="flex items-center gap-2">
           <span className="w-[88px] shrink-0 text-[12px] font-semibold text-slate-600">Số hợp đồng</span>
           <TextInput value={draft.contract_number || ''} onChange={event => updateDraft({ contract_number: event.target.value })} />
@@ -1123,9 +1123,9 @@ export default function ContractEditorModal({
     )
   }
 
-  function renderActionPanel() {
-    return (
-      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm xl:shadow-none">
+  function renderActionPanel({ embedded = false } = {}) {
+    const content = (
+      <>
         {dirty ? (
           <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] font-semibold text-amber-800">
             Có thay đổi chưa lưu
@@ -1136,7 +1136,7 @@ export default function ContractEditorModal({
             {savedContractMetaText}
           </p>
         ) : null}
-        <div className={`flex gap-2 ${savedContractMetaText ? 'mt-4' : ''}`}>
+        <div className={`flex gap-2 ${savedContractMetaText ? 'mt-3' : ''}`}>
           {savedContract ? (
             <button
               type="button"
@@ -1161,6 +1161,16 @@ export default function ContractEditorModal({
             loadingLabel="Đang lưu..."
           />
         </div>
+      </>
+    )
+
+    if (embedded) {
+      return <div className="mt-3">{content}</div>
+    }
+
+    return (
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm xl:shadow-none">
+        {content}
       </section>
     )
   }
@@ -1222,9 +1232,9 @@ export default function ContractEditorModal({
                   <SummaryRow label="Tổng giá trị hợp đồng" value={`${formatCurrency(baseQuoteSnapshot.total_amount)}đ`} strong compact />
                 </dl>
                 {renderContractSetupControls()}
+                {renderActionPanel({ embedded: true })}
               </section>
 
-              {renderActionPanel()}
               <ContractDocumentsSidebarCard
                 contract={documentContract}
                 comparisonContract={previewContract}
@@ -1252,8 +1262,8 @@ export default function ContractEditorModal({
                         <SummaryRow label="Tổng giá trị hợp đồng" value={`${formatCurrency(baseQuoteSnapshot.total_amount)}đ`} strong />
                       </div>
                       {renderContractSetupControls()}
+                      {renderActionPanel({ embedded: true })}
                     </div>
-                    {renderActionPanel()}
                     <ContractDocumentsSidebarCard
                       contract={documentContract}
                       comparisonContract={previewContract}
