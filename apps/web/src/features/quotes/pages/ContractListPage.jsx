@@ -24,7 +24,7 @@ function getContractCustomerName(contract = {}) {
 }
 
 function getContractEventName(contract = {}) {
-  return contract.quote_snapshot?.event_name || contract.source_snapshot?.job_title || '-'
+  return contract.source_snapshot?.job_title || '-'
 }
 
 function getContractTotal(contract = {}) {
@@ -46,7 +46,7 @@ function DeleteContractConfirmModal({ contract, deleting, error, onCancel, onCon
     ['Số hợp đồng', contract.contract_number || '-'],
     ['Nguồn', getSourceLabel(contract)],
     ['Khách hàng', getContractCustomerName(contract)],
-    ['Sự kiện / job', getContractEventName(contract)],
+    ['Job', getContractEventName(contract)],
     ['Giá trị', `${formatQuoteCurrency(getContractTotal(contract))}đ`],
     ['Cập nhật', formatQuoteDate(contract.updated_at || contract.created_at)],
   ]
@@ -228,7 +228,7 @@ export default function ContractListPage() {
                 <th className="px-4 py-3">Số hợp đồng</th>
                 <th className="px-4 py-3">Nguồn</th>
                 <th className="px-4 py-3">Khách hàng</th>
-                <th className="px-4 py-3">Sự kiện / job</th>
+                <th className="px-4 py-3">Job</th>
                 <th className="px-4 py-3 text-right">Giá trị</th>
                 <th className="px-4 py-3">Cập nhật</th>
               </tr>

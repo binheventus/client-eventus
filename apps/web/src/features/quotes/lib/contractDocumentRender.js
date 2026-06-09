@@ -175,9 +175,7 @@ export function getAdvanceSummary(document = {}) {
 
 function getContractProjectEventName(contract = {}) {
   return String(
-    contract.quote_snapshot?.event_name
-      || contract.source_snapshot?.job_title
-      || contract.source_snapshot?.event_name
+    contract.source_snapshot?.job_title
       || contract.service_scope
       || '',
   ).trim()

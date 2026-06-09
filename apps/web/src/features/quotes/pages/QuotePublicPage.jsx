@@ -1,24 +1,13 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import QuoteMicroSurvey from '../components/QuoteMicroSurvey'
 import QuotePreview from '../components/QuotePreview'
 import { getPublicQuoteByToken, logQuoteView } from '../hooks/useQuotes'
 import { useLegalEntities } from '../hooks/useLegalEntities'
-import { normalizeQuoteValidityDays } from '../lib/quoteValidity'
 
 const QuotePDFDownloadButton = lazy(() => import('../components/QuotePDFDownloadButton'))
 const QuoteExcelDownloadButton = lazy(() => import('../components/QuoteExcelDownloadButton'))
 const QUOTE_PUBLIC_PAGE_TITLE = 'Báo giá chi tiết - Eventus Production'
-
-function getValidUntil(quote) {
-  if (!quote) return null
-  if (quote.valid_until) return new Date(quote.valid_until)
-  if (!quote.created_at) return null
-  const days = normalizeQuoteValidityDays(quote.validity_days)
-  const date = new Date(quote.created_at)
-  date.setDate(date.getDate() + days)
-  return date
-}
 
 function sanitizePublicQuote(quote) {
   if (!quote) return null
@@ -39,9 +28,6 @@ export default function QuotePublicPage() {
   const [quote, setQuote] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-
-  const validUntil = useMemo(() => getValidUntil(quote), [quote])
-  const expired = validUntil ? validUntil.getTime() < Date.now() : false
 
   useEffect(() => {
     const previousTitle = document.title
@@ -91,18 +77,6 @@ export default function QuotePublicPage() {
         <div className="max-w-md rounded-2xl border border-red-100 bg-white p-6 text-center shadow-sm">
           <h1 className="text-[20px] font-semibold text-slate-900">Không mở được báo giá</h1>
           <p className="mt-2 text-[13px] leading-6 text-slate-500">{error || 'Link không hợp lệ hoặc đã bị xóa.'}</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (expired) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
-        <div className="max-w-lg rounded-2xl border border-amber-100 bg-white p-8 text-center shadow-sm">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-[24px]">!</div>
-          <h1 className="text-[22px] font-semibold text-slate-900">Báo giá đã hết hạn</h1>
-          <p className="mt-2 text-[14px] leading-6 text-slate-500">Báo giá này đã hết hiệu lực, vui lòng liên hệ sales Eventus để được cập nhật báo giá mới.</p>
         </div>
       </div>
     )

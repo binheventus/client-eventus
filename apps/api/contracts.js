@@ -494,7 +494,7 @@ function buildJobQuoteSnapshot(job = {}) {
     share_token: '',
     entity_code: '',
     client_name: job.customer_name || job.customer_snapshot?.company_name || '',
-    event_name: job.job_title || '',
+    event_name: '',
     event_date: job.job_date || '',
     location: job.location || '',
     duration_hours: '',
@@ -599,10 +599,9 @@ async function listContracts(queryParams = {}) {
       c.contract_number like ?
       or c.quote_number like ?
       or json_unquote(json_extract(c.customer_snapshot, '$.company_name')) like ?
-      or json_unquote(json_extract(c.quote_snapshot, '$.event_name')) like ?
       or json_unquote(json_extract(c.source_snapshot, '$.job_title')) like ?
     )`)
-    params.push(...Array(5).fill(`%${search}%`))
+    params.push(...Array(4).fill(`%${search}%`))
   }
 
   const whereSql = where.length ? `where ${where.join(' and ')}` : ''

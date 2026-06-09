@@ -60,7 +60,7 @@ test('duplicated quote payload resets identity, ownership, status, and reprices 
   assert.equal(payload.share_token, undefined)
   assert.equal(payload.contract_id, undefined)
   assert.equal(payload.has_saved_contract, undefined)
-  assert.equal(payload.event_name, 'Bản sao của Gala Dinner')
+  assert.equal(payload.event_name, null)
   assert.equal(payload.status, 'sent')
   assert.match(payload.sent_at, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)
   assert.equal(payload.created_by, 'new-user')
@@ -102,7 +102,7 @@ test('duplicated quote payload keeps custom item manual pricing', () => {
     businessRules: {},
   })
 
-  assert.equal(payload.event_name, 'Bản sao của BG-0002')
+  assert.equal(payload.event_name, null)
   assert.equal(payload.subtotal, 1_600_000)
   assert.equal(payload.total_amount, 1_600_000)
   assert.equal(payload.items[0].service_code, 'CUSTOM')

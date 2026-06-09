@@ -20,7 +20,7 @@ const DOCUMENT_BADGE_TONE = 'border-slate-200 bg-white text-slate-600 hover:bord
 function EmptyRow({ children }) {
   return (
     <tr>
-      <td colSpan={9} className="px-4 py-10 text-center text-slate-400">{children}</td>
+      <td colSpan={8} className="px-4 py-10 text-center text-slate-400">{children}</td>
     </tr>
   )
 }
@@ -147,7 +147,6 @@ function QuoteRow({ quote, userContext, duplicatingQuoteId, onOpenQuote, onOpenC
       </td>
       <td className="px-4 py-3 text-slate-500">{formatQuoteDate(quote.created_at)}</td>
       <td className="px-4 py-3 text-slate-700">{getQuoteClientName(quote)}</td>
-      <td className="px-4 py-3 text-slate-700">{quote.event_name || '-'}</td>
       <td className="px-4 py-3 text-right">
         <QuoteOpenButton
           quote={quote}
@@ -181,13 +180,12 @@ function QuoteRow({ quote, userContext, duplicatingQuoteId, onOpenQuote, onOpenC
 export default function QuoteListTable({ quotes, loading, userContext, duplicatingQuoteId, onOpenQuote, onOpenContract, onDuplicateQuote, onDeleteQuote }) {
   return (
     <div className="overflow-x-auto">
-      <table className="min-w-[1380px] w-full text-left text-[13px]">
+      <table className="min-w-[1260px] w-full text-left text-[13px]">
         <thead className="bg-slate-50 text-[11px] uppercase tracking-[0.12em] text-slate-500">
           <tr>
             <th className="px-4 py-3">Mã BG</th>
             <th className="px-4 py-3">Ngày tạo</th>
             <th className="px-4 py-3">Khách hàng</th>
-            <th className="px-4 py-3">Tên sự kiện</th>
             <th className="px-4 py-3 text-right">Tổng tiền</th>
             <th className="px-4 py-3">Chứng từ</th>
             <th className="w-[320px] px-4 py-3">Survey responses</th>

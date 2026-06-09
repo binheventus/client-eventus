@@ -11,7 +11,7 @@ export function applyRemoteQuoteFilters(query, filters = {}) {
     if (isEmptyFilterValue(value)) return
 
     if (key === 'search') {
-      nextQuery = nextQuery.or(`quote_number.ilike.%${value}%,client_name.ilike.%${value}%,event_name.ilike.%${value}%`)
+      nextQuery = nextQuery.or(`quote_number.ilike.%${value}%,client_name.ilike.%${value}%`)
       return
     }
 
@@ -40,7 +40,6 @@ export function getLocalQuoteSearchText(quote = {}) {
   return [
     quote.quote_number,
     quote.client_name,
-    quote.event_name,
   ].filter(Boolean).join(' ').toLowerCase()
 }
 

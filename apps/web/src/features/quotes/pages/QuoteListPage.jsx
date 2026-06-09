@@ -26,7 +26,6 @@ function DeleteQuoteConfirmModal({ quote, userContext, deleting, error, onCancel
   const detailRows = [
     ['Mã báo giá', quote.quote_number || '-'],
     ['Khách hàng', getQuoteClientName(quote)],
-    ['Tên sự kiện', quote.event_name || '-'],
     ['Tổng tiền', `${formatQuoteCurrency(quote.total_amount)}đ`],
     ['Người tạo', getQuoteCreatorName(quote, userContext)],
     ['Ngày tạo', formatQuoteDate(quote.created_at)],
@@ -94,7 +93,6 @@ function DuplicateQuoteConfirmModal({ quote, userContext, duplicating, error, on
   const detailRows = [
     ['Mã báo giá', quote.quote_number || '-'],
     ['Khách hàng', getQuoteClientName(quote)],
-    ['Tên sự kiện', quote.event_name || '-'],
     ['Tổng tiền', `${formatQuoteCurrency(quote.total_amount)}đ`],
     ['Người tạo', getQuoteCreatorName(quote, userContext)],
     ['Ngày tạo', formatQuoteDate(quote.created_at)],

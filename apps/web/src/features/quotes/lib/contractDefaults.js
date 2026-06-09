@@ -536,7 +536,7 @@ export function buildQuoteSnapshot(quote = {}) {
     share_token: quote.share_token || '',
     entity_code: quote.entity_code || '',
     client_name: quote.client_name || quote.customer_name || quote.client?.name || '',
-    event_name: quote.event_name || '',
+    event_name: '',
     event_date: quote.event_date || '',
     location: quote.location || '',
     duration_hours: quote.duration_hours || '',

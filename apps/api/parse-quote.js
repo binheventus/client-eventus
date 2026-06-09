@@ -48,8 +48,7 @@ Quy tắc bắt buộc:
 - Nếu một dịch vụ có thể map chắc chắn theo từ khóa rõ ràng thì chọn service_code phù hợp nhất từ context.services, có xét location IN/OUT và 4H/8H theo duration_hours. Với duration_hours > 4.5 và < 8, vẫn chọn service_code 4H.
 - Nếu không có service_code phù hợp trong context.services thì vẫn giữ service_name_raw và KHÔNG điền service_code bịa; có thể để service_code null và thêm ambiguous_fields.
 - event_date trả null nếu không thấy ngày.
-- event_name trả null nếu không thấy tên event rõ ràng.
-- event_date và event_name là thông tin phụ, KHÔNG thêm vào missing_fields nếu thiếu.
+- event_date là thông tin phụ, KHÔNG thêm vào missing_fields nếu thiếu.
 - num_days mặc định là 1 nếu không nói nhiều ngày; nếu "2 ngày", "2 ngày liên tiếp" thì num_days = 2.
 - confidence = high nếu đủ chắc chắn, medium nếu thiếu field nhưng item/location/duration/tier tương đối rõ, low nếu nhiều mơ hồ.
 - ai_reasoning viết ngắn gọn, mỗi ý trên một dòng trong cùng chuỗi JSON, không dùng Markdown bullet.
@@ -64,7 +63,6 @@ Schema output bắt buộc:
     "duration_hours": 5,
     "tier_code": "TIER_2",
     "event_date": null,
-    "event_name": null,
     "num_days": 1
   },
   "missing_fields": [],
@@ -215,16 +213,42 @@ function normalizeVietnameseText(value = '') {
     .toLowerCase()
 }
 
-function briefNeedsDefaultRecapEdit(inputText = '') {
+function briefHasExplicitNoEdit(inputText = '') {
   const normalized = normalizeVietnameseText(inputText)
-  const hasVideo = /\b(quay|video)\b/.test(normalized)
-  const hasEditingDecision = /\b(dung|edit|hau ky|khong dung|ko dung|no edit|raw|file tho)\b/.test(normalized)
-  return hasVideo && !hasEditingDecision
+  return /\b(khong dung|ko dung|khong edit|ko edit|no edit|raw|file tho)\b/.test(normalized)
+}
+
+function briefHasExplicitRecapEdit(inputText = '') {
+  const normalized = normalizeVietnameseText(inputText)
+  return /\b(dung|edit|hau ky)\b.*\b(recap|highlight|clip)\b/.test(normalized)
+    || /\b(recap|highlight|clip)\b.*\b(dung|edit|hau ky)\b/.test(normalized)
+}
+
+function briefHasFullVideoIntent(inputText = '') {
+  const normalized = normalizeVietnameseText(inputText)
+  return /\b(quay full|full video|video full|full khong cat)\b/.test(normalized)
+}
+
+function briefNeedsDefaultRecapEdit(inputText = '', items = []) {
+  const normalized = normalizeVietnameseText(inputText)
+  const hasVideo = /\b(quay|video|videographer)\b/.test(normalized)
+  const hasEditingDecision = briefHasExplicitNoEdit(inputText)
+    || briefHasExplicitRecapEdit(inputText)
+    || briefHasFullVideoIntent(inputText)
+  if (hasEditingDecision) return false
+
+  const parsedItems = Array.isArray(items) ? items : []
+  if (parsedItems.length) return parsedItems.some(item => itemLooksLikeVideoShoot(item))
+  return hasVideo && !/\b(live|livestream)\b/.test(normalized)
+}
+
+function getContextServiceCode(row = {}) {
+  return String(row?.service_code || row?.code || '').trim().toUpperCase()
 }
 
 function serviceExists(context = {}, serviceCode) {
   return (context.services || []).some(row => {
-    const code = String(row?.service_code || row?.code || '').trim().toUpperCase()
+    const code = getContextServiceCode(row)
     return code === serviceCode
   })
 }
@@ -250,15 +274,64 @@ function getDefaultVideoEditService(context = {}) {
   return String(getRuleValue(context, 'DEFAULT_VIDEO_EDIT_SERVICE', 'RECAP_1_2_CAM') || '').trim().toUpperCase()
 }
 
+function getRuleNumber(context = {}, code, fallback) {
+  const value = Number(String(getRuleValue(context, code, fallback)).replace(',', '.').match(/\d+(?:\.\d+)?/)?.[0] ?? fallback)
+  return Number.isFinite(value) ? value : fallback
+}
+
+function getBriefDurationUnit(context = {}, durationHours) {
+  const fullDayThreshold = getRuleNumber(context, 'FULL_DAY_THRESHOLD', 8)
+  return Number(durationHours) >= fullDayThreshold ? '8H' : '4H'
+}
+
+function isLocalBriefLocation(location = '') {
+  const normalized = normalizeVietnameseText(location)
+  if (!normalized) return true
+  if (normalized.includes('noi thanh')) return true
+  if (normalized.includes('ha noi') && (normalized.includes('ngoai thanh') || normalized.includes('<30') || normalized.includes('30km'))) return true
+  return normalized === 'ha noi' || normalized === 'hanoi' || normalized === 'hn'
+}
+
+function getBriefLocationUnit(location = '') {
+  return isLocalBriefLocation(location) ? 'IN' : 'OUT'
+}
+
+const SERVICE_BASE_FALLBACK_CODES = {
+  CHUP: 'PHOTO',
+  QUAY_RECAP: 'VIDEO',
+  QUAY_FULL: 'VIDEO_FULL',
+}
+
+function findContextServiceCode(context = {}, candidates = []) {
+  const availableCodes = new Set((context.services || []).map(getContextServiceCode).filter(Boolean))
+  return candidates.find(candidate => availableCodes.has(candidate)) || ''
+}
+
+function resolveBriefServiceCode(context = {}, baseCode = '', { location, durationHours } = {}) {
+  const normalizedBase = String(baseCode || '').trim().toUpperCase()
+  if (!normalizedBase) return null
+
+  const locationUnit = getBriefLocationUnit(location || getDefaultLocation(context))
+  const durationUnit = getBriefDurationUnit(context, durationHours || getDefaultDurationHours(context))
+  const candidates = [
+    `${normalizedBase}_${locationUnit}_${durationUnit}`,
+    `${normalizedBase}_${durationUnit}`,
+    `${normalizedBase}_${locationUnit}`,
+    normalizedBase,
+  ]
+  const matched = findContextServiceCode(context, candidates)
+  return matched || SERVICE_BASE_FALLBACK_CODES[normalizedBase] || normalizedBase
+}
+
 function getServiceCodeFromItem(item = {}) {
   return String(item?.service_code || item?.service?.service_code || item?.service?.code || '').trim().toUpperCase()
 }
 
 function itemLooksLikeVideoShoot(item = {}) {
   const serviceCode = getServiceCodeFromItem(item)
-  if (/^QUAY_(RECAP|FULL)(?:_|$)/.test(serviceCode)) return true
+  if (/^(QUAY_LIVE|LIVE|LIVE_|FLYCAM|FPV)(?:_|$)/.test(serviceCode)) return false
+  if (/^(VIDEO|VIDEO_FULL|QUAY_RECAP|QUAY_FULL)(?:_|$)/.test(serviceCode)) return true
   if (/^RECAP(?:_|$)/.test(serviceCode)) return false
-  if (/^(LIVE|LIVE_|FLYCAM|FPV)/.test(serviceCode)) return false
 
   const rawText = normalizeVietnameseText([
     item?.service_name_raw,
@@ -269,6 +342,7 @@ function itemLooksLikeVideoShoot(item = {}) {
   ].filter(Boolean).join(' '))
 
   if (/\b(dung|edit|hau ky)\b/.test(rawText)) return false
+  if (/\b(live|livestream)\b/.test(rawText)) return false
   return /\b(quay|quay phim|video|videographer)\b/.test(rawText)
 }
 
@@ -354,9 +428,9 @@ function getOnsiteBriefItemKind(item = {}) {
   ].filter(Boolean).join(' '))
 
   if (/^CHUP(?:_|$)/.test(serviceCode) || /\b(chup|photo|photographer)\b/.test(rawText)) return 'photo'
-  if (itemLooksLikeVideoShoot(item)) return 'video'
   if (/^(FLYCAM|FPV)(?:_|$)/.test(serviceCode) || /\b(flycam|drone|fpv)\b/.test(rawText)) return 'aerial'
-  if (/^(LIVE|LIVE_)/.test(serviceCode) || /\b(live|livestream)\b/.test(rawText)) return 'live'
+  if (/^(QUAY_LIVE|LIVE|LIVE_)/.test(serviceCode) || /\b(live|livestream)\b/.test(rawText)) return 'live'
+  if (itemLooksLikeVideoShoot(item)) return 'video'
   return ''
 }
 
@@ -403,8 +477,8 @@ function applySingleBriefGroup(result, inputText = '') {
 
 export function applyBriefBusinessRules(result, inputText = '', context = {}) {
   const groupedResult = applyMultiDayBriefGroups(result, inputText, context)
-  if (!briefNeedsDefaultRecapEdit(inputText)) return applySingleBriefGroup(groupedResult, inputText)
   const items = Array.isArray(groupedResult?.parsed?.items) ? groupedResult.parsed.items : []
+  if (!briefNeedsDefaultRecapEdit(inputText, items)) return applySingleBriefGroup(groupedResult, inputText)
   const cameraCount = getVideoShootCameraCount(items, inputText, groupedResult?.parsed?.duration_hours)
   const defaultEditService = getRecapEditServiceForCameraCount(context, cameraCount)
   if (!defaultEditService || !serviceExists(context, defaultEditService)) return applySingleBriefGroup(groupedResult, inputText)
@@ -450,7 +524,7 @@ function normalizeParsedPayload(payload) {
       duration_hours: payload?.parsed?.duration_hours ?? null,
       tier_code: payload?.parsed?.tier_code ?? null,
       event_date: payload?.parsed?.event_date ?? null,
-      event_name: payload?.parsed?.event_name ?? null,
+      event_name: null,
       num_days: payload?.parsed?.num_days ?? 1,
     },
     missing_fields: Array.isArray(payload?.missing_fields) ? payload.missing_fields : [],
@@ -530,13 +604,48 @@ async function fetchAiProvider(url, options = {}) {
   }
 }
 
+function escapeRegExp(value = '') {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function makeKeywordPattern(keyword = '') {
+  return String(keyword || '')
+    .trim()
+    .split(/\s+/)
+    .map(escapeRegExp)
+    .join('\\s+')
+}
+
 function parseNumberBeforeKeyword(normalizedText, keywords = []) {
   for (const keyword of keywords) {
-    const pattern = new RegExp(`(?:^|\\s)(\\d+(?:[,.]\\d+)?)\\s*(?:(?:nguoi|may)\\s+)?${keyword}\\b`)
+    const keywordPattern = makeKeywordPattern(keyword)
+    const pattern = new RegExp(`(?:^|[\\s,;:/()])(?:x\\s*)?(\\d+(?:[,.]\\d+)?)\\s*(?:x\\s*)?(?:(?:nguoi|may|cam|camera)\\s+)?${keywordPattern}\\b`)
     const match = normalizedText.match(pattern)
     if (match) return Number(String(match[1]).replace(',', '.')) || 1
   }
-  return keywords.some(keyword => new RegExp(`\\b${keyword}\\b`).test(normalizedText)) ? 1 : 0
+  return keywords.some(keyword => new RegExp(`\\b${makeKeywordPattern(keyword)}\\b`).test(normalizedText)) ? 1 : 0
+}
+
+function parseNumberAfterKeyword(normalizedText, keywords = []) {
+  for (const keyword of keywords) {
+    const keywordPattern = makeKeywordPattern(keyword)
+    const pattern = new RegExp(`\\b${keywordPattern}\\b\\s*(?:x\\s*)?(\\d+(?:[,.]\\d+)?)\\s*(?:nguoi|may|cam|camera|may quay)?\\b`)
+    const match = normalizedText.match(pattern)
+    if (match) return Number(String(match[1]).replace(',', '.')) || 1
+  }
+  return 0
+}
+
+function removeQuantityKeywordSegments(normalizedText = '', keywords = []) {
+  return keywords.reduce((text, keyword) => {
+    const keywordPattern = makeKeywordPattern(keyword)
+    return text
+      .replace(new RegExp(`(?:^|[\\s,;:/()])(?:x\\s*)?\\d+(?:[,.]\\d+)?\\s*(?:x\\s*)?(?:(?:nguoi|may|cam|camera)\\s+)?${keywordPattern}\\b`, 'g'), ' ')
+      .replace(new RegExp(`\\b${keywordPattern}\\b\\s*(?:x\\s*)?\\d+(?:[,.]\\d+)?\\s*(?:nguoi|may|cam|camera|may quay)?\\b`, 'g'), ' ')
+      .replace(new RegExp(`\\b${keywordPattern}\\b`, 'g'), ' ')
+  }, normalizedText)
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 function parseVideoQuantityFromText(normalizedText = '') {
@@ -550,6 +659,11 @@ function parseVideoQuantityFromText(normalizedText = '') {
   if (cameraMatch && /\b(quay|video)\b/.test(normalizedText)) return Number(String(cameraMatch[1]).replace(',', '.')) || 1
 
   return /\b(quay|video|videographer)\b/.test(normalizedText) ? 1 : 0
+}
+
+function parseLiveQuantityFromText(normalizedText = '') {
+  return parseNumberBeforeKeyword(normalizedText, ['quay live', 'live stream', 'livestream', 'live'])
+    || parseNumberAfterKeyword(normalizedText, ['quay live', 'live stream', 'livestream', 'live'])
 }
 
 function parseDaySections(inputText = '') {
@@ -617,24 +731,44 @@ function makeFallbackItemWithMeta(serviceCode, quantity, raw, meta = {}) {
 function buildDeterministicBriefItems(inputText = '', context = {}, itemMeta = {}) {
   const normalizedText = normalizeVietnameseText(inputText)
   const durationHours = parseDurationHours(normalizedText, context)
+  const location = parseLocation(inputText, normalizedText, context)
   const meta = {
     ...itemMeta,
     billable_duration_hours: durationHours,
   }
   const items = []
-  const photoQty = parseNumberBeforeKeyword(normalizedText, ['chup', 'photo', 'photographer'])
-  const videoQty = parseVideoQuantityFromText(normalizedText)
-  const flycamQty = parseNumberBeforeKeyword(normalizedText, ['flycam', 'drone'])
-  const liveQty = parseNumberBeforeKeyword(normalizedText, ['live', 'livestream'])
+  const resolveService = baseCode => resolveBriefServiceCode(context, baseCode, { location, durationHours })
+  const liveAerialKeywords = ['flycam live', 'drone live', 'fpv live']
+  const flycamLiveQty = parseNumberBeforeKeyword(normalizedText, ['flycam live', 'drone live'])
+    || parseNumberAfterKeyword(normalizedText, ['flycam live', 'drone live'])
+  const fpvLiveQty = parseNumberBeforeKeyword(normalizedText, ['fpv live'])
+    || parseNumberAfterKeyword(normalizedText, ['fpv live'])
+  const textWithoutAerialLive = removeQuantityKeywordSegments(normalizedText, liveAerialKeywords)
+  const liveQty = parseLiveQuantityFromText(textWithoutAerialLive)
+  const textWithoutLive = removeQuantityKeywordSegments(textWithoutAerialLive, ['quay live', 'live stream', 'livestream', 'live'])
+  const photoQty = parseNumberBeforeKeyword(textWithoutLive, ['chup', 'photo', 'photographer'])
+  const videoQty = parseVideoQuantityFromText(textWithoutLive)
+  const flycamQty = parseNumberBeforeKeyword(textWithoutLive, ['flycam', 'drone'])
+  const fpvQty = parseNumberBeforeKeyword(textWithoutLive, ['fpv'])
+  const videoBaseCode = briefHasFullVideoIntent(textWithoutLive) ? 'QUAY_FULL' : 'QUAY_RECAP'
 
-  if (photoQty) items.push(makeFallbackItemWithMeta('CHUP_IN_4H', photoQty, 'chụp ảnh', meta))
-  if (videoQty) items.push(makeFallbackItemWithMeta(normalizedText.includes('quay full') ? 'QUAY_FULL_IN_4H' : 'QUAY_RECAP_IN_4H', videoQty, normalizedText.includes('quay full') ? 'quay full' : 'quay', meta))
-  if (flycamQty) items.push(makeFallbackItemWithMeta('FLYCAM', flycamQty, 'flycam', meta))
-  if (liveQty) items.push(makeFallbackItemWithMeta('LIVE_VIDEO', liveQty, 'live', meta))
+  if (photoQty) items.push(makeFallbackItemWithMeta(resolveService('CHUP'), photoQty, 'chụp ảnh', meta))
+  if (videoQty) items.push(makeFallbackItemWithMeta(resolveService(videoBaseCode), videoQty, videoBaseCode === 'QUAY_FULL' ? 'quay full' : 'quay', meta))
+  if (flycamQty) items.push(makeFallbackItemWithMeta(resolveService('FLYCAM'), flycamQty, 'flycam', meta))
+  if (fpvQty) items.push(makeFallbackItemWithMeta(resolveService('FPV'), fpvQty, 'FPV', meta))
+  if (flycamLiveQty) items.push(makeFallbackItemWithMeta(resolveService('FLYCAM_LIVE'), flycamLiveQty, 'flycam live', meta))
+  if (fpvLiveQty) items.push(makeFallbackItemWithMeta(resolveService('FPV_LIVE'), fpvLiveQty, 'FPV live', meta))
+  if (liveQty) items.push(makeFallbackItemWithMeta(resolveService('QUAY_LIVE'), liveQty, 'quay live', meta))
+
+  if (briefHasExplicitRecapEdit(inputText) && !items.some(item => itemLooksLikeRecapEdit(item))) {
+    const cameraCount = getVideoShootCameraCount(items, inputText, durationHours)
+    const recapService = getRecapEditServiceForCameraCount(context, cameraCount)
+    if (recapService) items.push(applyPostProductionGroup(makeFallbackItem(recapService, 1, getRecapEditRawName(recapService))))
+  }
 
   return {
     items,
-    location: parseLocation(inputText, normalizedText, context),
+    location,
     duration_hours: durationHours,
     tier_code: parseTierCode(normalizedText),
     num_days: Number(normalizedText.match(/(\d+)\s*ngay/)?.[1]) || 1,
@@ -676,6 +810,7 @@ function applyMultiDayBriefGroups(result, inputText = '', context = {}) {
   const existingPostItems = (Array.isArray(result?.parsed?.items) ? result.parsed.items : [])
     .filter(item => itemLooksLikeRecapEdit(item))
     .map(applyPostProductionGroup)
+  const multiDayHasPostItems = multiDayParse.items.some(item => itemLooksLikeRecapEdit(item))
 
   return {
     ...result,
@@ -683,10 +818,10 @@ function applyMultiDayBriefGroups(result, inputText = '', context = {}) {
       ...result.parsed,
       ...multiDayParse,
       event_date: result?.parsed?.event_date ?? null,
-      event_name: result?.parsed?.event_name ?? null,
+      event_name: null,
       items: [
         ...multiDayParse.items,
-        ...existingPostItems,
+        ...(multiDayHasPostItems ? [] : existingPostItems),
       ],
     },
     ai_reasoning: existingReasoning.includes(multiDayReasoningLine)
@@ -721,6 +856,11 @@ export function deterministicParseQuoteInput(inputText = '', context = {}, reaso
       ? appendManualAddInstruction(`AI provider đang lỗi (${reason}). Đã dùng parser nội bộ để phân tích brief.`)
       : 'Đã dùng parser nội bộ để phân tích brief.',
   }, inputText, context)
+}
+
+function isUsableDeterministicParse(result = {}) {
+  const items = Array.isArray(result?.parsed?.items) ? result.parsed.items : []
+  return items.length > 0 && !(result?.missing_fields || []).includes('items')
 }
 
 async function callOpenAI({ apiKey, inputText, context }) {
@@ -773,10 +913,9 @@ async function callOpenAI({ apiKey, inputText, context }) {
                   duration_hours: { type: ['number', 'null'] },
                   tier_code: { type: ['string', 'null'] },
                   event_date: { type: ['string', 'null'] },
-                  event_name: { type: ['string', 'null'] },
                   num_days: { type: 'number' },
                 },
-                required: ['items', 'location', 'duration_hours', 'tier_code', 'event_date', 'event_name', 'num_days'],
+                required: ['items', 'location', 'duration_hours', 'tier_code', 'event_date', 'num_days'],
               },
               missing_fields: {
                 type: 'array',
@@ -940,6 +1079,11 @@ export default async function handler(req, res) {
   if (!inputText) return res.status(400).json({ error: 'Thiếu input_text.' })
 
   const context = req.body?.context || {}
+  const deterministicResult = deterministicParseQuoteInput(inputText, context)
+  if (isUsableDeterministicParse(deterministicResult)) {
+    return res.status(200).json(deterministicResult)
+  }
+
   const openAiKey = normalizeApiKey(process.env.OPENAI_API_KEY)
   const anthropicKey = normalizeApiKey(process.env.ANTHROPIC_API_KEY)
   if (!openAiKey && !anthropicKey) {

@@ -204,7 +204,7 @@ function buildJobQuoteSnapshot(job = {}, scheduleParams = {}) {
   return {
     ...quoteSnapshot,
     client_name: quoteSnapshot.client_name || job.customer_name || job.customer_snapshot?.company_name || '',
-    event_name: scheduleParams.jobTitle || quoteSnapshot.event_name || job.job_title || '',
+    event_name: scheduleParams.jobTitle || job.job_title || '',
     event_date: scheduleParams.jobDate || quoteSnapshot.event_date || job.job_date || '',
     location: scheduleParams.location || quoteSnapshot.location || job.location || '',
     has_vat: hasVat,

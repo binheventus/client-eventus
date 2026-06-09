@@ -628,9 +628,9 @@ function addQuoteFilters(where, params, filters = {}) {
     const values = String(rawValue).split(',').map(value => value.trim()).filter(Boolean)
 
     if (key === 'search') {
-      where.push('(q.quote_number like ? or q.client_name like ? or q.event_name like ?)')
+      where.push('(q.quote_number like ? or q.client_name like ?)')
       const pattern = `%${rawValue}%`
-      params.push(pattern, pattern, pattern)
+      params.push(pattern, pattern)
       return
     }
 
@@ -762,11 +762,6 @@ async function createQuote(body = {}) {
   return getQuoteById(quoteId)
 }
 
-function getDuplicateEventName(quote = {}) {
-  const sourceName = String(quote.event_name || '').trim() || quote.quote_number || 'báo giá'
-  return `Bản sao của ${sourceName}`
-}
-
 function removeDuplicatedQuoteItemMetadata(item = {}) {
   const {
     id: _itemId,
@@ -856,7 +851,7 @@ function buildDuplicatedQuotePayload(quote = {}, actorPayload = {}, pricingConte
     ...actorPayload,
     status: 'sent',
     sent_at: nowMysql(),
-    event_name: getDuplicateEventName(quote),
+    event_name: null,
     subtotal: pricing.subtotal,
     travel_fee_total: pricing.travel_fee_total,
     overtime_fee_total: pricing.overtime_fee_total,
@@ -1175,5 +1170,4 @@ export const __quotesTestInternals = Object.freeze({
   buildQuoteSurveyNotificationContent,
   buildQuoteSurveyNotificationPayload,
   formatQuoteNotificationDate,
-  getDuplicateEventName,
 })

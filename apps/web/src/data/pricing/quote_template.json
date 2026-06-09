@@ -41,11 +41,6 @@
   },
   {
     "section": "Khách hàng",
-    "field_name": "Tên dự án/sự kiện",
-    "value": "[Sales nhập: Tên sự kiện]"
-  },
-  {
-    "section": "Khách hàng",
     "field_name": "Ngày báo giá",
     "value": "[Tự động: ngày hiện tại]"
   },

@@ -55,7 +55,7 @@ const items = [
 ]
 
 test('getQuoteExcelFilename mirrors quote PDF filename shape with xlsx extension', () => {
-  assert.equal(getQuoteExcelFilename(quote), 'BG-0005_Mr-A_20260524.xlsx')
+  assert.equal(getQuoteExcelFilename(quote), 'Bao gia - Eventus - BG0005.xlsx')
 })
 
 test('groupQuoteExcelItems preserves grouped quote order and totals source data', () => {
@@ -66,22 +66,25 @@ test('groupQuoteExcelItems preserves grouped quote order and totals source data'
 
 test('buildQuoteExcelRows includes line items, VAT and grand total', () => {
   const rows = buildQuoteExcelRows(quote, items)
-  assert.ok(rows.some(row => row[0] === 'Kính gửi: Mr.A'))
+  assert.ok(rows.some(row => String(row[0] || '').trim() === 'Kính gửi: Mr.A'))
   assert.ok(!rows.some(row => row[0] === 'Ngày lập'))
   assert.ok(!rows.some(row => row[0] === 'Lời mở đầu'))
   assert.ok(rows.some(row => row[0] === 'Chụp ảnh sự kiện' && row[5] === 10000000))
-  assert.ok(rows.some(row => row[4] === 'Thuế GTGT 8%' && row[5] === 1360000))
-  assert.ok(rows.some(row => row[4] === 'Tổng cộng' && row[5] === 18360000))
+  assert.ok(rows.some(row => row[0] === 'VAT 8%  ' && row[5] === 1360000))
+  assert.ok(rows.some(row => row[0] === 'Tổng chi phí (Đã bao gồm VAT)  ' && row[5] === 18360000))
 })
 
 test('buildQuoteExcelWorkbook creates a readable workbook with a quote sheet', () => {
   const workbook = buildQuoteExcelWorkbook(quote, items, ExcelJS)
   assert.deepEqual(workbook.worksheets.map(sheet => sheet.name), ['Bao gia'])
   const sheet = workbook.getWorksheet('Bao gia')
-  assert.equal(sheet.getCell('A1').value, 'BÁO GIÁ DỊCH VỤ')
-  assert.equal(sheet.getCell('A9').value, 'Kính gửi: Mr.A')
-  assert.equal(sheet.getCell('A12').fill.fgColor.argb, 'FFF8981D')
-  assert.equal(sheet.getCell('F13').value, 14000000)
-  assert.equal(sheet.getCell('F13').numFmt, '#,##0 "đ"')
-  assert.equal(sheet.autoFilter, 'A12:F12')
+  assert.equal(sheet.getCell('C1').value, 'CÔNG TY TNHH EVENTUS VIỆT NAM')
+  assert.equal(sheet.getCell('C6').value, '#BG-0005')
+  assert.equal(sheet.getCell('A8').value, 'BÁO GIÁ DỊCH VỤ')
+  assert.equal(sheet.getCell('A10').value, ' Kính gửi: Mr.A')
+  assert.equal(sheet.getCell('A13').fill.fgColor.argb, 'FF757070')
+  assert.equal(sheet.getCell('F15').value, 14000000)
+  assert.equal(sheet.getCell('F15').numFmt, '#,##0')
+  assert.equal(sheet.getCell('A20').value, 'Cộng  ')
+  assert.equal(sheet.pageSetup.orientation, 'portrait')
 })

@@ -92,7 +92,6 @@ export default function QuoteTrashPage() {
               <tr>
                 <th className="px-4 py-3">Mã BG</th>
                 <th className="px-4 py-3">Khách hàng</th>
-                <th className="px-4 py-3">Tên sự kiện</th>
                 <th className="px-4 py-3 text-right">Tổng tiền</th>
                 <th className="px-4 py-3">Ngày xóa</th>
                 <th className="px-4 py-3">Còn lại</th>
@@ -101,12 +100,11 @@ export default function QuoteTrashPage() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-400">Đang tải...</td></tr>
+                <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400">Đang tải...</td></tr>
               ) : quotes.length ? quotes.map(quote => (
                 <tr key={quote.id}>
                   <td className="px-4 py-3 font-semibold text-slate-900">{quote.quote_number || '-'}</td>
                   <td className="px-4 py-3 text-slate-700">{quote.client_name || quote.customer_name || '-'}</td>
-                  <td className="px-4 py-3 text-slate-700">{quote.event_name || '-'}</td>
                   <td className="px-4 py-3 text-right font-semibold text-slate-900">{formatCurrency(quote.total_amount)}đ</td>
                   <td className="px-4 py-3 text-slate-500">{formatDate(quote.deleted_at)}</td>
                   <td className="px-4 py-3 text-slate-500">{daysUntilPurge(quote.deleted_at)} ngày</td>
@@ -118,7 +116,7 @@ export default function QuoteTrashPage() {
                   </td>
                 </tr>
               )) : (
-                <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-400">Thùng rác trống.</td></tr>
+                <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400">Thùng rác trống.</td></tr>
               )}
             </tbody>
           </table>

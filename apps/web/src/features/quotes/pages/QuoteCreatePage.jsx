@@ -21,7 +21,6 @@ import { normalizeQuoteValidityDays } from '../lib/quoteValidity'
 
 const DEFAULT_QUOTE = {
   entity_code: 'EVENTUS',
-  event_name: '',
   event_date: '',
   location: '',
   duration_hours: '4',
@@ -147,6 +146,10 @@ function getVisibleReasoningLines(value = '', hasAiFallback = false) {
   const lines = getReasoningLines(value)
   if (!hasAiFallback) return lines
   return lines.filter(line => !AI_FALLBACK_HIDDEN_LINE_PATTERNS.some(pattern => pattern.test(line)))
+}
+
+function isInternalParserResult(value = '') {
+  return /parser nội bộ|Đã dùng parser nội bộ/i.test(String(value || ''))
 }
 
 function getHighlightedReasoningTerms(services = [], customerTiers = []) {
@@ -889,7 +892,6 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
 
         const nextQuote = {
           entity_code: existingQuote.entity_code || DEFAULT_QUOTE.entity_code,
-          event_name: existingQuote.event_name || '',
           event_date: existingQuote.event_date || '',
           location: existingQuote.location || '',
           duration_hours: existingQuote.duration_hours || '',
@@ -952,10 +954,12 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
   }, [displayItems, quoteGroups, removedGroupCodes, serviceGroups])
   const highlightedReasoningTerms = useMemo(() => getHighlightedReasoningTerms(services, customerTiers), [services, customerTiers])
   const aiFallbackDetail = useMemo(() => getAiFallbackDetail(parseResult?.ai_reasoning), [parseResult?.ai_reasoning])
+  const usedInternalParser = useMemo(() => isInternalParserResult(parseResult?.ai_reasoning), [parseResult?.ai_reasoning])
   const visibleReasoningLines = useMemo(
     () => getVisibleReasoningLines(parseResult?.ai_reasoning, Boolean(aiFallbackDetail)),
     [parseResult?.ai_reasoning, aiFallbackDetail],
   )
+  const missingItems = Boolean(parseResult?.missing_fields?.includes('items'))
   const totals = useMemo(() => calculateQuotePricing({
     items: displayItems,
     services,
@@ -995,7 +999,6 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
         ...quote,
         client_id: briefClientName ? '' : quote.client_id,
         client_name: briefClientName || quote.client_name,
-        event_name: parsed.event_name || quote.event_name,
         event_date: parsed.event_date || quote.event_date,
         location: parsed.location || quote.location,
         duration_hours: parsed.duration_hours || quote.duration_hours,
@@ -1285,7 +1288,6 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
         client_id: clientId,
         client_name: clientName || null,
         tier_code: quote.tier_code || DEFAULT_QUOTE.tier_code,
-        event_name: quote.event_name,
         event_date: quote.event_date || null,
         location: quote.location,
         duration_hours: derivedDurationHours,
@@ -1371,7 +1373,7 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
                       aria-expanded={showAiFallbackDetail}
                       className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800 shadow-sm transition hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-200"
                     >
-                      Trả lời không sử dụng AI
+                      Parser nội bộ
                     </button>
                     {showAiFallbackDetail ? (
                       <div className="absolute right-0 top-full mt-2 w-[min(82vw,360px)] rounded-xl border border-amber-200 bg-white p-3 text-left shadow-lg">
@@ -1382,8 +1384,12 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
                   </div>
                 ) : (
                   <div className="absolute right-3 top-3">
-                    <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-800 shadow-sm">
-                      AI hiểu
+                    <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold shadow-sm ${
+                      usedInternalParser
+                        ? 'border-amber-200 bg-amber-50 text-amber-800'
+                        : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                    }`}>
+                      {usedInternalParser ? 'Parser nội bộ' : 'Đã phân tích'}
                     </span>
                   </div>
                 )}
@@ -1395,12 +1401,19 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
                   </div>
                 ) : null}
                 {parseResult.missing_fields?.length ? (
-                  <div className="flex flex-wrap gap-2">
-                    {parseResult.missing_fields.map(field => (
-                      <span key={field} className="rounded-full bg-amber-100 px-3 py-1 text-[12px] font-semibold text-amber-800">
-                        Thiếu: {FIELD_LABELS[field] || field}
-                      </span>
-                    ))}
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap gap-2">
+                      {parseResult.missing_fields.map(field => (
+                        <span key={field} className="rounded-full bg-amber-100 px-3 py-1 text-[12px] font-semibold text-amber-800">
+                          Thiếu: {FIELD_LABELS[field] || field}
+                        </span>
+                      ))}
+                    </div>
+                    {missingItems ? (
+                      <p className="rounded-xl border border-amber-100 bg-white px-3 py-2 text-[12px] leading-5 text-amber-800">
+                        Thử nhập theo mẫu: 2 chụp, 1 quay recap, 5 tiếng, Hải Phòng.
+                      </p>
+                    ) : null}
                   </div>
                 ) : null}
                 {parseResult.ambiguous_fields?.length ? (

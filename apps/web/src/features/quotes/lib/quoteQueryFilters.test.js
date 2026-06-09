@@ -47,7 +47,7 @@ test('applyRemoteQuoteFilters maps supported filters to the existing query opera
   })
 
   assert.deepEqual(query.calls, [
-    ['or', 'quote_number.ilike.%EVT%,client_name.ilike.%EVT%,event_name.ilike.%EVT%'],
+    ['or', 'quote_number.ilike.%EVT%,client_name.ilike.%EVT%'],
     ['gte', 'created_at', '2026-05-01'],
     ['lte', 'created_at', '2026-05-19'],
     ['eq', 'status', 'sent'],
@@ -79,6 +79,6 @@ test('buildQuoteApiPath keeps current query-string behavior', () => {
   )
 })
 
-test('getLocalQuoteSearchText indexes quote number, client name, and event name', () => {
-  assert.equal(getLocalQuoteSearchText({ quote_number: 'BG-1', client_name: 'Client', event_name: 'Event' }), 'bg-1 client event')
+test('getLocalQuoteSearchText indexes quote number and client name', () => {
+  assert.equal(getLocalQuoteSearchText({ quote_number: 'BG-1', client_name: 'Client', event_name: 'Event' }), 'bg-1 client')
 })
