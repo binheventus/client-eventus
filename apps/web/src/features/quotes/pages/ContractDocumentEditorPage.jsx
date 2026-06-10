@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
-import { AlertTriangle, ArrowLeft, Check, Copy } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Check, Copy, Trash2 } from 'lucide-react'
 import {
   buildDocumentPayload,
   ContractDocumentEditorForm,
+  DeleteDocumentConfirmModal,
 } from '../components/ContractDocumentsPanel'
 import ContractEntityMismatchPopup from '../components/ContractEntityMismatchPopup'
 import ContractDocumentDocxDownloadButton from '../components/ContractDocumentDocxDownloadButton'
@@ -13,6 +14,7 @@ import QuoteBreadcrumb from '../components/QuoteBreadcrumb'
 import {
   getContractById,
   getContractDocument,
+  deleteContractDocument,
   listContractDocumentTemplates,
   listContractDocuments,
   saveContractDocument,
@@ -108,8 +110,11 @@ export default function ContractDocumentEditorPage() {
   const [document, setDocument] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState('')
   const [formError, setFormError] = useState('')
+  const [deleteError, setDeleteError] = useState('')
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [previewDocument, setPreviewDocument] = useState(null)
   const [shareCopied, setShareCopied] = useState(false)
   const shareCopiedTimerRef = useRef(null)
@@ -221,6 +226,20 @@ export default function ContractDocumentEditorPage() {
     }, 2400)
   }
 
+  async function handleDeleteDocument() {
+    if (!document?.id) return
+    setDeleting(true)
+    setDeleteError('')
+    try {
+      await deleteContractDocument(document.id)
+      setDeleteConfirmOpen(false)
+      navigate(getContractDocumentsRoute(contract), { replace: true })
+    } catch (err) {
+      setDeleteError(err?.message || 'Không xóa được chứng từ.')
+      setDeleting(false)
+    }
+  }
+
   if (invalidNewDocumentType) {
     return <Navigate replace to={getContractDocumentsRoute(contractId)} />
   }
@@ -237,6 +256,7 @@ export default function ContractDocumentEditorPage() {
   const pageLabel = isEditMode ? 'Sửa chứng từ' : DOCUMENT_TYPES[activeDocumentType]?.actionLabel || 'Tạo chứng từ'
   const canDownloadPreview = Boolean(previewDocument)
   const publicDocumentUrl = getPublicDocumentUrl(previewDocument || document || {})
+  const canDeleteDocument = Boolean(document?.id)
 
   return (
     <div className="min-h-screen bg-slate-50 px-5 py-5 lg:px-7">
@@ -284,27 +304,44 @@ export default function ContractDocumentEditorPage() {
                   type="button"
                   onClick={handleCopyPublicDocumentLink}
                   disabled={!publicDocumentUrl}
-                  className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-[13px] font-semibold shadow-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 ${
+                  aria-label="Copy link gửi khách hàng"
+                  title="Copy link gửi khách hàng"
+                  className={`inline-flex min-h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-[12px] font-semibold shadow-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 ${
                     shareCopied
                       ? 'bg-slate-600 text-white hover:bg-slate-600'
                       : 'bg-[#f8981d] text-white hover:bg-orange-500'
                   }`}
                 >
                   {shareCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                  {shareCopied ? 'Đã copy' : 'Copy link gửi khách hàng'}
+                  {shareCopied ? 'Đã copy' : 'Copy link'}
                 </button>
                 <ContractDocumentPDFDownloadButton
                   document={previewDocument || {}}
                   warnBeforeDownload
                   disabled={!canDownloadPreview}
-                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[13px] font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                  className="inline-flex min-h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
                 />
                 <ContractDocumentDocxDownloadButton
                   document={previewDocument || {}}
                   warnBeforeDownload
                   disabled={!canDownloadPreview}
-                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[13px] font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                  className="inline-flex min-h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
                 />
+                {canDeleteDocument ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeleteError('')
+                      setDeleteConfirmOpen(true)
+                    }}
+                    disabled={saving || deleting}
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 shadow-sm hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    aria-label="Xóa chứng từ"
+                    title="Xóa chứng từ"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                ) : null}
               </>
             )}
           />
@@ -324,6 +361,19 @@ export default function ContractDocumentEditorPage() {
           </aside>
         </div>
       </div>
+      {deleteConfirmOpen ? (
+        <DeleteDocumentConfirmModal
+          document={document}
+          deleting={deleting}
+          error={deleteError}
+          onCancel={() => {
+            if (deleting) return
+            setDeleteConfirmOpen(false)
+            setDeleteError('')
+          }}
+          onConfirm={handleDeleteDocument}
+        />
+      ) : null}
     </div>
   )
 }

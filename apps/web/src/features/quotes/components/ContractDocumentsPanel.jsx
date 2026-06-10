@@ -1429,12 +1429,12 @@ export function ContractDocumentEditorForm({
           {error ? <p className="rounded-xl bg-red-50 px-4 py-3 text-[13px] text-red-700">{error}</p> : null}
         </div>
 
-        <footer className="flex justify-end gap-2 border-t border-slate-200 bg-white px-5 py-4">
-          <button type="button" onClick={onCancel} disabled={saving} className="rounded-xl border border-slate-200 px-4 py-2.5 text-[13px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+        <footer className="flex flex-wrap justify-end gap-1.5 border-t border-slate-200 bg-white px-5 py-3.5">
+          <button type="button" onClick={onCancel} disabled={saving} className="rounded-lg border border-slate-200 px-3 py-2 text-[12px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
             Hủy
           </button>
           {footerActions}
-          <button type="submit" disabled={saving} className="inline-flex min-w-[150px] items-center justify-center gap-2 rounded-xl bg-[#f8981d] px-6 py-2.5 text-[13px] font-semibold text-white shadow-sm hover:bg-orange-500 disabled:opacity-50">
+          <button type="submit" disabled={saving} className="inline-flex min-w-[88px] items-center justify-center gap-1.5 rounded-lg bg-[#f8981d] px-3 py-2 text-[12px] font-semibold text-white shadow-sm hover:bg-orange-500 disabled:opacity-50">
             <FileText className="h-4 w-4" />
             {saving ? 'Đang lưu...' : 'Lưu'}
           </button>
@@ -1482,12 +1482,13 @@ function TemplateResetConfirmModal({ templateName, onCancel, onConfirm }) {
   )
 }
 
-function DeleteDocumentConfirmModal({ document, deleting, error, onCancel, onConfirm }) {
+export function DeleteDocumentConfirmModal({ document, deleting, error, onCancel, onConfirm }) {
   useEscapeToClose(() => {
     if (!deleting) onCancel?.()
   }, Boolean(document) && !deleting)
 
   if (!document) return null
+  const documentLabel = DOCUMENT_TYPES[document.document_type]?.label || document.document_type || 'Chứng từ'
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/45 px-4 py-6">
@@ -1497,12 +1498,30 @@ function DeleteDocumentConfirmModal({ document, deleting, error, onCancel, onCon
             <AlertTriangle className="h-5 w-5" />
           </span>
           <div>
-            <h2 className="text-[18px] font-semibold text-slate-950">Xóa chứng từ</h2>
+            <h2 className="text-[18px] font-semibold text-slate-950">Kiểm tra lại thông tin trước khi xóa</h2>
             <p className="mt-2 text-[13px] leading-6 text-slate-600">
-              Chứng từ <span className="font-semibold text-slate-950">{document.document_number || document.title || 'này'}</span> sẽ bị xóa khỏi hợp đồng. Số chứng từ đã cấp vẫn được giữ trong ledger.
+              Chứng từ này sẽ bị xóa khỏi hợp đồng, Số chứng từ đã cấp sẽ không được dùng lại.
             </p>
           </div>
         </div>
+        <dl className="mt-4 grid gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-[13px]">
+          <div className="grid gap-1 sm:grid-cols-[96px_minmax(0,1fr)]">
+            <dt className="font-semibold text-slate-500">Loại</dt>
+            <dd className="font-semibold text-slate-950">{documentLabel}</dd>
+          </div>
+          <div className="grid gap-1 sm:grid-cols-[96px_minmax(0,1fr)]">
+            <dt className="font-semibold text-slate-500">Số</dt>
+            <dd className="font-semibold text-slate-950">{document.document_number || '-'}</dd>
+          </div>
+          <div className="grid gap-1 sm:grid-cols-[96px_minmax(0,1fr)]">
+            <dt className="font-semibold text-slate-500">Tiêu đề</dt>
+            <dd className="min-w-0 break-words text-slate-700">{document.title || '-'}</dd>
+          </div>
+          <div className="grid gap-1 sm:grid-cols-[96px_minmax(0,1fr)]">
+            <dt className="font-semibold text-slate-500">Ngày lập</dt>
+            <dd className="text-slate-700">{formatQuoteDate(document.issued_date) || '-'}</dd>
+          </div>
+        </dl>
         {error ? <p className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-[13px] text-red-700">{error}</p> : null}
         <div className="mt-5 flex justify-end gap-2">
           <button type="button" onClick={onCancel} disabled={deleting} className="rounded-xl border border-slate-200 px-4 py-2.5 text-[13px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
