@@ -1,3 +1,5 @@
+import { normalizeDocumentSellerCode } from './entityCodes.js'
+
 export const DEFAULT_DOCUMENT_VAT_RATE = 0.08
 
 export function toDocumentNumber(value, fallback = 0) {
@@ -7,6 +9,17 @@ export function toDocumentNumber(value, fallback = 0) {
 
 export function roundDocumentCurrency(value) {
   return Math.round(toDocumentNumber(value, 0))
+}
+
+export function getDocumentNumberSellerCode(value = '') {
+  return normalizeDocumentSellerCode(value)
+}
+
+export function formatContractDocumentNumberForDisplay(value = '') {
+  return String(value || '')
+    .replace(/(^|-)(?:EVENTUS)(?=\/|$)/gi, '$1EVT')
+    .replace(/(^|[-/])(?:MEDIAMONSTER|MEDIA_MONSTER)(?=\/|$)/gi, '$1MMT')
+    .replace(/(-)MMS(?=\/|$)/gi, '$1MMT')
 }
 
 export function getContractDocumentCustomerCode(contract = {}) {
@@ -19,12 +32,13 @@ export function getContractDocumentCustomerCode(contract = {}) {
 }
 
 export function renderContractDocumentNumber(pattern, values = {}) {
+  const seller = getDocumentNumberSellerCode(values.seller)
   return String(pattern || '')
     .replace(/\{\{\s*sequence\s*\}\}/gi, String(values.sequence || ''))
     .replace(/\{\{\s*document_type\s*\}\}/gi, String(values.document_type || ''))
     .replace(/\{\{\s*document_type_code\s*\}\}/gi, String(values.document_type_code || ''))
-    .replace(/\{\{\s*seller\s*\}\}/gi, String(values.seller || ''))
-    .replace(/\{\{\s*seller_entity_code\s*\}\}/gi, String(values.seller || ''))
+    .replace(/\{\{\s*seller\s*\}\}/gi, seller)
+    .replace(/\{\{\s*seller_entity_code\s*\}\}/gi, seller)
     .replace(/\{\{\s*customer\s*\}\}/gi, String(values.customer || ''))
     .replace(/\{\{\s*year\s*\}\}/gi, String(values.year || ''))
 }

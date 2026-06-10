@@ -251,13 +251,14 @@ function transformBusinessRules(rows) {
 function transformLegalEntities(rows) {
   const codeMap = {
     EVT: 'EVENTUS',
-    MMS: 'MEDIAMONSTER',
+    MMS: 'MMT',
+    MEDIAMONSTER: 'MMT',
   }
 
   return rows.map((row, index) => {
     const sourceCode = String(row.entity_code || '').trim()
     const code = codeMap[sourceCode] || sourceCode
-    const displayName = code === 'EVENTUS' ? 'Eventus' : code === 'MEDIAMONSTER' ? 'Mediamonster' : row.entity_name_full
+    const displayName = code === 'EVENTUS' ? 'Eventus' : code === 'MMT' ? 'Mediamonster' : row.entity_name_full
 
     return {
       ...row,

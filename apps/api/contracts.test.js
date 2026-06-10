@@ -387,6 +387,14 @@ test('document numbers advance and are not reused after delete', () => withFakeC
   assert.match(third.document_number, /^0003\/DNTU-EVT\/ACME\/2026$/)
 }))
 
+test('legacy Eventus seller code renders EVT in document numbers', () => withFakeContractsApi(async () => {
+  const contract = await createContract({ seller_entity_code: 'EVENTUS' })
+  const document = await createDocument(contract, 'advance_request')
+
+  assert.equal(document.seller_entity_code, 'EVT')
+  assert.match(document.document_number, /^0001\/DNTU-EVT\/ACME\/2026$/)
+}))
+
 test('changing document seller reallocates its number in the new seller sequence', () => withFakeContractsApi(async ({ state }) => {
   const contract = await createContract()
   const saved = await createDocument(contract, 'advance_request')
@@ -429,7 +437,7 @@ test('changing seller uses the next available sequence in the target seller scop
   })
 
   assert.equal(updated.sequence_number, 2)
-  assert.match(updated.document_number, /^0002\/DNTU-MEDIAMONSTER\/ACME\/2026$/)
+  assert.match(updated.document_number, /^0002\/DNTU-MMT\/ACME\/2026$/)
 }))
 
 test('soft-deleting a contract also soft-deletes its documents', () => withFakeContractsApi(async () => {

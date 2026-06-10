@@ -30,6 +30,7 @@ import {
   normalizeDocumentTemplate,
   sectionsToDocumentTermsText,
 } from '../lib/contractDocumentTemplates'
+import { getDocumentNumberSellerCode } from '../lib/contractDocumentEditor'
 
 const CONTRACT_TEMPLATE_KIND = 'contract'
 const TEMPLATE_KIND_OPTIONS = [
@@ -118,7 +119,7 @@ function getDocumentNumberPreview(template = {}) {
   return String(template.document_number_pattern || DEFAULT_DOCUMENT_NUMBER_PATTERN)
     .replaceAll('{{sequence}}', '001')
     .replaceAll('{{document_type_code}}', code)
-    .replaceAll('{{seller}}', template.seller_entity_code || 'EVT')
+    .replaceAll('{{seller}}', getDocumentNumberSellerCode(template.seller_entity_code || 'EVT'))
     .replaceAll('{{customer}}', 'KH')
     .replaceAll('{{year}}', year)
 }

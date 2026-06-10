@@ -3,14 +3,13 @@ import {
   getLegalEntityCode,
   getLegalEntityLabel,
 } from './contractDefaults.js'
+import { formatContractDocumentNumberForDisplay } from './contractDocumentEditor.js'
 import { CONTRACT_DOCUMENT_TYPES } from './contractDocumentTemplates.js'
+import { normalizeLegalEntityCode } from './entityCodes.js'
 
-function normalizeEntityCode(value = '', legalEntities = []) {
+function resolveComparableEntityCode(value = '', legalEntities = []) {
   const entity = findLegalEntityByCode(value, legalEntities)
-  const normalized = String(getLegalEntityCode(entity || {}) || value || '').trim().toUpperCase()
-  if (normalized === 'EVT') return 'EVENTUS'
-  if (normalized === 'MMS') return 'MEDIAMONSTER'
-  return normalized
+  return normalizeLegalEntityCode(getLegalEntityCode(entity || {}) || value)
 }
 
 function getEntityDisplayName(value = '', legalEntities = []) {
@@ -20,7 +19,7 @@ function getEntityDisplayName(value = '', legalEntities = []) {
 
 function getDocumentWarningName(document = {}) {
   const typeLabel = CONTRACT_DOCUMENT_TYPES[document.document_type]?.label || document.document_type || 'Chứng từ'
-  const number = String(document.document_number || '').trim()
+  const number = formatContractDocumentNumberForDisplay(document.document_number).trim()
   return number ? `${typeLabel} ${number}` : typeLabel
 }
 
@@ -42,7 +41,7 @@ export function getContractEntityMismatchWarning({
   currentDocument = null,
   legalEntities = [],
 } = {}) {
-  const contractEntityCode = normalizeEntityCode(contract?.seller_entity_code, legalEntities)
+  const contractEntityCode = resolveComparableEntityCode(contract?.seller_entity_code, legalEntities)
   if (!contractEntityCode) return null
 
   const rows = Array.isArray(documents) ? [...documents] : []
@@ -59,13 +58,13 @@ export function getContractEntityMismatchWarning({
     .map(document => ({
       id: document.id || `${document.document_type}:${document.document_number || 'draft'}`,
       name: getDocumentWarningName(document),
-      entityCode: normalizeEntityCode(document.seller_entity_code, legalEntities),
+      entityCode: resolveComparableEntityCode(document.seller_entity_code, legalEntities),
       entityLabel: getEntityDisplayName(document.seller_entity_code, legalEntities),
     }))
     .filter(document => document.entityCode && document.entityCode !== contractEntityCode)
 
   const quoteEntityCode = shouldCompareQuoteEntity(contract, quote)
-    ? normalizeEntityCode(quote?.entity_code, legalEntities)
+    ? resolveComparableEntityCode(quote?.entity_code, legalEntities)
     : ''
   const quoteMismatch = quoteEntityCode && quoteEntityCode !== contractEntityCode
     ? {

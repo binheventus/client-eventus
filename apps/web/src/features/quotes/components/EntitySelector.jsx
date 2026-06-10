@@ -1,6 +1,6 @@
 const DEFAULT_ENTITIES = [
   { entity_code: 'EVENTUS', name: 'Eventus' },
-  { entity_code: 'MEDIAMONSTER', name: 'Mediamonster' },
+  { entity_code: 'MMT', name: 'Mediamonster' },
 ]
 
 function getEntityLabel(entity) {

@@ -47,6 +47,22 @@ test('acceptance liquidation seller_name token renders the full legal entity nam
   assert.doesNotMatch(content.basis_contract, / và Eventus;/)
 })
 
+test('acceptance liquidation renders handwritten date placeholder when issued date is hidden', () => {
+  const content = getAcceptanceLiquidationContent({
+    ...baseAcceptanceDocument,
+    document_data: {
+      ...baseAcceptanceDocument.document_data,
+      form_data: {
+        ...baseAcceptanceDocument.document_data.form_data,
+        hide_issued_date: true,
+      },
+    },
+  })
+
+  assert.equal(content.party_intro, 'Hôm nay, ngày \u00a0\u00a0\u00a0\u00a0\u00a0\u00a0/\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0/\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0 chúng tôi gồm có:')
+  assert.doesNotMatch(content.party_intro, /ngày - chúng/)
+})
+
 test('acceptance amount tables are only shown for cost difference templates', () => {
   assert.equal(shouldShowAcceptanceAmountTables(baseAcceptanceDocument), false)
 

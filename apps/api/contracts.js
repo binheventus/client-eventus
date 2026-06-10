@@ -12,6 +12,7 @@ import {
   withTransaction as mysqlWithTransaction,
 } from './lib/mysql.js'
 import { requireEventusAuth as defaultRequireEventusAuth } from './lib/eventus-auth.js'
+import { normalizeDocumentSellerEntityCode } from './lib/entity-codes.js'
 
 const SHORT_ID_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 
@@ -357,12 +358,13 @@ function getDocumentNumberPattern(documentType) {
 }
 
 function renderDocumentNumber(pattern, values = {}) {
+  const seller = normalizeDocumentSellerEntityCode(values.seller)
   return String(pattern || getDocumentNumberPattern(values.document_type || ''))
     .replace(/\{\{\s*sequence\s*\}\}/gi, values.sequence || '')
     .replace(/\{\{\s*document_type\s*\}\}/gi, values.document_type || '')
     .replace(/\{\{\s*document_type_code\s*\}\}/gi, values.document_type_code || '')
-    .replace(/\{\{\s*seller\s*\}\}/gi, values.seller || '')
-    .replace(/\{\{\s*seller_entity_code\s*\}\}/gi, values.seller || '')
+    .replace(/\{\{\s*seller\s*\}\}/gi, seller)
+    .replace(/\{\{\s*seller_entity_code\s*\}\}/gi, seller)
     .replace(/\{\{\s*customer\s*\}\}/gi, values.customer || '')
     .replace(/\{\{\s*year\s*\}\}/gi, values.year || '')
 }
@@ -788,7 +790,7 @@ function cleanTemplatePayload(template = {}) {
     name: String(template.name || '').trim(),
     description: String(template.description || '').trim() || null,
     title: String(template.title || '').trim() || 'HOP DONG CUNG CAP DICH VU',
-    seller_entity_code: emptyToNull(template.seller_entity_code || template.entity_code),
+    seller_entity_code: emptyToNull(normalizeDocumentSellerEntityCode(template.seller_entity_code || template.entity_code)),
     party_role_config: toJson(template.party_role_config || {}, {}),
     contract_number_pattern: template.contract_number_pattern || 'HD-{{quote_code}}',
     preamble: toJson(Array.isArray(template.preamble) ? template.preamble : [], []),
@@ -812,7 +814,7 @@ function cleanDocumentTemplatePayload(template = {}) {
     name: String(template.name || '').trim(),
     description: String(template.description || '').trim() || null,
     title: String(template.title || '').trim() || '',
-    seller_entity_code: emptyToNull(template.seller_entity_code || template.entity_code),
+    seller_entity_code: emptyToNull(normalizeDocumentSellerEntityCode(template.seller_entity_code || template.entity_code)),
     document_number_pattern: template.document_number_pattern || getDocumentNumberPattern(documentType),
     fields_config: toJson(template.fields_config || {}, {}),
     numbering_config: toJson(template.numbering_config || {}, {}),
@@ -1464,13 +1466,13 @@ async function cleanDocumentPayload(document = {}, existing = null) {
   const contractSnapshot = autoSyncContract && OPEN_DOCUMENT_STATUSES.has(status)
     ? buildDocumentContractSnapshot(contract)
     : document.contract_snapshot || existing?.contract_snapshot || buildDocumentContractSnapshot(contract)
-  const requestedSellerEntityCode = String(
+  const requestedSellerEntityCode = normalizeDocumentSellerEntityCode(
     document.seller_entity_code
       || existing?.seller_entity_code
       || template?.seller_entity_code
       || contract.seller_entity_code
       || 'EVT',
-  ).trim()
+  )
   const sellerEntityChanged = Boolean(
     existing?.id
     && requestedSellerEntityCode

@@ -25,13 +25,17 @@ const QuotePDFDownloadButton = lazy(() => import('../components/QuotePDFDownload
 
 const DETAIL_ACTION_BUTTON_BASE = 'inline-flex h-9 items-center justify-center gap-1.5 rounded-xl px-3 text-center text-[12px] font-semibold shadow-sm transition focus-visible:outline-none focus-visible:ring-2 disabled:cursor-not-allowed'
 const DETAIL_SECONDARY_ACTION_BUTTON = `${DETAIL_ACTION_BUTTON_BASE} w-[132px] border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 focus-visible:ring-slate-200`
-const DETAIL_DUPLICATE_ACTION_BUTTON = `${DETAIL_ACTION_BUTTON_BASE} min-w-[144px] whitespace-nowrap border border-orange-200 bg-white text-slate-700 hover:bg-orange-50 focus-visible:ring-orange-200 disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-300 disabled:shadow-none`
-const DETAIL_CONTRACT_ACTION_BUTTON = `${DETAIL_ACTION_BUTTON_BASE} min-w-[148px] whitespace-nowrap border border-orange-200 bg-white text-slate-700 hover:bg-orange-50 focus-visible:ring-orange-200 disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-300 disabled:shadow-none`
+const DETAIL_DUPLICATE_ACTION_BUTTON = `${DETAIL_ACTION_BUTTON_BASE} min-w-[144px] whitespace-nowrap border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 focus-visible:ring-slate-200 disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-300 disabled:shadow-none`
+const DETAIL_CONTRACT_ACTION_BUTTON = `${DETAIL_ACTION_BUTTON_BASE} min-w-[148px] whitespace-nowrap border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 focus-visible:ring-slate-200 disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-300 disabled:shadow-none`
 const DETAIL_PRIMARY_ACTION_BUTTON = `${DETAIL_ACTION_BUTTON_BASE} min-w-[156px] whitespace-nowrap bg-[#f8981d] text-white hover:bg-orange-500 focus-visible:ring-orange-200`
 
 function formatDateTime(value) {
   if (!value) return '-'
   return new Date(value).toLocaleString('vi-VN')
+}
+
+function formatCurrency(value) {
+  return new Intl.NumberFormat('vi-VN').format(Number(value) || 0)
 }
 
 function relativeTime(value) {
@@ -51,6 +55,22 @@ function getQuoteContractEditorPath(quote = {}) {
 function getPriceHistoryActionLabel(log = {}) {
   if (log.action === 'price_override') return 'Chỉnh giá thủ công'
   return log.action || log.event || 'Thay đổi giá'
+}
+
+function formatPriceHistoryDescription(log = {}) {
+  const description = log.description || log.reason || log.message
+  const legacyPriceChange = String(description || '').match(/^Sua gia\s+(.+?):\s*([\d.]+)\s*->\s*([\d.]+)\s*$/i)
+
+  if (legacyPriceChange) {
+    const [, serviceName, oldPrice, newPrice] = legacyPriceChange
+    return `Sửa giá: ${serviceName} ${formatCurrency(oldPrice.replace(/\./g, ''))} -> ${formatCurrency(newPrice.replace(/\./g, ''))}`
+  }
+
+  if (log.action === 'price_override' && log.service_name && (log.original_unit_price !== undefined || log.unit_price !== undefined)) {
+    return `Sửa giá: ${log.service_name} ${formatCurrency(log.original_unit_price)} -> ${formatCurrency(log.unit_price)}`
+  }
+
+  return description || JSON.stringify(log.changes || log.metadata || {})
 }
 
 function DuplicateQuoteConfirmModal({ quote, duplicating, error, onCancel, onConfirm }) {
@@ -230,6 +250,13 @@ export default function QuoteDetailPage() {
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
+            onClick={copyShareLink}
+            className={DETAIL_PRIMARY_ACTION_BUTTON}
+          >
+            Copy link gửi khách
+          </button>
+          <button
+            type="button"
             onClick={() => navigate(`/quotes/${id}/edit`)}
             className={DETAIL_SECONDARY_ACTION_BUTTON}
           >
@@ -266,13 +293,6 @@ export default function QuoteDetailPage() {
               Download PDF
             </QuotePDFDownloadButton>
           </Suspense>
-          <button
-            type="button"
-            onClick={copyShareLink}
-            className={DETAIL_PRIMARY_ACTION_BUTTON}
-          >
-            Copy link gửi khách
-          </button>
         </div>
       </div>
 
@@ -324,7 +344,7 @@ export default function QuoteDetailPage() {
               {auditLogs.length ? auditLogs.map(log => (
                 <div key={log.id} className="rounded-xl bg-slate-50 px-4 py-3 text-[13px]">
                   <div className="font-semibold text-slate-800">{getPriceHistoryActionLabel(log)}</div>
-                  <div className="mt-1 text-slate-500">{log.description || log.reason || log.message || JSON.stringify(log.changes || log.metadata || {})}</div>
+                  <div className="mt-1 text-slate-500">{formatPriceHistoryDescription(log)}</div>
                   <div className="mt-1 text-[11px] text-slate-400">{formatDateTime(log.created_at)}</div>
                 </div>
               )) : <p className="text-[13px] text-slate-400">Chưa có lịch sử chỉnh giá.</p>}

@@ -1,13 +1,20 @@
-import { Document, Font, Image, Page, StyleSheet, Text, View } from '@react-pdf/renderer'
+import { Document, Font, Image, Link, Page, StyleSheet, Text, View } from '@react-pdf/renderer'
 import equipmentRulesData from '../../../data/pricing/equipment_rules.json'
 import legalEntitiesData from '../../../data/pricing/legal_entities.json'
 import { getMatchedEquipmentRules } from '../lib/equipmentRules'
-import { getQuoteTerms } from '../lib/quoteTerms'
+import {
+  QUOTE_ACTUAL_PRODUCT_PREFIX,
+  QUOTE_ACTUAL_PRODUCT_TITLE,
+  QUOTE_ACTUAL_PRODUCT_URL,
+  getQuotePaymentTerms,
+  getQuoteTerms,
+} from '../lib/quoteTerms'
+import { findLegalEntityByAlias, normalizeLegalEntityCode } from '../lib/entityCodes'
 
 const SIGNATURE_IMAGE_SRC = '/signatures/nguyen-thu-huyen.png'
 const STAMP_IMAGE_BY_ENTITY = {
   EVENTUS: '/stamps/Stamp-eventus.png',
-  MEDIAMONSTER: '/stamps/Stamp-mediamonster.png',
+  MMT: '/stamps/Stamp-mediamonster.png',
 }
 const PDF_FONT_FAMILY = 'BeVietnamProQuote'
 const FONT_PATH = '/fonts/be-vietnam-pro'
@@ -34,8 +41,8 @@ const ENTITY_META = {
     hotline: 'Hotline: [cập nhật]',
     logoFile: 'logo_eventus.png',
   },
-  MEDIAMONSTER: {
-    name: 'MEDIAMONSTER',
+  MMT: {
+    name: 'MMT',
     company: 'CÔNG TY TNHH MEDIAMONSTER',
     taxCode: 'MST: [cập nhật]',
     address: 'Địa chỉ: [cập nhật]',
@@ -50,7 +57,7 @@ let logoUrlByEntity = {}
 export function setLogo(entityCode, url) {
   logoUrlByEntity = {
     ...logoUrlByEntity,
-    [entityCode]: url,
+    [normalizeLegalEntityCode(entityCode)]: url,
   }
 }
 
@@ -81,8 +88,8 @@ export function getQuotePdfFilename(quote = {}) {
 }
 
 function getEntityMeta(quote) {
-  const code = quote?.entity_code || 'EVENTUS'
-  const entity = legalEntitiesData.find(row => (row.entity_code || row.code) === code)
+  const code = normalizeLegalEntityCode(quote?.entity_code || 'EVENTUS')
+  const entity = findLegalEntityByAlias(code, legalEntitiesData)
   if (entity) {
     return {
       name: entity.display_name || entity.entity_code || code,
@@ -103,7 +110,7 @@ function getQuoteCode(quote) {
 }
 
 function getStampImageSrc(entityCode) {
-  return STAMP_IMAGE_BY_ENTITY[entityCode] || STAMP_IMAGE_BY_ENTITY.EVENTUS
+  return STAMP_IMAGE_BY_ENTITY[normalizeLegalEntityCode(entityCode)] || STAMP_IMAGE_BY_ENTITY.EVENTUS
 }
 
 function getClientName(quote) {
@@ -484,6 +491,11 @@ const styles = StyleSheet.create({
     fontSize: 7.3,
     lineHeight: 1.24,
   },
+  noteLink: {
+    color: '#f8981d',
+    fontWeight: 600,
+    textDecoration: 'underline',
+  },
   noteSection: {
     marginBottom: 2.8,
   },
@@ -587,17 +599,17 @@ const styles = StyleSheet.create({
     marginRight: -6,
   },
   signatureName: {
-    marginTop: -2,
+    marginTop: 8,
     fontSize: 7.8,
     fontWeight: 700,
     color: '#000000',
   },
   signatureNameDense: {
-    marginTop: -2.5,
+    marginTop: 6,
     fontSize: 7.5,
   },
   signatureNameSpacious: {
-    marginTop: -1,
+    marginTop: 10,
     fontSize: 8.2,
   },
   signatureRole: {
@@ -651,7 +663,7 @@ const styles = StyleSheet.create({
 
 function Header({ quote, dense = false, spacious = false }) {
   const entity = getEntityMeta(quote)
-  const logoUrl = logoUrlByEntity[quote?.entity_code] || (entity.logoFile ? `/logos/${entity.logoFile}` : null)
+  const logoUrl = logoUrlByEntity[normalizeLegalEntityCode(quote?.entity_code)] || logoUrlByEntity[quote?.entity_code] || (entity.logoFile ? `/logos/${entity.logoFile}` : null)
   const quoteCode = getQuoteCode(quote)
 
   return (
@@ -757,10 +769,7 @@ function Totals({ quote, dense = false, spacious = false }) {
 function Notes({ quote, items = [], dense = false, spacious = false }) {
   const equipmentRules = getMatchedEquipmentRules(items, equipmentRulesData)
   const terms = getQuoteTerms(quote)
-  const paymentTerms = [
-    '• Đợt 1 (Tạm ứng): Quý khách vui lòng thanh toán 50% tổng giá trị báo giá sau khi xác nhận báo giá để giữ lịch nhân sự và chuẩn bị thiết bị.',
-    '• Đợt 2 (Tất toán): Thanh toán 50% giá trị còn lại trong vòng 03 ngày làm việc sau khi bàn giao đầy đủ sản phẩm cuối cùng.',
-  ]
+  const paymentTerms = getQuotePaymentTerms()
 
   return (
     <View style={[styles.notes, dense ? styles.notesDense : null, spacious ? styles.notesSpacious : null]}>
@@ -778,9 +787,18 @@ function Notes({ quote, items = [], dense = false, spacious = false }) {
         <Text style={[styles.noteHeading, dense ? styles.noteHeadingDense : null, spacious ? styles.noteHeadingSpacious : null]}>ĐIỀU KHOẢN & ĐIỀU KIỆN</Text>
         {terms.map(term => <Text key={term} style={[styles.noteLine, dense ? styles.noteLineDense : null, spacious ? styles.noteLineSpacious : null]}>• {term}</Text>)}
       </View>
-      <View>
+      <View style={[styles.noteSection, dense ? styles.noteSectionDense : null, spacious ? styles.noteSectionSpacious : null]}>
         <Text style={[styles.noteHeading, dense ? styles.noteHeadingDense : null, spacious ? styles.noteHeadingSpacious : null]}>ĐIỀU KHOẢN THANH TOÁN</Text>
-        {paymentTerms.map(term => <Text key={term} style={[styles.noteLine, dense ? styles.noteLineDense : null, spacious ? styles.noteLineSpacious : null]}>{term}</Text>)}
+        {paymentTerms.map(term => <Text key={term} style={[styles.noteLine, dense ? styles.noteLineDense : null, spacious ? styles.noteLineSpacious : null]}>• {term}</Text>)}
+      </View>
+      <View>
+        <Text style={[styles.noteHeading, dense ? styles.noteHeadingDense : null, spacious ? styles.noteHeadingSpacious : null]}>{QUOTE_ACTUAL_PRODUCT_TITLE}</Text>
+        <Text style={[styles.noteLine, dense ? styles.noteLineDense : null, spacious ? styles.noteLineSpacious : null]}>
+          • {QUOTE_ACTUAL_PRODUCT_PREFIX}{' '}
+          <Link src={QUOTE_ACTUAL_PRODUCT_URL} style={styles.noteLink}>
+            {QUOTE_ACTUAL_PRODUCT_URL}
+          </Link>
+        </Text>
       </View>
     </View>
   )

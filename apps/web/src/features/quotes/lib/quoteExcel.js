@@ -1,4 +1,5 @@
 import { getMatchedEquipmentRules } from './equipmentRules.js'
+import { findLegalEntityByAlias, isMediaMonsterEntityCode, normalizeLegalEntityCode } from './entityCodes.js'
 import { getQuoteTerms } from './quoteTerms.js'
 
 const MONEY_FORMAT = '#,##0'
@@ -26,9 +27,9 @@ function getQuoteCode(quote = {}) {
 }
 
 function getEntityMeta(quote = {}, legalEntities = []) {
-  const code = quote.entity_code || 'EVENTUS'
-  const entity = legalEntities.find(row => (row.entity_code || row.code) === code)
-  const company = entity?.legal_name || entity?.entity_name_full || entity?.name || (code === 'MEDIAMONSTER' ? 'CÔNG TY TNHH MEDIAMONSTER' : 'CÔNG TY TNHH EVENTUS VIỆT NAM')
+  const code = normalizeLegalEntityCode(quote.entity_code || 'EVENTUS')
+  const entity = findLegalEntityByAlias(code, legalEntities)
+  const company = entity?.legal_name || entity?.entity_name_full || entity?.name || (isMediaMonsterEntityCode(code) ? 'CÔNG TY TNHH MEDIAMONSTER' : 'CÔNG TY TNHH EVENTUS VIỆT NAM')
   const taxCode = entity?.tax_code || ''
   const address = entity?.address || ''
   const email = entity?.email || ''
@@ -44,7 +45,7 @@ function getEntityMeta(quote = {}, legalEntities = []) {
     hotline: hotline ? `Hotline: ${hotline}` : '',
     website,
     websiteLine: website ? website.replace(/^https?:\/\//i, '') : '',
-    logoFile: entity?.logo_file || entity?.logoFile || (code === 'MEDIAMONSTER' ? 'logo_mediamonster.png' : 'logo_eventus.png'),
+    logoFile: entity?.logo_file || entity?.logoFile || (isMediaMonsterEntityCode(code) ? 'logo_mediamonster.png' : 'logo_eventus.png'),
   }
 }
 
@@ -96,7 +97,7 @@ function getGroupTotal(items = []) {
 
 export function getQuoteExcelFilename(quote = {}) {
   const quoteNumber = String(quote.quote_number || getQuoteCode(quote) || 'DRAFT').replace(/^#/, '').replace(/[^a-zA-Z0-9]/g, '') || 'DRAFT'
-  const entityLabel = quote.entity_code === 'MEDIAMONSTER' ? 'Mediamonster' : 'Eventus'
+  const entityLabel = isMediaMonsterEntityCode(quote.entity_code) ? 'Mediamonster' : 'Eventus'
   return `Bao gia - ${entityLabel} - ${quoteNumber}.xlsx`
 }
 

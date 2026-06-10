@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import equipmentRulesData from '../../../data/pricing/equipment_rules.json'
 import legalEntitiesData from '../../../data/pricing/legal_entities.json'
+import { findLegalEntityByAlias, isMediaMonsterEntityCode, normalizeLegalEntityCode } from '../lib/entityCodes'
 import { buildQuoteExcelWorkbook, getQuoteExcelFilename } from '../lib/quoteExcel'
 
 function getQuoteEntity(quote = {}) {
-  const entityCode = quote.entity_code || 'EVENTUS'
-  return legalEntitiesData.find(row => (row.entity_code || row.code) === entityCode) || null
+  return findLegalEntityByAlias(quote.entity_code || 'EVENTUS', legalEntitiesData)
 }
 
 function getLogoExtension(logoFile = '') {
@@ -15,8 +15,8 @@ function getLogoExtension(logoFile = '') {
 
 async function loadQuoteLogo(quote = {}) {
   const entity = getQuoteEntity(quote)
-  const entityCode = quote.entity_code || 'EVENTUS'
-  const logoFile = entity?.logo_file || entity?.logoFile || (entityCode === 'MEDIAMONSTER' ? 'logo_mediamonster.png' : 'logo_eventus.png')
+  const entityCode = normalizeLegalEntityCode(quote.entity_code || 'EVENTUS')
+  const logoFile = entity?.logo_file || entity?.logoFile || (isMediaMonsterEntityCode(entityCode) ? 'logo_mediamonster.png' : 'logo_eventus.png')
   if (!logoFile) return {}
 
   try {

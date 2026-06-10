@@ -19,6 +19,7 @@ import {
   hasDocumentText,
   shouldShowAcceptanceAmountTables,
 } from '../lib/contractDocumentRender'
+import { formatContractDocumentNumberForDisplay } from '../lib/contractDocumentEditor'
 
 function Value({ children, fallback = '-' }) {
   return hasDocumentText(children) ? children : fallback
@@ -349,7 +350,7 @@ export default function ContractDocumentPreview({ document = {} }) {
           </div>
           {issuedDate ? <p className="mt-6 text-right italic">Ngày {issuedDate}</p> : null}
           <h1 className="mt-7 text-center text-[20px] font-bold uppercase tracking-wide">{getDocumentTitle(document)}</h1>
-          <p className="mt-1 text-center">Số: <Value>{document.document_number}</Value></p>
+          <p className="mt-1 text-center">Số: <Value>{formatContractDocumentNumberForDisplay(document.document_number)}</Value></p>
         </header>
 
         <div className="py-8">
@@ -376,7 +377,7 @@ export default function ContractDocumentPreview({ document = {} }) {
           </div>
           {issuedDate ? <p className="mt-6 text-right italic">Ngày {issuedDate}</p> : null}
           <h1 className="mt-7 text-center text-[20px] font-bold uppercase tracking-wide">{getDocumentTitle(document)}</h1>
-          <p className="mt-1 text-center">Số: <Value>{document.document_number}</Value></p>
+          <p className="mt-1 text-center">Số: <Value>{formatContractDocumentNumberForDisplay(document.document_number)}</Value></p>
         </header>
 
         <div className="py-8">
@@ -466,7 +467,7 @@ export default function ContractDocumentPreview({ document = {} }) {
         <p className="text-[13px] uppercase text-slate-950">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
         <p className="text-[13px] text-slate-950">Độc lập - Tự do - Hạnh phúc</p>
         <h1 className="mt-5 break-words text-[22px] font-bold uppercase tracking-[0.02em] text-slate-950">{getDocumentTitle(document)}</h1>
-        <p className="mt-1 break-all text-[13px] font-semibold text-slate-700">Số: <Value>{document.document_number}</Value></p>
+        <p className="mt-1 break-all text-[13px] font-semibold text-slate-700">Số: <Value>{formatContractDocumentNumberForDisplay(document.document_number)}</Value></p>
         <p className="mt-1 text-[13px] text-slate-600">Ngày lập: <Value>{issuedDate}</Value></p>
       </header>
 

@@ -2,16 +2,23 @@ import { Fragment, useState } from 'react'
 import equipmentRulesData from '../../../data/pricing/equipment_rules.json'
 import legalEntitiesData from '../../../data/pricing/legal_entities.json'
 import { getMatchedEquipmentRules } from '../lib/equipmentRules'
-import { getQuoteTerms } from '../lib/quoteTerms'
+import {
+  QUOTE_ACTUAL_PRODUCT_PREFIX,
+  QUOTE_ACTUAL_PRODUCT_TITLE,
+  QUOTE_ACTUAL_PRODUCT_URL,
+  getQuotePaymentTerms,
+  getQuoteTerms,
+} from '../lib/quoteTerms'
+import { findLegalEntityByAlias, isMediaMonsterEntityCode, normalizeLegalEntityCode } from '../lib/entityCodes'
 
 const SIGNATURE_IMAGE_SRC = '/signatures/nguyen-thu-huyen.png'
 const STAMP_IMAGE_BY_ENTITY = {
   EVENTUS: '/stamps/Stamp-eventus.png',
-  MEDIAMONSTER: '/stamps/Stamp-mediamonster.png',
+  MMT: '/stamps/Stamp-mediamonster.png',
 }
 
 function getStampImageSrc(entityCode) {
-  return STAMP_IMAGE_BY_ENTITY[entityCode] || STAMP_IMAGE_BY_ENTITY.EVENTUS
+  return STAMP_IMAGE_BY_ENTITY[normalizeLegalEntityCode(entityCode)] || STAMP_IMAGE_BY_ENTITY.EVENTUS
 }
 
 function formatCurrency(value) {
@@ -24,7 +31,7 @@ function formatQuoteDate(value) {
 }
 
 function getEntity(entityCode, entities = []) {
-  return entities.find(row => (row.entity_code || row.code) === entityCode) || null
+  return findLegalEntityByAlias(entityCode, entities)
 }
 
 function getEntityName(entityCode, entities = []) {
@@ -32,7 +39,7 @@ function getEntityName(entityCode, entities = []) {
 }
 
 function getLegalName(entity, entityCode) {
-  return entity?.legal_name || entity?.entity_name_full || entity?.name || (entityCode === 'MEDIAMONSTER' ? 'Công ty TNHH MediaMonster' : 'Công ty TNHH Eventus Việt Nam')
+  return entity?.legal_name || entity?.entity_name_full || entity?.name || (isMediaMonsterEntityCode(entityCode) ? 'Công ty TNHH MediaMonster' : 'Công ty TNHH Eventus Việt Nam')
 }
 
 function getEntityContactRows(entity, entityCode) {
@@ -153,10 +160,7 @@ function SignatureBlock({ quote, showStamp = true }) {
 function QuoteEndNotes({ quote = {}, items = [] }) {
   const equipmentRules = getMatchedEquipmentRules(items, equipmentRulesData)
   const terms = getQuoteTerms(quote)
-  const paymentTerms = [
-    'Đợt 1 (Tạm ứng): Quý khách vui lòng thanh toán 50% tổng giá trị báo giá sau khi xác nhận báo giá để giữ lịch nhân sự và chuẩn bị thiết bị.',
-    'Đợt 2 (Tất toán): Thanh toán 50% giá trị còn lại trong vòng 03 ngày làm việc sau khi bàn giao đầy đủ sản phẩm cuối cùng.',
-  ]
+  const paymentTerms = getQuotePaymentTerms()
 
   return (
     <section className="space-y-2.5 rounded-lg border border-slate-300 bg-slate-100 px-3 py-3 text-[10px] leading-[1.22] text-black">
@@ -184,6 +188,23 @@ function QuoteEndNotes({ quote = {}, items = [] }) {
         <h3 className="text-[10px] font-bold uppercase tracking-[0.04em] text-black">ĐIỀU KHOẢN THANH TOÁN</h3>
         <ul className="mt-1 list-disc space-y-0.5 pl-3">
           {paymentTerms.map(term => <li key={term}>{term}</li>)}
+        </ul>
+      </div>
+
+      <div>
+        <h3 className="text-[10px] font-bold uppercase tracking-[0.04em] text-black">{QUOTE_ACTUAL_PRODUCT_TITLE}</h3>
+        <ul className="mt-1 list-disc space-y-0.5 pl-3">
+          <li>
+            {QUOTE_ACTUAL_PRODUCT_PREFIX}{' '}
+            <a
+              href={QUOTE_ACTUAL_PRODUCT_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="font-semibold text-[#f8981d] underline decoration-[#f8981d]/50 underline-offset-2"
+            >
+              {QUOTE_ACTUAL_PRODUCT_URL}
+            </a>
+          </li>
         </ul>
       </div>
     </section>

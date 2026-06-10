@@ -24,7 +24,7 @@ export const QUOTE_TIER_OPTIONS = [
 export const QUOTE_ENTITY_OPTIONS = [
   { value: '', label: 'Tất cả pháp nhân' },
   { value: 'EVENTUS', label: 'Eventus' },
-  { value: 'MEDIAMONSTER', label: 'Mediamonster' },
+  { value: 'MMT', label: 'Mediamonster' },
 ]
 
 const MUTED_STATUS_TONE = 'bg-slate-100 text-slate-500'

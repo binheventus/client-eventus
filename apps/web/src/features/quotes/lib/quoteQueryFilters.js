@@ -1,3 +1,5 @@
+import { expandEntityCodeFilterValue, normalizeLegalEntityCode } from './entityCodes.js'
+
 const LOCAL_FILTER_SPECIAL_KEYS = new Set(['search', 'date_from', 'date_to'])
 
 function isEmptyFilterValue(value) {
@@ -26,7 +28,12 @@ export function applyRemoteQuoteFilters(query, filters = {}) {
     }
 
     if (Array.isArray(value)) {
-      nextQuery = nextQuery.in(key, value)
+      nextQuery = nextQuery.in(key, key === 'entity_code' ? expandEntityCodeFilterValue(value) : value)
+      return
+    }
+
+    if (key === 'entity_code' && normalizeLegalEntityCode(value) === 'MMT') {
+      nextQuery = nextQuery.in(key, expandEntityCodeFilterValue(value))
       return
     }
 
@@ -59,6 +66,11 @@ function matchesLocalSearch(quote = {}, search = '') {
 function matchesLocalFilterValue(quote = {}, key, value) {
   if (LOCAL_FILTER_SPECIAL_KEYS.has(key)) return true
   if (isEmptyFilterValue(value)) return true
+  if (key === 'entity_code') {
+    const quoteEntityCode = normalizeLegalEntityCode(quote[key])
+    if (Array.isArray(value)) return value.map(normalizeLegalEntityCode).includes(quoteEntityCode)
+    return normalizeLegalEntityCode(value) === quoteEntityCode
+  }
   if (Array.isArray(value)) return value.includes(quote[key])
   return quote[key] === value
 }
@@ -85,7 +97,12 @@ export function buildQuoteApiPath(params = {}) {
       Object.entries(value || {}).forEach(([filterKey, filterValue]) => {
         if (isEmptyFilterValue(filterValue)) return
         if (Array.isArray(filterValue)) {
-          if (filterValue.length) searchParams.set(filterKey, filterValue.join(','))
+          const value = filterKey === 'entity_code' ? expandEntityCodeFilterValue(filterValue) : filterValue
+          if (value.length) searchParams.set(filterKey, value.join(','))
+          return
+        }
+        if (filterKey === 'entity_code' && normalizeLegalEntityCode(filterValue) === 'MMT') {
+          searchParams.set(filterKey, expandEntityCodeFilterValue(filterValue).join(','))
           return
         }
         searchParams.set(filterKey, String(filterValue))

@@ -39,7 +39,7 @@ test('entity consistency warning lists documents that differ from the contract',
 
   assert.equal(warning.title, 'Cảnh báo pháp nhân không đồng nhất')
   assert.deepEqual(warning.items, [
-    'BBNT kiêm thanh lý 0001/BBNTTL-MEDIAMONSTER/ACME/2026 đang dùng pháp nhân Mediamonster',
+    'BBNT kiêm thanh lý 0001/BBNTTL-MMT/ACME/2026 đang dùng pháp nhân Mediamonster',
   ])
 })
 
@@ -130,6 +130,6 @@ test('current edited document replaces its saved version in the warning', () => 
   })
 
   assert.deepEqual(warning.items, [
-    'Đề nghị thanh toán 0001/DNTT-MEDIAMONSTER/ACME/2026 đang dùng pháp nhân Mediamonster',
+    'Đề nghị thanh toán 0001/DNTT-MMT/ACME/2026 đang dùng pháp nhân Mediamonster',
   ])
 })

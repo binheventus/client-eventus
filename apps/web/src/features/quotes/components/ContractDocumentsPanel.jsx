@@ -42,6 +42,7 @@ import {
   getContractTotal,
   getContractVatConfig,
   getCustomerValidationWarnings,
+  formatContractDocumentNumberForDisplay,
   normalizeDocumentIdList,
   normalizeAmountRows,
   renderContractDocumentNumber,
@@ -222,7 +223,7 @@ function getAcceptanceDocumentTotal(document = {}) {
 }
 
 function getDocumentDisplayName(document = {}) {
-  return document.document_number || document.title || document.id || 'Chứng từ'
+  return formatContractDocumentNumberForDisplay(document.document_number) || document.title || document.id || 'Chứng từ'
 }
 
 function getPublicDocumentUrl(document = {}) {
@@ -239,7 +240,7 @@ function normalizePaymentDeductions(rows = [], advanceDocuments = []) {
       const originalAmount = linkedDocument ? getAdvanceDocumentAmount(linkedDocument) : Number(row.original_amount || row.advance_amount || 0)
       return {
         document_id: documentId,
-        document_number: linkedDocument?.document_number || row.document_number || '',
+        document_number: formatContractDocumentNumberForDisplay(linkedDocument?.document_number || row.document_number || ''),
         document_title: linkedDocument?.title || row.document_title || row.title || '',
         original_amount: originalAmount,
         deduction_amount: Number(row.deduction_amount ?? originalAmount),
@@ -503,6 +504,9 @@ function buildEditorDraft(document = null, documentType = 'advance_request', con
     seller_snapshot: sellerProfile,
   }
   const formData = buildDocumentFormData(document, resolvedDocumentType, sourceContract, documents, sellerProfile.entity_code || sellerEntityCode, legalEntities)
+  if (!document?.id && resolvedDocumentType === 'acceptance_liquidation') {
+    formData.hide_issued_date = true
+  }
   const hideIssuedDate = Boolean(formData.hide_issued_date)
   return {
     id: document?.id || '',
@@ -840,131 +844,85 @@ function AcceptanceLiquidationEditor({ draft, documents = [], showCostDifference
 }
 
 function AcceptanceAdvanceReference({ draft, documents = [], updateFormData }) {
-  const [pendingRemoval, setPendingRemoval] = useState(null)
   const formData = draft.form_data || {}
   const excludedAdvanceDocumentIds = normalizeDocumentIdList(formData.excluded_advance_document_ids || [])
-  const advanceDocuments = getContractAdvanceDocumentLinks(documents, draft.id || '', excludedAdvanceDocumentIds)
+  const excludedAdvanceDocumentIdSet = new Set(excludedAdvanceDocumentIds)
+  const advanceDocuments = getContractAdvanceDocumentLinks(documents, draft.id || '')
+  const selectedAdvanceDocuments = advanceDocuments.filter(document => !excludedAdvanceDocumentIdSet.has(String(document.document_id || '')))
   if (!advanceDocuments.length) return null
 
-  const advanceTotal = calculateAdvanceDocumentsTotal(advanceDocuments)
+  const advanceTotal = calculateAdvanceDocumentsTotal(selectedAdvanceDocuments)
 
-  function confirmRemoveAdvanceDocument() {
-    if (!pendingRemoval?.document_id) return
-    const nextExcludedAdvanceDocumentIds = normalizeDocumentIdList([
-      ...excludedAdvanceDocumentIds,
-      pendingRemoval.document_id,
-    ])
+  function toggleAdvanceDocument(document) {
+    const documentId = String(document.document_id || '')
+    if (!documentId) return
+    const isSelected = !excludedAdvanceDocumentIdSet.has(documentId)
+    const nextExcludedAdvanceDocumentIds = isSelected
+      ? normalizeDocumentIdList([...excludedAdvanceDocumentIds, documentId])
+      : excludedAdvanceDocumentIds.filter(id => id !== documentId)
     const nextLinkedAdvanceDocuments = getContractAdvanceDocumentLinks(documents, draft.id || '', nextExcludedAdvanceDocumentIds)
     updateFormData({
       excluded_advance_document_ids: nextExcludedAdvanceDocumentIds,
       linked_advance_documents: nextLinkedAdvanceDocuments,
       advance_paid: calculateAdvanceDocumentsTotal(nextLinkedAdvanceDocuments),
     })
-    setPendingRemoval(null)
   }
 
   return (
-    <>
-      <section className="rounded-xl border border-orange-100 bg-orange-50/50 px-3 py-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-[12px] font-semibold text-slate-700">Đề nghị tạm ứng liên quan</p>
-          <p className="text-[13px] font-bold tabular-nums text-orange-700">{formatQuoteCurrency(advanceTotal)}đ</p>
-        </div>
-        <div className="mt-2 space-y-1.5">
-          {advanceDocuments.map(document => {
-            const editUrl = getContractDocumentEditRoute(draft.contract_id, document)
-            const label = document.document_number || document.document_title || document.document_id || 'Đề nghị tạm ứng'
-            return (
-              <div
-                key={document.document_id || label}
-                className="flex min-w-0 items-center gap-2 rounded-lg border border-orange-100 bg-white px-2.5 py-2 text-[12px] font-semibold"
+    <section className="rounded-xl border border-orange-100 bg-orange-50/50 px-3 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[12px] font-semibold text-slate-700">Đề nghị tạm ứng liên quan</p>
+        <p className="pr-2.5 text-[13px] font-bold tabular-nums text-blue-700">{formatQuoteCurrency(advanceTotal)}đ</p>
+      </div>
+      <div className="mt-2 space-y-1.5">
+        {advanceDocuments.map(document => {
+          const editUrl = getContractDocumentEditRoute(draft.contract_id, document)
+          const label = formatContractDocumentNumberForDisplay(document.document_number) || document.document_title || document.document_id || 'Đề nghị tạm ứng'
+          const documentId = String(document.document_id || '')
+          const isSelected = !excludedAdvanceDocumentIdSet.has(documentId)
+          return (
+            <div
+              key={document.document_id || label}
+              className={`flex min-w-0 items-center gap-2 rounded-lg border px-2.5 py-2 text-[12px] font-semibold ${
+                isSelected
+                  ? 'border-orange-100 bg-white'
+                  : 'border-slate-200 bg-white/70 text-slate-500'
+              }`}
+            >
+              <button
+                type="button"
+                onClick={() => toggleAdvanceDocument(document)}
+                title={isSelected ? 'Đã tính khoản tạm ứng này vào BBNT' : 'Tính khoản tạm ứng này vào BBNT'}
+                aria-label={`${isSelected ? 'Bỏ chọn' : 'Chọn'} đề nghị tạm ứng ${label}`}
+                aria-pressed={isSelected}
+                className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border bg-transparent transition ${
+                  isSelected
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-blue-600 text-transparent hover:border-blue-700'
+                }`}
               >
-                <a
-                  href={editUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title={label}
-                  className="flex min-w-0 flex-1 items-center justify-between gap-3 text-blue-700 hover:text-blue-800"
-                >
-                  <span className="min-w-0 flex items-center gap-1.5">
-                    <span className="truncate">Đề nghị tạm ứng: {label}</span>
-                    <ExternalLink className="h-3.5 w-3.5 shrink-0" />
-                  </span>
-                  <span className="shrink-0 tabular-nums text-slate-700">{formatQuoteCurrency(document.advance_amount)}đ</span>
-                </a>
-                <button
-                  type="button"
-                  onClick={() => setPendingRemoval(document)}
-                  title="Xóa số tiền này khỏi BBNT"
-                  aria-label={`Xóa số tiền đề nghị tạm ứng ${label} khỏi BBNT`}
-                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-            )
-          })}
-        </div>
-      </section>
-
-      <RemoveAdvanceFromAcceptanceModal
-        document={pendingRemoval}
-        onCancel={() => setPendingRemoval(null)}
-        onConfirm={confirmRemoveAdvanceDocument}
-      />
-    </>
-  )
-}
-
-function RemoveAdvanceFromAcceptanceModal({ document, onCancel, onConfirm }) {
-  useEscapeToClose(() => onCancel?.(), Boolean(document))
-
-  if (!document) return null
-
-  const label = document.document_number || document.document_title || document.document_id || 'Đề nghị tạm ứng'
-  const amount = Number(document.advance_amount || document.original_amount || 0)
-
-  return (
-    <div className="fixed inset-0 z-[75] flex items-center justify-center bg-slate-950/45 px-4 py-6">
-      <section className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl">
-        <div className="flex items-start gap-3">
-          <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-600">
-            <AlertTriangle className="h-5 w-5" />
-          </span>
-          <div>
-            <h2 className="text-[18px] font-semibold leading-6 text-slate-950">
-              Bạn có muốn xóa số tiền đã đề nghị tạm ứng này ra khỏi BBNT không?
-            </h2>
-          </div>
-        </div>
-        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-[13px] text-slate-700">
-          <div>
-            <p className="text-slate-500">Đề nghị tạm ứng</p>
-            <p className="mt-1 truncate font-semibold text-slate-950" title={label}>{label}</p>
-          </div>
-          <div className="mt-2 flex justify-between gap-3">
-            <span className="text-slate-500">Ngày lập</span>
-            <span className="font-semibold text-slate-950">{formatQuoteDate(document.issued_date) || '-'}</span>
-          </div>
-          <div className="mt-2 flex justify-between gap-3">
-            <span className="text-slate-500">Số tiền đề nghị</span>
-            <span className="font-semibold tabular-nums text-red-700">{formatQuoteCurrency(amount)}đ</span>
-          </div>
-        </div>
-        <p className="mt-3 text-[12px] leading-5 text-slate-500">
-          Chứng từ đề nghị tạm ứng vẫn được giữ trong hợp đồng, chỉ khoản tiền này không còn được tính là đã tạm ứng trong BBNT.
-        </p>
-        <div className="mt-5 flex justify-end gap-2">
-          <button type="button" onClick={onCancel} className="rounded-xl border border-slate-200 px-4 py-2.5 text-[13px] font-semibold text-slate-700 hover:bg-slate-50">
-            Hủy
-          </button>
-          <button type="button" onClick={onConfirm} className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-[13px] font-semibold text-white shadow-sm hover:bg-red-700">
-            <Trash2 className="h-4 w-4" />
-            Xóa khỏi BBNT
-          </button>
-        </div>
-      </section>
-    </div>
+                {isSelected ? <Check className="h-4 w-4" /> : null}
+              </button>
+              <a
+                href={editUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={label}
+                className={`flex min-w-0 flex-1 items-center justify-between gap-3 ${
+                  isSelected ? 'text-blue-700 hover:text-blue-800' : 'text-slate-500 hover:text-blue-700'
+                }`}
+              >
+                <span className="min-w-0 flex items-center gap-1.5">
+                  <span className="truncate">Đề nghị tạm ứng: {label}</span>
+                  <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                </span>
+                <span className="shrink-0 tabular-nums text-slate-700">{formatQuoteCurrency(document.advance_amount)}đ</span>
+              </a>
+            </div>
+          )
+        })}
+      </div>
+    </section>
   )
 }
 
@@ -980,7 +938,7 @@ function PaymentRequestEditor({ draft, documents, updateFormData }) {
     const selected = acceptanceDocuments.find(row => row.id === documentId)
     updateFormData({
       acceptance_document_id: documentId,
-      acceptance_document_number: selected?.document_number || '',
+      acceptance_document_number: formatContractDocumentNumberForDisplay(selected?.document_number) || '',
       acceptance_issued_date: selected?.issued_date || '',
       acceptance_total: selected ? getAcceptanceDocumentTotal(selected) : 0,
     })
@@ -999,7 +957,7 @@ function PaymentRequestEditor({ draft, documents, updateFormData }) {
         ...currentRows.filter(row => row.document_id !== document.id),
         {
           document_id: document.id,
-          document_number: document.document_number || '',
+          document_number: formatContractDocumentNumberForDisplay(document.document_number) || '',
           document_title: document.title || '',
           original_amount: amount,
           deduction_amount: amount,
@@ -1312,7 +1270,7 @@ export function ContractDocumentEditorForm({
             <h2 className="text-[16px] font-semibold text-slate-950">
               {title}
               {draft.document_number ? (
-                <span className="ml-2 text-[#f8981d]">{draft.document_number}</span>
+                <span className="ml-2 text-[#f8981d]">{formatContractDocumentNumberForDisplay(draft.document_number)}</span>
               ) : null}
             </h2>
             {!draft.document_number ? (
@@ -1348,7 +1306,7 @@ export function ContractDocumentEditorForm({
                 ) : null}
               </Field>
               <Field label="Số chứng từ">
-                <TextInput value={draft.document_number || 'Tự cấp khi lưu'} readOnly className="bg-slate-50 font-semibold text-slate-700" />
+                <TextInput value={formatContractDocumentNumberForDisplay(draft.document_number) || 'Tự cấp khi lưu'} readOnly className="bg-slate-50 font-semibold text-slate-700" />
               </Field>
             </div>
 
@@ -1511,7 +1469,7 @@ export function DeleteDocumentConfirmModal({ document, deleting, error, onCancel
           </div>
           <div className="grid gap-1 sm:grid-cols-[96px_minmax(0,1fr)]">
             <dt className="font-semibold text-slate-500">Số</dt>
-            <dd className="font-semibold text-slate-950">{document.document_number || '-'}</dd>
+            <dd className="font-semibold text-slate-950">{formatContractDocumentNumberForDisplay(document.document_number) || '-'}</dd>
           </div>
           <div className="grid gap-1 sm:grid-cols-[96px_minmax(0,1fr)]">
             <dt className="font-semibold text-slate-500">Tiêu đề</dt>
@@ -1860,7 +1818,7 @@ export default function ContractDocumentsPanel({ contract }) {
                         onClick={() => openEditDocument(document)}
                         className="font-semibold text-blue-700 hover:text-blue-800 hover:underline"
                       >
-                        {document.document_number || '-'}
+                        {formatContractDocumentNumberForDisplay(document.document_number) || '-'}
                       </button>
                     </td>
                     <td className="px-4 py-3 text-right font-semibold tabular-nums text-slate-800">{amount ? `${formatQuoteCurrency(amount)}đ` : '-'}</td>

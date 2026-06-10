@@ -1,5 +1,16 @@
 import { normalizeQuoteValidityDays } from './quoteValidity.js'
 
+export const QUOTE_ACTUAL_PRODUCT_TITLE = 'SẢN PHẨM THỰC TẾ'
+export const QUOTE_ACTUAL_PRODUCT_URL = 'https://portfolio.eventusproduction.com/'
+export const QUOTE_ACTUAL_PRODUCT_PREFIX = 'Trải nghiệm chất lượng sản phẩm thực tế của chúng tôi tại:'
+
+export function getQuotePaymentTerms() {
+  return [
+    'Đợt 1 (Tạm ứng): Quý khách vui lòng thanh toán 50% tổng giá trị báo giá sau khi xác nhận báo giá để giữ lịch nhân sự và chuẩn bị thiết bị.',
+    'Đợt 2 (Tất toán): Thanh toán 50% giá trị còn lại trong vòng 03 ngày làm việc sau khi bàn giao đầy đủ sản phẩm cuối cùng.',
+  ]
+}
+
 export function getDefaultQuoteTerms(quote = {}) {
   const validityDays = normalizeQuoteValidityDays(quote.validity_days)
 

@@ -21,6 +21,7 @@ import {
   hasDocumentText,
   shouldShowAcceptanceAmountTables,
 } from '../lib/contractDocumentRender'
+import { formatContractDocumentNumberForDisplay } from '../lib/contractDocumentEditor'
 
 const PDF_FONT_FAMILY = 'BeVietnamProContractDocument'
 const FONT_PATH = '/fonts/be-vietnam-pro'
@@ -642,6 +643,7 @@ export default function ContractDocumentPDFDocument({ document = {} }) {
   const seller = getSellerProfile(document)
   const bank = getBankAccountDetails(document)
   const issuedDate = getDisplayDocumentIssuedDate(document)
+  const documentNumber = formatContractDocumentNumberForDisplay(document.document_number)
   const acceptanceContent = document.document_type === 'acceptance_liquidation'
     ? getAcceptanceLiquidationContent(document)
     : null
@@ -653,7 +655,7 @@ export default function ContractDocumentPDFDocument({ document = {} }) {
     : false
 
   return (
-    <Document title={document.document_number || getDocumentTitle(document)}>
+    <Document title={documentNumber || getDocumentTitle(document)}>
       <Page size="A4" style={styles.page}>
         {document.document_type === 'advance_request' || document.document_type === 'payment_request' ? (
           <>
@@ -661,7 +663,7 @@ export default function ContractDocumentPDFDocument({ document = {} }) {
             <Text style={styles.paymentHeader}>Độc lập - Tự do - Hạnh phúc</Text>
             {issuedDate ? <Text style={styles.paymentDate}>Ngày {issuedDate}</Text> : null}
             <Text style={styles.paymentTitle}>{getDocumentTitle(document)}</Text>
-            <Text style={styles.paymentNumber}>Số: {document.document_number || '-'}</Text>
+            <Text style={styles.paymentNumber}>Số: {documentNumber || '-'}</Text>
             {document.document_type === 'payment_request' ? <PaymentBody document={document} /> : <AdvanceBody document={document} />}
             <View style={styles.paymentSignatureWrap}>
               <View style={styles.paymentSignature}>
@@ -731,7 +733,7 @@ export default function ContractDocumentPDFDocument({ document = {} }) {
         <Text style={styles.national}>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</Text>
         <Text style={styles.national}>Độc lập - Tự do - Hạnh phúc</Text>
         <Text style={styles.title}>{getDocumentTitle(document)}</Text>
-        <Text style={styles.subtitle}>Số: {document.document_number || '-'} | Ngày lập: {issuedDate || '-'}</Text>
+        <Text style={styles.subtitle}>Số: {documentNumber || '-'} | Ngày lập: {issuedDate || '-'}</Text>
 
         <View style={styles.parties}>
           <PartyCard title={document.document_type === 'acceptance_liquidation' ? 'Bên A' : 'Kính gửi'} profile={customer} />

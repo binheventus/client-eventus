@@ -14,6 +14,7 @@ import {
 } from './lib/mysql.js'
 import { requireEventusAuth } from './lib/eventus-auth.js'
 import { loadServerEnv } from './lib/server-env.js'
+import { expandQuoteEntityFilterValues, normalizeQuoteEntityCode } from './lib/entity-codes.js'
 import { calculateQuotePricing } from '../web/src/features/quotes/lib/pricingCalculator.js'
 
 const require = createRequire(import.meta.url)
@@ -260,13 +261,6 @@ function getCurrentQuotePricingContext() {
   }
 }
 
-function normalizeEntityCode(value) {
-  const code = normalizeCode(value || DEFAULT_ENTITY_CODE)
-  if (['EVENTUS', 'EVT', 'EVENTUS VIET NAM', 'CONG TY TNHH EVENTUS VIET NAM'].includes(code)) return 'EVENTUS'
-  if (['MEDIAMONSTER', 'MEDIA_MONSTER', 'MMS'].includes(code)) return 'MEDIAMONSTER'
-  return code || DEFAULT_ENTITY_CODE
-}
-
 function normalizeTierCode(value) {
   const code = normalizeCode(value || DEFAULT_TIER_CODE).replace(/^TIER(\d)$/i, 'TIER_$1')
   return VALID_TIER_CODES.has(code) ? code : DEFAULT_TIER_CODE
@@ -346,7 +340,7 @@ function normalizeQuotePayload(payload = {}) {
     ...payload,
     client_id: emptyToNull(payload.client_id),
     client_name: emptyToNull(payload.client_name),
-    entity_code: normalizeEntityCode(payload.entity_code),
+    entity_code: normalizeQuoteEntityCode(payload.entity_code, DEFAULT_ENTITY_CODE),
     tier_code: normalizeTierCode(payload.tier_code),
     event_date: normalizeDate(payload.event_date),
     duration_hours: emptyToNull(payload.duration_hours),
@@ -649,14 +643,16 @@ function addQuoteFilters(where, params, filters = {}) {
     const column = filterColumns[key]
     if (!column) return
 
-    if (values.length > 1) {
-      where.push(`${column} in (${values.map(() => '?').join(', ')})`)
-      params.push(...values)
+    const filterValues = key === 'entity_code' ? expandQuoteEntityFilterValues(values) : values
+
+    if (filterValues.length > 1) {
+      where.push(`${column} in (${filterValues.map(() => '?').join(', ')})`)
+      params.push(...filterValues)
       return
     }
 
     where.push(`${column} = ?`)
-    params.push(rawValue)
+    params.push(filterValues[0] || rawValue)
   })
 }
 
@@ -724,7 +720,10 @@ async function getQuoteAuditLogs(quoteId) {
       id: item.id || `${quoteId}-${item.service_code}`,
       action: 'price_override',
       created_at: item.updated_at || item.created_at,
-      description: `Sua gia ${item.service_name || item.service_code}: ${item.original_unit_price} -> ${item.unit_price}`,
+      service_name: item.service_name || item.service_code,
+      original_unit_price: item.original_unit_price,
+      unit_price: item.unit_price,
+      description: `Sửa giá: ${item.service_name || item.service_code} ${new Intl.NumberFormat('vi-VN').format(Number(item.original_unit_price) || 0)} -> ${new Intl.NumberFormat('vi-VN').format(Number(item.unit_price) || 0)}`,
       reason: item.override_reason,
     }))
 }

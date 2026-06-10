@@ -1,4 +1,5 @@
 import legalEntitiesData from '../../../data/pricing/legal_entities.json' with { type: 'json' }
+import { findLegalEntityByAlias, normalizeLegalEntityCode } from './entityCodes.js'
 
 export const MEDIAMONSTER_SAMPLE_TEMPLATE_ID = 'system-mediamonster-service-contract'
 export const DEFAULT_CONTRACT_TEMPLATE_ID = MEDIAMONSTER_SAMPLE_TEMPLATE_ID
@@ -33,6 +34,11 @@ export const DEFAULT_QUOTE_TABLE_CONFIG = {
   placement: CONTRACT_TABLE_PLACEMENTS.APPENDIX,
   group_by_day: true,
   show_vat: true,
+}
+
+const CONTRACT_NUMBER_PREFIX_BY_ENTITY = {
+  EVENTUS: 'HDEVT',
+  MMT: 'HDMMT',
 }
 
 export const DEFAULT_CONTRACT_PREAMBLE = [
@@ -172,7 +178,7 @@ export const DEFAULT_CONTRACT_TEMPLATES = [
     name: 'Mẫu Mediamonster theo form 18.05.2026',
     description: 'Mẫu cấu trúc lại từ file Form hợp đồng Mediamonster_18.05.2026.',
     title: DEFAULT_CONTRACT_TITLE,
-    seller_entity_code: 'MEDIAMONSTER',
+    seller_entity_code: 'MMT',
     party_role_config: DEFAULT_PARTY_ROLE_CONFIG,
     contract_number_pattern: '{{dd}}{{mm}}/HDMMT-{{customer_short_code}}/{{yyyy}}',
     preamble: DEFAULT_CONTRACT_PREAMBLE,
@@ -236,22 +242,14 @@ export function getTodayInputDate() {
 }
 
 export function applySellerEntityToContractNumberPattern(pattern = 'HD-{{quote_code}}', entityCode = '') {
-  const prefixByEntity = {
-    EVENTUS: 'HDEVT',
-    MEDIAMONSTER: 'HDMMT',
-  }
-  const prefix = prefixByEntity[String(entityCode || '').toUpperCase()]
+  const prefix = CONTRACT_NUMBER_PREFIX_BY_ENTITY[normalizeLegalEntityCode(entityCode)]
   const normalizedPattern = String(pattern || 'HD-{{quote_code}}')
 
   return prefix ? normalizedPattern.replace(/HD(?:EVT|MMT)(?=-)/g, prefix) : normalizedPattern
 }
 
 export function applySellerEntityToContractNumber(contractNumber = '', entityCode = '') {
-  const prefixByEntity = {
-    EVENTUS: 'HDEVT',
-    MEDIAMONSTER: 'HDMMT',
-  }
-  const prefix = prefixByEntity[String(entityCode || '').toUpperCase()]
+  const prefix = CONTRACT_NUMBER_PREFIX_BY_ENTITY[normalizeLegalEntityCode(entityCode)]
   const normalizedContractNumber = String(contractNumber || '')
 
   return prefix ? normalizedContractNumber.replace(/HD(?:EVT|MMT)(?=-)/g, prefix) : normalizedContractNumber
@@ -282,10 +280,6 @@ export function canCreateContractFromQuote(quote = {}) {
   return Boolean(quote?.id) && !quote.deleted_at
 }
 
-function normalizeEntityCode(value = '') {
-  return String(value || '').trim().toUpperCase()
-}
-
 export function getLegalEntityCode(entity = {}) {
   return entity.entity_code || entity.code || entity.source_entity_code || ''
 }
@@ -295,13 +289,7 @@ export function getLegalEntityLabel(entity = {}) {
 }
 
 export function findLegalEntityByCode(entityCode = '', legalEntities = legalEntitiesData) {
-  const normalizedCode = normalizeEntityCode(entityCode || 'EVENTUS')
-  return (Array.isArray(legalEntities) ? legalEntities : []).find(row => (
-    [row?.entity_code, row?.code, row?.source_entity_code]
-      .filter(Boolean)
-      .map(normalizeEntityCode)
-      .includes(normalizedCode)
-  )) || null
+  return findLegalEntityByAlias(entityCode || 'EVENTUS', legalEntities)
 }
 
 export function getEntityBankDetails(entity = {}) {

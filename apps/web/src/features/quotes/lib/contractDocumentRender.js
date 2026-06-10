@@ -3,6 +3,7 @@ import {
   calculateAdvanceDocumentsTotal,
   calculatePaymentSummary,
   calculateTableTotals,
+  formatContractDocumentNumberForDisplay,
   getContractVatConfig,
   roundDocumentCurrency,
   toDocumentNumber,
@@ -32,6 +33,8 @@ export function formatDocumentDate(value) {
 export function isDocumentIssuedDateHidden(document = {}) {
   return Boolean(getDocumentFormData(document).hide_issued_date)
 }
+
+const HANDWRITTEN_DATE_PLACEHOLDER = '\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0/\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0/\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0'
 
 export function getDisplayDocumentIssuedDate(document = {}) {
   if (isDocumentIssuedDateHidden(document)) return ''
@@ -331,7 +334,9 @@ function getAcceptanceTemplateTokenValues(document = {}) {
   const seller = getSellerProfile(document)
   const summary = getAcceptanceSummary(document)
   const bank = getBankAccountDetails(document)
-  const issuedDate = getDisplayDocumentIssuedDate(document)
+  const issuedDate = isDocumentIssuedDateHidden(document)
+    ? HANDWRITTEN_DATE_PLACEHOLDER
+    : getDisplayDocumentIssuedDate(document)
   const signingDate = formatDocumentDate(contract.signing_date || contract.quote_table_config?.signing_date)
 
   return {
@@ -407,12 +412,12 @@ export function getPaymentSummary(document = {}) {
 
   return {
     acceptance_document_id: formData.acceptance_document_id || getDocumentData(document).acceptance_document_id || amountConfig.acceptance_document_id || '',
-    acceptance_document_number: formData.acceptance_document_number || getDocumentData(document).acceptance_document_number || amountConfig.acceptance_document_number || '',
+    acceptance_document_number: formatContractDocumentNumberForDisplay(formData.acceptance_document_number || getDocumentData(document).acceptance_document_number || amountConfig.acceptance_document_number || ''),
     acceptance_issued_date: formData.acceptance_issued_date || getDocumentData(document).acceptance_issued_date || amountConfig.acceptance_issued_date || '',
     acceptance_total: acceptanceTotal,
     advance_deductions: deductions.map((row, index) => ({
       document_id: row.document_id || row.id || `advance-${index + 1}`,
-      document_number: row.document_number || '',
+      document_number: formatContractDocumentNumberForDisplay(row.document_number) || '',
       document_title: row.document_title || row.title || 'Đề nghị tạm ứng',
       original_amount: roundDocumentCurrency(row.original_amount ?? row.advance_amount ?? 0),
       deduction_amount: roundDocumentCurrency(row.deduction_amount ?? row.original_amount ?? row.advance_amount ?? 0),
@@ -480,7 +485,7 @@ export function getPaymentRequestContent(document = {}) {
 }
 
 export function getContractDocumentFilename(document = {}, extension = 'pdf') {
-  const rawName = document.document_number || getDocumentTitle(document) || document.id || 'Chung-tu'
+  const rawName = formatContractDocumentNumberForDisplay(document.document_number) || getDocumentTitle(document) || document.id || 'Chung-tu'
   return `${sanitizeFilenamePart(rawName)}.${extension}`
 }
 

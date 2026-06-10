@@ -20,6 +20,7 @@ import {
   hasDocumentText,
   shouldShowAcceptanceAmountTables,
 } from './contractDocumentRender'
+import { formatContractDocumentNumberForDisplay } from './contractDocumentEditor'
 
 const encoder = new TextEncoder()
 const DOCX_FONT_FAMILY = 'Times New Roman'
@@ -575,7 +576,7 @@ function documentXml(document = {}) {
     ${paymentParagraph('Độc lập - Tự do - Hạnh phúc', { align: 'center', bold: true, after: 0 })}
     ${issuedDate ? paymentParagraph(`Ngày ${issuedDate}`, { align: 'right', italic: true, before: 360, after: 320 }) : paymentParagraph('', { size: 4, line: 360, lineRule: 'exact', after: 320 })}
     ${paymentParagraph(getUppercaseDocumentTitle(document), { align: 'center', bold: true, size: 28, line: 340, after: 60 })}
-    ${paymentParagraph(`Số: ${document.document_number || ''}`, { align: 'center', after: 360 })}
+    ${paymentParagraph(`Số: ${formatContractDocumentNumberForDisplay(document.document_number) || ''}`, { align: 'center', after: 360 })}
     ${document.document_type === 'payment_request' ? paymentXml(document) : advanceXml(document)}
     ${paymentSignatureTable()}
     <w:sectPr><w:pgSz w:w="11906" w:h="16838"/>${DOCX_PAYMENT_MARGINS_XML}</w:sectPr>
@@ -613,7 +614,7 @@ function documentXml(document = {}) {
     ${paragraph('CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM', { align: 'center' })}
     ${paragraph('Độc lập - Tự do - Hạnh phúc', { align: 'center' })}
     ${paragraph(getDocumentTitle(document), { style: 'Title', align: 'center', bold: true })}
-    ${paragraph(`Số: ${document.document_number || ''} | Ngày lập: ${issuedDate}`, { align: 'center', bold: true })}
+    ${paragraph(`Số: ${formatContractDocumentNumberForDisplay(document.document_number) || ''} | Ngày lập: ${issuedDate}`, { align: 'center', bold: true })}
     ${partyTable(document)}
     ${richParagraph([{ text: 'Loại chứng từ: ', bold: true }, { text: getDocumentTypeLabel(document.document_type) }, { text: '    Hợp đồng: ', bold: true }, { text: contract.contract_number || '' }])}
     ${bodyXml(document)}

@@ -43,7 +43,7 @@ test('applyRemoteQuoteFilters maps supported filters to the existing query opera
     date_from: '2026-05-01',
     date_to: '2026-05-19',
     status: 'sent',
-    entity_code: ['EVENTUS', 'MEDIAMONSTER'],
+    entity_code: ['EVENTUS', 'MMT'],
   })
 
   assert.deepEqual(query.calls, [
@@ -51,7 +51,7 @@ test('applyRemoteQuoteFilters maps supported filters to the existing query opera
     ['gte', 'created_at', '2026-05-01'],
     ['lte', 'created_at', '2026-05-19'],
     ['eq', 'status', 'sent'],
-    ['in', 'entity_code', ['EVENTUS', 'MEDIAMONSTER']],
+    ['in', 'entity_code', ['EVENTUS', 'MMT', 'MEDIAMONSTER', 'MMS']],
   ])
 })
 
@@ -71,11 +71,11 @@ test('applyLocalQuoteFilters preserves active quote filtering semantics', () => 
 test('buildQuoteApiPath keeps current query-string behavior', () => {
   assert.equal(
     buildQuoteApiPath({
-      filters: { search: 'Alpha', status: 'sent', entity_code: ['EVENTUS', 'MEDIAMONSTER'], tier_code: '' },
+      filters: { search: 'Alpha', status: 'sent', entity_code: ['EVENTUS', 'MMT'], tier_code: '' },
       page: 2,
       pageSize: 20,
     }),
-    '?search=Alpha&status=sent&entity_code=EVENTUS%2CMEDIAMONSTER&page=2&pageSize=20',
+    '?search=Alpha&status=sent&entity_code=EVENTUS%2CMMT%2CMEDIAMONSTER%2CMMS&page=2&pageSize=20',
   )
 })
 

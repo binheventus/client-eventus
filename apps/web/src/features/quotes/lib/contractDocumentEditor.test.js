@@ -12,6 +12,7 @@ import {
   getCustomerValidationWarnings,
   getContractTotal,
   getContractVatConfig,
+  formatContractDocumentNumberForDisplay,
   renderContractDocumentNumber,
   summarizeContractAdvanceDocuments,
 } from './contractDocumentEditor.js'
@@ -32,7 +33,25 @@ test('renderContractDocumentNumber updates seller token while preserving allocat
       customer: getContractDocumentCustomerCode(contract),
       year: '2026',
     }),
-    '0007/DNTT-MEDIAMONSTER/ACME/2026',
+    '0007/DNTT-MMT/ACME/2026',
+  )
+})
+
+test('renderContractDocumentNumber uses EVT for Eventus seller code', () => {
+  assert.equal(
+    renderContractDocumentNumber('{{sequence}}/{{document_type_code}}-{{seller}}/{{customer}}/{{year}}', {
+      sequence: '0002',
+      document_type_code: 'DNTU',
+      seller: 'EVENTUS',
+      customer: 'C.S.Q',
+      year: '2026',
+    }),
+    '0002/DNTU-EVT/C.S.Q/2026',
+  )
+
+  assert.equal(
+    formatContractDocumentNumberForDisplay('0002/DNTU-EVENTUS/C.S.Q/2026'),
+    '0002/DNTU-EVT/C.S.Q/2026',
   )
 })
 
