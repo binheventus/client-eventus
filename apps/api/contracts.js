@@ -58,6 +58,16 @@ const CONTRACT_DOCUMENT_TYPE_CODES = {
   acceptance_liquidation: 'BBNTTL',
   payment_request: 'DNTT',
 }
+const CONTRACT_DOCUMENT_TYPE_ORDER = [
+  'advance_request',
+  'acceptance_liquidation',
+  'payment_request',
+]
+const CONTRACT_DOCUMENT_BADGE_LABELS = {
+  advance_request: 'Đề nghị tạm ứng',
+  acceptance_liquidation: 'Biên bản nghiệm thu',
+  payment_request: 'Đề nghị thanh toán',
+}
 const DEFAULT_DOCUMENT_NUMBER_PATTERN = '{{sequence}}/{{document_type_code}}-{{seller}}/{{customer}}/{{year}}'
 const DEFAULT_CONTRACT_DOCUMENT_TEMPLATES = [
   {
@@ -420,6 +430,59 @@ function normalizeDocumentRow(row = {}) {
   return normalized
 }
 
+function normalizeContractDocumentBadge(row = {}) {
+  const type = row.document_type || ''
+  const shareToken = row.share_token || ''
+
+  return {
+    type,
+    label: CONTRACT_DOCUMENT_BADGE_LABELS[type] || type,
+    id: row.id || '',
+    contract_id: row.contract_id || '',
+    share_token: shareToken,
+    number: row.document_number || '',
+    url: shareToken ? `/d/${encodeURIComponent(shareToken)}` : '',
+  }
+}
+
+async function attachContractDocuments(contracts = []) {
+  const contractIds = [...new Set(contracts.map(contract => contract.id).filter(Boolean))]
+  if (!contractIds.length) {
+    return contracts.map(contract => ({ ...contract, contract_documents: [] }))
+  }
+
+  const placeholders = contractIds.map(() => '?').join(', ')
+  const documentRows = await runQuery(
+    `select id, contract_id, document_type, document_number, share_token, issued_date, created_at
+     from ${tables.contractDocuments}
+     where deleted_at is null
+       and contract_id in (${placeholders})
+       and document_type in (${CONTRACT_DOCUMENT_TYPE_ORDER.map(() => '?').join(', ')})
+     order by contract_id asc,
+       field(document_type, ${CONTRACT_DOCUMENT_TYPE_ORDER.map(() => '?').join(', ')}),
+       issued_date desc,
+       created_at desc`,
+    [...contractIds, ...CONTRACT_DOCUMENT_TYPE_ORDER, ...CONTRACT_DOCUMENT_TYPE_ORDER],
+  )
+
+  const documentsByContract = new Map()
+  for (const row of documentRows) {
+    if (!documentsByContract.has(row.contract_id)) documentsByContract.set(row.contract_id, new Map())
+    const documentsByType = documentsByContract.get(row.contract_id)
+    if (!documentsByType.has(row.document_type)) {
+      documentsByType.set(row.document_type, normalizeContractDocumentBadge(row))
+    }
+  }
+
+  return contracts.map(contract => {
+    const documentsByType = documentsByContract.get(contract.id) || new Map()
+    return {
+      ...contract,
+      contract_documents: CONTRACT_DOCUMENT_TYPE_ORDER.map(type => documentsByType.get(type)).filter(Boolean),
+    }
+  })
+}
+
 function normalizeJobRow(row = {}) {
   if (!row) return row
   const locationText = stripHtml(row.job_description)
@@ -615,8 +678,10 @@ async function listContracts(queryParams = {}) {
     params,
   )
 
+  const contracts = await attachContractDocuments(rows.map(normalizeContractRow))
+
   return {
-    contracts: rows.map(normalizeContractRow),
+    contracts,
     count: Number(countRows?.[0]?.count || 0),
     page,
     pageSize,
@@ -1745,6 +1810,7 @@ export const __contractsTestInternals = Object.freeze({
   deleteDocument,
   getDocumentById,
   getDocumentByShareToken,
+  listContracts,
   listDocumentsByContract,
   saveContract,
   saveDocument,

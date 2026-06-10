@@ -3,14 +3,17 @@ import test from 'node:test'
 import {
   buildContractValueRows,
   calculateAdvanceAmount,
+  calculateAdvanceDocumentsTotal,
   calculateAdvancePercent,
   calculatePaymentSummary,
   calculateTableTotals,
+  getContractAdvanceDocumentLinks,
   getContractDocumentCustomerCode,
   getCustomerValidationWarnings,
   getContractTotal,
   getContractVatConfig,
   renderContractDocumentNumber,
+  summarizeContractAdvanceDocuments,
 } from './contractDocumentEditor.js'
 
 test('renderContractDocumentNumber updates seller token while preserving allocated sequence', () => {
@@ -83,6 +86,78 @@ test('acceptance total includes negative actual rows before VAT', () => {
 test('advance helpers round amount and reverse percent', () => {
   assert.equal(calculateAdvanceAmount(10_800_000, 30), 3_240_000)
   assert.equal(calculateAdvancePercent(10_800_000, 3_240_000), 30)
+})
+
+test('advance document helpers collect and total related advance requests', () => {
+  const documents = [
+    {
+      id: 'advance-1',
+      document_type: 'advance_request',
+      document_number: '0001/DNTU-EVT/ACME/2026',
+      issued_date: '2026-06-01',
+      document_data: {
+        amount_config: {
+          advance_amount: 3_240_000,
+        },
+      },
+    },
+    {
+      id: 'acceptance-1',
+      document_type: 'acceptance_liquidation',
+      document_data: {
+        amount_config: {
+          acceptance_amount: 10_800_000,
+        },
+      },
+    },
+    {
+      id: 'advance-2',
+      document_type: 'advance_request',
+      document_number: '0002/DNTU-EVT/ACME/2026',
+      document_data: {
+        advance_amount: 1_000_000,
+      },
+    },
+  ]
+
+  const links = getContractAdvanceDocumentLinks(documents, 'acceptance-1')
+  const summary = summarizeContractAdvanceDocuments(documents, 'acceptance-1')
+
+  assert.deepEqual(links.map(document => document.document_id), ['advance-1', 'advance-2'])
+  assert.equal(calculateAdvanceDocumentsTotal(links), 4_240_000)
+  assert.equal(summary.advance_paid, 4_240_000)
+})
+
+test('advance document helpers exclude unpaid requests from acceptance totals', () => {
+  const documents = [
+    {
+      id: 'advance-1',
+      document_type: 'advance_request',
+      document_number: '0001/DNTU-EVT/ACME/2026',
+      document_data: {
+        amount_config: {
+          advance_amount: 3_240_000,
+        },
+      },
+    },
+    {
+      id: 'advance-2',
+      document_type: 'advance_request',
+      document_number: '0002/DNTU-EVT/ACME/2026',
+      document_data: {
+        amount_config: {
+          advance_amount: 1_000_000,
+        },
+      },
+    },
+  ]
+
+  const links = getContractAdvanceDocumentLinks(documents, 'acceptance-1', ['advance-2'])
+  const summary = summarizeContractAdvanceDocuments(documents, 'acceptance-1', ['advance-2'])
+
+  assert.deepEqual(links.map(document => document.document_id), ['advance-1'])
+  assert.equal(calculateAdvanceDocumentsTotal(links), 3_240_000)
+  assert.equal(summary.advance_paid, 3_240_000)
 })
 
 test('calculatePaymentSummary deducts only selected advance requests', () => {

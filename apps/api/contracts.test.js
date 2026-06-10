@@ -64,6 +64,24 @@ function createFakeContractsApi() {
       return selectFirst(tables.contractDocuments, row => row.id === params[0] && active(row))
     }
 
+    if (compactSql.startsWith(`select id, contract_id, document_type, document_number, share_token, issued_date, created_at from ${tables.contractDocuments}`)) {
+      const documentTypes = ['advance_request', 'acceptance_liquidation', 'payment_request']
+      const contractIds = new Set(params.slice(0, -documentTypes.length * 2))
+      const allowedTypes = new Set(params.slice(contractIds.size, contractIds.size + documentTypes.length))
+
+      return rowsFor(tables.contractDocuments)
+        .filter(row => contractIds.has(row.contract_id) && active(row) && allowedTypes.has(row.document_type))
+        .sort((left, right) => {
+          const contractSort = String(left.contract_id).localeCompare(String(right.contract_id))
+          if (contractSort !== 0) return contractSort
+          const typeSort = documentTypes.indexOf(left.document_type) - documentTypes.indexOf(right.document_type)
+          if (typeSort !== 0) return typeSort
+          return String(right.issued_date || '').localeCompare(String(left.issued_date || '')) ||
+            String(right.created_at || '').localeCompare(String(left.created_at || ''))
+        })
+        .map(clone)
+    }
+
     if (compactSql.startsWith(`select * from ${tables.contractDocuments} where contract_id = ?`)) {
       const [contractId, documentType] = params
       return rowsFor(tables.contractDocuments)
@@ -185,6 +203,20 @@ function createFakeContractsApi() {
       return selectFirst(tables.contracts, row => row.source_type === 'job' && row.external_job_id === params[0] && row.deleted_at)
     }
 
+    if (compactSql.startsWith(`select count(*) as count from ${tables.contracts} c`)) {
+      return [{ count: rowsFor(tables.contracts).filter(active).length }]
+    }
+
+    if (compactSql.startsWith(`select c.* from ${tables.contracts} c`)) {
+      return rowsFor(tables.contracts)
+        .filter(active)
+        .sort((left, right) => (
+          String(right.updated_at || '').localeCompare(String(left.updated_at || '')) ||
+          String(right.created_at || '').localeCompare(String(left.created_at || ''))
+        ))
+        .map(clone)
+    }
+
     throw new Error(`Unhandled fake SQL: ${compactSql}`)
   }
 
@@ -282,6 +314,47 @@ test('new contracts get short ct-prefixed ids by default', () => withFakeContrac
   const contract = await createContract({ id: undefined })
 
   assert.match(contract.id, /^ct_[0-9a-f]{16}$/)
+}))
+
+test('contract list includes related document badges', () => withFakeContractsApi(async () => {
+  const contract = await createContract()
+  await createDocument(contract, 'advance_request', {
+    id: 'advance-old',
+    issued_date: '2026-01-01',
+  })
+  const latestAdvance = await createDocument(contract, 'advance_request', {
+    id: 'advance-new',
+    issued_date: '2026-06-01',
+  })
+  const acceptance = await createDocument(contract, 'acceptance_liquidation', {
+    id: 'acceptance-1',
+    issued_date: '2026-06-02',
+  })
+  const payment = await createDocument(contract, 'payment_request', {
+    id: 'payment-1',
+    issued_date: '2026-06-03',
+    document_data: {
+      form_data: {
+        acceptance_document_id: acceptance.id,
+      },
+      amount_config: {},
+    },
+  })
+
+  const result = await __contractsTestInternals.listContracts({ pageSize: 50 })
+  const row = result.contracts.find(item => item.id === contract.id)
+
+  assert.deepEqual(row.contract_documents.map(document => document.label), [
+    'Đề nghị tạm ứng',
+    'Biên bản nghiệm thu',
+    'Đề nghị thanh toán',
+  ])
+  assert.deepEqual(row.contract_documents.map(document => document.id), [
+    latestAdvance.id,
+    acceptance.id,
+    payment.id,
+  ])
+  assert.equal(row.contract_documents[0].contract_id, contract.id)
 }))
 
 test('creates multiple documents of the same type in one contract', () => withFakeContractsApi(async () => {

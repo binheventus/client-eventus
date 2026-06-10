@@ -151,6 +151,64 @@ export function calculateAdvancePercent(contractValue = 0, advanceAmount = 0) {
   return Math.round((toDocumentNumber(advanceAmount, 0) / total) * 10000) / 100
 }
 
+export function getAdvanceDocumentAmount(document = {}) {
+  const data = document?.document_data || {}
+  const amountConfig = data.amount_config || {}
+  return roundDocumentCurrency(
+    amountConfig.advance_amount ??
+    data.advance_amount ??
+    data.amount ??
+    0,
+  )
+}
+
+export function normalizeDocumentIdList(values = []) {
+  const source = Array.isArray(values) ? values : [values]
+  return [...new Set(source.map(value => String(value || '').trim()).filter(Boolean))]
+}
+
+export function getContractAdvanceDocumentLinks(documents = [], currentDocumentId = '', excludedDocumentIds = []) {
+  const excludedIds = new Set(normalizeDocumentIdList(excludedDocumentIds))
+  return (Array.isArray(documents) ? documents : [])
+    .filter(document => (
+      document?.document_type === 'advance_request' &&
+      (!currentDocumentId || document.id !== currentDocumentId) &&
+      !excludedIds.has(String(document.id || ''))
+    ))
+    .map(document => {
+      const advanceAmount = getAdvanceDocumentAmount(document)
+      return {
+        document_id: document.id || '',
+        document_number: document.document_number || '',
+        document_title: document.title || '',
+        issued_date: document.issued_date || '',
+        original_amount: advanceAmount,
+        advance_amount: advanceAmount,
+      }
+    })
+    .filter(document => document.document_id || document.document_number || document.advance_amount)
+}
+
+export function calculateAdvanceDocumentsTotal(documents = []) {
+  return roundDocumentCurrency((Array.isArray(documents) ? documents : []).reduce((sum, document) => (
+    sum + toDocumentNumber(
+      document.original_amount ??
+      document.advance_amount ??
+      document.amount ??
+      document.deduction_amount,
+      0,
+    )
+  ), 0))
+}
+
+export function summarizeContractAdvanceDocuments(documents = [], currentDocumentId = '', excludedDocumentIds = []) {
+  const linkedAdvanceDocuments = getContractAdvanceDocumentLinks(documents, currentDocumentId, excludedDocumentIds)
+  return {
+    linked_advance_documents: linkedAdvanceDocuments,
+    advance_paid: calculateAdvanceDocumentsTotal(linkedAdvanceDocuments),
+  }
+}
+
 export function calculatePaymentSummary(acceptanceTotal = 0, deductions = []) {
   const deductionTotal = roundDocumentCurrency((Array.isArray(deductions) ? deductions : []).reduce((sum, row) => (
     sum + toDocumentNumber(row.deduction_amount, 0)

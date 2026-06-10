@@ -1,5 +1,6 @@
 import { numberToVietnameseWords, sanitizeFilenamePart } from './contractDefaults.js'
 import {
+  calculateAdvanceDocumentsTotal,
   calculatePaymentSummary,
   calculateTableTotals,
   getContractVatConfig,
@@ -234,6 +235,7 @@ export function getAdvanceRequestContent(document = {}) {
 
 export function getAcceptanceSummary(document = {}) {
   const formData = getDocumentFormData(document)
+  const data = getDocumentData(document)
   const amountConfig = getDocumentAmountConfig(document)
   const contract = getContractFromDocument(document)
   const vatConfig = {
@@ -256,6 +258,24 @@ export function getAcceptanceSummary(document = {}) {
         vat_amount: roundDocumentCurrency(amountConfig.acceptance_vat_amount || 0),
         total_amount: roundDocumentCurrency(amountConfig.acceptance_actual_total || amountConfig.acceptance_amount || 0),
       }
+  const linkedAdvanceDocuments = Array.isArray(formData.linked_advance_documents)
+    ? formData.linked_advance_documents
+    : Array.isArray(data.linked_advance_documents)
+      ? data.linked_advance_documents
+      : Array.isArray(amountConfig.linked_advance_documents)
+        ? amountConfig.linked_advance_documents
+        : []
+  const linkedAdvancePaid = calculateAdvanceDocumentsTotal(linkedAdvanceDocuments)
+  const advancePaid = linkedAdvancePaid > 0
+    ? linkedAdvancePaid
+    : roundDocumentCurrency(formData.advance_paid ?? amountConfig.advance_paid ?? 0)
+  const remainingAmount = linkedAdvancePaid > 0
+    ? Math.max(0, roundDocumentCurrency(actualTotals.total_amount - advancePaid))
+    : roundDocumentCurrency(
+        formData.remaining_amount ??
+        amountConfig.remaining_amount ??
+        Math.max(0, actualTotals.total_amount - advancePaid),
+      )
 
   return {
     vat_config: vatConfig,
@@ -265,12 +285,9 @@ export function getAcceptanceSummary(document = {}) {
     actual_totals: actualTotals,
     acceptance_note: formData.acceptance_note || getDocumentData(document).note || '',
     acceptance_result: formData.acceptance_result || 'accepted',
-    advance_paid: roundDocumentCurrency(formData.advance_paid ?? amountConfig.advance_paid ?? 0),
-    remaining_amount: roundDocumentCurrency(
-      formData.remaining_amount ??
-      amountConfig.remaining_amount ??
-      Math.max(0, actualTotals.total_amount - roundDocumentCurrency(formData.advance_paid ?? amountConfig.advance_paid ?? 0)),
-    ),
+    linked_advance_documents: linkedAdvanceDocuments,
+    advance_paid: advancePaid,
+    remaining_amount: remainingAmount,
     payment_due_days: formData.payment_due_days || amountConfig.payment_due_days || '07 ngày',
     amount_words: actualTotals.total_amount > 0 ? numberToVietnameseWords(actualTotals.total_amount) : '',
   }

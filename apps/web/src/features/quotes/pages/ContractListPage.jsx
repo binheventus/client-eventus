@@ -8,7 +8,10 @@ import {
   listContracts,
 } from '../hooks/useContracts'
 import { formatQuoteCurrency, formatQuoteDate } from '../lib/quoteList'
-import { getContractRoute, getNewContractRoute } from '../lib/contractRouting'
+import { getContractDocumentEditRoute, getContractRoute, getNewContractRoute } from '../lib/contractRouting'
+
+const DOCUMENT_BADGE_BASE = 'inline-flex h-7 max-w-full items-center whitespace-nowrap rounded-full border px-2 text-[11px] font-semibold transition focus-visible:outline-none focus-visible:ring-2'
+const DOCUMENT_BADGE_TONE = 'border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 focus-visible:ring-blue-200'
 
 const SOURCE_LABELS = {
   quote: 'Từ báo giá',
@@ -33,6 +36,33 @@ function getContractTotal(contract = {}) {
 
 function getSourceLabel(contract = {}) {
   return SOURCE_LABELS[contract.source_type] || contract.source_type || '-'
+}
+
+function ContractDocumentBadges({ documents = [] }) {
+  const linkedDocuments = documents.filter(document => document?.id || document?.url)
+
+  if (!linkedDocuments.length) return <span className="text-slate-300">-</span>
+
+  return (
+    <div className="flex max-w-full flex-wrap gap-1.5">
+      {linkedDocuments.map(document => {
+        const editHref = getContractDocumentEditRoute(document.contract_id, document)
+
+        return (
+          <a
+            key={`${document.type}-${document.id || document.url}`}
+            href={editHref}
+            target="_blank"
+            rel="noreferrer"
+            title={document.number ? `${document.label}: ${document.number}` : document.label}
+            className={`${DOCUMENT_BADGE_BASE} ${DOCUMENT_BADGE_TONE}`}
+          >
+            <span className="truncate">{document.label}</span>
+          </a>
+        )
+      })}
+    </div>
+  )
 }
 
 function DeleteContractConfirmModal({ contract, deleting, error, onCancel, onConfirm }) {
@@ -221,39 +251,59 @@ export default function ContractListPage() {
       {error ? <p className="rounded-xl bg-red-50 px-4 py-3 text-[13px] text-red-700">{error}</p> : null}
 
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[860px] text-left text-[13px]">
+        <div className="overflow-hidden">
+          <table className="w-full table-fixed text-left text-[13px]">
+            <colgroup>
+              <col className="w-[27%]" />
+              <col className="w-[29%]" />
+              <col className="w-[11%]" />
+              <col className="w-[13%]" />
+              <col className="w-[8%]" />
+              <col className="w-[12%]" />
+            </colgroup>
             <thead className="bg-slate-50 text-[11px] uppercase tracking-[0.12em] text-slate-500">
               <tr>
-                <th className="px-4 py-3">Số hợp đồng</th>
-                <th className="px-4 py-3">Nguồn</th>
-                <th className="px-4 py-3">Khách hàng</th>
-                <th className="px-4 py-3">Job</th>
-                <th className="px-4 py-3 text-right">Giá trị</th>
-                <th className="px-4 py-3">Cập nhật</th>
+                <th className="px-3 py-3">Hợp đồng</th>
+                <th className="px-3 py-3">Job</th>
+                <th className="px-3 py-3 text-right">Giá trị</th>
+                <th className="px-2 py-3">Chứng từ</th>
+                <th className="px-3 py-3">Nguồn</th>
+                <th className="px-3 py-3">Cập nhật</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400">Đang tải hợp đồng...</td></tr>
+                <tr><td colSpan={6} className="px-3 py-10 text-center text-slate-400">Đang tải hợp đồng...</td></tr>
               ) : contracts.length ? contracts.map(contract => (
                 <tr key={contract.id} className="hover:bg-orange-50/40">
-                  <td className="px-4 py-3">
-                    <button
-                      type="button"
-                      onClick={() => navigate(getContractRoute(contract))}
-                      className="rounded-lg px-1 py-0.5 text-left font-semibold text-blue-700 hover:bg-blue-50 hover:text-blue-800"
-                    >
-                      {contract.contract_number || '-'}
-                    </button>
+                  <td className="px-3 py-3">
+                    <div className="max-w-full space-y-1">
+                      <button
+                        type="button"
+                        onClick={() => navigate(getContractRoute(contract))}
+                        className="block max-w-full rounded-lg px-1 py-0.5 text-left font-semibold text-blue-700 hover:bg-blue-50 hover:text-blue-800"
+                        title={contract.contract_number || ''}
+                      >
+                        <span className="block truncate">{contract.contract_number || '-'}</span>
+                      </button>
+                      <span className="block truncate text-[12px] leading-4 text-slate-500" title={getContractCustomerName(contract)}>
+                        {getContractCustomerName(contract)}
+                      </span>
+                    </div>
                   </td>
-                  <td className="px-4 py-3 text-slate-600">{getSourceLabel(contract)}</td>
-                  <td className="px-4 py-3 text-slate-700">{getContractCustomerName(contract)}</td>
-                  <td className="px-4 py-3 text-slate-700">{getContractEventName(contract)}</td>
-                  <td className="px-4 py-3 text-right font-semibold tabular-nums">{formatQuoteCurrency(getContractTotal(contract))}đ</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-slate-500">{formatQuoteDate(contract.updated_at || contract.created_at)}</span>
+                  <td className="px-3 py-3 text-slate-700">
+                    <span className="line-clamp-2 leading-5" title={getContractEventName(contract)}>{getContractEventName(contract)}</span>
+                  </td>
+                  <td className="px-3 py-3 text-right font-semibold tabular-nums">{formatQuoteCurrency(getContractTotal(contract))}đ</td>
+                  <td className="px-2 py-3">
+                    <ContractDocumentBadges documents={contract.contract_documents || []} />
+                  </td>
+                  <td className="px-3 py-3 text-slate-600">
+                    <span className="block truncate" title={getSourceLabel(contract)}>{getSourceLabel(contract)}</span>
+                  </td>
+                  <td className="px-3 py-3">
+                    <div className="grid grid-cols-[72px_32px] items-center justify-start gap-1">
+                      <span className="whitespace-nowrap text-slate-500 tabular-nums">{formatQuoteDate(contract.updated_at || contract.created_at)}</span>
                       <button
                         type="button"
                         onClick={() => {
@@ -269,7 +319,7 @@ export default function ContractListPage() {
                   </td>
                 </tr>
               )) : (
-                <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400">Chưa có hợp đồng.</td></tr>
+                <tr><td colSpan={6} className="px-3 py-10 text-center text-slate-400">Chưa có hợp đồng.</td></tr>
               )}
             </tbody>
           </table>

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   getAcceptanceLiquidationContent,
+  getAcceptanceSummary,
   shouldShowAcceptanceAmountTables,
 } from './contractDocumentRender.js'
 
@@ -57,4 +58,31 @@ test('acceptance amount tables are only shown for cost difference templates', ()
       },
     },
   }), true)
+})
+
+test('acceptance liquidation uses related advance request amount in article two', () => {
+  const document = {
+    ...baseAcceptanceDocument,
+    document_data: {
+      ...baseAcceptanceDocument.document_data,
+      amount_config: {
+        ...baseAcceptanceDocument.document_data.amount_config,
+        linked_advance_documents: [
+          {
+            document_id: 'advance-1',
+            document_number: '0001/DNTU-EVT/SES/2026',
+            advance_amount: 300_000,
+          },
+        ],
+      },
+    },
+  }
+  const summary = getAcceptanceSummary(document)
+  const content = getAcceptanceLiquidationContent(document)
+  const articleTwo = content.articles.find(section => section.id === 'acceptance-article-2')
+
+  assert.equal(summary.advance_paid, 300_000)
+  assert.equal(summary.remaining_amount, 780_000)
+  assert.match(articleTwo.body, /Bên A đã tạm ứng cho bên B: 300\.000 VNĐ/)
+  assert.match(articleTwo.body, /Bên A phải thanh toán cho bên B: 780\.000 VNĐ/)
 })

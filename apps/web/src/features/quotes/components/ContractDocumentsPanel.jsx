@@ -9,6 +9,7 @@ import {
   deleteContractDocument,
   listContractDocuments,
 } from '../hooks/useContracts'
+import { useEscapeToClose } from '../../../hooks/useEscapeToClose'
 import { useLegalEntities } from '../hooks/useLegalEntities'
 import {
   getContractDocumentsRoute,
@@ -32,15 +33,20 @@ import {
   buildContractValueRows,
   calculateAdvanceAmount,
   calculateAdvancePercent,
+  calculateAdvanceDocumentsTotal,
   calculatePaymentSummary,
   calculateTableTotals,
+  getAdvanceDocumentAmount,
+  getContractAdvanceDocumentLinks,
   getContractDocumentCustomerCode,
   getContractTotal,
   getContractVatConfig,
   getCustomerValidationWarnings,
+  normalizeDocumentIdList,
   normalizeAmountRows,
   renderContractDocumentNumber,
   roundDocumentCurrency,
+  summarizeContractAdvanceDocuments,
   toDocumentNumber,
 } from '../lib/contractDocumentEditor'
 import { getContractDocumentValidationWarnings, hasAcceptanceCostDifference } from '../lib/contractDocumentRender'
@@ -215,17 +221,6 @@ function getAcceptanceDocumentTotal(document = {}) {
   )
 }
 
-function getAdvanceDocumentAmount(document = {}) {
-  const data = document?.document_data || {}
-  const amountConfig = data.amount_config || {}
-  return Number(
-    amountConfig.advance_amount ??
-    data.advance_amount ??
-    data.amount ??
-    0
-  )
-}
-
 function getDocumentDisplayName(document = {}) {
   return document.document_number || document.title || document.id || 'Chứng từ'
 }
@@ -281,7 +276,7 @@ function buildAdvanceFormData(document = null, contract = {}, sellerEntityCode =
   }
 }
 
-function buildAcceptanceFormData(document = null, contract = {}) {
+function buildAcceptanceFormData(document = null, contract = {}, documents = []) {
   const data = document?.document_data || {}
   const savedFormData = data.form_data || {}
   const amountConfig = data.amount_config || {}
@@ -294,14 +289,32 @@ function buildAcceptanceFormData(document = null, contract = {}) {
   const actualRows = syncActualRows
     ? normalizeAmountRows(contractRows)
     : normalizeAmountRows(savedFormData.actual_rows || data.actual_rows, contractRows)
+  const excludedAdvanceDocumentIds = normalizeDocumentIdList(
+    savedFormData.excluded_advance_document_ids || data.excluded_advance_document_ids || amountConfig.excluded_advance_document_ids || [],
+  )
+  const hasLiveAdvanceDocuments = (Array.isArray(documents) ? documents : []).some(row => row.document_type === 'advance_request' && row.id !== document?.id)
+  const advanceSummary = summarizeContractAdvanceDocuments(documents, document?.id || '', excludedAdvanceDocumentIds)
+  const excludedIds = new Set(excludedAdvanceDocumentIds)
+  const savedLinkedAdvanceSource = savedFormData.linked_advance_documents || data.linked_advance_documents || amountConfig.linked_advance_documents || []
+  const savedLinkedAdvanceDocuments = (Array.isArray(savedLinkedAdvanceSource) ? savedLinkedAdvanceSource : [])
+    .filter(row => !excludedIds.has(String(row.document_id || row.id || '')))
+  const linkedAdvanceDocuments = hasLiveAdvanceDocuments
+    ? advanceSummary.linked_advance_documents
+    : savedLinkedAdvanceDocuments
+  const advancePaid = linkedAdvanceDocuments.length
+    ? calculateAdvanceDocumentsTotal(linkedAdvanceDocuments)
+    : excludedAdvanceDocumentIds.length
+      ? 0
+      : roundDocumentCurrency(savedFormData.advance_paid ?? amountConfig.advance_paid ?? 0)
 
   return {
     contract_rows: contractRows,
     actual_rows: actualRows,
     sync_contract_rows: syncContractRows,
     sync_actual_rows: syncActualRows,
-    acceptance_note: savedFormData.acceptance_note || data.note || 'Hai bên xác nhận khối lượng công việc đã hoàn thành, nghiệm thu đạt và làm cơ sở thanh toán/thanh lý hợp đồng.',
-    acceptance_result: savedFormData.acceptance_result || 'accepted',
+    excluded_advance_document_ids: excludedAdvanceDocumentIds,
+    linked_advance_documents: linkedAdvanceDocuments,
+    advance_paid: advancePaid,
   }
 }
 
@@ -338,7 +351,7 @@ function buildPaymentFormData(document = null, contract = {}, documents = [], se
 }
 
 function buildDocumentFormData(document = null, documentType = 'advance_request', contract = {}, documents = [], sellerEntityCode = '', legalEntities = []) {
-  if (documentType === 'acceptance_liquidation') return buildAcceptanceFormData(document, contract)
+  if (documentType === 'acceptance_liquidation') return buildAcceptanceFormData(document, contract, documents)
   if (documentType === 'payment_request') return buildPaymentFormData(document, contract, documents, sellerEntityCode, legalEntities)
   return buildAdvanceFormData(document, contract, sellerEntityCode, legalEntities)
 }
@@ -351,6 +364,21 @@ function buildDocumentAmountConfig(draft = {}, documents = []) {
   if (draft.document_type === 'acceptance_liquidation') {
     const contractTotals = calculateTableTotals(formData.contract_rows || [], vatConfig)
     const actualTotals = calculateTableTotals(formData.actual_rows || [], vatConfig)
+    const excludedAdvanceDocumentIds = normalizeDocumentIdList(formData.excluded_advance_document_ids || [])
+    const hasLiveAdvanceDocuments = (Array.isArray(documents) ? documents : []).some(row => row.document_type === 'advance_request' && row.id !== draft.id)
+    const advanceSummary = summarizeContractAdvanceDocuments(documents, draft.id || '', excludedAdvanceDocumentIds)
+    const excludedIds = new Set(excludedAdvanceDocumentIds)
+    const savedLinkedAdvanceDocuments = (Array.isArray(formData.linked_advance_documents) ? formData.linked_advance_documents : [])
+      .filter(row => !excludedIds.has(String(row.document_id || row.id || '')))
+    const linkedAdvanceDocuments = hasLiveAdvanceDocuments
+      ? advanceSummary.linked_advance_documents
+      : savedLinkedAdvanceDocuments
+    const advancePaid = linkedAdvanceDocuments.length
+      ? calculateAdvanceDocumentsTotal(linkedAdvanceDocuments)
+      : excludedAdvanceDocumentIds.length
+        ? 0
+        : roundDocumentCurrency(formData.advance_paid ?? 0)
+    const remainingAmount = Math.max(0, roundDocumentCurrency(actualTotals.total_amount - advancePaid))
     return {
       ...vatConfig,
       sync_contract_rows: formData.sync_contract_rows !== false,
@@ -362,6 +390,10 @@ function buildDocumentAmountConfig(draft = {}, documents = []) {
       acceptance_vat_amount: actualTotals.vat_amount,
       acceptance_actual_total: actualTotals.total_amount,
       acceptance_amount: actualTotals.total_amount,
+      excluded_advance_document_ids: excludedAdvanceDocumentIds,
+      linked_advance_documents: linkedAdvanceDocuments,
+      advance_paid: advancePaid,
+      remaining_amount: remainingAmount,
       amount: actualTotals.total_amount,
     }
   }
@@ -413,8 +445,15 @@ function buildDocumentData(draft = {}, documents = []) {
   if (draft.document_type === 'acceptance_liquidation') {
     return {
       ...baseData,
+      form_data: {
+        ...formData,
+        excluded_advance_document_ids: amountConfig.excluded_advance_document_ids || [],
+        linked_advance_documents: amountConfig.linked_advance_documents || [],
+        advance_paid: amountConfig.advance_paid || 0,
+        remaining_amount: amountConfig.remaining_amount || 0,
+      },
       acceptance_amount: amountConfig.acceptance_actual_total || 0,
-      note: String(formData.acceptance_note || '').trim(),
+      note: '',
     }
   }
 
@@ -752,7 +791,7 @@ function AdvanceRequestEditor({ draft, updateFormData }) {
   )
 }
 
-function AcceptanceLiquidationEditor({ draft, showCostDifferenceFields = false, updateFormData }) {
+function AcceptanceLiquidationEditor({ draft, documents = [], showCostDifferenceFields = false, updateFormData }) {
   const formData = draft.form_data || {}
   const vatConfig = getContractVatConfig(draft.contract_source || {})
 
@@ -773,6 +812,7 @@ function AcceptanceLiquidationEditor({ draft, showCostDifferenceFields = false, 
   return (
     <section className="space-y-4">
       <VatModeNotice vatConfig={vatConfig} />
+      <AcceptanceAdvanceReference draft={draft} documents={documents} updateFormData={updateFormData} />
       {showCostDifferenceFields ? (
         <>
           <AmountRowsEditor
@@ -795,10 +835,136 @@ function AcceptanceLiquidationEditor({ draft, showCostDifferenceFields = false, 
           />
         </>
       ) : null}
-      <Field label="Ghi chú nghiệm thu/thanh lý">
-        <Textarea rows={4} value={formData.acceptance_note || ''} onChange={event => updateFormData({ acceptance_note: event.target.value })} />
-      </Field>
     </section>
+  )
+}
+
+function AcceptanceAdvanceReference({ draft, documents = [], updateFormData }) {
+  const [pendingRemoval, setPendingRemoval] = useState(null)
+  const formData = draft.form_data || {}
+  const excludedAdvanceDocumentIds = normalizeDocumentIdList(formData.excluded_advance_document_ids || [])
+  const advanceDocuments = getContractAdvanceDocumentLinks(documents, draft.id || '', excludedAdvanceDocumentIds)
+  if (!advanceDocuments.length) return null
+
+  const advanceTotal = calculateAdvanceDocumentsTotal(advanceDocuments)
+
+  function confirmRemoveAdvanceDocument() {
+    if (!pendingRemoval?.document_id) return
+    const nextExcludedAdvanceDocumentIds = normalizeDocumentIdList([
+      ...excludedAdvanceDocumentIds,
+      pendingRemoval.document_id,
+    ])
+    const nextLinkedAdvanceDocuments = getContractAdvanceDocumentLinks(documents, draft.id || '', nextExcludedAdvanceDocumentIds)
+    updateFormData({
+      excluded_advance_document_ids: nextExcludedAdvanceDocumentIds,
+      linked_advance_documents: nextLinkedAdvanceDocuments,
+      advance_paid: calculateAdvanceDocumentsTotal(nextLinkedAdvanceDocuments),
+    })
+    setPendingRemoval(null)
+  }
+
+  return (
+    <>
+      <section className="rounded-xl border border-orange-100 bg-orange-50/50 px-3 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-[12px] font-semibold text-slate-700">Đề nghị tạm ứng liên quan</p>
+          <p className="text-[13px] font-bold tabular-nums text-orange-700">{formatQuoteCurrency(advanceTotal)}đ</p>
+        </div>
+        <div className="mt-2 space-y-1.5">
+          {advanceDocuments.map(document => {
+            const editUrl = getContractDocumentEditRoute(draft.contract_id, document)
+            const label = document.document_number || document.document_title || document.document_id || 'Đề nghị tạm ứng'
+            return (
+              <div
+                key={document.document_id || label}
+                className="flex min-w-0 items-center gap-2 rounded-lg border border-orange-100 bg-white px-2.5 py-2 text-[12px] font-semibold"
+              >
+                <a
+                  href={editUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={label}
+                  className="flex min-w-0 flex-1 items-center justify-between gap-3 text-blue-700 hover:text-blue-800"
+                >
+                  <span className="min-w-0 flex items-center gap-1.5">
+                    <span className="truncate">Đề nghị tạm ứng: {label}</span>
+                    <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                  </span>
+                  <span className="shrink-0 tabular-nums text-slate-700">{formatQuoteCurrency(document.advance_amount)}đ</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setPendingRemoval(document)}
+                  title="Xóa số tiền này khỏi BBNT"
+                  aria-label={`Xóa số tiền đề nghị tạm ứng ${label} khỏi BBNT`}
+                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      </section>
+
+      <RemoveAdvanceFromAcceptanceModal
+        document={pendingRemoval}
+        onCancel={() => setPendingRemoval(null)}
+        onConfirm={confirmRemoveAdvanceDocument}
+      />
+    </>
+  )
+}
+
+function RemoveAdvanceFromAcceptanceModal({ document, onCancel, onConfirm }) {
+  useEscapeToClose(() => onCancel?.(), Boolean(document))
+
+  if (!document) return null
+
+  const label = document.document_number || document.document_title || document.document_id || 'Đề nghị tạm ứng'
+  const amount = Number(document.advance_amount || document.original_amount || 0)
+
+  return (
+    <div className="fixed inset-0 z-[75] flex items-center justify-center bg-slate-950/45 px-4 py-6">
+      <section className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl">
+        <div className="flex items-start gap-3">
+          <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-600">
+            <AlertTriangle className="h-5 w-5" />
+          </span>
+          <div>
+            <h2 className="text-[18px] font-semibold leading-6 text-slate-950">
+              Bạn có muốn xóa số tiền đã đề nghị tạm ứng này ra khỏi BBNT không?
+            </h2>
+          </div>
+        </div>
+        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-[13px] text-slate-700">
+          <div>
+            <p className="text-slate-500">Đề nghị tạm ứng</p>
+            <p className="mt-1 truncate font-semibold text-slate-950" title={label}>{label}</p>
+          </div>
+          <div className="mt-2 flex justify-between gap-3">
+            <span className="text-slate-500">Ngày lập</span>
+            <span className="font-semibold text-slate-950">{formatQuoteDate(document.issued_date) || '-'}</span>
+          </div>
+          <div className="mt-2 flex justify-between gap-3">
+            <span className="text-slate-500">Số tiền đề nghị</span>
+            <span className="font-semibold tabular-nums text-red-700">{formatQuoteCurrency(amount)}đ</span>
+          </div>
+        </div>
+        <p className="mt-3 text-[12px] leading-5 text-slate-500">
+          Chứng từ đề nghị tạm ứng vẫn được giữ trong hợp đồng, chỉ khoản tiền này không còn được tính là đã tạm ứng trong BBNT.
+        </p>
+        <div className="mt-5 flex justify-end gap-2">
+          <button type="button" onClick={onCancel} className="rounded-xl border border-slate-200 px-4 py-2.5 text-[13px] font-semibold text-slate-700 hover:bg-slate-50">
+            Hủy
+          </button>
+          <button type="button" onClick={onConfirm} className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-[13px] font-semibold text-white shadow-sm hover:bg-red-700">
+            <Trash2 className="h-4 w-4" />
+            Xóa khỏi BBNT
+          </button>
+        </div>
+      </section>
+    </div>
   )
 }
 
@@ -1109,7 +1275,7 @@ export function ContractDocumentEditorForm({
         fields_config: selectedTemplate?.fields_config,
         template_snapshot: selectedTemplate ? { fields_config: selectedTemplate.fields_config } : undefined,
       })
-      return <AcceptanceLiquidationEditor draft={draft} showCostDifferenceFields={showCostDifferenceFields} updateFormData={updateFormData} />
+      return <AcceptanceLiquidationEditor draft={draft} documents={documents} showCostDifferenceFields={showCostDifferenceFields} updateFormData={updateFormData} />
     }
     if (draft.document_type === 'payment_request') {
       return <PaymentRequestEditor draft={draft} documents={documents} updateFormData={updateFormData} />
@@ -1186,49 +1352,53 @@ export function ContractDocumentEditorForm({
               </Field>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_148px_180px]">
+            <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Pattern số chứng từ">
                 <TextInput value={draft.document_number_pattern || ''} onChange={event => updateDraft({ document_number_pattern: event.target.value })} />
               </Field>
-              <Field label="Pháp nhân">
-                <Select
-                  value={draft.seller_entity_code || ''}
-                  onChange={event => handleSellerEntityChange(event.target.value)}
-                  disabled={isFinalizedDocument}
-                >
-                  {!legalEntities.length ? <option value={draft.seller_entity_code || ''}>{draft.seller_entity_code || 'EVENTUS'}</option> : null}
-                  {legalEntities.map(entity => {
-                    const code = getLegalEntityCode(entity)
-                    return (
-                      <option key={code} value={code}>
-                        {getLegalEntityLabel(entity)}
-                      </option>
-                    )
-                  })}
-                </Select>
-              </Field>
-              <div>
-                <span className="mb-1.5 block text-[12px] font-semibold text-slate-600">{dateLabel}</span>
-                <div className={`flex h-10 overflow-hidden rounded-xl border border-slate-200 transition focus-within:border-[#f8981d] focus-within:ring-2 focus-within:ring-orange-100 ${
-                  draft.form_data?.hide_issued_date ? 'bg-slate-50' : 'bg-white'
-                }`}>
-                  <input
-                    type="date"
-                    value={draft.issued_date || ''}
-                    onChange={event => updateDraft({ issued_date: event.target.value })}
-                    disabled={Boolean(draft.form_data?.hide_issued_date)}
-                    aria-label={dateLabel}
-                    className="min-w-0 flex-1 border-0 bg-transparent px-3 text-[13px] outline-none disabled:text-slate-400"
-                  />
-                  <label className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 border-l border-slate-200 px-2.5 text-[12px] font-semibold text-slate-600">
+              <div className="grid gap-3 sm:grid-cols-[116px_minmax(0,1fr)]">
+                <Field label="Pháp nhân">
+                  <Select
+                    value={draft.seller_entity_code || ''}
+                    onChange={event => handleSellerEntityChange(event.target.value)}
+                    disabled={isFinalizedDocument}
+                    className="appearance-none px-2 pr-2"
+                    style={{ appearance: 'none', WebkitAppearance: 'none', backgroundImage: 'none' }}
+                  >
+                    {!legalEntities.length ? <option value={draft.seller_entity_code || ''}>{draft.seller_entity_code || 'EVENTUS'}</option> : null}
+                    {legalEntities.map(entity => {
+                      const code = getLegalEntityCode(entity)
+                      return (
+                        <option key={code} value={code}>
+                          {getLegalEntityLabel(entity)}
+                        </option>
+                      )
+                    })}
+                  </Select>
+                </Field>
+                <div>
+                  <span className="mb-1.5 block text-[12px] font-semibold text-slate-600">{dateLabel}</span>
+                  <div className={`flex h-10 overflow-hidden rounded-xl border border-slate-200 transition focus-within:border-[#f8981d] focus-within:ring-2 focus-within:ring-orange-100 ${
+                    draft.form_data?.hide_issued_date ? 'bg-slate-50' : 'bg-white'
+                  }`}>
                     <input
-                      type="checkbox"
-                      checked={Boolean(draft.form_data?.hide_issued_date)}
-                      onChange={event => handleHideIssuedDateChange(event.target.checked)}
-                      className="h-4 w-4 rounded border-slate-300 text-[#f8981d] focus:ring-orange-100"
+                      type="date"
+                      value={draft.issued_date || ''}
+                      onChange={event => updateDraft({ issued_date: event.target.value })}
+                      disabled={Boolean(draft.form_data?.hide_issued_date)}
+                      aria-label={dateLabel}
+                      className="min-w-0 flex-1 border-0 bg-transparent px-3 text-[13px] outline-none disabled:text-slate-400"
                     />
-                    Ẩn
-                  </label>
+                    <label className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 border-l border-slate-200 px-2.5 text-[12px] font-semibold text-slate-600">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(draft.form_data?.hide_issued_date)}
+                        onChange={event => handleHideIssuedDateChange(event.target.checked)}
+                        className="h-4 w-4 rounded border-slate-300 text-[#f8981d] focus:ring-orange-100"
+                      />
+                      Ẩn
+                    </label>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1282,6 +1452,8 @@ export function ContractDocumentEditorForm({
 }
 
 function TemplateResetConfirmModal({ templateName, onCancel, onConfirm }) {
+  useEscapeToClose(onCancel)
+
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/45 px-4 py-6">
       <section className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl">
@@ -1311,6 +1483,10 @@ function TemplateResetConfirmModal({ templateName, onCancel, onConfirm }) {
 }
 
 function DeleteDocumentConfirmModal({ document, deleting, error, onCancel, onConfirm }) {
+  useEscapeToClose(() => {
+    if (!deleting) onCancel?.()
+  }, Boolean(document) && !deleting)
+
   if (!document) return null
 
   return (
