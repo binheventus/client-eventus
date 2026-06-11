@@ -105,6 +105,13 @@ const CUSTOMER_MESSAGE_MODES = [
   { value: 'thanks', label: 'Cảm ơn' },
 ]
 
+const CUSTOMER_MESSAGE_TIME_SUGGESTIONS = [
+  '17h hôm nay',
+  '22h hôm nay',
+  '11h sáng mai',
+  'trước 20h tối nay',
+]
+
 function getEditorFirstName(name = '') {
   const parts = String(name || '').trim().split(/\s+/).filter(Boolean)
   return parts[parts.length - 1] || ''
@@ -150,6 +157,17 @@ function getMissingCustomerMessageFields(text = '') {
   return missing
 }
 
+function uniqueList(items = []) {
+  return [...new Set(items.filter(Boolean))]
+}
+
+function joinVietnameseList(items = []) {
+  const list = items.filter(Boolean)
+  if (list.length <= 1) return list[0] || ''
+  if (list.length === 2) return `${list[0]} và ${list[1]}`
+  return `${list.slice(0, -1).join(', ')} và ${list[list.length - 1]}`
+}
+
 function buildCustomerMessageVariants({
   mode,
   style,
@@ -169,6 +187,7 @@ function buildCustomerMessageVariants({
   const nextReturnTime = String(returnTime || '').trim() || '[giờ trả]'
   const nextDelayTime = String(delayTime || '').trim() || '[giờ mới]'
   const greeting = m.prefix ? `${m.prefix}${m.customer}` : `${m.customerTitle}`
+  const selfOpening = m.prefix ? `${m.prefix}${m.self}` : m.selfTitle
   const sendVerb = customerCall === 'ban' || customerCall === 'mnm'
     ? `${m.selfTitle} gửi`
     : `${m.selfTitle} gửi ${m.customer}`
@@ -199,8 +218,8 @@ function buildCustomerMessageVariants({
       `${m.customerTitle} ơi, ${m.self} gửi ${feedbackLabel} rồi. Khi tiện, ${m.customer} xem và feedback giúp ${m.self} ${m.finish}.`,
     ]
     return [
-      `${m.prefix}${m.self} cảm ơn ${m.customer} đã đồng hành và hỗ trợ team Eventus hoàn thành công việc ${m.mid}. Hẹn gặp lại ${m.customer} ở job tiếp theo ${m.finish}.`,
-      `${m.prefix}${m.self} cảm ơn ${m.customer} vì đã hỗ trợ trong quá trình dựng ${m.mid}. Mong tiếp tục được đồng hành cùng ${m.customer} ở các job sau ${m.finish}.`,
+      `${selfOpening} cảm ơn ${m.customer} đã đồng hành và hỗ trợ team Eventus hoàn thành công việc ${m.mid}. Hẹn gặp lại ${m.customer} ở job tiếp theo ${m.finish}.`,
+      `${selfOpening} cảm ơn ${m.customer} vì đã hỗ trợ trong quá trình dựng ${m.mid}. Mong tiếp tục được đồng hành cùng ${m.customer} ở các job sau ${m.finish}.`,
     ]
   }
 
@@ -230,8 +249,8 @@ function buildCustomerMessageVariants({
       `${m.customerTitle} ơi, khi tiện ${m.customer} xem và feedback ${feedbackLabel} giúp ${m.self} trong link đã gửi ${m.finish}.`,
     ]
     return [
-      `${m.prefix}${m.self} cảm ơn ${m.customer} đã phối hợp và hỗ trợ team Eventus hoàn thành job này ${m.mid}. Hẹn gặp lại ${m.customer} ở những dự án tiếp theo ${m.finish}.`,
-      `${m.prefix}${m.self} cảm ơn ${m.customer} rất nhiều vì đã đồng hành cùng team trong quá trình dựng ${m.mid}. Mong tiếp tục được hỗ trợ ${m.customer} ở các job sau ${m.finish}.`,
+      `${selfOpening} cảm ơn ${m.customer} đã phối hợp và hỗ trợ team Eventus hoàn thành job này ${m.mid}. Hẹn gặp lại ${m.customer} ở những dự án tiếp theo ${m.finish}.`,
+      `${selfOpening} cảm ơn ${m.customer} rất nhiều vì đã đồng hành cùng team trong quá trình dựng ${m.mid}. Mong tiếp tục được hỗ trợ ${m.customer} ở các job sau ${m.finish}.`,
     ]
   }
 
@@ -260,8 +279,8 @@ function buildCustomerMessageVariants({
     `${m.customerTitle} ơi, ${m.customer} tranh thủ xem và feedback ${feedbackLabel} giúp ${m.self} ${m.finish}.`,
   ]
   return [
-    `${m.prefix}${m.self} cảm ơn ${m.customer} đã support, đồng hành để team ${m.self} hoàn thành công việc ${m.mid}. Hẹn gặp lại ${m.customer} ở job tiếp theo ${m.finish}.`,
-    `${m.prefix}${m.self} cảm ơn ${m.customer} nhiều ${m.mid}. Có ${m.customer} support nên team ${m.self} hoàn thành job suôn sẻ, hẹn gặp lại ${m.customer} ở job tiếp theo ${m.finish}.`,
+    `${selfOpening} cảm ơn ${m.customer} đã support, đồng hành để team ${m.self} hoàn thành công việc ${m.mid}. Hẹn gặp lại ${m.customer} ở job tiếp theo ${m.finish}.`,
+    `${selfOpening} cảm ơn ${m.customer} nhiều ${m.mid}. Có ${m.customer} support nên team ${m.self} hoàn thành job suôn sẻ, hẹn gặp lại ${m.customer} ở job tiếp theo ${m.finish}.`,
   ]
 }
 
@@ -1045,7 +1064,10 @@ function OverallFeedbackPanel({ feedback, access, onChanged, fillHeight = false 
 function CustomerMessageSuggestionPopup({ feedback, publicUrl = '', onClose }) {
   const feedbackName = getFeedbackNameParts(feedback || {}).name || 'bản feedback này'
   const editorName = feedback?.editor_name || feedback?.job?.editor_name || ''
+  const editorDisplayName = getEditorFirstName(editorName) || String(editorName || '').trim()
   const feedbackUrl = buildAbsoluteFeedbackUrl(publicUrl, feedback)
+  const hasEditorName = Boolean(editorDisplayName)
+  const hasFeedbackUrl = Boolean(String(feedbackUrl || '').trim())
   const defaultMode = feedback?.video_url ? 'send' : 'hello'
   const [mode, setMode] = useState(defaultMode)
   const [style, setStyle] = useState('friendly')
@@ -1053,10 +1075,17 @@ function CustomerMessageSuggestionPopup({ feedback, publicUrl = '', onClose }) {
   const [deadline, setDeadline] = useState('')
   const [returnTime, setReturnTime] = useState('')
   const [delayTime, setDelayTime] = useState('')
-  const [oneLine, setOneLine] = useState(false)
   const [variantIndex, setVariantIndex] = useState(0)
   const [message, setMessage] = useState('')
-  const [copyStatus, setCopyStatus] = useState('')
+  const [copied, setCopied] = useState(false)
+  const messageTextareaRef = useRef(null)
+
+  const fitMessageTextareaHeight = useCallback(() => {
+    const textarea = messageTextareaRef.current
+    if (!textarea) return
+    textarea.style.height = 'auto'
+    textarea.style.height = `${textarea.scrollHeight}px`
+  }, [])
 
   const variants = useMemo(() => buildCustomerMessageVariants({
     mode,
@@ -1072,9 +1101,8 @@ function CustomerMessageSuggestionPopup({ feedback, publicUrl = '', onClose }) {
 
   const generatedMessage = useMemo(() => {
     const safeIndex = variants.length ? variantIndex % variants.length : 0
-    const text = variants[safeIndex] || ''
-    return oneLine ? text.replace(/\s*\n\s*/g, ' ') : text
-  }, [oneLine, variantIndex, variants])
+    return variants[safeIndex] || ''
+  }, [variantIndex, variants])
 
   useEffect(() => {
     setVariantIndex(0)
@@ -1082,21 +1110,67 @@ function CustomerMessageSuggestionPopup({ feedback, publicUrl = '', onClose }) {
 
   useEffect(() => {
     setMessage(generatedMessage)
-    setCopyStatus('')
+    setCopied(false)
   }, [generatedMessage])
 
-  const missingFields = getMissingCustomerMessageFields(message)
+  useLayoutEffect(() => {
+    fitMessageTextareaHeight()
+  }, [fitMessageTextareaHeight, message])
+
+  useEffect(() => {
+    window.addEventListener('resize', fitMessageTextareaHeight)
+    return () => window.removeEventListener('resize', fitMessageTextareaHeight)
+  }, [fitMessageTextareaHeight])
+
+  const missingFields = uniqueList([
+    ...(!hasEditorName ? ['tên editor'] : []),
+    ...(!hasFeedbackUrl ? ['link feedback'] : []),
+    ...getMissingCustomerMessageFields(message).filter(field => field !== 'tên editor' && field !== 'link feedback'),
+  ])
   const canCopy = missingFields.length === 0
   const showDeadlineField = mode === 'hello'
   const showReturnTimeField = mode === 'confirm'
   const showDelayTimeField = mode === 'delay'
+  const timeField = showDeadlineField
+    ? {
+      label: 'Thời gian gửi bản này',
+      value: deadline,
+      onChange: setDeadline,
+      placeholder: 'vd: 17h hôm nay',
+    }
+    : showReturnTimeField
+      ? {
+        label: 'Giờ trả bản sửa',
+        value: returnTime,
+        onChange: setReturnTime,
+        placeholder: 'vd: 17h chiều nay',
+      }
+      : showDelayTimeField
+        ? {
+          label: 'Xin lùi đến giờ',
+          value: delayTime,
+          onChange: setDelayTime,
+          placeholder: 'vd: 21h tối nay',
+        }
+        : null
+  const missingCopyMessage = missingFields.length
+    ? `Cần bổ sung ${joinVietnameseList(missingFields)} trước khi copy.`
+    : ''
 
   async function copyMessage() {
     if (!canCopy) return
+    let copiedSuccessfully = false
     try {
       if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(message)
-      } else {
+        try {
+          await navigator.clipboard.writeText(message)
+          copiedSuccessfully = true
+        } catch {
+          copiedSuccessfully = false
+        }
+      }
+
+      if (!copiedSuccessfully) {
         const textarea = document.createElement('textarea')
         textarea.value = message
         textarea.setAttribute('readonly', '')
@@ -1105,46 +1179,62 @@ function CustomerMessageSuggestionPopup({ feedback, publicUrl = '', onClose }) {
         document.body.appendChild(textarea)
         textarea.select()
         document.execCommand('copy')
+        copiedSuccessfully = true
         document.body.removeChild(textarea)
       }
-      setCopyStatus('Đã copy tin nhắn.')
+      setCopied(copiedSuccessfully)
     } catch {
-      setCopyStatus('Không copy được, anh copy thủ công trong ô nội dung.')
+      setCopied(false)
     }
   }
 
   return (
     <div
-      className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 px-4 py-6"
+      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/40 px-4 py-4"
       onClick={onClose}
     >
       <section
-        className="w-full max-w-2xl rounded-lg border border-slate-200 bg-white p-5 shadow-xl"
+        className="mx-auto flex max-h-[calc(100vh-2rem)] w-full max-w-3xl flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl"
         role="dialog"
         aria-modal="true"
         aria-labelledby="customer-message-title"
         onClick={event => event.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h2 id="customer-message-title" className="text-[16px] font-semibold text-[#f79820]">Gợi ý tin nhắn gửi khách hàng</h2>
-            <p className="mt-1 truncate text-[12px] font-medium text-slate-500">
-              Editor: {getEditorFirstName(editorName) || editorName || '-'} · {feedbackName} · Link feedback tự lấy từ trang
-            </p>
+        <div className="shrink-0 p-4 pb-0 sm:p-6 sm:pb-0">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h2 id="customer-message-title" className="text-[16px] font-semibold text-[#f79820]">Gợi ý tin nhắn gửi khách hàng</h2>
+              <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[12px] font-medium text-slate-500">
+                {hasEditorName ? (
+                  <span>Editor: {editorDisplayName}</span>
+                ) : (
+                  <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 font-semibold text-amber-700">Thiếu tên editor</span>
+                )}
+                <span className="text-slate-300">·</span>
+                <span>{feedbackName}</span>
+                <span className="text-slate-300">·</span>
+                {hasFeedbackUrl ? (
+                  <span>Đã có link feedback</span>
+                ) : (
+                  <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 font-semibold text-amber-700">Thiếu link feedback</span>
+                )}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+              aria-label="Đóng popup gợi ý tin nhắn"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-900"
-            aria-label="Đóng popup gợi ý tin nhắn"
-          >
-            <X className="h-4 w-4" />
-          </button>
         </div>
 
-        <div className="mt-4 grid gap-4">
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
+          <div className="grid gap-5">
           <div>
-            <FieldLabel>Tình huống</FieldLabel>
+            <FieldLabel>Chọn tình huống</FieldLabel>
             <div className="mt-1 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
               {CUSTOMER_MESSAGE_MODES.map(option => (
                 <button
@@ -1163,130 +1253,105 @@ function CustomerMessageSuggestionPopup({ feedback, publicUrl = '', onClose }) {
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
-            <div>
-              <FieldLabel>Style</FieldLabel>
-              <div className="mt-1 grid grid-cols-3 gap-1.5 rounded-lg border border-slate-200 bg-slate-50 p-1">
-                {MESSAGE_STYLE_OPTIONS.map(option => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => setStyle(option.value)}
-                    className={`h-8 rounded-md px-2 text-[12px] font-semibold transition ${
-                      style === option.value
-                        ? 'bg-white text-[#f79820] shadow-sm ring-1 ring-[#f79820]/25'
-                        : 'text-slate-600 hover:bg-white/70'
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <FieldLabel>Gọi khách là</FieldLabel>
-              <div className="mt-1 grid grid-cols-3 gap-1.5">
-                {CUSTOMER_CALL_OPTIONS.map(option => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => setCustomerCall(option.value)}
-                    className={`h-8 rounded-lg border px-2 text-[12px] font-semibold transition ${
-                      customerCall === option.value
-                        ? 'border-[#f79820] bg-[#f79820]/10 text-[#f79820]'
-                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
+          <div>
+            <FieldLabel>Gọi khách là</FieldLabel>
+            <div className="mt-1 grid grid-cols-3 gap-1.5 sm:grid-cols-6">
+              {CUSTOMER_CALL_OPTIONS.map(option => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setCustomerCall(option.value)}
+                  className={`min-h-9 rounded-lg border px-2 text-[12px] font-semibold transition ${
+                    customerCall === option.value
+                      ? 'border-[#f79820] bg-[#f79820]/10 text-[#f79820]'
+                      : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
             </div>
           </div>
 
-          {(showDeadlineField || showReturnTimeField || showDelayTimeField) && (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {showDeadlineField && (
-                <div>
-                  <FieldLabel>Thời gian gửi bản này</FieldLabel>
-                  <TextInput
-                    value={deadline}
-                    onChange={event => setDeadline(event.target.value)}
-                    placeholder="vd: 17h hôm nay"
-                    className="mt-1"
-                  />
-                </div>
-              )}
-              {showReturnTimeField && (
-                <div>
-                  <FieldLabel>Giờ trả bản sửa</FieldLabel>
-                  <TextInput
-                    value={returnTime}
-                    onChange={event => setReturnTime(event.target.value)}
-                    placeholder="vd: 17h chiều nay"
-                    className="mt-1"
-                  />
-                </div>
-              )}
-              {showDelayTimeField && (
-                <div>
-                  <FieldLabel>Xin lùi đến giờ</FieldLabel>
-                  <TextInput
-                    value={delayTime}
-                    onChange={event => setDelayTime(event.target.value)}
-                    placeholder="vd: 21h tối nay"
-                    className="mt-1"
-                  />
-                </div>
-              )}
+          {timeField && (
+            <div>
+              <FieldLabel>{timeField.label}</FieldLabel>
+              <TextInput
+                value={timeField.value}
+                onChange={event => timeField.onChange(event.target.value)}
+                placeholder={timeField.placeholder}
+                className="mt-1"
+              />
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {CUSTOMER_MESSAGE_TIME_SUGGESTIONS.map(option => (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => timeField.onChange(option)}
+                    className={`rounded-full border px-2.5 py-1 text-[12px] font-semibold transition ${
+                      timeField.value === option
+                        ? 'border-[#f79820] bg-[#f79820]/10 text-[#f79820]'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
           <div>
-            <div className="flex items-center justify-between gap-3">
-              <FieldLabel>Kết quả</FieldLabel>
-              <label className="flex items-center gap-2 text-[12px] font-semibold text-slate-500">
-                <input
-                  type="checkbox"
-                  checked={oneLine}
-                  onChange={event => setOneLine(event.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300 text-[#f79820] focus:ring-[#f79820]/30"
-                />
-                Gộp 1 dòng
-              </label>
-            </div>
+            <FieldLabel>Preview</FieldLabel>
             <textarea
+              ref={messageTextareaRef}
               value={message}
               onChange={event => {
                 setMessage(event.target.value)
-                setCopyStatus('')
+                setCopied(false)
               }}
-              rows={6}
-              className="mt-1 block min-h-[132px] w-full resize-y rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-[13px] leading-5 text-slate-900 outline-none focus:border-[#f79820] focus:ring-2 focus:ring-[#f79820]/20"
+              rows={1}
+              className="mt-1 block w-full resize-none overflow-hidden rounded-lg border border-[#f79820]/60 bg-[#fffaf3] px-3 py-2.5 text-[13px] leading-5 text-slate-900 outline-none shadow-sm focus:border-[#f79820] focus:ring-2 focus:ring-[#f79820]/20"
             />
-            <div className="mt-2 rounded-lg border border-slate-200 bg-[#eef1f4] p-3">
-              <div className="mb-2 text-[11px] font-semibold text-slate-500">Preview Zalo</div>
-              <div className="ml-auto max-w-[88%] whitespace-pre-wrap break-words rounded-lg bg-[#cfe9ff] px-3 py-2 text-[13px] leading-5 text-[#0b3a66]">
-                {message}
-              </div>
-            </div>
           </div>
 
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className={`min-h-5 text-[12px] font-semibold ${canCopy ? 'text-emerald-600' : 'text-[#b86414]'}`}>
-              {canCopy
-                ? (copyStatus || 'Đã đủ thông tin, có thể copy.')
-                : `Chưa điền ${missingFields.join(' và ')}.`}
+          </div>
+        </div>
+
+        <div className="shrink-0 border-t border-slate-100 bg-white px-4 py-4 sm:px-6">
+          <div className="mb-5">
+            <FieldLabel>Giọng văn</FieldLabel>
+            <div className="mt-1 grid grid-cols-3 gap-1.5 rounded-lg border border-slate-200 bg-slate-50 p-1">
+              {MESSAGE_STYLE_OPTIONS.map(option => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setStyle(option.value)}
+                  className={`min-h-8 rounded-md px-2 text-[12px] font-semibold transition ${
+                    style === option.value
+                      ? 'bg-white text-[#f79820] shadow-sm ring-1 ring-[#f79820]/25'
+                      : 'text-slate-600 hover:bg-white/70'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
             </div>
-            <div className="flex justify-end gap-2">
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            {!canCopy ? (
+              <div className="min-h-5 text-[12px] font-semibold text-[#b86414]">
+                {missingCopyMessage}
+              </div>
+            ) : null}
+            <div className="flex flex-wrap justify-end gap-2 sm:ml-auto">
               <button
                 type="button"
                 onClick={() => {
                   setVariantIndex(current => current + 1)
-                  setCopyStatus('')
+                  setCopied(false)
                 }}
-                className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-700 hover:bg-slate-50"
+                className="inline-flex h-9 min-w-[132px] flex-1 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-700 hover:bg-slate-50 sm:flex-none"
               >
                 <RefreshCw className="h-4 w-4" />
                 Đổi cách nói
@@ -1295,10 +1360,10 @@ function CustomerMessageSuggestionPopup({ feedback, publicUrl = '', onClose }) {
                 type="button"
                 onClick={copyMessage}
                 disabled={!canCopy}
-                className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-[#f79820] px-4 text-[13px] font-semibold text-white hover:bg-[#df861d] disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex h-9 min-w-[132px] flex-1 items-center justify-center gap-2 rounded-lg bg-[#f79820] px-4 text-[13px] font-semibold text-white hover:bg-[#df861d] disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
               >
-                <Copy className="h-4 w-4" />
-                Copy tin nhắn
+                {copied ? <CheckCircle2 className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                {copied ? 'Đã copy' : 'Copy tin nhắn'}
               </button>
             </div>
           </div>
