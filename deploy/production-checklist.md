@@ -9,6 +9,7 @@ cd /home/flashvps/client.eventusproduction.com/client-eventus
 git pull origin main
 npm install
 npm run db:migrate
+npm run pricing:seed
 npm run feedback:import-legacy -- --dry-run
 npm run feedback:import-legacy
 npm run feedback:prune -- --months=6

@@ -310,11 +310,35 @@ const eventusEntityCodeColumns = [
   { tableName: 'client_contract_templates', columnName: 'seller_entity_code' },
   { tableName: 'client_contract_document_templates', columnName: 'seller_entity_code' },
   { tableName: 'client_contract_documents', columnName: 'seller_entity_code' },
-  { tableName: 'client_contract_doc_no_counters', columnName: 'seller_entity_code' },
-  { tableName: 'client_contract_doc_no_ledger', columnName: 'seller_entity_code' },
 ]
 
 const pricingLegalEntityDuplicateColumns = ['source_entity_code', 'code', 'name', 'legal_name']
+const contractDocumentNumberCountersTable = 'client_contract_document_number_counters'
+const contractDocumentNumberLedgerTable = 'client_contract_document_number_ledger'
+
+function formatSequenceNumber(value) {
+  return String(Number(value || 0)).padStart(4, '0')
+}
+
+function normalizeLegacyEventusDocumentNumber(documentNumber, sequenceNumber) {
+  const sequenceText = formatSequenceNumber(sequenceNumber)
+  return String(documentNumber || '')
+    .replace(/^\d+(?=\/)/, sequenceText)
+    .replace(/\/DNT([A-Z]+)-EVENTUS\//gi, '/DNT$1-EVT/')
+    .replace(/(^|[-/])EVENTUS(?=\/|-|$)/gi, '$1EVT')
+}
+
+async function hasTable(pool, tableName) {
+  const [rows] = await pool.query(
+    `select 1
+     from information_schema.tables
+     where table_schema = database()
+       and table_name = ?
+     limit 1`,
+    [tableName],
+  )
+  return rows.length > 0
+}
 
 async function hasColumn(pool, tableName, columnName) {
   const [rows] = await pool.query(
@@ -328,6 +352,129 @@ async function hasColumn(pool, tableName, columnName) {
   )
 
   return rows.length > 0
+}
+
+async function normalizeEventusDocumentNumberLedger(pool) {
+  if (!await hasTable(pool, contractDocumentNumberLedgerTable)) return { updated: 0 }
+
+  const hasDocumentsTable = await hasTable(pool, 'client_contract_documents')
+  const [legacyRows] = await pool.query(
+    `select id, document_id, document_type, sequence_year, sequence_number, document_number
+     from \`${contractDocumentNumberLedgerTable}\`
+     where upper(trim(seller_entity_code)) = 'EVENTUS'
+     order by sequence_year asc, document_type asc, sequence_number asc, created_at asc, id asc`,
+  )
+
+  let updated = 0
+  for (const row of legacyRows) {
+    const [maxRows] = await pool.query(
+      `select coalesce(max(sequence_number), 0) as max_sequence
+       from \`${contractDocumentNumberLedgerTable}\`
+       where seller_entity_code = 'EVT'
+         and document_type = ?
+         and sequence_year = ?`,
+      [row.document_type, row.sequence_year],
+    )
+    const nextSequence = Number(maxRows?.[0]?.max_sequence || 0) + 1
+    const documentNumber = normalizeLegacyEventusDocumentNumber(row.document_number, nextSequence)
+
+    await pool.query(
+      `update \`${contractDocumentNumberLedgerTable}\`
+       set seller_entity_code = 'EVT',
+           sequence_number = ?,
+           document_number = ?
+       where id = ?`,
+      [nextSequence, documentNumber, row.id],
+    )
+
+    if (hasDocumentsTable && row.document_id) {
+      await pool.query(
+        `update \`client_contract_documents\`
+         set seller_entity_code = 'EVT',
+             sequence_number = ?,
+             document_number = ?
+         where id = ?`,
+        [nextSequence, documentNumber, row.document_id],
+      )
+    }
+
+    updated += 1
+  }
+
+  return { updated }
+}
+
+async function normalizeEventusDocumentNumberCounters(pool) {
+  if (!await hasTable(pool, contractDocumentNumberCountersTable)) return { merged: 0, renamed: 0, synced: 0 }
+
+  const [legacyRows] = await pool.query(
+    `select id, document_type, sequence_year, last_sequence
+     from \`${contractDocumentNumberCountersTable}\`
+     where upper(trim(seller_entity_code)) = 'EVENTUS'
+        or id like 'EVENTUS:%'
+     order by sequence_year asc, document_type asc, id asc`,
+  )
+
+  let merged = 0
+  let renamed = 0
+  for (const row of legacyRows) {
+    const targetId = `EVT:${row.document_type}:${row.sequence_year}`
+    const [targetRows] = await pool.query(
+      `select id, last_sequence
+       from \`${contractDocumentNumberCountersTable}\`
+       where id = ?
+          or (seller_entity_code = 'EVT' and document_type = ? and sequence_year = ?)
+       order by id = ? desc
+       limit 1`,
+      [targetId, row.document_type, row.sequence_year, targetId],
+    )
+    const target = targetRows?.[0]
+
+    if (target && target.id !== row.id) {
+      await pool.query(
+        `update \`${contractDocumentNumberCountersTable}\`
+         set last_sequence = greatest(last_sequence, ?),
+             updated_at = current_timestamp(3)
+         where id = ?`,
+        [row.last_sequence || 0, target.id],
+      )
+      await pool.query(`delete from \`${contractDocumentNumberCountersTable}\` where id = ?`, [row.id])
+      merged += 1
+      continue
+    }
+
+    await pool.query(
+      `update \`${contractDocumentNumberCountersTable}\`
+       set id = ?,
+           seller_entity_code = 'EVT',
+           updated_at = current_timestamp(3)
+       where id = ?`,
+      [targetId, row.id],
+    )
+    renamed += 1
+  }
+
+  let synced = 0
+  if (await hasTable(pool, contractDocumentNumberLedgerTable)) {
+    const [result] = await pool.query(
+      `update \`${contractDocumentNumberCountersTable}\` counters
+       join (
+         select seller_entity_code, document_type, sequence_year, max(sequence_number) as max_sequence
+         from \`${contractDocumentNumberLedgerTable}\`
+         group by seller_entity_code, document_type, sequence_year
+       ) ledger
+         on ledger.seller_entity_code = counters.seller_entity_code
+        and ledger.document_type = counters.document_type
+        and ledger.sequence_year = counters.sequence_year
+       set counters.last_sequence = greatest(counters.last_sequence, ledger.max_sequence),
+           counters.updated_at = current_timestamp(3)
+       where counters.seller_entity_code = 'EVT'
+         and counters.last_sequence < ledger.max_sequence`,
+    )
+    synced = Number(result?.affectedRows || 0)
+  }
+
+  return { merged, renamed, synced }
 }
 
 async function normalizeEventusEntityCodes(pool) {
@@ -806,6 +953,8 @@ try {
   const backfilledFeedbackPublicCodes = await backfillFeedbackPublicCodes(pool)
   const backfilledFeedbackSurveySubmissionNumbers = await backfillFeedbackSurveySubmissionNumbers(pool)
   const backfilledPricingTravelFeeSourceKeys = await backfillPricingTravelFeeSourceKeys(pool)
+  const normalizedEventusDocumentNumberLedger = await normalizeEventusDocumentNumberLedger(pool)
+  const normalizedEventusDocumentNumberCounters = await normalizeEventusDocumentNumberCounters(pool)
   const normalizedEventusEntityCodes = await normalizeEventusEntityCodes(pool)
   const clearedPricingLegalEntityDuplicateFields = await clearPricingLegalEntityDuplicateFields(pool)
   if (await ensureFeedbackSurveyTypeDefault(pool)) createdColumns.push('client_feedback_survey_responses.survey_type default general')
@@ -875,6 +1024,8 @@ try {
     backfilled_feedback_public_codes: backfilledFeedbackPublicCodes,
     backfilled_feedback_survey_submission_numbers: backfilledFeedbackSurveySubmissionNumbers,
     backfilled_pricing_travel_fee_source_keys: backfilledPricingTravelFeeSourceKeys,
+    normalized_eventus_document_number_ledger: normalizedEventusDocumentNumberLedger,
+    normalized_eventus_document_number_counters: normalizedEventusDocumentNumberCounters,
     normalized_eventus_entity_codes: normalizedEventusEntityCodes,
     cleared_pricing_legal_entity_duplicate_fields: clearedPricingLegalEntityDuplicateFields,
     quote_draft_mode_cleanup: quoteDraftModeCleanup,
