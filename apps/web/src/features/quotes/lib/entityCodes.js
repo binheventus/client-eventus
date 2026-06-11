@@ -3,7 +3,7 @@ const MEDIAMONSTER_ENTITY_ALIASES = new Set(['MEDIAMONSTER', 'MEDIA_MONSTER', 'M
 
 export function normalizeLegalEntityCode(value = '') {
   const code = String(value || '').trim().toUpperCase()
-  if (EVENTUS_ENTITY_ALIASES.has(code)) return 'EVENTUS'
+  if (EVENTUS_ENTITY_ALIASES.has(code)) return 'EVT'
   if (MEDIAMONSTER_ENTITY_ALIASES.has(code)) return 'MMT'
   return code
 }
@@ -34,7 +34,9 @@ export function expandEntityCodeFilterValue(value) {
   const expanded = values.flatMap(item => (
     normalizeLegalEntityCode(item) === 'MMT'
       ? ['MMT', 'MEDIAMONSTER', 'MMS']
-      : [item]
+      : normalizeLegalEntityCode(item) === 'EVT'
+        ? ['EVT', 'EVENTUS']
+        : [item]
   ))
   return Array.from(new Set(expanded.filter(item => item !== undefined && item !== null && item !== '')))
 }

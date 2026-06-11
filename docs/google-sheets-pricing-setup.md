@@ -19,13 +19,12 @@ App không đọc Google Sheet trực tiếp khi mở trang báo giá. Google Sh
    - `04_business_rules`
    - `05_legal_entities`
    - `06_equipment_rules`
-   - `07_service_groups`
 
 Tab `05_quote_template` đã bỏ vì chỉ là cấu trúc/mẫu báo giá tham khảo, không còn là dữ liệu bắt buộc để app tính giá hoặc export bảng giá.
 
 Tab `07_owner_decisions` cũng đã bỏ vì chỉ là decision log nội bộ; các quyết định đang được dùng đã chuyển vào các sheet dữ liệu tương ứng như `04_business_rules`, `05_legal_entities`, hoặc các sheet bảng giá khác.
 
-Tab `07_service_groups` dùng để quản lý tên nhóm hạng mục hiển thị trong báo giá. Sheet `01_services` chỉ cần cột `group_code`; app sẽ đối chiếu `group_code` đó với `07_service_groups` để lấy `group_label` và `group_sort_order`.
+Tab `07_service_groups` và cột `group_code` trong `01_services` không còn bắt buộc. App tự suy nhóm hiển thị trong báo giá từ mã dịch vụ, tên dịch vụ, nhóm thiết bị và các nhóm custom người dùng tạo trong từng báo giá.
 
 Sau đó copy **Google Sheet ID** từ đường link của file Google Sheets mới.
 

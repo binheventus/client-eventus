@@ -125,18 +125,18 @@ function getDocumentNumberPreview(template = {}) {
 }
 
 function getSellerBankDetails(entityCode = '', legalEntities = []) {
-  const entity = findLegalEntityByCode(entityCode, legalEntities) || getEntityProfile(entityCode || 'EVENTUS')
+  const entity = findLegalEntityByCode(entityCode, legalEntities) || getEntityProfile(entityCode || 'EVT')
   return getEntityBankDetails(entity)
 }
 
 function resolveSellerEntityCode(entityCode = '', legalEntities = []) {
   const selectedEntity = findLegalEntityByCode(entityCode, legalEntities)
   if (selectedEntity) return getLegalEntityCode(selectedEntity)
-  return getLegalEntityCode(getSellerPreviewProfile(entityCode, legalEntities)) || entityCode || 'EVENTUS'
+  return getLegalEntityCode(getSellerPreviewProfile(entityCode, legalEntities)) || entityCode || 'EVT'
 }
 
 function getSellerPreviewProfile(entityCode = '', legalEntities = []) {
-  const fallback = getEntityProfile(entityCode || 'EVENTUS')
+  const fallback = getEntityProfile(entityCode || 'EVT')
   const entity = findLegalEntityByCode(entityCode, legalEntities) || fallback
 
   return {
@@ -738,7 +738,7 @@ function PaymentRequestNumberingPanel({ template, legalEntities = [], onChange }
         </Field>
         <Field label="Pháp nhân">
           <Select value={selectedCode} onChange={event => onChange({ seller_entity_code: event.target.value })}>
-            {!legalEntities.length ? <option value={selectedCode}>{selectedCode || 'EVENTUS'}</option> : null}
+            {!legalEntities.length ? <option value={selectedCode}>{selectedCode || 'EVT'}</option> : null}
             {legalEntities.map(entity => {
               const code = getLegalEntityCode(entity)
               return (
@@ -778,7 +778,7 @@ function AdvanceRequestNumberingPanel({ template, legalEntities = [], onChange }
         </Field>
         <Field label="Pháp nhân">
           <Select value={selectedCode} onChange={event => onChange({ seller_entity_code: event.target.value })}>
-            {!legalEntities.length ? <option value={selectedCode}>{selectedCode || 'EVENTUS'}</option> : null}
+            {!legalEntities.length ? <option value={selectedCode}>{selectedCode || 'EVT'}</option> : null}
             {legalEntities.map(entity => {
               const code = getLegalEntityCode(entity)
               return (
@@ -818,7 +818,7 @@ function AcceptanceLiquidationNumberingPanel({ template, legalEntities = [], onC
         </Field>
         <Field label="Pháp nhân">
           <Select value={selectedCode} onChange={event => onChange({ seller_entity_code: event.target.value })}>
-            {!legalEntities.length ? <option value={selectedCode}>{selectedCode || 'EVENTUS'}</option> : null}
+            {!legalEntities.length ? <option value={selectedCode}>{selectedCode || 'EVT'}</option> : null}
             {legalEntities.map(entity => {
               const code = getLegalEntityCode(entity)
               return (

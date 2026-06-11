@@ -278,6 +278,94 @@ const feedbackIndexes = [
   },
 ]
 
+const pricingTravelFeeColumns = [
+  {
+    tableName: 'pricing_travel_fees',
+    columnName: 'source_key',
+    definition: 'varchar(600) null after `id`',
+  },
+]
+
+const legacyPricingIndexes = [
+  {
+    tableName: 'pricing_travel_fees',
+    indexName: 'pricing_travel_fees_location_unique',
+  },
+]
+
+const pricingIndexes = [
+  {
+    tableName: 'pricing_travel_fees',
+    indexName: 'pricing_travel_fees_source_key_unique',
+    columns: ['source_key'],
+    unique: true,
+    skipIfDuplicateRows: true,
+  },
+]
+
+const eventusEntityCodeColumns = [
+  { tableName: 'pricing_legal_entities', columnName: 'entity_code' },
+  { tableName: 'client_quotes', columnName: 'entity_code' },
+  { tableName: 'client_contracts', columnName: 'seller_entity_code' },
+  { tableName: 'client_contract_templates', columnName: 'seller_entity_code' },
+  { tableName: 'client_contract_document_templates', columnName: 'seller_entity_code' },
+  { tableName: 'client_contract_documents', columnName: 'seller_entity_code' },
+  { tableName: 'client_contract_doc_no_counters', columnName: 'seller_entity_code' },
+  { tableName: 'client_contract_doc_no_ledger', columnName: 'seller_entity_code' },
+]
+
+const pricingLegalEntityDuplicateColumns = ['source_entity_code', 'code', 'name', 'legal_name']
+
+async function hasColumn(pool, tableName, columnName) {
+  const [rows] = await pool.query(
+    `select 1
+     from information_schema.columns
+     where table_schema = database()
+       and table_name = ?
+       and column_name = ?
+     limit 1`,
+    [tableName, columnName],
+  )
+
+  return rows.length > 0
+}
+
+async function normalizeEventusEntityCodes(pool) {
+  const updates = {}
+
+  for (const { tableName, columnName } of eventusEntityCodeColumns) {
+    if (!await hasColumn(pool, tableName, columnName)) continue
+
+    const [result] = await pool.query(
+      `update \`${tableName}\`
+       set \`${columnName}\` = 'EVT'
+       where upper(trim(\`${columnName}\`)) = 'EVENTUS'`,
+    )
+    const changed = Number(result?.affectedRows || 0)
+    if (changed) updates[`${tableName}.${columnName}`] = changed
+  }
+
+  return updates
+}
+
+async function clearPricingLegalEntityDuplicateFields(pool) {
+  const updates = {}
+
+  for (const columnName of pricingLegalEntityDuplicateColumns) {
+    if (!await hasColumn(pool, 'pricing_legal_entities', columnName)) continue
+
+    const [result] = await pool.query(
+      `update \`pricing_legal_entities\`
+       set \`${columnName}\` = null
+       where \`${columnName}\` is not null`,
+    )
+    const changed = Number(result?.affectedRows || 0)
+    if (changed) updates[`pricing_legal_entities.${columnName}`] = changed
+  }
+
+  return updates
+}
+
 async function ensureColumn(pool, { tableName, columnName, definition }) {
   const [rows] = await pool.query(
     `select 1
@@ -621,6 +709,48 @@ async function removeQuoteDraftMode(pool) {
   }
 }
 
+function makePricingTravelFeeSourceKey(row = {}) {
+  return [
+    String(row.location || '').trim().toLowerCase(),
+    String(row.condition || '').trim().toLowerCase(),
+  ].join('::')
+}
+
+async function backfillPricingTravelFeeSourceKeys(pool) {
+  const [tables] = await pool.query(
+    `select 1
+     from information_schema.tables
+     where table_schema = database()
+       and table_name = 'pricing_travel_fees'
+     limit 1`,
+  )
+  if (!tables.length) return 0
+
+  const [columns] = await pool.query(
+    `select 1
+     from information_schema.columns
+     where table_schema = database()
+       and table_name = 'pricing_travel_fees'
+       and column_name = 'source_key'
+     limit 1`,
+  )
+  if (!columns.length) return 0
+
+  const [rows] = await pool.query(
+    'select `id`, `location`, `condition`, `source_key` from `pricing_travel_fees` order by `id` asc',
+  )
+
+  let updated = 0
+  for (const row of rows) {
+    const sourceKey = makePricingTravelFeeSourceKey(row)
+    if (row.source_key === sourceKey) continue
+    await pool.query('update `pricing_travel_fees` set `source_key` = ? where `id` = ?', [sourceKey, row.id])
+    updated += 1
+  }
+
+  return updated
+}
+
 try {
   for (const statement of splitSqlStatements(schemaSql)) {
     await pool.query(statement)
@@ -668,9 +798,16 @@ try {
     if (await ensureColumnIfTableExists(pool, columnConfig)) createdColumns.push(`${columnConfig.tableName}.${columnConfig.columnName}`)
   }
 
+  for (const columnConfig of pricingTravelFeeColumns) {
+    if (await ensureColumnIfTableExists(pool, columnConfig)) createdColumns.push(`${columnConfig.tableName}.${columnConfig.columnName}`)
+  }
+
   const backfilledJobPublicTokens = await backfillJobPublicTokens(pool)
   const backfilledFeedbackPublicCodes = await backfillFeedbackPublicCodes(pool)
   const backfilledFeedbackSurveySubmissionNumbers = await backfillFeedbackSurveySubmissionNumbers(pool)
+  const backfilledPricingTravelFeeSourceKeys = await backfillPricingTravelFeeSourceKeys(pool)
+  const normalizedEventusEntityCodes = await normalizeEventusEntityCodes(pool)
+  const clearedPricingLegalEntityDuplicateFields = await clearPricingLegalEntityDuplicateFields(pool)
   if (await ensureFeedbackSurveyTypeDefault(pool)) createdColumns.push('client_feedback_survey_responses.survey_type default general')
 
   if (await ensureContractQuoteNullable(pool)) createdColumns.push('client_contracts.quote_id nullable')
@@ -694,12 +831,24 @@ try {
     if (await dropIndexIfExists(pool, indexConfig)) droppedIndexes.push(indexConfig.indexName)
   }
 
+  for (const indexConfig of legacyPricingIndexes) {
+    if (await dropIndexIfExists(pool, indexConfig)) droppedIndexes.push(indexConfig.indexName)
+  }
+
   for (const indexConfig of feedbackIndexes) {
     if (indexConfig.skipIfDuplicateRows && await hasDuplicateRowsForIndex(pool, indexConfig)) {
       skippedIndexes.push(`${indexConfig.indexName}: duplicate rows exist`)
       continue
     }
     if (await ensureConfiguredIndex(pool, indexConfig)) createdIndexes.push(indexConfig.indexName)
+  }
+
+  for (const indexConfig of pricingIndexes) {
+    if (indexConfig.skipIfDuplicateRows && await hasDuplicateRowsForIndex(pool, indexConfig)) {
+      skippedIndexes.push(`${indexConfig.indexName}: duplicate rows exist`)
+      continue
+    }
+    if (await ensureConfiguredIndexIfTableExists(pool, indexConfig)) createdIndexes.push(indexConfig.indexName)
   }
 
   const shouldDropLegacyTables = process.env.DROP_LEGACY_AI_LAB_TABLES === '1'
@@ -725,6 +874,9 @@ try {
     backfilled_job_public_tokens: backfilledJobPublicTokens,
     backfilled_feedback_public_codes: backfilledFeedbackPublicCodes,
     backfilled_feedback_survey_submission_numbers: backfilledFeedbackSurveySubmissionNumbers,
+    backfilled_pricing_travel_fee_source_keys: backfilledPricingTravelFeeSourceKeys,
+    normalized_eventus_entity_codes: normalizedEventusEntityCodes,
+    cleared_pricing_legal_entity_duplicate_fields: clearedPricingLegalEntityDuplicateFields,
     quote_draft_mode_cleanup: quoteDraftModeCleanup,
     dropped_legacy_tables: shouldDropLegacyTables ? legacyAiLabTables.length : 0,
   }, null, 2))

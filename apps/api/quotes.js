@@ -1,5 +1,4 @@
 import { randomBytes, randomUUID } from 'node:crypto'
-import { createRequire } from 'node:module'
 import {
   emptyToNull,
   insertRow,
@@ -15,17 +14,13 @@ import {
 import { requireEventusAuth } from './lib/eventus-auth.js'
 import { loadServerEnv } from './lib/server-env.js'
 import { expandQuoteEntityFilterValues, normalizeQuoteEntityCode } from './lib/entity-codes.js'
+import { getJsonFallbackQuotePricingContext, getPricingContext } from './lib/pricing-context.js'
 import { calculateQuotePricing } from '../web/src/features/quotes/lib/pricingCalculator.js'
-
-const require = createRequire(import.meta.url)
-const servicesPricingData = require('../web/src/data/pricing/services.json')
-const travelFeesPricingData = require('../web/src/data/pricing/travel_fees.json')
-const businessRulesPricingData = require('../web/src/data/pricing/business_rules.json')
 
 const SHARE_TOKEN_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 const SHARE_TOKEN_LENGTH = 7
 const SYSTEM_ACTOR_ID = '00000000-0000-0000-0000-000000000000'
-const DEFAULT_ENTITY_CODE = 'EVENTUS'
+const DEFAULT_ENTITY_CODE = 'EVT'
 const DEFAULT_TIER_CODE = 'TIER_2'
 const DEFAULT_NHANSU_URL = 'https://nhansu.eventusproduction.com'
 const EVENTUS_AUTH_HOST = 'lichlamviec.eventusproduction.com'
@@ -229,36 +224,6 @@ function getAuthenticatedUserPayload(req) {
 
 function normalizeCode(value) {
   return String(value || '').trim().toUpperCase()
-}
-
-function getRuleCode(row = {}) {
-  return row?.rule_code || row?.code || row?.key
-}
-
-function getRuleValue(row = {}) {
-  return row?.rule_value ?? row?.value ?? row?.config_value ?? null
-}
-
-function getActivePricingRows(rows = []) {
-  return [...rows]
-    .filter(row => row?.is_active !== false)
-    .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0))
-}
-
-function getBusinessRulesMap(rows = []) {
-  return rows.reduce((acc, row) => {
-    const code = getRuleCode(row)
-    if (code) acc[code] = getRuleValue(row)
-    return acc
-  }, {})
-}
-
-function getCurrentQuotePricingContext() {
-  return {
-    services: getActivePricingRows(servicesPricingData),
-    travelFees: getActivePricingRows(travelFeesPricingData),
-    businessRules: getBusinessRulesMap(businessRulesPricingData),
-  }
 }
 
 function normalizeTierCode(value) {
@@ -729,7 +694,8 @@ async function getQuoteAuditLogs(quoteId) {
 }
 
 async function createQuote(body = {}) {
-  const { items = [], user_id: userId, created_by_id: createdById, user_name: userName, ...quotePayload } = body
+  const pricedBody = await applyServerPricingToQuotePayload(body)
+  const { items = [], user_id: userId, created_by_id: createdById, user_name: userName, ...quotePayload } = pricedBody
   const createdBy = quotePayload.created_by || userId || createdById || SYSTEM_ACTOR_ID
   const creatorName = quotePayload.created_by_name || quotePayload.sales_name || userName || 'Eventus'
 
@@ -813,7 +779,75 @@ function normalizeDuplicatedCalculatedItem(item = {}, index = 0) {
   }
 }
 
-function buildDuplicatedQuotePayload(quote = {}, actorPayload = {}, pricingContext = getCurrentQuotePricingContext()) {
+function normalizePricedQuoteItemForSave(item = {}, index = 0) {
+  const isCustom = Boolean(item.is_custom || normalizeCode(item.service_code) === 'CUSTOM')
+  const serviceName = getServiceDisplayName(item.service)
+  const unitPrice = Number(item.unit_price) || 0
+  const isOverridden = Boolean(item.is_overridden || isCustom)
+
+  return {
+    ...item,
+    service_code: isCustom ? 'CUSTOM' : (item.resolved_service_code || item.service_code || null),
+    service_name: isCustom ? item.service_name : (serviceName || item.service_name),
+    service_name_raw: isCustom
+      ? (item.service_name_raw || item.service_name)
+      : (serviceName || item.service_name_raw || item.service_name),
+    unit: item.unit || item.pricing_unit || item.service?.unit || 'Người',
+    unit_price: unitPrice,
+    total_price: Number(item.total_price) || 0,
+    is_custom: isCustom,
+    is_overridden: isOverridden,
+    original_unit_price: isOverridden ? (item.original_unit_price ?? unitPrice) : unitPrice,
+    override_reason: item.override_reason || '',
+    sort_order: item.sort_order ?? index + 1,
+  }
+}
+
+function getQuotePricingInput(payload = {}, pricingContext = {}) {
+  return {
+    items: Array.isArray(payload.items) ? payload.items : [],
+    services: pricingContext.services || [],
+    travelFees: pricingContext.travelFees || pricingContext.travel_fees || [],
+    businessRules: pricingContext.businessRules || {},
+    location: payload.location,
+    customer_tier: payload.tier_code,
+    has_vat: payload.has_vat,
+    duration_hours: payload.duration_hours,
+  }
+}
+
+async function getRuntimeQuotePricingContext() {
+  const context = await getPricingContext()
+  return {
+    services: context.services,
+    travelFees: context.travelFees,
+    businessRules: context.businessRules,
+    meta: context.meta,
+  }
+}
+
+async function applyServerPricingToQuotePayload(payload = {}, existingQuote = {}) {
+  if (!Array.isArray(payload.items)) return payload
+
+  const pricingContext = await getRuntimeQuotePricingContext()
+  const pricingSource = {
+    ...existingQuote,
+    ...payload,
+  }
+  const pricing = calculateQuotePricing(getQuotePricingInput(pricingSource, pricingContext))
+
+  return {
+    ...payload,
+    subtotal: pricing.subtotal,
+    travel_fee_total: pricing.travel_fee_total,
+    overtime_fee_total: pricing.overtime_fee_total,
+    vat_amount: pricing.vat_amount,
+    total_amount: pricing.total_amount,
+    items: (pricing.items_with_calculated_price || []).map(normalizePricedQuoteItemForSave),
+  }
+}
+
+function buildDuplicatedQuotePayload(quote = {}, actorPayload = {}, pricingContext = getJsonFallbackQuotePricingContext()) {
   const {
     id: _id,
     quote_number: _quoteNumber,
@@ -861,7 +895,9 @@ function buildDuplicatedQuotePayload(quote = {}, actorPayload = {}, pricingConte
 }
 
 async function updateQuote(id, patch = {}) {
-  const { items, ...quotePatch } = patch
+  const existingQuote = Array.isArray(patch.items) ? await getQuoteById(id) : {}
+  const pricedPatch = await applyServerPricingToQuotePayload(patch, existingQuote)
+  const { items, ...quotePatch } = pricedPatch
 
   await withTransaction(async connection => {
     const clientId = await ensureClient(connection, {
@@ -893,7 +929,8 @@ async function duplicateQuote(id, actorPayload = {}) {
     throw error
   }
 
-  return createQuote(buildDuplicatedQuotePayload(quote, actorPayload))
+  const pricingContext = await getRuntimeQuotePricingContext()
+  return createQuote(buildDuplicatedQuotePayload(quote, actorPayload, pricingContext))
 }
 
 async function deleteQuote(id, { hard = false } = {}) {

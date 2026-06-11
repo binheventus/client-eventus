@@ -1,5 +1,4 @@
 import { Fragment, useState } from 'react'
-import equipmentRulesData from '../../../data/pricing/equipment_rules.json'
 import legalEntitiesData from '../../../data/pricing/legal_entities.json'
 import { getMatchedEquipmentRules } from '../lib/equipmentRules'
 import {
@@ -13,12 +12,12 @@ import { findLegalEntityByAlias, isMediaMonsterEntityCode, normalizeLegalEntityC
 
 const SIGNATURE_IMAGE_SRC = '/signatures/nguyen-thu-huyen.png'
 const STAMP_IMAGE_BY_ENTITY = {
-  EVENTUS: '/stamps/Stamp-eventus.png',
+  EVT: '/stamps/Stamp-eventus.png',
   MMT: '/stamps/Stamp-mediamonster.png',
 }
 
 function getStampImageSrc(entityCode) {
-  return STAMP_IMAGE_BY_ENTITY[normalizeLegalEntityCode(entityCode)] || STAMP_IMAGE_BY_ENTITY.EVENTUS
+  return STAMP_IMAGE_BY_ENTITY[normalizeLegalEntityCode(entityCode)] || STAMP_IMAGE_BY_ENTITY.EVT
 }
 
 function formatCurrency(value) {
@@ -157,18 +156,18 @@ function SignatureBlock({ quote, showStamp = true }) {
   )
 }
 
-function QuoteEndNotes({ quote = {}, items = [] }) {
-  const equipmentRules = getMatchedEquipmentRules(items, equipmentRulesData)
+function QuoteEndNotes({ quote = {}, items = [], equipmentRules = [] }) {
+  const matchedEquipmentRules = getMatchedEquipmentRules(items, equipmentRules)
   const terms = getQuoteTerms(quote)
   const paymentTerms = getQuotePaymentTerms()
 
   return (
     <section className="space-y-2.5 rounded-lg border border-slate-300 bg-slate-100 px-3 py-3 text-[10px] leading-[1.22] text-black">
-      {equipmentRules.length ? (
+      {matchedEquipmentRules.length ? (
         <div>
           <h3 className="text-[10px] font-bold uppercase tracking-[0.04em] text-black">THIẾT BỊ SỬ DỤNG</h3>
           <ul className="mt-1 list-disc space-y-0.5 pl-3">
-            {equipmentRules.map(rule => (
+            {matchedEquipmentRules.map(rule => (
               <li key={`${rule.equipment_title}-${rule.sort_order}`}>
                 <span className="font-semibold text-black">{rule.equipment_title}:</span> {rule.equipment_description}
               </li>
@@ -265,6 +264,7 @@ export default function QuotePreview({
   items = [],
   totals = {},
   entities = [],
+  equipmentRules = [],
   client,
   sticky = true,
   tableOnly = false,
@@ -410,7 +410,7 @@ export default function QuotePreview({
         {!tableOnly ? (
           <>
             <div className="mt-2">
-              <QuoteEndNotes quote={quote} items={items} />
+              <QuoteEndNotes quote={quote} items={items} equipmentRules={equipmentRules} />
             </div>
             <SignatureBlock quote={quote} showStamp={shouldShowStamp} />
           </>

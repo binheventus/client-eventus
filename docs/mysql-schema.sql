@@ -379,3 +379,125 @@ create table if not exists client_feedback_survey_response_answers (
   key client_feedback_survey_response_answers_question_idx (question_id),
   constraint client_feedback_survey_response_answers_response_fk foreign key (response_id) references client_feedback_survey_responses (id) on delete cascade
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create table if not exists pricing_services (
+  id bigint unsigned primary key auto_increment,
+  service_code varchar(120) not null,
+  equipment_group varchar(120) null,
+  service_name varchar(500) not null,
+  quote_display_name varchar(500) null,
+  duration_tier varchar(120) null,
+  unit varchar(80) null,
+  price_tier_1 decimal(18,2) null,
+  price_tier_2 decimal(18,2) null,
+  price_tier_3 decimal(18,2) null,
+  price_tier_4 decimal(18,2) null,
+  price_tier_5 decimal(18,2) null,
+  price_tier_6 decimal(18,2) null,
+  description text null,
+  internal_note text null,
+  is_active tinyint(1) not null default 1,
+  sort_order int not null default 100,
+  source_json json null,
+  created_at datetime(3) not null default current_timestamp(3),
+  updated_at datetime(3) not null default current_timestamp(3) on update current_timestamp(3),
+  unique key pricing_services_code_unique (service_code),
+  key pricing_services_active_sort_idx (is_active, sort_order)
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create table if not exists pricing_travel_fees (
+  id bigint unsigned primary key auto_increment,
+  source_key varchar(600) not null,
+  location varchar(255) not null,
+  fee_per_person_per_day decimal(18,2) not null default 0,
+  `condition` text null,
+  includes_accommodation tinyint(1) not null default 0,
+  includes_transport tinyint(1) not null default 0,
+  note text null,
+  is_active tinyint(1) not null default 1,
+  sort_order int not null default 100,
+  source_json json null,
+  created_at datetime(3) not null default current_timestamp(3),
+  updated_at datetime(3) not null default current_timestamp(3) on update current_timestamp(3),
+  unique key pricing_travel_fees_source_key_unique (source_key),
+  key pricing_travel_fees_active_sort_idx (is_active, sort_order)
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create table if not exists pricing_customer_tiers (
+  id bigint unsigned primary key auto_increment,
+  tier_code varchar(120) not null,
+  tier_name varchar(500) not null,
+  description text null,
+  price_column_used varchar(120) null,
+  payment_terms text null,
+  default_discount decimal(10,4) null,
+  special_note text null,
+  is_active tinyint(1) not null default 1,
+  sort_order int not null default 100,
+  source_json json null,
+  created_at datetime(3) not null default current_timestamp(3),
+  updated_at datetime(3) not null default current_timestamp(3) on update current_timestamp(3),
+  unique key pricing_customer_tiers_code_unique (tier_code),
+  key pricing_customer_tiers_active_sort_idx (is_active, sort_order)
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create table if not exists pricing_business_rules (
+  id bigint unsigned primary key auto_increment,
+  rule_code varchar(160) not null,
+  category varchar(255) null,
+  rule_name varchar(500) null,
+  value text null,
+  rule_value text null,
+  description text null,
+  derived tinyint(1) not null default 0,
+  is_active tinyint(1) not null default 1,
+  sort_order int not null default 100,
+  source_json json null,
+  created_at datetime(3) not null default current_timestamp(3),
+  updated_at datetime(3) not null default current_timestamp(3) on update current_timestamp(3),
+  unique key pricing_business_rules_code_unique (rule_code),
+  key pricing_business_rules_category_idx (category, sort_order),
+  key pricing_business_rules_active_sort_idx (is_active, sort_order)
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create table if not exists pricing_legal_entities (
+  id bigint unsigned primary key auto_increment,
+  entity_code varchar(120) not null,
+  entity_name_full varchar(500) not null,
+  tax_code varchar(120) null,
+  address text null,
+  representative varchar(255) null,
+  position varchar(255) null,
+  email varchar(255) null,
+  hotline varchar(120) null,
+  website varchar(255) null,
+  bank_account varchar(160) null,
+  bank_name varchar(500) null,
+  logo_file varchar(255) null,
+  is_default tinyint(1) not null default 0,
+  display_name varchar(255) null,
+  is_active tinyint(1) not null default 1,
+  sort_order int not null default 100,
+  source_json json null,
+  created_at datetime(3) not null default current_timestamp(3),
+  updated_at datetime(3) not null default current_timestamp(3) on update current_timestamp(3),
+  unique key pricing_legal_entities_code_unique (entity_code),
+  key pricing_legal_entities_active_sort_idx (is_active, sort_order),
+  key pricing_legal_entities_default_idx (is_default)
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create table if not exists pricing_equipment_rules (
+  id bigint unsigned primary key auto_increment,
+  match_prefixes varchar(500) not null,
+  equipment_title varchar(500) not null,
+  equipment_description text null,
+  internal_note text null,
+  match_prefix_list json null,
+  is_active tinyint(1) not null default 1,
+  sort_order int not null default 100,
+  source_json json null,
+  created_at datetime(3) not null default current_timestamp(3),
+  updated_at datetime(3) not null default current_timestamp(3) on update current_timestamp(3),
+  unique key pricing_equipment_rules_prefixes_unique (match_prefixes),
+  key pricing_equipment_rules_active_sort_idx (is_active, sort_order)
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;

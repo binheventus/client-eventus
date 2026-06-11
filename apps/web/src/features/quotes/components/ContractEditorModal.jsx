@@ -496,7 +496,7 @@ function syncHydratedContractNumber(contractNumber, contractNumberPattern, contr
     contract.contract_number_pattern,
     contractNumberPattern,
     nextPattern,
-    applySellerEntityToContractNumberPattern(nextPattern, 'EVENTUS'),
+    applySellerEntityToContractNumberPattern(nextPattern, 'EVT'),
     applySellerEntityToContractNumberPattern(nextPattern, 'MEDIAMONSTER'),
   ].filter(Boolean)
   const wasGenerated = Array.from(new Set(candidatePatterns))
@@ -506,7 +506,7 @@ function syncHydratedContractNumber(contractNumber, contractNumberPattern, contr
 }
 
 function getHydratedSellerSnapshot(contract = {}, quote = {}) {
-  const sellerEntityCode = contract.seller_entity_code || quote?.entity_code || 'EVENTUS'
+  const sellerEntityCode = contract.seller_entity_code || quote?.entity_code || 'EVT'
   return {
     ...(contract.seller_snapshot || {}),
     ...getEntityProfile(sellerEntityCode),
@@ -1089,7 +1089,7 @@ export default function ContractEditorModal({
     const candidatePatterns = [
       previousPattern,
       normalizedNextPattern,
-      applySellerEntityToContractNumberPattern(normalizedNextPattern, 'EVENTUS'),
+      applySellerEntityToContractNumberPattern(normalizedNextPattern, 'EVT'),
       applySellerEntityToContractNumberPattern(normalizedNextPattern, 'MEDIAMONSTER'),
     ].filter(Boolean)
 
@@ -1308,7 +1308,7 @@ export default function ContractEditorModal({
                       headerAction={(
                         <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-5">
                           <span className="shrink-0 text-[12px] font-semibold text-slate-600">Chọn pháp nhân bên B</span>
-                          <Select className="appearance-none border-orange-300 bg-orange-50 text-center font-semibold text-orange-700 focus:border-[#f8981d] sm:max-w-[132px]" value={draft.seller_entity_code || quote?.entity_code || 'EVENTUS'} onChange={event => handleSellerEntityChange(event.target.value)}>
+                          <Select className="appearance-none border-orange-300 bg-orange-50 text-center font-semibold text-orange-700 focus:border-[#f8981d] sm:max-w-[132px]" value={draft.seller_entity_code || quote?.entity_code || 'EVT'} onChange={event => handleSellerEntityChange(event.target.value)}>
                             {legalEntities.map(entity => {
                               const code = entity.entity_code || entity.code
                               return <option key={code} value={code}>{entity.display_name || entity.legal_name || code}</option>

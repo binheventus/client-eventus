@@ -1,26 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import serviceGroupsData from '../../../data/pricing/service_groups.json'
 
 let serviceGroupsCache = null
-
-function normalizeGroup(row = {}, index = 0) {
-  const groupCode = String(row.group_code || '').trim().toUpperCase()
-  return {
-    ...row,
-    group_code: groupCode,
-    group_label: String(row.group_label || groupCode || 'Hạng mục').trim(),
-    group_sort_order: Number(row.group_sort_order || index + 1),
-    is_active: row.is_active !== false,
-  }
-}
 
 export async function fetchActiveServiceGroups({ force = false } = {}) {
   if (serviceGroupsCache && !force) return serviceGroupsCache
 
-  serviceGroupsCache = [...serviceGroupsData]
-    .map(normalizeGroup)
-    .filter(row => row.group_code && row.is_active !== false)
-    .sort((a, b) => Number(a.group_sort_order || 99) - Number(b.group_sort_order || 99))
+  serviceGroupsCache = []
   return serviceGroupsCache
 }
 

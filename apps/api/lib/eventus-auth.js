@@ -54,7 +54,8 @@ export function isProtectedQuotePageRequest(req) {
   const pathname = new URL(normalizeRequestPath(req?.url), 'http://client.local').pathname
   return pathname === '/quotes' || pathname.startsWith('/quotes/') ||
     pathname === '/contracts' || pathname.startsWith('/contracts/') ||
-    pathname === '/feedback' || pathname.startsWith('/feedback/')
+    pathname === '/feedback' || pathname.startsWith('/feedback/') ||
+    pathname === '/pricing-admin' || pathname.startsWith('/pricing-admin/')
 }
 
 function normalizeRequestPath(value) {

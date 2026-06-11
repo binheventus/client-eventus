@@ -30,7 +30,7 @@ const EMPTY_TEMPLATE = normalizeContractTemplate({
   name: '',
   description: '',
   title: DEFAULT_CONTRACT_TITLE,
-  seller_entity_code: 'EVENTUS',
+  seller_entity_code: 'EVT',
   is_default: false,
   is_active: true,
   sort_order: 100,

@@ -22,6 +22,7 @@ const FeedbackDetailPage = lazy(() => import('./features/feedback/pages/Feedback
 const FeedbackSurveyPage = lazy(() => import('./features/feedback/pages/FeedbackSurveyPage'))
 const FeedbackGalleryPage = lazy(() => import('./features/feedback/pages/FeedbackGalleryPage'))
 const FeedbackRedirectPage = lazy(() => import('./features/feedback/pages/FeedbackAccessPage').then(module => ({ default: module.FeedbackRedirectPage })))
+const PricingAdminPage = lazy(() => import('./features/pricing-admin/pages/PricingAdminPage'))
 
 const CONTRACT_DOCUMENT_TEMPLATE_TYPES = new Set([
   'advance_request',
@@ -106,6 +107,7 @@ export default function App() {
           <Route path="/quotes/new" element={<QuoteModuleShell><QuoteCreatePage /></QuoteModuleShell>} />
           <Route path="/quotes/trash" element={<QuoteModuleShell><QuoteTrashPage /></QuoteModuleShell>} />
           <Route path="/quotes/contract-templates" element={<ContractTemplatesRedirect kind="contract" />} />
+          <Route path="/pricing-admin" element={<QuoteModuleShell><PricingAdminPage /></QuoteModuleShell>} />
           <Route path="/quotes/:id/edit" element={<QuoteEditRoute />} />
           <Route path="/quotes/:id" element={<QuoteDetailRoute />} />
           <Route path="/quotes/*" element={<Navigate replace to="/quotes" />} />

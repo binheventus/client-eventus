@@ -17,7 +17,7 @@ import {
 const template = {
   id: 'template-test',
   title: 'HỢP ĐỒNG DỊCH VỤ',
-  seller_entity_code: 'EVENTUS',
+  seller_entity_code: 'EVT',
   contract_number_pattern: '{{dd}}{{mm}}/HD-{{source_code}}/{{customer_short_code}}/{{yyyy}}',
   service_scope: '',
   schedule_rows: [],
@@ -31,7 +31,7 @@ test('buildInitialContractDraft generates a contract number for new quote contra
   const draft = buildInitialContractDraft({
     id: 'quote-1',
     client_name: 'Công ty Minh Anh',
-    entity_code: 'EVENTUS',
+    entity_code: 'EVT',
   }, {
     ...template,
     contract_number_pattern: '{{dd}}{{mm}}/HDEVT-{{customer_short_code}}/{{yyyy}}',

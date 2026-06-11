@@ -50,5 +50,5 @@ export { fetchActiveLegalEntities, useLegalEntities } from './hooks/useLegalEnti
 export { fetchCustomerTiers, useCustomerTiers } from './hooks/useCustomerTiers'
 
 export { calculateQuotePricing, findServiceForQuoteItem } from './lib/pricingCalculator'
-export { clearQuoteParseCache, parseQuoteBrief, parseQuoteInput, useQuoteParser } from './lib/aiParser'
+export { clearQuoteParseCache, parseQuoteBrief, parseQuoteInput, useQuoteParser } from './lib/briefParser'
 export { validateQuoteInput } from './lib/quoteValidation'

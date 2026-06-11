@@ -1,11 +1,10 @@
 import { useState } from 'react'
-import equipmentRulesData from '../../../data/pricing/equipment_rules.json'
-import legalEntitiesData from '../../../data/pricing/legal_entities.json'
 import { findLegalEntityByAlias, isMediaMonsterEntityCode, normalizeLegalEntityCode } from '../lib/entityCodes'
+import { fetchPricingContext } from '../lib/pricingContextClient'
 import { buildQuoteExcelWorkbook, getQuoteExcelFilename } from '../lib/quoteExcel'
 
-function getQuoteEntity(quote = {}) {
-  return findLegalEntityByAlias(quote.entity_code || 'EVENTUS', legalEntitiesData)
+function getQuoteEntity(quote = {}, legalEntities = []) {
+  return findLegalEntityByAlias(quote.entity_code || 'EVT', legalEntities)
 }
 
 function getLogoExtension(logoFile = '') {
@@ -13,9 +12,9 @@ function getLogoExtension(logoFile = '') {
   return extension === 'jpg' || extension === 'jpeg' ? 'jpeg' : 'png'
 }
 
-async function loadQuoteLogo(quote = {}) {
-  const entity = getQuoteEntity(quote)
-  const entityCode = normalizeLegalEntityCode(quote.entity_code || 'EVENTUS')
+async function loadQuoteLogo(quote = {}, legalEntities = []) {
+  const entity = getQuoteEntity(quote, legalEntities)
+  const entityCode = normalizeLegalEntityCode(quote.entity_code || 'EVT')
   const logoFile = entity?.logo_file || entity?.logoFile || (isMediaMonsterEntityCode(entityCode) ? 'logo_mediamonster.png' : 'logo_eventus.png')
   if (!logoFile) return {}
 
@@ -55,10 +54,11 @@ export default function QuoteExcelDownloadButton({
     setLoading(true)
     try {
       const ExcelJS = await import('exceljs')
-      const logoOptions = await loadQuoteLogo(quote)
+      const pricingContext = await fetchPricingContext()
+      const logoOptions = await loadQuoteLogo(quote, pricingContext.legalEntities)
       const workbook = buildQuoteExcelWorkbook(quote, items || quote?.items || [], ExcelJS, {
-        equipmentRules: equipmentRulesData,
-        legalEntities: legalEntitiesData,
+        equipmentRules: pricingContext.equipmentRules,
+        legalEntities: pricingContext.legalEntities,
         ...logoOptions,
       })
       const content = await workbook.xlsx.writeBuffer()

@@ -1,5 +1,5 @@
 const DEFAULT_ENTITIES = [
-  { entity_code: 'EVENTUS', name: 'Eventus' },
+  { entity_code: 'EVT', name: 'Eventus' },
   { entity_code: 'MMT', name: 'Mediamonster' },
 ]
 

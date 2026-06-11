@@ -27,7 +27,7 @@ function getQuoteCode(quote = {}) {
 }
 
 function getEntityMeta(quote = {}, legalEntities = []) {
-  const code = normalizeLegalEntityCode(quote.entity_code || 'EVENTUS')
+  const code = normalizeLegalEntityCode(quote.entity_code || 'EVT')
   const entity = findLegalEntityByAlias(code, legalEntities)
   const company = entity?.legal_name || entity?.entity_name_full || entity?.name || (isMediaMonsterEntityCode(code) ? 'CÔNG TY TNHH MEDIAMONSTER' : 'CÔNG TY TNHH EVENTUS VIỆT NAM')
   const taxCode = entity?.tax_code || ''

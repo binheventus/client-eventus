@@ -23,7 +23,7 @@ export const QUOTE_TIER_OPTIONS = [
 
 export const QUOTE_ENTITY_OPTIONS = [
   { value: '', label: 'Tất cả pháp nhân' },
-  { value: 'EVENTUS', label: 'Eventus' },
+  { value: 'EVT', label: 'Eventus' },
   { value: 'MMT', label: 'Mediamonster' },
 ]
 

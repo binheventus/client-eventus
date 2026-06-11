@@ -13,7 +13,7 @@ import { findLegalEntityByAlias, normalizeLegalEntityCode } from '../lib/entityC
 
 const SIGNATURE_IMAGE_SRC = '/signatures/nguyen-thu-huyen.png'
 const STAMP_IMAGE_BY_ENTITY = {
-  EVENTUS: '/stamps/Stamp-eventus.png',
+  EVT: '/stamps/Stamp-eventus.png',
   MMT: '/stamps/Stamp-mediamonster.png',
 }
 const PDF_FONT_FAMILY = 'BeVietnamProQuote'
@@ -32,8 +32,8 @@ Font.register({
 Font.registerHyphenationCallback(word => [word])
 
 const ENTITY_META = {
-  EVENTUS: {
-    name: 'EVENTUS',
+  EVT: {
+    name: 'EVT',
     company: 'CÔNG TY TNHH EVENTUS VIỆT NAM',
     taxCode: 'MST: [cập nhật]',
     address: 'Địa chỉ: [cập nhật]',
@@ -87,9 +87,9 @@ export function getQuotePdfFilename(quote = {}) {
   return `${sanitizeFilenamePart(quoteNumber)}_${sanitizeFilenamePart(clientName)}_${date}.pdf`
 }
 
-function getEntityMeta(quote) {
-  const code = normalizeLegalEntityCode(quote?.entity_code || 'EVENTUS')
-  const entity = findLegalEntityByAlias(code, legalEntitiesData)
+function getEntityMeta(quote, legalEntities = legalEntitiesData) {
+  const code = normalizeLegalEntityCode(quote?.entity_code || 'EVT')
+  const entity = findLegalEntityByAlias(code, legalEntities)
   if (entity) {
     return {
       name: entity.display_name || entity.entity_code || code,
@@ -101,7 +101,7 @@ function getEntityMeta(quote) {
       logoFile: entity.logo_file || ENTITY_META[code]?.logoFile,
     }
   }
-  return ENTITY_META[code] || ENTITY_META.EVENTUS
+  return ENTITY_META[code] || ENTITY_META.EVT
 }
 
 function getQuoteCode(quote) {
@@ -110,7 +110,7 @@ function getQuoteCode(quote) {
 }
 
 function getStampImageSrc(entityCode) {
-  return STAMP_IMAGE_BY_ENTITY[normalizeLegalEntityCode(entityCode)] || STAMP_IMAGE_BY_ENTITY.EVENTUS
+  return STAMP_IMAGE_BY_ENTITY[normalizeLegalEntityCode(entityCode)] || STAMP_IMAGE_BY_ENTITY.EVT
 }
 
 function getClientName(quote) {
@@ -661,8 +661,8 @@ const styles = StyleSheet.create({
   },
 })
 
-function Header({ quote, dense = false, spacious = false }) {
-  const entity = getEntityMeta(quote)
+function Header({ quote, legalEntities = legalEntitiesData, dense = false, spacious = false }) {
+  const entity = getEntityMeta(quote, legalEntities)
   const logoUrl = logoUrlByEntity[normalizeLegalEntityCode(quote?.entity_code)] || logoUrlByEntity[quote?.entity_code] || (entity.logoFile ? `/logos/${entity.logoFile}` : null)
   const quoteCode = getQuoteCode(quote)
 
@@ -766,17 +766,17 @@ function Totals({ quote, dense = false, spacious = false }) {
   )
 }
 
-function Notes({ quote, items = [], dense = false, spacious = false }) {
-  const equipmentRules = getMatchedEquipmentRules(items, equipmentRulesData)
+function Notes({ quote, items = [], equipmentRules = equipmentRulesData, dense = false, spacious = false }) {
+  const matchedEquipmentRules = getMatchedEquipmentRules(items, equipmentRules)
   const terms = getQuoteTerms(quote)
   const paymentTerms = getQuotePaymentTerms()
 
   return (
     <View style={[styles.notes, dense ? styles.notesDense : null, spacious ? styles.notesSpacious : null]}>
-      {equipmentRules.length ? (
+      {matchedEquipmentRules.length ? (
         <View style={[styles.noteSection, dense ? styles.noteSectionDense : null, spacious ? styles.noteSectionSpacious : null]}>
           <Text style={[styles.noteHeading, dense ? styles.noteHeadingDense : null, spacious ? styles.noteHeadingSpacious : null]}>THIẾT BỊ SỬ DỤNG</Text>
-          {equipmentRules.map(rule => (
+          {matchedEquipmentRules.map(rule => (
             <Text key={`${rule.equipment_title}-${rule.sort_order}`} style={[styles.noteLine, dense ? styles.noteLineDense : null, spacious ? styles.noteLineSpacious : null]}>
               • {rule.equipment_title}: {rule.equipment_description}
             </Text>
@@ -823,18 +823,18 @@ function SignatureBlock({ quote, dense = false, spacious = false }) {
   )
 }
 
-export function QuotePDFPage({ quote = {}, items = [] }) {
+export function QuotePDFPage({ quote = {}, items = [], legalEntities = legalEntitiesData, equipmentRules = equipmentRulesData }) {
   const pdfItems = items.length ? items : quote.items || []
   const dense = isDensePdf(pdfItems)
   const spacious = isSpaciousPdf(pdfItems)
 
   return (
     <Page size="A4" style={[styles.page, dense ? styles.pageDense : null, spacious ? styles.pageSpacious : null]}>
-      <Header quote={quote} dense={dense} spacious={spacious} />
+      <Header quote={quote} legalEntities={legalEntities} dense={dense} spacious={spacious} />
       <InfoSection quote={quote} dense={dense} spacious={spacious} />
       <ItemsTable items={pdfItems} dense={dense} spacious={spacious} />
       <Totals quote={quote} dense={dense} spacious={spacious} />
-      <Notes quote={quote} items={pdfItems} dense={dense} spacious={spacious} />
+      <Notes quote={quote} items={pdfItems} equipmentRules={equipmentRules} dense={dense} spacious={spacious} />
       <SignatureBlock quote={quote} dense={dense} spacious={spacious} />
       <Text
         style={styles.pageNumber}
@@ -845,10 +845,10 @@ export function QuotePDFPage({ quote = {}, items = [] }) {
   )
 }
 
-export default function QuotePDFDocument({ quote = {}, items = [] }) {
+export default function QuotePDFDocument({ quote = {}, items = [], legalEntities = legalEntitiesData, equipmentRules = equipmentRulesData }) {
   return (
     <Document title={quote.quote_number || 'Báo giá'}>
-      <QuotePDFPage quote={quote} items={items} />
+      <QuotePDFPage quote={quote} items={items} legalEntities={legalEntities} equipmentRules={equipmentRules} />
     </Document>
   )
 }

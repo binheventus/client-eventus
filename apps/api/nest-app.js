@@ -5,6 +5,8 @@ import contractsHandler from './contracts.js'
 import clientPagesHandler from './client-pages.js'
 import feedbackHandler from './feedback.js'
 import parseQuoteHandler from './parse-quote.js'
+import pricingHandler from './pricing.js'
+import pricingAdminHandler from './pricing-admin.js'
 import quotesHandler from './quotes.js'
 
 function bindAllRoute(controller, methodName) {
@@ -54,6 +56,22 @@ class ParseQuoteController {
 Controller('api/parse-quote')(ParseQuoteController)
 bindAllRoute(ParseQuoteController, 'handle')
 
+class PricingAdminController {
+  handle(req, res) {
+    return pricingAdminHandler(req, res)
+  }
+}
+Controller('api/pricing-admin')(PricingAdminController)
+bindAllRoute(PricingAdminController, 'handle')
+
+class PricingController {
+  handle(req, res) {
+    return pricingHandler(req, res)
+  }
+}
+Controller('api/pricing')(PricingController)
+bindAllRoute(PricingController, 'handle')
+
 export class ApiModule {}
 Module({
   controllers: [
@@ -62,6 +80,8 @@ Module({
     ClientPagesController,
     FeedbackController,
     ParseQuoteController,
+    PricingAdminController,
+    PricingController,
   ],
 })(ApiModule)
 

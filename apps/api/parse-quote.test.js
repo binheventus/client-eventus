@@ -69,7 +69,7 @@ test('default recap edit is selected from parsed video camera count', () => {
   assert.equal(result.parsed.items[0].quantity, 4)
 })
 
-test('business rules replace an AI-provided wrong recap edit bracket', () => {
+test('business rules replace a wrong recap edit bracket', () => {
   const result = applyBriefBusinessRules({
     parsed: {
       items: [
@@ -232,12 +232,8 @@ ngày 15.07.2026:
   assert.deepEqual(result.parsed.items.map(item => item.billable_duration_hours || null), [3, 5, null])
 })
 
-test('handler falls back to deterministic parser when AI keys are missing', async () => {
-  const originalOpenAiKey = process.env.OPENAI_API_KEY
-  const originalAnthropicKey = process.env.ANTHROPIC_API_KEY
+test('handler uses deterministic parser without provider credentials', async () => {
   const originalAuthDisabled = process.env.EVENTUS_AUTH_DISABLED
-  delete process.env.OPENAI_API_KEY
-  delete process.env.ANTHROPIC_API_KEY
   process.env.EVENTUS_AUTH_DISABLED = '1'
 
   try {
@@ -254,31 +250,19 @@ test('handler falls back to deterministic parser when AI keys are missing', asyn
     assert.equal(response.statusCode, 200)
     assert.deepEqual(response.payload.parsed.items.map(item => item.service_code), ['QUAY_RECAP_IN_4H', 'RECAP_3_4_CAM'])
     assert.match(response.payload.ai_reasoning, /Đã dùng parser nội bộ/)
-    assert.doesNotMatch(response.payload.ai_reasoning, /Thiếu OPENAI_API_KEY hoặc ANTHROPIC_API_KEY/)
-    assert.doesNotMatch(response.payload.ai_reasoning, /Bạn hãy thêm thủ công ở ô bên dưới nhé\./)
   } finally {
-    if (originalOpenAiKey === undefined) delete process.env.OPENAI_API_KEY
-    else process.env.OPENAI_API_KEY = originalOpenAiKey
-
-    if (originalAnthropicKey === undefined) delete process.env.ANTHROPIC_API_KEY
-    else process.env.ANTHROPIC_API_KEY = originalAnthropicKey
-
     if (originalAuthDisabled === undefined) delete process.env.EVENTUS_AUTH_DISABLED
     else process.env.EVENTUS_AUTH_DISABLED = originalAuthDisabled
   }
 })
 
-test('handler does not call AI when deterministic parser succeeds', async () => {
+test('handler never calls external fetch when parsing succeeds', async () => {
   const originalFetch = globalThis.fetch
-  const originalOpenAiKey = process.env.OPENAI_API_KEY
-  const originalAnthropicKey = process.env.ANTHROPIC_API_KEY
   const originalAuthDisabled = process.env.EVENTUS_AUTH_DISABLED
 
-  process.env.OPENAI_API_KEY = 'test-openai-key'
-  delete process.env.ANTHROPIC_API_KEY
   process.env.EVENTUS_AUTH_DISABLED = '1'
   globalThis.fetch = () => {
-    throw new Error('AI should not be called for deterministic quote briefs.')
+    throw new Error('External fetch should not be called for quote briefs.')
   }
 
   try {
@@ -301,37 +285,21 @@ test('handler does not call AI when deterministic parser succeeds', async () => 
   } finally {
     globalThis.fetch = originalFetch
 
-    if (originalOpenAiKey === undefined) delete process.env.OPENAI_API_KEY
-    else process.env.OPENAI_API_KEY = originalOpenAiKey
-
-    if (originalAnthropicKey === undefined) delete process.env.ANTHROPIC_API_KEY
-    else process.env.ANTHROPIC_API_KEY = originalAnthropicKey
-
     if (originalAuthDisabled === undefined) delete process.env.EVENTUS_AUTH_DISABLED
     else process.env.EVENTUS_AUTH_DISABLED = originalAuthDisabled
   }
 })
 
-test('handler falls back quickly when AI provider times out', async () => {
+test('handler never calls external fetch when parsing cannot resolve items', async () => {
   const originalFetch = globalThis.fetch
-  const originalOpenAiKey = process.env.OPENAI_API_KEY
-  const originalAnthropicKey = process.env.ANTHROPIC_API_KEY
   const originalAuthDisabled = process.env.EVENTUS_AUTH_DISABLED
-  const originalTimeout = process.env.QUOTE_PARSE_TIMEOUT_MS
-  const originalModel = process.env.QUOTE_PARSE_MODEL
+  let fetchCalled = false
 
-  process.env.OPENAI_API_KEY = 'test-openai-key'
-  delete process.env.ANTHROPIC_API_KEY
   process.env.EVENTUS_AUTH_DISABLED = '1'
-  process.env.QUOTE_PARSE_TIMEOUT_MS = '5'
-  process.env.QUOTE_PARSE_MODEL = 'gpt-test'
-  globalThis.fetch = (_url, options = {}) => new Promise((_resolve, reject) => {
-    options.signal?.addEventListener('abort', () => {
-      const error = new Error('Aborted')
-      error.name = 'AbortError'
-      reject(error)
-    })
-  })
+  globalThis.fetch = () => {
+    fetchCalled = true
+    throw new Error('External fetch should not be called for quote briefs.')
+  }
 
   try {
     const response = makeJsonResponse()
@@ -347,24 +315,12 @@ test('handler falls back quickly when AI provider times out', async () => {
     assert.equal(response.statusCode, 200)
     assert.deepEqual(response.payload.parsed.items, [])
     assert.deepEqual(response.payload.missing_fields, ['items'])
-    assert.match(response.payload.ai_reasoning, /quá thời gian phản hồi/)
-    assert.match(response.payload.ai_reasoning, /Bạn hãy thêm thủ công ở ô bên dưới nhé\./)
+    assert.equal(fetchCalled, false)
+    assert.match(response.payload.ai_reasoning, /Đã dùng parser nội bộ/)
   } finally {
     globalThis.fetch = originalFetch
 
-    if (originalOpenAiKey === undefined) delete process.env.OPENAI_API_KEY
-    else process.env.OPENAI_API_KEY = originalOpenAiKey
-
-    if (originalAnthropicKey === undefined) delete process.env.ANTHROPIC_API_KEY
-    else process.env.ANTHROPIC_API_KEY = originalAnthropicKey
-
     if (originalAuthDisabled === undefined) delete process.env.EVENTUS_AUTH_DISABLED
     else process.env.EVENTUS_AUTH_DISABLED = originalAuthDisabled
-
-    if (originalTimeout === undefined) delete process.env.QUOTE_PARSE_TIMEOUT_MS
-    else process.env.QUOTE_PARSE_TIMEOUT_MS = originalTimeout
-
-    if (originalModel === undefined) delete process.env.QUOTE_PARSE_MODEL
-    else process.env.QUOTE_PARSE_MODEL = originalModel
   }
 })

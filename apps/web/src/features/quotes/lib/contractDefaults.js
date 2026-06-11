@@ -37,7 +37,7 @@ export const DEFAULT_QUOTE_TABLE_CONFIG = {
 }
 
 const CONTRACT_NUMBER_PREFIX_BY_ENTITY = {
-  EVENTUS: 'HDEVT',
+  EVT: 'HDEVT',
   MMT: 'HDMMT',
 }
 
@@ -289,7 +289,7 @@ export function getLegalEntityLabel(entity = {}) {
 }
 
 export function findLegalEntityByCode(entityCode = '', legalEntities = legalEntitiesData) {
-  return findLegalEntityByAlias(entityCode || 'EVENTUS', legalEntities)
+  return findLegalEntityByAlias(entityCode || 'EVT', legalEntities)
 }
 
 export function getEntityBankDetails(entity = {}) {
@@ -304,8 +304,8 @@ export function formatEntityBankDetails(details = {}) {
   return [details.account_number, details.bank_name, details.account_holder].filter(Boolean).join(' - ')
 }
 
-export function getEntityProfile(entityCode = 'EVENTUS') {
-  const code = entityCode || 'EVENTUS'
+export function getEntityProfile(entityCode = 'EVT') {
+  const code = entityCode || 'EVT'
   const entity = findLegalEntityByCode(code, legalEntitiesData) || legalEntitiesData[0] || {}
   const legalName = entity.entity_name_full || entity.legal_name || entity.name || entity.display_name || ''
 
@@ -464,7 +464,7 @@ export function getContractPaymentNotes(paymentConfig = {}) {
 
 export function normalizeContractTemplate(template = {}) {
   const contentSections = normalizeArray(template.content_sections, null) || termsTextToSections(template.terms_text)
-  const sellerEntityCode = template.seller_entity_code || template.entity_code || 'EVENTUS'
+  const sellerEntityCode = template.seller_entity_code || template.entity_code || 'EVT'
   const quoteTableConfig = {
     ...DEFAULT_QUOTE_TABLE_CONFIG,
     ...(template.quote_table_config || {}),
@@ -629,7 +629,7 @@ function buildScheduleRows(quote = {}, template = {}) {
 
 export function buildInitialContractDraft(quote = {}, templateInput = DEFAULT_CONTRACT_TEMPLATES[0]) {
   const template = normalizeContractTemplate(templateInput)
-  const sellerEntityCode = quote.entity_code || template.seller_entity_code || 'EVENTUS'
+  const sellerEntityCode = quote.entity_code || template.seller_entity_code || 'EVT'
   const contractNumberPattern = applySellerEntityToContractNumberPattern(template.contract_number_pattern, sellerEntityCode)
 
   return {
@@ -666,7 +666,7 @@ export function buildInitialContractDraftFromSource(source = {}, templateInput =
   const quoteSnapshot = source.quote_snapshot || {}
   const sourceSnapshot = source.source_snapshot || {}
   const sourceType = source.source_type || sourceSnapshot.source_type || 'manual'
-  const sellerEntityCode = source.entity_code || quoteSnapshot.entity_code || template.seller_entity_code || 'EVENTUS'
+  const sellerEntityCode = source.entity_code || quoteSnapshot.entity_code || template.seller_entity_code || 'EVT'
   const customerSnapshot = source.customer_snapshot || sourceSnapshot.customer_snapshot || getCustomerProfileFromQuote(quoteSnapshot)
   const contractNumberPattern = applySellerEntityToContractNumberPattern(template.contract_number_pattern, sellerEntityCode)
   const contractNumberSource = {

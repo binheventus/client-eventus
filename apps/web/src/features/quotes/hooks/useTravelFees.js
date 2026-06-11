@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import travelFeesData from '../../../data/pricing/travel_fees.json'
-
-let travelFeesCache = null
+import { useCallback, useMemo } from 'react'
+import { fetchPricingContext } from '../lib/pricingContextClient'
+import { usePricingContext } from './usePricingContext'
 
 function normalizeText(value = '') {
   return String(value || '')
@@ -39,42 +38,23 @@ export function findTravelFee(travelFees = [], location, condition) {
 }
 
 export async function fetchActiveTravelFees({ force = false } = {}) {
-  if (travelFeesCache && !force) return travelFeesCache
-
-  travelFeesCache = [...travelFeesData]
-    .filter(row => row?.is_active !== false)
-    .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0))
-  return travelFeesCache
+  const context = await fetchPricingContext({ force })
+  return context.travelFees || []
 }
 
 export function useTravelFees() {
-  const [travelFees, setTravelFees] = useState(() => travelFeesCache || [])
-  const [loading, setLoading] = useState(() => !travelFeesCache)
-  const [error, setError] = useState(null)
-
-  const refetch = useCallback(async ({ force = false } = {}) => {
-    setLoading(true)
-    setError(null)
-
-    try {
-      const rows = await fetchActiveTravelFees({ force })
-      setTravelFees(rows)
-      return rows
-    } catch (err) {
-      setError(err)
-      return []
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  const { pricingContext, loading, error, refetch } = usePricingContext()
+  const travelFees = pricingContext.travelFees || []
 
   const getTravelFee = useCallback((location, condition) => (
     findTravelFee(travelFees, location, condition)
   ), [travelFees])
 
-  useEffect(() => {
-    if (!travelFeesCache) refetch()
-  }, [refetch])
-
-  return useMemo(() => ({ travelFees, loading, error, refetch, getTravelFee }), [travelFees, loading, error, refetch, getTravelFee])
+  return useMemo(() => ({
+    travelFees,
+    loading,
+    error,
+    refetch: async (options) => (await refetch(options)).travelFees || [],
+    getTravelFee,
+  }), [travelFees, loading, error, refetch, getTravelFee])
 }

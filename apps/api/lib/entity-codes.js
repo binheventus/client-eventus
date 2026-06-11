@@ -5,9 +5,9 @@ function normalizeCode(value = '') {
   return String(value || '').trim().toUpperCase()
 }
 
-export function normalizeQuoteEntityCode(value, fallback = 'EVENTUS') {
+export function normalizeQuoteEntityCode(value, fallback = 'EVT') {
   const code = normalizeCode(value || fallback)
-  if (EVENTUS_ALIASES.has(code)) return 'EVENTUS'
+  if (EVENTUS_ALIASES.has(code)) return 'EVT'
   if (MEDIAMONSTER_ALIASES.has(code)) return 'MMT'
   return code || fallback
 }
@@ -23,7 +23,9 @@ export function expandQuoteEntityFilterValues(values = []) {
   const expanded = values.flatMap(value => (
     normalizeQuoteEntityCode(value) === 'MMT'
       ? ['MMT', 'MEDIAMONSTER', 'MMS']
-      : [value]
+      : normalizeQuoteEntityCode(value) === 'EVT'
+        ? ['EVT', 'EVENTUS']
+        : [value]
   ))
   return Array.from(new Set(expanded.filter(Boolean)))
 }

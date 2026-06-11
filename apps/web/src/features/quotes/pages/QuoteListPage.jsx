@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { AlertTriangle, CopyPlus, FileSignature, Trash2 } from 'lucide-react'
+import { AlertTriangle, CopyPlus, Database, FileSignature, Trash2 } from 'lucide-react'
 import { useEscapeToClose } from '../../../hooks/useEscapeToClose'
 import QuoteListFilters from '../components/QuoteListFilters'
 import QuoteListTable from '../components/QuoteListTable'
@@ -229,6 +229,14 @@ export default function QuoteListPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => navigate('/pricing-admin')}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-[13px] font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+          >
+            <Database className="h-4 w-4" />
+            Bảng giá
+          </button>
           <button
             type="button"
             onClick={() => navigate('/contracts')}

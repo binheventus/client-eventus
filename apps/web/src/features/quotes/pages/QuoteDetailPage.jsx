@@ -10,7 +10,9 @@ import {
   getQuoteAuditLogs,
   getQuoteViewStats,
 } from '../hooks/useQuotes'
+import { useEquipmentRules } from '../hooks/useEquipmentRules'
 import { useLegalEntities } from '../hooks/useLegalEntities'
+import { usePricingContext } from '../hooks/usePricingContext'
 import { canCreateContractFromQuote } from '../lib/contractDefaults'
 import { canOpenContractFromQuote, hasSavedContract } from '../lib/quoteList'
 import {
@@ -165,6 +167,8 @@ export default function QuoteDetailPage() {
   const location = useLocation()
   const navigate = useNavigate()
   const { legalEntities } = useLegalEntities()
+  const { equipmentRules } = useEquipmentRules()
+  const { pricingWarning } = usePricingContext()
   const [quote, setQuote] = useState(null)
   const [viewStats, setViewStats] = useState({ count: 0, lastViewedAt: null })
   const [auditLogs, setAuditLogs] = useState([])
@@ -302,6 +306,12 @@ export default function QuoteDetailPage() {
         </div>
       )}
 
+      {pricingWarning ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] font-semibold leading-5 text-amber-800">
+          Cảnh báo nội bộ pricing: {pricingWarning}
+        </div>
+      ) : null}
+
       <div className="grid gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(420px,1.05fr)]">
         <div className="space-y-5">
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -352,7 +362,7 @@ export default function QuoteDetailPage() {
           </section>
         </div>
 
-        <QuotePreview quote={quote} items={quote.items || []} totals={quote} entities={legalEntities} />
+        <QuotePreview quote={quote} items={quote.items || []} totals={quote} entities={legalEntities} equipmentRules={equipmentRules} />
       </div>
 
       {showDuplicateConfirm ? (

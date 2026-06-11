@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import QuoteMicroSurvey from '../components/QuoteMicroSurvey'
 import QuotePreview from '../components/QuotePreview'
 import { getPublicQuoteByToken, logQuoteView } from '../hooks/useQuotes'
+import { useEquipmentRules } from '../hooks/useEquipmentRules'
 import { useLegalEntities } from '../hooks/useLegalEntities'
 
 const QuotePDFDownloadButton = lazy(() => import('../components/QuotePDFDownloadButton'))
@@ -25,6 +26,7 @@ function sanitizePublicQuote(quote) {
 export default function QuotePublicPage() {
   const { share_token: shareToken } = useParams()
   const { legalEntities } = useLegalEntities()
+  const { equipmentRules } = useEquipmentRules()
   const [quote, setQuote] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -85,7 +87,7 @@ export default function QuotePublicPage() {
   return (
     <main className="min-h-screen bg-slate-100 px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-4xl space-y-4">
-        <QuotePreview quote={quote} items={quote.items || []} totals={quote} entities={legalEntities} sticky={false} />
+        <QuotePreview quote={quote} items={quote.items || []} totals={quote} entities={legalEntities} equipmentRules={equipmentRules} sticky={false} />
         <QuoteMicroSurvey quote={quote} />
         <div className="flex flex-wrap justify-center gap-3 pb-4">
           <Suspense fallback={<span className="inline-flex min-w-[220px] justify-center rounded-xl bg-[#f8981d] px-7 py-3 text-[14px] font-semibold text-white shadow-sm">Đang tải PDF...</span>}>

@@ -7,20 +7,22 @@ import QuoteChatInput from '../components/QuoteChatInput'
 import QuoteItemsTable from '../components/QuoteItemsTable'
 import QuotePreview from '../components/QuotePreview'
 import { useBusinessRules } from '../hooks/useBusinessRules'
+import { useEquipmentRules } from '../hooks/useEquipmentRules'
 import { useServiceGroups } from '../hooks/useServiceGroups'
 import { useCustomerTiers } from '../hooks/useCustomerTiers'
 import { useLegalEntities } from '../hooks/useLegalEntities'
+import { usePricingContext } from '../hooks/usePricingContext'
 import { createQuote, getQuote, listQuoteClients, updateQuote } from '../hooks/useQuotes'
 import { useServices } from '../hooks/useServices'
 import { useTravelFees } from '../hooks/useTravelFees'
-import { parseQuoteInput } from '../lib/aiParser'
+import { parseQuoteInput } from '../lib/briefParser'
 import { calculateQuotePricing, findServiceForQuoteItem } from '../lib/pricingCalculator'
 import { getQuoteActorPayload, getQuoteUserContext } from '../lib/quoteAuth'
 import { getDefaultQuoteTermsText, getQuoteTerms, normalizeQuoteTermsText } from '../lib/quoteTerms'
 import { normalizeQuoteValidityDays } from '../lib/quoteValidity'
 
 const DEFAULT_QUOTE = {
-  entity_code: 'EVENTUS',
+  entity_code: 'EVT',
   event_date: '',
   location: '',
   duration_hours: '4',
@@ -45,21 +47,6 @@ const FIELD_LABELS = {
 }
 
 const OPTIONAL_PARSE_FIELDS = new Set(['event_date', 'event_name', 'duration_hours'])
-const AI_FALLBACK_PATTERNS = [
-  /AI provider đang lỗi/i,
-  /AI provider không khả dụng/i,
-  /AI provider quá thời gian/i,
-  /Thiếu OPENAI_API_KEY/i,
-  /ANTHROPIC_API_KEY/i,
-  /AI chưa trả về/i,
-  /OpenAI API trả về lỗi/i,
-  /OpenAI-compatible API trả về lỗi/i,
-]
-const AI_FALLBACK_HIDDEN_LINE_PATTERNS = [
-  ...AI_FALLBACK_PATTERNS,
-  /parser nội bộ/i,
-  /Bạn hãy thêm thủ công/i,
-]
 
 const CUSTOM_ITEM_PLACEMENTS = [
   { value: 'after_photo', label: 'Ngay dưới hạng mục chụp ảnh', sortRank: 0.5 },
@@ -134,22 +121,6 @@ function getReasoningLines(value = '') {
     .map(line => line.trim())
     .filter(line => !/^sales\s+nh[aậ]p\b/i.test(line))
     .filter(Boolean)
-}
-
-function getAiFallbackDetail(value = '') {
-  const text = String(value || '').trim()
-  if (!text || !AI_FALLBACK_PATTERNS.some(pattern => pattern.test(text))) return ''
-  return getReasoningLines(text).join('\n') || 'AI provider không khả dụng.'
-}
-
-function getVisibleReasoningLines(value = '', hasAiFallback = false) {
-  const lines = getReasoningLines(value)
-  if (!hasAiFallback) return lines
-  return lines.filter(line => !AI_FALLBACK_HIDDEN_LINE_PATTERNS.some(pattern => pattern.test(line)))
-}
-
-function isInternalParserResult(value = '') {
-  return /parser nội bộ|Đã dùng parser nội bộ/i.test(String(value || ''))
 }
 
 function getHighlightedReasoningTerms(services = [], customerTiers = []) {
@@ -838,8 +809,10 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
   const { travelFees } = useTravelFees()
   const { businessRules, rulesMap } = useBusinessRules()
   const { legalEntities, getDefaultEntity } = useLegalEntities()
+  const { equipmentRules } = useEquipmentRules()
   const { customerTiers } = useCustomerTiers()
   const { serviceGroups } = useServiceGroups()
+  const { pricingWarning } = usePricingContext()
   const [quote, setQuote] = useState(DEFAULT_QUOTE)
   const [items, setItems] = useState([])
   const [clients, setClients] = useState([])
@@ -848,7 +821,6 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
   const [parseResult, setParseResult] = useState(null)
   const [parseLoading, setParseLoading] = useState(false)
   const [parseError, setParseError] = useState('')
-  const [showAiFallbackDetail, setShowAiFallbackDetail] = useState(false)
   const [validationError, setValidationError] = useState('')
   const [saveState, setSaveState] = useState('idle')
   const [initialLoading, setInitialLoading] = useState(isEditMode)
@@ -953,11 +925,9 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
       .filter(group => !removedGroupCodes.includes(getGroupCode(group.group_code)) || itemGroupCodes.has(getGroupCode(group.group_code)))
   }, [displayItems, quoteGroups, removedGroupCodes, serviceGroups])
   const highlightedReasoningTerms = useMemo(() => getHighlightedReasoningTerms(services, customerTiers), [services, customerTiers])
-  const aiFallbackDetail = useMemo(() => getAiFallbackDetail(parseResult?.ai_reasoning), [parseResult?.ai_reasoning])
-  const usedInternalParser = useMemo(() => isInternalParserResult(parseResult?.ai_reasoning), [parseResult?.ai_reasoning])
   const visibleReasoningLines = useMemo(
-    () => getVisibleReasoningLines(parseResult?.ai_reasoning, Boolean(aiFallbackDetail)),
-    [parseResult?.ai_reasoning, aiFallbackDetail],
+    () => getReasoningLines(parseResult?.ai_reasoning),
+    [parseResult?.ai_reasoning],
   )
   const missingItems = Boolean(parseResult?.missing_fields?.includes('items'))
   const totals = useMemo(() => calculateQuotePricing({
@@ -983,7 +953,6 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
   async function analyzeInput() {
     setParseLoading(true)
     setParseError('')
-    setShowAiFallbackDetail(false)
     setValidationError('')
 
     try {
@@ -993,6 +962,9 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
         customer_tiers: customerTiers,
         business_rules: businessRules,
       })
+      if (result.pricing_meta?.source && result.pricing_meta.source !== 'mysql') {
+        console.warn(`[Eventus pricing] /api/parse-quote đang dùng ${result.pricing_meta.source}: ${(result.pricing_meta.warnings || []).join(' ')}`)
+      }
       const parsed = result.parsed || {}
       const briefClientName = extractClientNameFromBrief(inputText)
       const nextQuote = {
@@ -1350,6 +1322,12 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
         <QuoteBreadcrumb items={[{ label: isEditMode ? 'Sửa báo giá' : 'Tạo báo giá mới' }]} />
       </div>
 
+      {pricingWarning ? (
+        <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] font-semibold leading-5 text-amber-800">
+          Cảnh báo nội bộ pricing: {pricingWarning}
+        </p>
+      ) : null}
+
       {initialLoading && <p className="rounded-xl bg-slate-50 px-4 py-3 text-[13px] text-slate-500">Đang tải báo giá để sửa...</p>}
 
       <div className="grid gap-5 xl:grid-cols-2">
@@ -1365,34 +1343,11 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
             {parseError && <p className="mt-3 rounded-xl bg-red-50 px-4 py-3 text-[13px] text-red-700">{parseError}</p>}
             {parseResult && (
               <div className="relative mt-4 space-y-3 rounded-2xl bg-slate-50 p-4">
-                {aiFallbackDetail ? (
-                  <div className="absolute right-3 top-3 z-20">
-                    <button
-                      type="button"
-                      onClick={() => setShowAiFallbackDetail(prev => !prev)}
-                      aria-expanded={showAiFallbackDetail}
-                      className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800 shadow-sm transition hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-200"
-                    >
-                      Parser nội bộ
-                    </button>
-                    {showAiFallbackDetail ? (
-                      <div className="absolute right-0 top-full mt-2 w-[min(82vw,360px)] rounded-xl border border-amber-200 bg-white p-3 text-left shadow-lg">
-                        <div className="text-[11px] font-semibold text-slate-900">Chi tiết lỗi AI</div>
-                        <pre className="mt-1 whitespace-pre-wrap font-sans text-[11px] leading-4 text-slate-600">{aiFallbackDetail}</pre>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : (
-                  <div className="absolute right-3 top-3">
-                    <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold shadow-sm ${
-                      usedInternalParser
-                        ? 'border-amber-200 bg-amber-50 text-amber-800'
-                        : 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                    }`}>
-                      {usedInternalParser ? 'Parser nội bộ' : 'Đã phân tích'}
-                    </span>
-                  </div>
-                )}
+                <div className="absolute right-3 top-3">
+                  <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-800 shadow-sm">
+                    Đã phân tích
+                  </span>
+                </div>
                 {visibleReasoningLines.length ? (
                   <div className="space-y-1 pr-24 text-[13px] leading-5 text-slate-600 sm:pr-44">
                     {visibleReasoningLines.map((line, index) => (
@@ -1588,7 +1543,7 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
           </section>
         </div>
 
-        <QuotePreview quote={quote} items={displayItems} totals={totals} entities={legalEntities} client={selectedClient} sticky={false} showStamp={showStamp} />
+        <QuotePreview quote={quote} items={displayItems} totals={totals} entities={legalEntities} equipmentRules={equipmentRules} client={selectedClient} sticky={false} showStamp={showStamp} />
       </div>
 
       {showServicePicker && (

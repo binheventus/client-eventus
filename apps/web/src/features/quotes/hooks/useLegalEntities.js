@@ -1,51 +1,25 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import legalEntitiesData from '../../../data/pricing/legal_entities.json'
-
-let legalEntitiesCache = null
+import { useCallback, useMemo } from 'react'
+import { fetchPricingContext } from '../lib/pricingContextClient'
+import { usePricingContext } from './usePricingContext'
 
 export async function fetchActiveLegalEntities({ force = false } = {}) {
-  if (legalEntitiesCache && !force) return legalEntitiesCache
-
-  legalEntitiesCache = [...legalEntitiesData]
-    .filter(row => row?.is_active !== false)
-    .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0))
-  return legalEntitiesCache
+  const context = await fetchPricingContext({ force })
+  return context.legalEntities || []
 }
 
 export function useLegalEntities() {
-  const [legalEntities, setLegalEntities] = useState(() => legalEntitiesCache || [])
-  const [loading, setLoading] = useState(() => !legalEntitiesCache)
-  const [error, setError] = useState(null)
-
-  const refetch = useCallback(async ({ force = false } = {}) => {
-    setLoading(true)
-    setError(null)
-
-    try {
-      const rows = await fetchActiveLegalEntities({ force })
-      setLegalEntities(rows)
-      return rows
-    } catch (err) {
-      setError(err)
-      return []
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  const { pricingContext, loading, error, refetch } = usePricingContext()
+  const legalEntities = pricingContext.legalEntities || []
 
   const getDefaultEntity = useCallback(() => (
     legalEntities.find(row => row?.is_default) || legalEntities[0] || null
   ), [legalEntities])
 
-  useEffect(() => {
-    refetch()
-  }, [refetch])
-
   return useMemo(() => ({
     legalEntities,
     loading,
     error,
-    refetch,
+    refetch: async (options) => (await refetch(options)).legalEntities || [],
     getDefaultEntity,
   }), [legalEntities, loading, error, refetch, getDefaultEntity])
 }

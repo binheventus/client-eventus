@@ -132,14 +132,14 @@ function splitBankAccountText(value = '') {
 
 function getSellerProfileForCode(entityCode = '', legalEntities = []) {
   const entity = findLegalEntityByCode(entityCode, legalEntities)
-  const fallback = getEntityProfile(entityCode || 'EVENTUS')
+  const fallback = getEntityProfile(entityCode || 'EVT')
   const source = entity || fallback
   const label = getLegalEntityLabel(source)
 
   return {
     ...fallback,
     ...source,
-    entity_code: getLegalEntityCode(source) || entityCode || fallback.entity_code || 'EVENTUS',
+    entity_code: getLegalEntityCode(source) || entityCode || fallback.entity_code || 'EVT',
     company_name: label,
     legal_name: source.legal_name || fallback.legal_name || label,
     account_holder: source.account_holder || fallback.account_holder || label,
@@ -496,7 +496,7 @@ function buildEditorDraft(document = null, documentType = 'advance_request', con
     ? null
     : getDefaultDocumentTemplate(templates, documentType)
   const resolvedDocumentType = document?.document_type || documentType
-  const sellerEntityCode = document?.seller_entity_code || contract.seller_entity_code || template?.seller_entity_code || 'EVENTUS'
+  const sellerEntityCode = document?.seller_entity_code || contract.seller_entity_code || template?.seller_entity_code || 'EVT'
   const sellerProfile = getSellerProfileForCode(sellerEntityCode, legalEntities)
   const sourceContract = {
     ...getOpenSyncedContract(document, contract),
@@ -1323,7 +1323,7 @@ export function ContractDocumentEditorForm({
                     className="appearance-none px-2 pr-2"
                     style={{ appearance: 'none', WebkitAppearance: 'none', backgroundImage: 'none' }}
                   >
-                    {!legalEntities.length ? <option value={draft.seller_entity_code || ''}>{draft.seller_entity_code || 'EVENTUS'}</option> : null}
+                    {!legalEntities.length ? <option value={draft.seller_entity_code || ''}>{draft.seller_entity_code || 'EVT'}</option> : null}
                     {legalEntities.map(entity => {
                       const code = getLegalEntityCode(entity)
                       return (

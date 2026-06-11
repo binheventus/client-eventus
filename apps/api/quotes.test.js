@@ -16,7 +16,7 @@ test('duplicated quote payload resets identity, ownership, status, and reprices 
     share_token: 'OLDTOKEN',
     event_name: 'Gala Dinner',
     client_name: 'Client A',
-    entity_code: 'EVENTUS',
+    entity_code: 'EVT',
     tier_code: 'TIER_2',
     location: 'Nội thành Hà Nội',
     duration_hours: 4,

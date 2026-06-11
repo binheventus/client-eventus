@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { fetchPricingContext } from '../lib/pricingContextClient'
 
 export default function QuotePDFDownloadButton({
   quote,
@@ -18,7 +19,15 @@ export default function QuotePDFDownloadButton({
         import('@react-pdf/renderer'),
         import('./QuotePDFDocument'),
       ])
-      const blob = await pdf(<QuotePDFDocument quote={quote} items={items || quote?.items || []} />).toBlob()
+      const pricingContext = await fetchPricingContext()
+      const blob = await pdf(
+        <QuotePDFDocument
+          quote={quote}
+          items={items || quote?.items || []}
+          legalEntities={pricingContext.legalEntities}
+          equipmentRules={pricingContext.equipmentRules}
+        />,
+      ).toBlob()
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url

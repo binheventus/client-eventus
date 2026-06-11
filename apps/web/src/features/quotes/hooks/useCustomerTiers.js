@@ -1,49 +1,25 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import customerTiersData from '../../../data/pricing/customer_tiers.json'
-
-let customerTiersCache = null
+import { useCallback, useMemo } from 'react'
+import { fetchPricingContext } from '../lib/pricingContextClient'
+import { usePricingContext } from './usePricingContext'
 
 export async function fetchCustomerTiers({ force = false } = {}) {
-  if (customerTiersCache && !force) return customerTiersCache
-
-  customerTiersCache = [...customerTiersData]
-  return customerTiersCache
+  const context = await fetchPricingContext({ force })
+  return context.customerTiers || []
 }
 
 export function useCustomerTiers() {
-  const [customerTiers, setCustomerTiers] = useState(() => customerTiersCache || [])
-  const [loading, setLoading] = useState(() => !customerTiersCache)
-  const [error, setError] = useState(null)
-
-  const refetch = useCallback(async ({ force = false } = {}) => {
-    setLoading(true)
-    setError(null)
-
-    try {
-      const rows = await fetchCustomerTiers({ force })
-      setCustomerTiers(rows)
-      return rows
-    } catch (err) {
-      setError(err)
-      return []
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  const { pricingContext, loading, error, refetch } = usePricingContext()
+  const customerTiers = pricingContext.customerTiers || []
 
   const getTierByCode = useCallback((tierCode) => (
     customerTiers.find(row => row?.tier_code === tierCode || row?.code === tierCode) || null
   ), [customerTiers])
 
-  useEffect(() => {
-    if (!customerTiersCache) refetch()
-  }, [refetch])
-
   return useMemo(() => ({
     customerTiers,
     loading,
     error,
-    refetch,
+    refetch: async (options) => (await refetch(options)).customerTiers || [],
     getTierByCode,
   }), [customerTiers, loading, error, refetch, getTierByCode])
 }
