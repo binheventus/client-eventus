@@ -5,11 +5,13 @@ import {
   BellRing,
   CheckCircle2,
   ChevronDown,
+  Copy,
   ExternalLink,
   Film,
   FileUp,
   Moon,
   Plus,
+  RefreshCw,
   Save,
   SendHorizontal,
   Sun,
@@ -76,6 +78,191 @@ function TextInput(props) {
       className={`h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-900 outline-none focus:border-[#f79820] focus:ring-2 focus:ring-[#f79820]/20 ${props.className || ''}`}
     />
   )
+}
+
+const CUSTOMER_CALL_OPTIONS = [
+  { value: 'anh', label: 'Anh' },
+  { value: 'chi', label: 'Chị' },
+  { value: 'em', label: 'Em' },
+  { value: 'ban', label: 'Bạn' },
+  { value: 'mn', label: 'Mọi người' },
+  { value: 'mnm', label: 'Mọi người (mình)' },
+]
+
+const MESSAGE_STYLE_OPTIONS = [
+  { value: 'friendly', label: 'Thân thiện' },
+  { value: 'professional', label: 'Chuyên nghiệp' },
+  { value: 'serious', label: 'Nghiêm túc' },
+]
+
+const CUSTOMER_MESSAGE_MODES = [
+  { value: 'hello', label: 'Giới thiệu' },
+  { value: 'brief', label: 'Xin brief' },
+  { value: 'send', label: 'Gửi sản phẩm' },
+  { value: 'confirm', label: 'Hẹn sửa' },
+  { value: 'delay', label: 'Xin thêm thời gian' },
+  { value: 'push', label: 'Giục feedback' },
+  { value: 'thanks', label: 'Cảm ơn' },
+]
+
+function getEditorFirstName(name = '') {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean)
+  return parts[parts.length - 1] || ''
+}
+
+function getCustomerMessageMeta(customerCall = 'anh') {
+  const selfMap = { anh: 'em', chi: 'em', em: 'anh', ban: 'mình', mn: 'em', mnm: 'mình' }
+  const callMap = { anh: 'anh', chi: 'chị', em: 'em', ban: 'bạn', mn: 'mọi người', mnm: 'mọi người' }
+  const self = selfMap[customerCall] || 'em'
+  const customer = callMap[customerCall] || 'anh'
+  const capitalize = value => value ? value.charAt(0).toUpperCase() + value.slice(1) : value
+  const soft = customerCall === 'em' || customerCall === 'ban' || customerCall === 'mnm'
+  return {
+    self,
+    selfTitle: capitalize(self),
+    customer,
+    customerTitle: capitalize(customer),
+    mid: soft ? 'nhé' : 'ạ',
+    finish: soft ? 'nhé' : (customerCall === 'mn' ? 'nhé ạ' : 'ạ'),
+    prefix: soft ? '' : 'Dạ ',
+  }
+}
+
+function buildAbsoluteFeedbackUrl(publicUrl = '', feedback = {}) {
+  const path = publicUrl || getFeedbackPublicPath(feedback)
+  if (!path) return ''
+  if (/^https?:\/\//i.test(path)) return path
+  if (typeof window === 'undefined') return path
+  try {
+    return new URL(path, window.location.origin).toString()
+  } catch {
+    return path
+  }
+}
+
+function getMissingCustomerMessageFields(text = '') {
+  const missing = []
+  if (text.includes('[tên editor]')) missing.push('tên editor')
+  if (text.includes('[link feedback]')) missing.push('link feedback')
+  if (text.includes('[giờ gửi]')) missing.push('giờ gửi')
+  if (text.includes('[giờ trả]')) missing.push('giờ trả')
+  if (text.includes('[giờ mới]')) missing.push('giờ mới')
+  return missing
+}
+
+function buildCustomerMessageVariants({
+  mode,
+  style,
+  customerCall,
+  editorName,
+  feedbackName,
+  feedbackUrl,
+  deadline,
+  returnTime,
+  delayTime,
+} = {}) {
+  const m = getCustomerMessageMeta(customerCall)
+  const editor = getEditorFirstName(editorName) || String(editorName || '').trim() || '[tên editor]'
+  const feedbackLabel = String(feedbackName || '').trim() || 'bản feedback này'
+  const link = String(feedbackUrl || '').trim() || '[link feedback]'
+  const firstDeadline = String(deadline || '').trim() || '[giờ gửi]'
+  const nextReturnTime = String(returnTime || '').trim() || '[giờ trả]'
+  const nextDelayTime = String(delayTime || '').trim() || '[giờ mới]'
+  const greeting = m.prefix ? `${m.prefix}${m.customer}` : `${m.customerTitle}`
+  const sendVerb = customerCall === 'ban' || customerCall === 'mnm'
+    ? `${m.selfTitle} gửi`
+    : `${m.selfTitle} gửi ${m.customer}`
+
+  if (style === 'serious') {
+    if (mode === 'hello') return [
+      `${greeting} ơi, ${m.self} là ${editor}, phụ trách dựng video này ${m.mid}.\n${m.selfTitle} đã nhận nội dung và dự kiến gửi ${feedbackLabel} vào ${firstDeadline} ${m.finish}.`,
+      `${greeting} ơi, ${editor} bên Eventus sẽ phụ trách dựng video này ${m.mid}.\n${m.selfTitle} đã nhận brief và sẽ gửi ${feedbackLabel} vào ${firstDeadline} ${m.finish}.`,
+    ]
+    if (mode === 'brief') return [
+      `${greeting} ơi, ${m.customer} gửi giúp ${m.self} brief dựng video này để ${m.self} triển khai ${m.finish}.`,
+      `${greeting} ơi, ${m.self} cần brief / yêu cầu dựng của video này để bắt đầu xử lý đúng hướng ${m.finish}.`,
+    ]
+    if (mode === 'send') return [
+      `${sendVerb} ${feedbackLabel}, ${m.customer} xem và feedback giúp ${m.self} tại link này ${m.finish}:\n${link}`,
+      `${sendVerb} ${feedbackLabel}. ${m.customerTitle} xem và góp ý trực tiếp trong link dưới đây giúp ${m.self} ${m.finish}:\n${link}`,
+    ]
+    if (mode === 'confirm') return [
+      `${m.prefix}${m.selfTitle} đã nhận feedback của ${m.customer}. ${m.selfTitle} sẽ chỉnh sửa và gửi lại bản tiếp theo vào ${nextReturnTime} ${m.finish}.`,
+      `${m.prefix}${m.selfTitle} ghi nhận feedback rồi ${m.mid}. ${m.selfTitle} sẽ xử lý và gửi lại ${m.customer} vào ${nextReturnTime} ${m.finish}.`,
+    ]
+    if (mode === 'delay') return [
+      `${greeting} ơi, phần dựng cần thêm thời gian để hoàn thiện. ${m.selfTitle} xin phép gửi lại vào ${nextDelayTime} ${m.finish}.`,
+      `${greeting} ơi, ${m.self} xin phép lùi thời gian gửi đến ${nextDelayTime} để bản dựng chỉn chu hơn ${m.finish}.`,
+    ]
+    if (mode === 'push') return [
+      `${m.customerTitle} ơi, ${m.customer} đã xem ${feedbackLabel} chưa ${m.mid}? ${m.customerTitle} feedback giúp ${m.self} để ${m.self} hoàn thiện tiếp ${m.finish}.`,
+      `${m.customerTitle} ơi, ${m.self} gửi ${feedbackLabel} rồi. Khi tiện, ${m.customer} xem và feedback giúp ${m.self} ${m.finish}.`,
+    ]
+    return [
+      `${m.prefix}${m.self} cảm ơn ${m.customer} đã đồng hành và hỗ trợ team Eventus hoàn thành công việc ${m.mid}. Hẹn gặp lại ${m.customer} ở job tiếp theo ${m.finish}.`,
+      `${m.prefix}${m.self} cảm ơn ${m.customer} vì đã hỗ trợ trong quá trình dựng ${m.mid}. Mong tiếp tục được đồng hành cùng ${m.customer} ở các job sau ${m.finish}.`,
+    ]
+  }
+
+  if (style === 'professional') {
+    if (mode === 'hello') return [
+      `${greeting} ơi, ${m.self} là ${editor}, editor phụ trách video này bên Eventus ${m.mid}.\n${m.selfTitle} đã nhận thông tin dựng và dự kiến gửi ${feedbackLabel} vào ${firstDeadline} ${m.finish}.`,
+      `${greeting} ơi, ${m.self} ${editor} bên Eventus sẽ phụ trách dựng video này ${m.mid}.\n${m.selfTitle} đang triển khai và dự kiến gửi ${feedbackLabel} vào ${firstDeadline} ${m.finish}.`,
+    ]
+    if (mode === 'brief') return [
+      `${greeting} ơi, ${m.customer} gửi giúp ${m.self} brief / yêu cầu dựng cho video này để ${m.self} triển khai đúng mong muốn của ${m.customer} ${m.finish}.`,
+      `${greeting} ơi, để phần dựng bám sát yêu cầu, ${m.customer} gửi ${m.self} brief chi tiết của video này giúp ${m.self} ${m.finish}.`,
+    ]
+    if (mode === 'send') return [
+      `${sendVerb} ${feedbackLabel}, ${m.customer} xem và góp ý trực tiếp trong link này giúp ${m.self} ${m.finish}:\n${link}`,
+      `${sendVerb} ${feedbackLabel} ${m.mid}. ${m.customerTitle} xem giúp ${m.self} và để lại feedback trong link dưới đây ${m.finish}:\n${link}`,
+    ]
+    if (mode === 'confirm') return [
+      `${m.prefix}${m.selfTitle} đã nhận đầy đủ feedback của ${m.customer} rồi ${m.mid}. ${m.selfTitle} sẽ chỉnh sửa và gửi lại bản tiếp theo vào ${nextReturnTime} ${m.finish}.`,
+      `${m.prefix}${m.selfTitle} ghi nhận các feedback của ${m.customer} rồi ${m.mid}. ${m.selfTitle} sẽ xử lý và gửi bản mới vào ${nextReturnTime} ${m.finish}.`,
+    ]
+    if (mode === 'delay') return [
+      `${greeting} ơi, phần dựng cần thêm thời gian để hoàn thiện chỉn chu hơn. ${m.selfTitle} xin phép gửi lại vào ${nextDelayTime} ${m.finish}.`,
+      `${greeting} ơi, ${m.self} xin phép lùi thời gian gửi đến ${nextDelayTime} để đảm bảo chất lượng bản dựng ${m.finish}.`,
+    ]
+    if (mode === 'push') return [
+      `${m.customerTitle} ơi, ${m.customer} đã xem ${feedbackLabel} chưa ${m.mid}? ${m.customerTitle} feedback giúp ${m.self} để team hoàn thiện đúng tiến độ ${m.finish}.`,
+      `${m.customerTitle} ơi, khi tiện ${m.customer} xem và feedback ${feedbackLabel} giúp ${m.self} trong link đã gửi ${m.finish}.`,
+    ]
+    return [
+      `${m.prefix}${m.self} cảm ơn ${m.customer} đã phối hợp và hỗ trợ team Eventus hoàn thành job này ${m.mid}. Hẹn gặp lại ${m.customer} ở những dự án tiếp theo ${m.finish}.`,
+      `${m.prefix}${m.self} cảm ơn ${m.customer} rất nhiều vì đã đồng hành cùng team trong quá trình dựng ${m.mid}. Mong tiếp tục được hỗ trợ ${m.customer} ở các job sau ${m.finish}.`,
+    ]
+  }
+
+  if (mode === 'hello') return [
+    `Hi ${m.customer}, ${m.self} là ${editor}, phụ trách dựng video này ${m.mid}.\n${m.selfTitle} đã nhận nội dung và đang triển khai, dự kiến ${firstDeadline} ${m.self} gửi ${m.customer} ${feedbackLabel} ${m.finish}.`,
+    `${m.customerTitle} ơi, ${m.self} ${editor} bên Eventus phụ trách dựng video này ${m.mid}.\n${m.selfTitle} đã nhận đủ nội dung, dự kiến gửi ${feedbackLabel} vào ${firstDeadline} ${m.finish}.`,
+  ]
+  if (mode === 'brief') return [
+    `${greeting} ơi, ${m.customer} gửi giúp ${m.self} brief dựng của video này để ${m.self} triển khai ${m.finish}.`,
+    `${greeting} ơi, ${m.customer} gửi ${m.self} qua brief / yêu cầu dựng của video mình để ${m.self} làm cho đúng ý ${m.customer} ${m.finish}.`,
+  ]
+  if (mode === 'send') return [
+    `${sendVerb} ${feedbackLabel}, ${m.customer} xem và feedback giúp ${m.self} ở link này ${m.finish}:\n${link}`,
+    `${sendVerb} ${feedbackLabel} đây ${m.mid}, ${m.customer} xem giúp ${m.self} rồi feedback ở link này ${m.finish}:\n${link}`,
+  ]
+  if (mode === 'confirm') return [
+    `${m.prefix}${m.selfTitle} đã nhận được feedback của ${m.customer} rồi ${m.mid}. ${m.selfTitle} sẽ chỉnh sửa và gửi lại ${m.customer} bản tiếp theo vào lúc ${nextReturnTime} ${m.finish}.`,
+    `${m.prefix}${m.selfTitle} ghi nhận hết feedback của ${m.customer} rồi ${m.mid}. ${m.selfTitle} sẽ sửa và gửi lại vào ${nextReturnTime} ${m.finish}.`,
+  ]
+  if (mode === 'delay') return [
+    `${greeting} ơi, bản dựng cần thêm chút thời gian để chỉn chu hơn, ${m.self} xin phép gửi ${m.customer} vào ${nextDelayTime} ${m.finish}. Xong sớm hơn ${m.self} gửi ngay ${m.finish}.`,
+    `${greeting} ơi, ${m.self} xin phép lùi thời gian gửi đến ${nextDelayTime} để hoàn thiện kỹ hơn ${m.finish}.`,
+  ]
+  if (mode === 'push') return [
+    `${m.customerTitle} ơi, ${m.customer} xem được ${feedbackLabel} chưa ${m.mid}? ${m.customerTitle} feedback giúp ${m.self} để ${m.self} hoàn thiện tiếp ${m.finish}.`,
+    `${m.customerTitle} ơi, ${m.customer} tranh thủ xem và feedback ${feedbackLabel} giúp ${m.self} ${m.finish}.`,
+  ]
+  return [
+    `${m.prefix}${m.self} cảm ơn ${m.customer} đã support, đồng hành để team ${m.self} hoàn thành công việc ${m.mid}. Hẹn gặp lại ${m.customer} ở job tiếp theo ${m.finish}.`,
+    `${m.prefix}${m.self} cảm ơn ${m.customer} nhiều ${m.mid}. Có ${m.customer} support nên team ${m.self} hoàn thành job suôn sẻ, hẹn gặp lại ${m.customer} ở job tiếp theo ${m.finish}.`,
+  ]
 }
 
 function getSharedDriveUrl(feedback = {}) {
@@ -855,6 +1042,272 @@ function OverallFeedbackPanel({ feedback, access, onChanged, fillHeight = false 
   )
 }
 
+function CustomerMessageSuggestionPopup({ feedback, publicUrl = '', onClose }) {
+  const feedbackName = getFeedbackNameParts(feedback || {}).name || 'bản feedback này'
+  const editorName = feedback?.editor_name || feedback?.job?.editor_name || ''
+  const feedbackUrl = buildAbsoluteFeedbackUrl(publicUrl, feedback)
+  const defaultMode = feedback?.video_url ? 'send' : 'hello'
+  const [mode, setMode] = useState(defaultMode)
+  const [style, setStyle] = useState('friendly')
+  const [customerCall, setCustomerCall] = useState('anh')
+  const [deadline, setDeadline] = useState('')
+  const [returnTime, setReturnTime] = useState('')
+  const [delayTime, setDelayTime] = useState('')
+  const [oneLine, setOneLine] = useState(false)
+  const [variantIndex, setVariantIndex] = useState(0)
+  const [message, setMessage] = useState('')
+  const [copyStatus, setCopyStatus] = useState('')
+
+  const variants = useMemo(() => buildCustomerMessageVariants({
+    mode,
+    style,
+    customerCall,
+    editorName,
+    feedbackName,
+    feedbackUrl,
+    deadline,
+    returnTime,
+    delayTime,
+  }), [customerCall, deadline, delayTime, editorName, feedbackName, feedbackUrl, mode, returnTime, style])
+
+  const generatedMessage = useMemo(() => {
+    const safeIndex = variants.length ? variantIndex % variants.length : 0
+    const text = variants[safeIndex] || ''
+    return oneLine ? text.replace(/\s*\n\s*/g, ' ') : text
+  }, [oneLine, variantIndex, variants])
+
+  useEffect(() => {
+    setVariantIndex(0)
+  }, [mode, style, customerCall])
+
+  useEffect(() => {
+    setMessage(generatedMessage)
+    setCopyStatus('')
+  }, [generatedMessage])
+
+  const missingFields = getMissingCustomerMessageFields(message)
+  const canCopy = missingFields.length === 0
+  const showDeadlineField = mode === 'hello'
+  const showReturnTimeField = mode === 'confirm'
+  const showDelayTimeField = mode === 'delay'
+
+  async function copyMessage() {
+    if (!canCopy) return
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(message)
+      } else {
+        const textarea = document.createElement('textarea')
+        textarea.value = message
+        textarea.setAttribute('readonly', '')
+        textarea.style.position = 'fixed'
+        textarea.style.opacity = '0'
+        document.body.appendChild(textarea)
+        textarea.select()
+        document.execCommand('copy')
+        document.body.removeChild(textarea)
+      }
+      setCopyStatus('Đã copy tin nhắn.')
+    } catch {
+      setCopyStatus('Không copy được, anh copy thủ công trong ô nội dung.')
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 px-4 py-6"
+      onClick={onClose}
+    >
+      <section
+        className="w-full max-w-2xl rounded-lg border border-slate-200 bg-white p-5 shadow-xl"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="customer-message-title"
+        onClick={event => event.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 id="customer-message-title" className="text-[16px] font-semibold text-[#f79820]">Gợi ý tin nhắn gửi khách hàng</h2>
+            <p className="mt-1 truncate text-[12px] font-medium text-slate-500">
+              Editor: {getEditorFirstName(editorName) || editorName || '-'} · {feedbackName} · Link feedback tự lấy từ trang
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+            aria-label="Đóng popup gợi ý tin nhắn"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="mt-4 grid gap-4">
+          <div>
+            <FieldLabel>Tình huống</FieldLabel>
+            <div className="mt-1 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+              {CUSTOMER_MESSAGE_MODES.map(option => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setMode(option.value)}
+                  className={`min-h-9 rounded-lg border px-2 text-[12px] font-semibold transition ${
+                    mode === option.value
+                      ? 'border-[#f79820] bg-[#f79820] text-white shadow-sm'
+                      : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
+            <div>
+              <FieldLabel>Style</FieldLabel>
+              <div className="mt-1 grid grid-cols-3 gap-1.5 rounded-lg border border-slate-200 bg-slate-50 p-1">
+                {MESSAGE_STYLE_OPTIONS.map(option => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setStyle(option.value)}
+                    className={`h-8 rounded-md px-2 text-[12px] font-semibold transition ${
+                      style === option.value
+                        ? 'bg-white text-[#f79820] shadow-sm ring-1 ring-[#f79820]/25'
+                        : 'text-slate-600 hover:bg-white/70'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <FieldLabel>Gọi khách là</FieldLabel>
+              <div className="mt-1 grid grid-cols-3 gap-1.5">
+                {CUSTOMER_CALL_OPTIONS.map(option => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setCustomerCall(option.value)}
+                    className={`h-8 rounded-lg border px-2 text-[12px] font-semibold transition ${
+                      customerCall === option.value
+                        ? 'border-[#f79820] bg-[#f79820]/10 text-[#f79820]'
+                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {(showDeadlineField || showReturnTimeField || showDelayTimeField) && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {showDeadlineField && (
+                <div>
+                  <FieldLabel>Thời gian gửi bản này</FieldLabel>
+                  <TextInput
+                    value={deadline}
+                    onChange={event => setDeadline(event.target.value)}
+                    placeholder="vd: 17h hôm nay"
+                    className="mt-1"
+                  />
+                </div>
+              )}
+              {showReturnTimeField && (
+                <div>
+                  <FieldLabel>Giờ trả bản sửa</FieldLabel>
+                  <TextInput
+                    value={returnTime}
+                    onChange={event => setReturnTime(event.target.value)}
+                    placeholder="vd: 17h chiều nay"
+                    className="mt-1"
+                  />
+                </div>
+              )}
+              {showDelayTimeField && (
+                <div>
+                  <FieldLabel>Xin lùi đến giờ</FieldLabel>
+                  <TextInput
+                    value={delayTime}
+                    onChange={event => setDelayTime(event.target.value)}
+                    placeholder="vd: 21h tối nay"
+                    className="mt-1"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          <div>
+            <div className="flex items-center justify-between gap-3">
+              <FieldLabel>Kết quả</FieldLabel>
+              <label className="flex items-center gap-2 text-[12px] font-semibold text-slate-500">
+                <input
+                  type="checkbox"
+                  checked={oneLine}
+                  onChange={event => setOneLine(event.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-[#f79820] focus:ring-[#f79820]/30"
+                />
+                Gộp 1 dòng
+              </label>
+            </div>
+            <textarea
+              value={message}
+              onChange={event => {
+                setMessage(event.target.value)
+                setCopyStatus('')
+              }}
+              rows={6}
+              className="mt-1 block min-h-[132px] w-full resize-y rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-[13px] leading-5 text-slate-900 outline-none focus:border-[#f79820] focus:ring-2 focus:ring-[#f79820]/20"
+            />
+            <div className="mt-2 rounded-lg border border-slate-200 bg-[#eef1f4] p-3">
+              <div className="mb-2 text-[11px] font-semibold text-slate-500">Preview Zalo</div>
+              <div className="ml-auto max-w-[88%] whitespace-pre-wrap break-words rounded-lg bg-[#cfe9ff] px-3 py-2 text-[13px] leading-5 text-[#0b3a66]">
+                {message}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className={`min-h-5 text-[12px] font-semibold ${canCopy ? 'text-emerald-600' : 'text-[#b86414]'}`}>
+              {canCopy
+                ? (copyStatus || 'Đã đủ thông tin, có thể copy.')
+                : `Chưa điền ${missingFields.join(' và ')}.`}
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setVariantIndex(current => current + 1)
+                  setCopyStatus('')
+                }}
+                className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Đổi cách nói
+              </button>
+              <button
+                type="button"
+                onClick={copyMessage}
+                disabled={!canCopy}
+                className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-[#f79820] px-4 text-[13px] font-semibold text-white hover:bg-[#df861d] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Copy className="h-4 w-4" />
+                Copy tin nhắn
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  )
+}
+
 export default function FeedbackDetailPage() {
   const { id } = useParams()
   const location = useLocation()
@@ -876,6 +1329,7 @@ export default function FeedbackDetailPage() {
   const [feedbackDonePopup, setFeedbackDonePopup] = useState(null)
   const [footerStatus, setFooterStatus] = useState('')
   const [footerEditorOpen, setFooterEditorOpen] = useState(false)
+  const [customerMessageOpen, setCustomerMessageOpen] = useState(false)
   const [footerFeedbackName, setFooterFeedbackName] = useState('')
   const [footerVideoUrl, setFooterVideoUrl] = useState('')
   const [footerDriveUrl, setFooterDriveUrl] = useState('')
@@ -928,6 +1382,7 @@ export default function FeedbackDetailPage() {
   const shouldOfferNewFeedbackClone = Boolean(cloneSourceFeedback?.id) && unresolvedCloneCount > 0
   const footerCopyright = footerStatus || 'Copyright © 2017 - 2026 Eventus Production. All rights reserved.'
   const feedbackLogoSrc = feedbackDarkMode ? EVENTUS_FEEDBACK_DARK_LOGO : EVENTUS_FEEDBACK_LOGO
+  const feedbackPublicUrl = detail?.public_url || getFeedbackPublicPath(feedback)
 
   async function load() {
     setLoading(true)
@@ -1090,6 +1545,10 @@ export default function FeedbackDetailPage() {
     }
     setFooterEditorOpen(false)
   }, footerEditorOpen)
+
+  useEscapeToClose(() => {
+    setCustomerMessageOpen(false)
+  }, customerMessageOpen)
 
   useEscapeToClose(() => {
     setNewFeedbackClonePromptOpen(false)
@@ -1327,11 +1786,20 @@ export default function FeedbackDetailPage() {
     setFooterFeedbackName(getFeedbackNameParts(feedback || {}).name)
     setFooterVideoUrl(feedback?.video_url || '')
     setFooterDriveUrl(getSharedDriveUrl(feedback))
+    setCustomerMessageOpen(false)
     setDeleteFeedbackDialogOpen(false)
     setDeleteConfirmText('')
     setDeleteFeedbackError('')
     setFooterEditorError('')
     setFooterEditorOpen(true)
+  }
+
+  function openCustomerMessageSuggestion() {
+    setFooterEditorOpen(false)
+    setDeleteFeedbackDialogOpen(false)
+    setDeleteConfirmText('')
+    setDeleteFeedbackError('')
+    setCustomerMessageOpen(true)
   }
 
   async function saveFooterLinks(event) {
@@ -1681,7 +2149,18 @@ export default function FeedbackDetailPage() {
               </button>
             </div>
             <div className="flex flex-1 flex-wrap gap-x-4 gap-y-1 lg:pl-3">
-              <span><span className="font-semibold text-slate-500">Editor:</span> {feedback.editor_name || feedback.job?.editor_name || '-'}</span>
+              <span>
+                <button
+                  type="button"
+                  onClick={openCustomerMessageSuggestion}
+                  className="cursor-default border-0 bg-transparent p-0 text-[11px] font-semibold text-slate-500"
+                  aria-label="Mở gợi ý tin nhắn gửi khách hàng"
+                >
+                  Editor:
+                </button>
+                {' '}
+                {feedback.editor_name || feedback.job?.editor_name || '-'}
+              </span>
               <span><span className="font-semibold text-slate-500">Điện thoại:</span> {feedback.editor_phone || feedback.job?.editor_phone || '-'}</span>
               <span><span className="font-semibold text-slate-500">Cập nhật:</span> {formatFeedbackDateTime(feedback.updated_at)}</span>
             </div>
@@ -1766,6 +2245,13 @@ export default function FeedbackDetailPage() {
 	          </section>
 	        </div>
 	      )}
+      {customerMessageOpen && (
+        <CustomerMessageSuggestionPopup
+          feedback={feedback}
+          publicUrl={feedbackPublicUrl}
+          onClose={() => setCustomerMessageOpen(false)}
+        />
+      )}
 	      {footerEditorOpen && (
 	        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 px-4 py-6">
           <section className="w-full max-w-xl rounded-lg border border-slate-200 bg-white p-5 shadow-xl" role="dialog" aria-modal="true" aria-labelledby="feedback-link-editor-title">
