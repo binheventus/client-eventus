@@ -147,13 +147,8 @@ const contractIndexes = [
 const feedbackJobColumns = [
   {
     tableName: 'jobs',
-    columnName: 'zalo_id',
-    definition: 'varchar(120) null',
-  },
-  {
-    tableName: 'jobs',
     columnName: 'public_token',
-    definition: 'varchar(40) null after `zalo_id`',
+    definition: 'varchar(40) null',
   },
   {
     tableName: 'jobs',
@@ -188,11 +183,6 @@ const feedbackJobColumns = [
 ]
 
 const feedbackEmployeeColumns = [
-  {
-    tableName: 'employees',
-    columnName: 'zalo_name',
-    definition: 'varchar(255) null',
-  },
   {
     tableName: 'employees',
     columnName: 'is_bod',

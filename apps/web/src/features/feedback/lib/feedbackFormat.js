@@ -236,7 +236,6 @@ export function getFeedbackAccessFromSearch(search = '', pathToken = '') {
   const params = new URLSearchParams(search)
   const queryToken = params.get('token') || params.get('share_token') || ''
   return {
-    zalo: params.get('zalo') || '',
     token: queryToken || (isFeedbackShareToken(pathToken) ? pathToken : ''),
   }
 }

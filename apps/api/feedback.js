@@ -618,7 +618,6 @@ function getAuthUserPhones(user = {}) {
     user.phone,
     user.phone_number,
     user.mobile,
-    user.zalo_phone,
     user.employee?.phone,
   ].map(normalizePhone).filter(Boolean)
 }
@@ -636,7 +635,6 @@ function userMatchesFeedbackEditor(user = {}, feedback = {}) {
 function parseAccess(payload = {}, queryParams = {}) {
   const access = payload.access || {}
   return {
-    zalo: trimText(access.zalo || payload.zalo || queryParams.zalo, 120),
     token: trimText(access.token || payload.token || payload.share_token || queryParams.token || queryParams.share_token, 80),
   }
 }
@@ -656,7 +654,6 @@ function normalizeFeedbackRow(row = {}) {
     customer_name: row.customer_name,
     customer_id: row.customer_id,
     job_date: row.job_date,
-    zalo_id: row.zalo_id,
     drive_feedback: row.job_drive_feedback,
     gallery_drive: row.gallery_drive,
     editor_name: row.job_editor_name,
@@ -714,7 +711,6 @@ function normalizeJobRow(row = {}) {
     job_title: title,
     title,
     customer_name: row.customer_name || row.customer_company_name || row.company_name || '',
-    zalo_id: row.zalo_id || '',
     job_date: row.job_date || null,
     drive_feedback: row.drive_feedback || '',
     gallery_drive: row.gallery_drive || '',
@@ -727,9 +723,8 @@ function normalizeEmployeeRow(row = {}) {
   if (!row) return null
   return {
     id: row.id,
-    name: row.zalo_name || row.name || row.full_name || '',
+    name: row.name || row.full_name || '',
     phone: row.phone || '',
-    zalo_name: row.zalo_name || row.name || '',
   }
 }
 
@@ -758,7 +753,6 @@ function getFeedbackListSelect() {
     j.customer_name,
     j.customer_id,
     j.job_date,
-    j.zalo_id,
     j.public_token as job_public_token,
     j.drive_feedback as job_drive_feedback,
     j.gallery_drive,
@@ -813,12 +807,6 @@ async function ensureJobPublicToken(job = null) {
   return getJobById(job.id)
 }
 
-async function getJobByZaloId(zaloId) {
-  if (!zaloId) return null
-  const rows = await query(`select * from ${tables.jobs} where zalo_id = ? limit 1`, [zaloId])
-  return normalizeJobRow(rows?.[0])
-}
-
 async function listJobEmployees(jobId) {
   if (!jobId) return []
   try {
@@ -827,7 +815,7 @@ async function listJobEmployees(jobId) {
        from ${tables.employeeJobs} ej
        inner join ${tables.employees} e on e.id = ej.employee_id
        where ej.job_id = ?
-       order by coalesce(e.zalo_name, e.name) asc`,
+       order by e.name asc`,
       [jobId],
     )
     return rows.map(normalizeEmployeeRow).filter(Boolean)
@@ -844,8 +832,8 @@ async function listFeedbackJobs({ search = '', page = 1, pageSize = DEFAULT_PAGE
 
   if (search) {
     const like = `%${search}%`
-    where.push('(j.job_title like ? or j.customer_name like ? or j.zalo_id like ?)')
-    params.push(like, like, like)
+    where.push('(j.job_title like ? or j.customer_name like ?)')
+    params.push(like, like)
   }
 
   const whereSql = `where ${where.join(' and ')}`
@@ -903,8 +891,8 @@ async function listFeedbacks({ search = '', jobId = '', page = 1, pageSize = DEF
 
   if (search) {
     const like = `%${search}%`
-    where.push('(f.name like ? or f.public_code like ? or f.video_title like ? or j.job_title like ? or j.customer_name like ? or j.zalo_id like ?)')
-    params.push(like, like, like, like, like, like)
+    where.push('(f.name like ? or f.public_code like ? or f.video_title like ? or j.job_title like ? or j.customer_name like ?)')
+    params.push(like, like, like, like, like)
   }
 
   const whereSql = `where ${where.join(' and ')}`
@@ -1228,10 +1216,7 @@ async function assertFeedbackAccess(req, feedback, access = {}) {
   if (req.eventusUser) return true
 
   const token = access.token || ''
-  const zalo = access.zalo || ''
-  const jobZalo = feedback.job?.zalo_id || ''
   if (token && token === feedback.share_token) return true
-  if (zalo && jobZalo && zalo === jobZalo) return true
 
   const user = await getEventusAuthUser(req)
   if (user) {
@@ -1499,7 +1484,7 @@ async function saveFeedbackSetup(req, body = {}) {
     if (employee?.id) {
       editorPayload = {
         editor_employee_id: employee.id,
-        editor_name: employee.zalo_name || employee.name,
+        editor_name: employee.name,
         editor_phone: employee.phone || null,
       }
     }
@@ -1795,12 +1780,11 @@ async function findEmployeeIdByName(name) {
   if (!editorName) return null
 
   const rows = await query(
-    `select id, name, zalo_name
+    `select id, name
      from ${tables.employees}
-     where lower(trim(zalo_name)) = lower(trim(?))
-        or lower(trim(name)) = lower(trim(?))
+     where lower(trim(name)) = lower(trim(?))
      limit 1`,
-    [editorName, editorName],
+    [editorName],
   )
 
   return rows?.[0]?.id || null
@@ -2288,7 +2272,6 @@ export function isPublicFeedbackRequest(req) {
     const body = getRequestBody(req)
     const action = body.action || body.resource
     return [
-      'lookup_job',
       'save_feedback_setup',
       'create_feedback',
       'create_comment',
@@ -2362,14 +2345,6 @@ export default async function handler(req, res) {
     if (req.method === 'POST') {
       const body = getRequestBody(req)
       const action = body.action || body.resource
-
-      if (action === 'lookup_job') {
-        const zaloId = trimText(body.zalo_id || body.zalo || body.job, 120)
-        const job = await getJobByZaloId(zaloId)
-        if (!job?.id) throw makeHttpError('Mã Job không chính xác.', 404, 'JOB_NOT_FOUND')
-        const feedback = await ensureFeedbackForJob(job.id)
-        return res.status(200).json({ job, feedback })
-      }
 
       if (action === 'ensure_feedback') {
         const feedback = await ensureFeedbackForJob(body.job_id)

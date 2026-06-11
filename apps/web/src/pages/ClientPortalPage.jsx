@@ -374,7 +374,7 @@ const PLACEHOLDER_POSITION = {
 function getCategoryHref(id) {
   if (id === 'khung_nang_luc') return '/competency'
   if (id === 'quotes') return '/quotes'
-  if (id === 'feedback') return '/feedback'
+  if (id === 'feedback') return '/feedbacks'
   return '/'
 }
 
@@ -1219,7 +1219,7 @@ export default function ClientPortalPage() {
     } else if (id === 'quotes') {
       navigate('/quotes')
     } else if (id === 'feedback') {
-      navigate('/feedback')
+      navigate('/feedbacks')
     } else if (CATEGORY_ROUTE_SEGMENTS[id]) {
       navigate(getCategoryBasePath(id))
     } else if (location.pathname !== '/') {

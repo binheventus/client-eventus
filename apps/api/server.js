@@ -237,11 +237,23 @@ function registerStaticFallback(server) {
   })
 }
 
+function redirectLegacyFeedbackPage(req, res, next) {
+  const requestUrl = new URL(req.originalUrl || req.url || '/', 'http://localhost')
+  const isPageRequest = req.method === 'GET' || req.method === 'HEAD'
+  if (!isPageRequest || (requestUrl.pathname !== '/feedback' && requestUrl.pathname !== '/feedback/')) {
+    next()
+    return
+  }
+
+  res.redirect(308, `/feedbacks${requestUrl.search}`)
+}
+
 const app = await NestFactory.create(ApiModule, { bodyParser: false, logger: ['error', 'warn'] })
 app.enableCors()
 app.useBodyParser('json', { limit: apiBodyLimit })
 app.useBodyParser('urlencoded', { extended: true, limit: apiBodyLimit })
 const server = app.getHttpAdapter().getInstance()
+server.use(redirectLegacyFeedbackPage)
 server.use(protectQuotePage)
 registerStaticFallback(server)
 await app.init()

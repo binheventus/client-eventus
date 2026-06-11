@@ -59,30 +59,12 @@ function buildQuery(params = {}) {
   return text ? `?${text}` : ''
 }
 
-export function getFeedbackAccess({ zalo = '', token = '' } = {}) {
-  return {
-    ...(zalo ? { zalo } : {}),
-    ...(token ? { token } : {}),
-  }
-}
-
 export async function listFeedbackJobs({ search = '', page = 1, pageSize = 20 } = {}) {
   return requestFeedbackApi(buildQuery({ resource: 'jobs', search, page, pageSize }))
 }
 
 export async function listFeedbacks({ search = '', jobId = '', page = 1, pageSize = 20 } = {}) {
   return requestFeedbackApi(buildQuery({ resource: 'feedbacks', search, job_id: jobId, page, pageSize }))
-}
-
-export async function lookupFeedbackJob(zaloId) {
-  const result = await requestFeedbackApi('', {
-    method: 'POST',
-    body: {
-      action: 'lookup_job',
-      zalo_id: zaloId,
-    },
-  })
-  return result
 }
 
 export async function ensureFeedback(jobId) {
@@ -179,7 +161,6 @@ export async function uploadFeedbackAttachment(commentId, payload = {}, access =
   formData.append('action', 'upload_attachment')
   formData.append('comment_id', commentId)
   formData.append('field_name', payload.field_name || 'comment_1')
-  if (access?.zalo) formData.append('zalo', access.zalo)
   if (access?.token) formData.append('token', access.token)
   if (payload.file) {
     formData.append('image', payload.file, payload.file.name || payload.file_name || 'feedback-image.webp')

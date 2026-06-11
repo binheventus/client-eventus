@@ -6,7 +6,6 @@ import {
   ensureFeedback,
   listFeedbackJobs,
   listFeedbacks,
-  lookupFeedbackJob,
 } from '../hooks/useFeedback'
 import { formatFeedbackDate, getFeedbackNameParts, getFeedbackPublicPath } from '../lib/feedbackFormat'
 
@@ -26,7 +25,6 @@ function JobRow({ job, onOpen, onCreate }) {
         <div className="font-semibold text-slate-900">{job.title || `Job #${job.id}`}</div>
         <div className="mt-1 text-[12px] text-slate-500">{job.customer_name || 'Chưa có khách hàng'} · {formatFeedbackDate(job.job_date)}</div>
       </td>
-      <td className="px-4 py-3 text-[13px] text-slate-600">{job.zalo_id || '-'}</td>
       <td className="px-4 py-3">
         {job.feedback_id ? (
           <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[12px] font-semibold text-emerald-700">
@@ -90,7 +88,6 @@ function FeedbackCard({ feedback, onOpen }) {
 export default function FeedbackDashboardPage() {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
-  const [jobCode, setJobCode] = useState('')
   const [jobs, setJobs] = useState([])
   const [feedbacks, setFeedbacks] = useState([])
   const [selectedJobId, setSelectedJobId] = useState('')
@@ -148,23 +145,6 @@ export default function FeedbackDashboardPage() {
     }
   }
 
-  async function handleLookup(event) {
-    event.preventDefault()
-    const code = jobCode.trim()
-    if (!code) return
-
-    setActionLoading(true)
-    setError('')
-    try {
-      const result = await lookupFeedbackJob(code)
-      navigate(getFeedbackPublicPath(result.feedback))
-    } catch (err) {
-      setError(err?.message || 'Không tìm thấy mã job.')
-    } finally {
-      setActionLoading(false)
-    }
-  }
-
   async function handleCreateBlankFeedback(jobId) {
     setActionLoading(true)
     setError('')
@@ -186,7 +166,7 @@ export default function FeedbackDashboardPage() {
     <div className="min-h-screen bg-slate-50 px-5 py-5 lg:px-7">
       <div className="mx-auto max-w-[1440px] space-y-5">
         <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-col gap-4 border-b border-slate-100 px-5 py-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="border-b border-slate-100 px-5 py-5">
             <div>
               <div className="flex items-center gap-3">
                 <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-900 text-white">
@@ -198,23 +178,6 @@ export default function FeedbackDashboardPage() {
                 </div>
               </div>
             </div>
-
-            <form onSubmit={handleLookup} className="flex w-full max-w-xl gap-2">
-              <input
-                value={jobCode}
-                onChange={event => setJobCode(event.target.value)}
-                className="h-10 min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 text-[13px] font-medium text-slate-900 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-                placeholder="Nhập ID JOB/Zalo để mở link feedback"
-              />
-              <button
-                type="submit"
-                disabled={actionLoading}
-                className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-[13px] font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <Search className="h-4 w-4" />
-                Mở
-              </button>
-            </form>
           </div>
 
           <div className="flex flex-col gap-3 px-5 py-4 md:flex-row md:items-center">
@@ -227,7 +190,7 @@ export default function FeedbackDashboardPage() {
                   if (event.key === 'Enter') loadData(search)
                 }}
                 className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-[13px] text-slate-900 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-                placeholder="Tìm theo job, khách hàng, mã Zalo, tên feedback..."
+                placeholder="Tìm theo job, khách hàng hoặc tên feedback..."
               />
             </div>
             <button
@@ -259,11 +222,10 @@ export default function FeedbackDashboardPage() {
               <div className="px-5 py-8 text-[13px] font-semibold text-slate-400">Đang tải...</div>
             ) : jobs.length ? (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[760px] text-left text-[13px]">
+                <table className="w-full min-w-[640px] text-left text-[13px]">
                   <thead className="bg-slate-50 text-[12px] uppercase text-slate-500">
                     <tr>
                       <th className="px-4 py-3 font-semibold">Job</th>
-                      <th className="px-4 py-3 font-semibold">Zalo ID</th>
                       <th className="px-4 py-3 font-semibold">Trạng thái</th>
                       <th className="px-4 py-3 text-right font-semibold">Thao tác</th>
                     </tr>
@@ -282,7 +244,7 @@ export default function FeedbackDashboardPage() {
               </div>
             ) : (
               <div className="p-5">
-                <EmptyState title="Chưa có job phù hợp" desc="Thử tìm bằng tên khách hàng, tên job hoặc mã Zalo khác." />
+                <EmptyState title="Chưa có job phù hợp" desc="Thử tìm bằng tên khách hàng hoặc tên job khác." />
               </div>
             )}
           </div>

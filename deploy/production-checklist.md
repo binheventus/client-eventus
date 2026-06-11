@@ -83,9 +83,8 @@ Ví dụ cron cleanup:
 Trước khi tắt deploy `feedback-eventus`, kiểm tra link cũ theo mẫu:
 
 ```bash
-curl -I 'https://client.eventusproduction.com/feedbacks/{legacy_id}?zalo={zalo_id}'
-curl -I 'https://client.eventusproduction.com/redirect/{zalo_id}'
+curl -I 'https://client.eventusproduction.com/feedbacks/{share_token}'
 curl -I 'https://client.eventusproduction.com/survey?job={job_public_token}'
 curl -I 'https://client.eventusproduction.com/survey?job={legacy_job_id}'
-curl -I 'https://client.eventusproduction.com/gallery/{zalo_id}'
+curl -I 'https://client.eventusproduction.com/gallery/{share_token}'
 ```

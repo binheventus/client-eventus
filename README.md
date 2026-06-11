@@ -66,10 +66,10 @@ NestJS server phục vụ cả API `/api/quotes`, `/api/contracts`, `/api/client
 
 Feedback chạy trong `client-eventus` với routes:
 
-- `/feedback`: dashboard nội bộ, dùng auth Eventus hiện tại.
-- `/feedbacks`: form nhập mã job/Zalo cho khách.
-- `/feedbacks/:id`: link feedback khách hàng; link cũ theo legacy id vẫn mở được sau khi import dữ liệu.
-- `/redirect/:zaloId`, `/survey`, `/gallery/:zaloId`: routes công khai tương thích flow cũ.
+- `/feedback`: redirect vĩnh viễn sang `/feedbacks`.
+- `/feedbacks`: dashboard nội bộ, dùng auth Eventus hiện tại.
+- `/feedbacks/:share_token`: link feedback công khai cho khách hàng.
+- `/survey` và `/gallery/:share_token`: các trang khảo sát và gallery công khai.
 
 Upload ảnh feedback lưu trực tiếp trên server hiện tại:
 

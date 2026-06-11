@@ -54,8 +54,14 @@ export function isProtectedQuotePageRequest(req) {
   const pathname = new URL(normalizeRequestPath(req?.url), 'http://client.local').pathname
   return pathname === '/quotes' || pathname.startsWith('/quotes/') ||
     pathname === '/contracts' || pathname.startsWith('/contracts/') ||
-    pathname === '/feedback' || pathname.startsWith('/feedback/') ||
+    pathname === '/feedback' || pathname === '/feedback/' ||
+    pathname === '/feedbacks' || pathname === '/feedbacks/' ||
     pathname === '/pricing-admin' || pathname.startsWith('/pricing-admin/')
+}
+
+export function isFeedbackDashboardPageRequest(req) {
+  const pathname = new URL(normalizeRequestPath(req?.url), 'http://client.local').pathname
+  return pathname === '/feedbacks' || pathname === '/feedbacks/'
 }
 
 function normalizeRequestPath(value) {
@@ -118,6 +124,11 @@ export async function protectQuotePage(req, res, next) {
   if (user) {
     req.eventusUser = user
     next()
+    return
+  }
+
+  if (isFeedbackDashboardPageRequest(req)) {
+    res.redirect(302, '/')
     return
   }
 

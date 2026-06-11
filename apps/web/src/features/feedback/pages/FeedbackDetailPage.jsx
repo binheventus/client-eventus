@@ -591,7 +591,7 @@ function SetupPanel({
             >
               <option value="">Chọn nhân sự Editor</option>
               {employees.map(employee => (
-                <option key={employee.id} value={employee.id}>{employee.zalo_name || employee.name}</option>
+                <option key={employee.id} value={employee.id}>{employee.name}</option>
               ))}
             </select>
           </div>
@@ -1569,7 +1569,7 @@ export default function FeedbackDetailPage() {
 
   useEffect(() => {
     load()
-  }, [id, access.zalo, access.token])
+  }, [id, access.token])
 
   useEffect(() => {
     setFeedbackAuthorName(window.localStorage?.getItem(`eventus.feedbackAuthorName.${id}`) || '')
