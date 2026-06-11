@@ -6,7 +6,6 @@
     "includes_accommodation": false,
     "includes_transport": false,
     "note": null,
-    "is_active": true,
     "sort_order": 1
   },
   {
@@ -16,7 +15,6 @@
     "includes_accommodation": false,
     "includes_transport": false,
     "note": "KHÔNG cộng phụ phí - đã tính trong giá OUT của Sheet 1",
-    "is_active": true,
     "sort_order": 2
   },
   {
@@ -26,7 +24,6 @@
     "includes_accommodation": false,
     "includes_transport": false,
     "note": null,
-    "is_active": true,
     "sort_order": 3
   },
   {
@@ -36,7 +33,6 @@
     "includes_accommodation": false,
     "includes_transport": false,
     "note": null,
-    "is_active": true,
     "sort_order": 4
   },
   {
@@ -46,7 +42,6 @@
     "includes_accommodation": false,
     "includes_transport": false,
     "note": null,
-    "is_active": true,
     "sort_order": 5
   },
   {
@@ -56,7 +51,6 @@
     "includes_accommodation": false,
     "includes_transport": false,
     "note": null,
-    "is_active": true,
     "sort_order": 6
   },
   {
@@ -66,7 +60,6 @@
     "includes_accommodation": false,
     "includes_transport": false,
     "note": null,
-    "is_active": true,
     "sort_order": 7
   },
   {
@@ -76,7 +69,6 @@
     "includes_accommodation": false,
     "includes_transport": false,
     "note": "Khu vực Ocean Park, EcoPark có thể tính đơn giá ngoại thành",
-    "is_active": true,
     "sort_order": 8
   },
   {
@@ -86,7 +78,6 @@
     "includes_accommodation": false,
     "includes_transport": false,
     "note": null,
-    "is_active": true,
     "sort_order": 9
   },
   {
@@ -96,7 +87,6 @@
     "includes_accommodation": false,
     "includes_transport": false,
     "note": null,
-    "is_active": true,
     "sort_order": 10
   },
   {
@@ -106,7 +96,6 @@
     "includes_accommodation": false,
     "includes_transport": false,
     "note": null,
-    "is_active": true,
     "sort_order": 11
   },
   {
@@ -116,7 +105,6 @@
     "includes_accommodation": false,
     "includes_transport": false,
     "note": null,
-    "is_active": true,
     "sort_order": 12
   },
   {
@@ -126,7 +114,6 @@
     "includes_accommodation": false,
     "includes_transport": false,
     "note": null,
-    "is_active": true,
     "sort_order": 13
   },
   {
@@ -136,7 +123,6 @@
     "includes_accommodation": false,
     "includes_transport": false,
     "note": null,
-    "is_active": true,
     "sort_order": 14
   },
   {
@@ -146,7 +132,6 @@
     "includes_accommodation": false,
     "includes_transport": false,
     "note": null,
-    "is_active": true,
     "sort_order": 15
   },
   {
@@ -156,7 +141,6 @@
     "includes_accommodation": false,
     "includes_transport": false,
     "note": null,
-    "is_active": true,
     "sort_order": 16
   },
   {
@@ -166,7 +150,6 @@
     "includes_accommodation": false,
     "includes_transport": false,
     "note": null,
-    "is_active": true,
     "sort_order": 17
   },
   {
@@ -176,7 +159,6 @@
     "includes_accommodation": false,
     "includes_transport": false,
     "note": null,
-    "is_active": true,
     "sort_order": 18
   },
   {
@@ -186,7 +168,6 @@
     "includes_accommodation": false,
     "includes_transport": false,
     "note": null,
-    "is_active": true,
     "sort_order": 19
   },
   {
@@ -196,7 +177,6 @@
     "includes_accommodation": false,
     "includes_transport": false,
     "note": null,
-    "is_active": true,
     "sort_order": 20
   },
   {
@@ -206,7 +186,6 @@
     "includes_accommodation": false,
     "includes_transport": true,
     "note": "Dự kiến 2 chiều/người. Báo giá cuối điều chỉnh theo vé máy bay thực tế.",
-    "is_active": true,
     "sort_order": 21
   },
   {
@@ -216,7 +195,6 @@
     "includes_accommodation": false,
     "includes_transport": false,
     "note": null,
-    "is_active": true,
     "sort_order": 22
   },
   {
@@ -226,7 +204,6 @@
     "includes_accommodation": false,
     "includes_transport": false,
     "note": null,
-    "is_active": true,
     "sort_order": 23
   },
   {
@@ -236,7 +213,6 @@
     "includes_accommodation": false,
     "includes_transport": true,
     "note": "Dự kiến 2 chiều/người. Báo giá cuối điều chỉnh theo vé máy bay thực tế.",
-    "is_active": true,
     "sort_order": 24
   },
   {
@@ -246,7 +222,6 @@
     "includes_accommodation": false,
     "includes_transport": false,
     "note": null,
-    "is_active": true,
     "sort_order": 25
   },
   {
@@ -256,7 +231,6 @@
     "includes_accommodation": false,
     "includes_transport": true,
     "note": "Dự kiến 2 chiều/người. Báo giá cuối điều chỉnh theo vé máy bay thực tế.",
-    "is_active": true,
     "sort_order": 26
   },
   {
@@ -266,7 +240,6 @@
     "includes_accommodation": false,
     "includes_transport": false,
     "note": null,
-    "is_active": true,
     "sort_order": 27
   },
   {
@@ -276,7 +249,6 @@
     "includes_accommodation": false,
     "includes_transport": false,
     "note": null,
-    "is_active": true,
     "sort_order": 28
   },
   {
@@ -286,7 +258,6 @@
     "includes_accommodation": false,
     "includes_transport": false,
     "note": null,
-    "is_active": true,
     "sort_order": 29
   },
   {
@@ -296,7 +267,6 @@
     "includes_accommodation": false,
     "includes_transport": true,
     "note": "Dự kiến 2 chiều/người. Báo giá cuối điều chỉnh theo vé máy bay thực tế.",
-    "is_active": true,
     "sort_order": 30
   },
   {
@@ -306,7 +276,6 @@
     "includes_accommodation": false,
     "includes_transport": false,
     "note": null,
-    "is_active": true,
     "sort_order": 31
   },
   {
@@ -316,7 +285,6 @@
     "includes_accommodation": false,
     "includes_transport": false,
     "note": null,
-    "is_active": true,
     "sort_order": 32
   },
   {
@@ -326,7 +294,6 @@
     "includes_accommodation": false,
     "includes_transport": false,
     "note": null,
-    "is_active": true,
     "sort_order": 33
   },
   {
@@ -336,7 +303,6 @@
     "includes_accommodation": false,
     "includes_transport": false,
     "note": null,
-    "is_active": true,
     "sort_order": 34
   },
   {
@@ -346,7 +312,6 @@
     "includes_accommodation": false,
     "includes_transport": false,
     "note": null,
-    "is_active": true,
     "sort_order": 35
   },
   {
@@ -356,7 +321,6 @@
     "includes_accommodation": false,
     "includes_transport": false,
     "note": "Báo giá cuối có thể thay đổi theo lịch trình",
-    "is_active": true,
     "sort_order": 36
   },
   {
@@ -366,7 +330,6 @@
     "includes_accommodation": false,
     "includes_transport": false,
     "note": "Báo giá cuối có thể thay đổi theo lịch trình",
-    "is_active": true,
     "sort_order": 37
   },
   {
@@ -376,7 +339,6 @@
     "includes_accommodation": false,
     "includes_transport": false,
     "note": "Báo giá cuối có thể thay đổi theo lịch trình",
-    "is_active": true,
     "sort_order": 38
   },
   {
@@ -386,7 +348,6 @@
     "includes_accommodation": false,
     "includes_transport": false,
     "note": "Báo giá cuối có thể thay đổi theo lịch trình",
-    "is_active": true,
     "sort_order": 39
   },
   {
@@ -396,7 +357,6 @@
     "includes_accommodation": false,
     "includes_transport": false,
     "note": "Báo giá cuối có thể thay đổi theo lịch trình",
-    "is_active": true,
     "sort_order": 40
   },
   {
@@ -406,7 +366,6 @@
     "includes_accommodation": false,
     "includes_transport": false,
     "note": "Báo giá cuối có thể thay đổi theo lịch trình",
-    "is_active": true,
     "sort_order": 41
   },
   {
@@ -416,7 +375,6 @@
     "includes_accommodation": false,
     "includes_transport": false,
     "note": "Báo giá cuối có thể thay đổi theo lịch trình",
-    "is_active": true,
     "sort_order": 42
   }
 ]

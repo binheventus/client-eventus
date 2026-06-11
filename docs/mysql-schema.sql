@@ -396,13 +396,12 @@ create table if not exists pricing_services (
   price_tier_6 decimal(18,2) null,
   description text null,
   internal_note text null,
-  is_active tinyint(1) not null default 1,
   sort_order int not null default 100,
   source_json json null,
   created_at datetime(3) not null default current_timestamp(3),
   updated_at datetime(3) not null default current_timestamp(3) on update current_timestamp(3),
   unique key pricing_services_code_unique (service_code),
-  key pricing_services_active_sort_idx (is_active, sort_order)
+  key pricing_services_sort_idx (sort_order)
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 
 create table if not exists pricing_travel_fees (
@@ -414,13 +413,12 @@ create table if not exists pricing_travel_fees (
   includes_accommodation tinyint(1) not null default 0,
   includes_transport tinyint(1) not null default 0,
   note text null,
-  is_active tinyint(1) not null default 1,
   sort_order int not null default 100,
   source_json json null,
   created_at datetime(3) not null default current_timestamp(3),
   updated_at datetime(3) not null default current_timestamp(3) on update current_timestamp(3),
   unique key pricing_travel_fees_source_key_unique (source_key),
-  key pricing_travel_fees_active_sort_idx (is_active, sort_order)
+  key pricing_travel_fees_sort_idx (sort_order)
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 
 create table if not exists pricing_customer_tiers (
@@ -432,13 +430,12 @@ create table if not exists pricing_customer_tiers (
   payment_terms text null,
   default_discount decimal(10,4) null,
   special_note text null,
-  is_active tinyint(1) not null default 1,
   sort_order int not null default 100,
   source_json json null,
   created_at datetime(3) not null default current_timestamp(3),
   updated_at datetime(3) not null default current_timestamp(3) on update current_timestamp(3),
   unique key pricing_customer_tiers_code_unique (tier_code),
-  key pricing_customer_tiers_active_sort_idx (is_active, sort_order)
+  key pricing_customer_tiers_sort_idx (sort_order)
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 
 create table if not exists pricing_business_rules (
@@ -450,14 +447,13 @@ create table if not exists pricing_business_rules (
   rule_value text null,
   description text null,
   derived tinyint(1) not null default 0,
-  is_active tinyint(1) not null default 1,
   sort_order int not null default 100,
   source_json json null,
   created_at datetime(3) not null default current_timestamp(3),
   updated_at datetime(3) not null default current_timestamp(3) on update current_timestamp(3),
   unique key pricing_business_rules_code_unique (rule_code),
   key pricing_business_rules_category_idx (category, sort_order),
-  key pricing_business_rules_active_sort_idx (is_active, sort_order)
+  key pricing_business_rules_sort_idx (sort_order)
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 
 create table if not exists pricing_legal_entities (
@@ -476,13 +472,12 @@ create table if not exists pricing_legal_entities (
   logo_file varchar(255) null,
   is_default tinyint(1) not null default 0,
   display_name varchar(255) null,
-  is_active tinyint(1) not null default 1,
   sort_order int not null default 100,
   source_json json null,
   created_at datetime(3) not null default current_timestamp(3),
   updated_at datetime(3) not null default current_timestamp(3) on update current_timestamp(3),
   unique key pricing_legal_entities_code_unique (entity_code),
-  key pricing_legal_entities_active_sort_idx (is_active, sort_order),
+  key pricing_legal_entities_sort_idx (sort_order),
   key pricing_legal_entities_default_idx (is_default)
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 
@@ -493,11 +488,10 @@ create table if not exists pricing_equipment_rules (
   equipment_description text null,
   internal_note text null,
   match_prefix_list json null,
-  is_active tinyint(1) not null default 1,
   sort_order int not null default 100,
   source_json json null,
   created_at datetime(3) not null default current_timestamp(3),
   updated_at datetime(3) not null default current_timestamp(3) on update current_timestamp(3),
   unique key pricing_equipment_rules_prefixes_unique (match_prefixes),
-  key pricing_equipment_rules_active_sort_idx (is_active, sort_order)
+  key pricing_equipment_rules_sort_idx (sort_order)
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;

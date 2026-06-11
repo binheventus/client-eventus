@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, CheckCircle2, Database, Pencil, Plus, RefreshCw, Save, Search, Trash2, X, XCircle } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, CheckCircle2, Database, Pencil, Plus, RefreshCw, Save, Search, Trash2, X, XCircle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { redirectToLoginIfAuthRequired } from '../../quotes/lib/authRedirect'
 import { clearPricingContextCache } from '../../quotes/lib/pricingContextClient'
@@ -14,7 +14,6 @@ const DATASETS = [
       service_name: '',
       quote_display_name: '',
       unit: 'Người',
-      is_active: true,
       sort_order: 100,
     },
     formFields: [
@@ -31,7 +30,6 @@ const DATASETS = [
       ['price_tier_5', 'price_tier_5', 'number'],
       ['price_tier_6', 'price_tier_6', 'number'],
       ['sort_order', 'sort_order', 'number'],
-      ['is_active', 'is_active', 'checkbox'],
       ['description', 'description', 'textarea'],
       ['internal_note', 'internal_note', 'textarea'],
     ],
@@ -45,7 +43,6 @@ const DATASETS = [
       fee_per_person_per_day: 0,
       includes_accommodation: false,
       includes_transport: false,
-      is_active: true,
       sort_order: 100,
     },
     formFields: [
@@ -55,7 +52,6 @@ const DATASETS = [
       ['note', 'note', 'textarea'],
       ['includes_accommodation', 'includes_accommodation', 'checkbox'],
       ['includes_transport', 'includes_transport', 'checkbox'],
-      ['is_active', 'is_active', 'checkbox'],
       ['sort_order', 'sort_order', 'number'],
     ],
   },
@@ -67,7 +63,6 @@ const DATASETS = [
       tier_code: '',
       tier_name: '',
       default_discount: 0,
-      is_active: true,
       sort_order: 100,
     },
     formFields: [
@@ -78,7 +73,6 @@ const DATASETS = [
       ['payment_terms', 'payment_terms', 'textarea'],
       ['description', 'description', 'textarea'],
       ['special_note', 'special_note', 'textarea'],
-      ['is_active', 'is_active', 'checkbox'],
       ['sort_order', 'sort_order', 'number'],
     ],
   },
@@ -93,7 +87,6 @@ const DATASETS = [
       value: '',
       rule_value: '',
       derived: false,
-      is_active: true,
       sort_order: 100,
     },
     formFields: [
@@ -104,7 +97,6 @@ const DATASETS = [
       ['rule_value', 'rule_value'],
       ['description', 'description', 'textarea'],
       ['derived', 'derived', 'checkbox'],
-      ['is_active', 'is_active', 'checkbox'],
       ['sort_order', 'sort_order', 'number'],
     ],
   },
@@ -116,7 +108,6 @@ const DATASETS = [
       entity_code: '',
       entity_name_full: '',
       is_default: false,
-      is_active: true,
       sort_order: 100,
     },
     formFields: [
@@ -134,7 +125,6 @@ const DATASETS = [
       ['bank_name', 'bank_name'],
       ['logo_file', 'logo_file'],
       ['is_default', 'is_default', 'checkbox'],
-      ['is_active', 'is_active', 'checkbox'],
       ['sort_order', 'sort_order', 'number'],
     ],
   },
@@ -145,7 +135,6 @@ const DATASETS = [
     defaultRecord: {
       match_prefixes: '',
       equipment_title: '',
-      is_active: true,
       sort_order: 100,
     },
     formFields: [
@@ -153,14 +142,38 @@ const DATASETS = [
       ['equipment_title', 'equipment_title', 'text', true],
       ['equipment_description', 'equipment_description', 'textarea'],
       ['internal_note', 'internal_note', 'textarea'],
-      ['is_active', 'is_active', 'checkbox'],
       ['sort_order', 'sort_order', 'number'],
     ],
   },
 ]
 
 const DATASET_MAP = Object.fromEntries(DATASETS.map(dataset => [dataset.resource, dataset]))
-const HIDDEN_TABLE_FIELDS = new Set(['is_active'])
+const NUMBER_INPUT_FORMATTER = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 6 })
+const FORM_FIELD_LAYOUTS = {
+  services: {
+    description: 'md:col-span-2 lg:col-start-1',
+    internal_note: 'md:col-span-2',
+  },
+  travel_fees: {
+    condition: 'md:col-span-2 lg:col-start-1',
+    note: 'md:col-span-2',
+  },
+  customer_tiers: {
+    payment_terms: 'md:col-span-2 lg:col-start-1',
+    description: 'md:col-span-2',
+    special_note: 'md:col-span-2 lg:col-span-4',
+  },
+  business_rules: {
+    description: 'md:col-span-2 lg:col-span-4',
+  },
+  legal_entities: {
+    address: 'md:col-span-2 lg:col-start-1',
+  },
+  equipment_rules: {
+    equipment_description: 'md:col-span-2 lg:col-start-1',
+    internal_note: 'md:col-span-2',
+  },
+}
 const COLUMN_WIDTHS = {
   service_code: '34ch',
   service_name: '31ch',
@@ -239,7 +252,6 @@ const FIT_TO_VIEWPORT_COLUMN_WIDTHS = {
 
 function getDatasetTableColumns(dataset) {
   return dataset.formFields
-    .filter(([fieldName]) => !HIDDEN_TABLE_FIELDS.has(fieldName))
     .map(([fieldName, , type = 'text']) => [fieldName, fieldName, type])
 }
 
@@ -283,6 +295,25 @@ function formatNumber(value) {
   return new Intl.NumberFormat('vi-VN').format(number)
 }
 
+function formatNumberInputValue(value) {
+  if (value === null || value === undefined || value === '') return ''
+  const number = Number(value)
+  if (!Number.isFinite(number)) return String(value)
+  return NUMBER_INPUT_FORMATTER.format(number)
+}
+
+function parseNumberInputValue(value) {
+  const raw = String(value ?? '').trim()
+  if (!raw) return ''
+  const normalized = raw
+    .replace(/\s/g, '')
+    .replace(/\./g, '')
+    .replace(',', '.')
+    .replace(/[^\d.-]/g, '')
+  const number = Number(normalized)
+  return Number.isFinite(number) ? number : ''
+}
+
 function formatCell(value, type) {
   if (type === 'number') return formatNumber(value)
   if (type === 'boolean') {
@@ -320,14 +351,18 @@ async function requestPricingAdmin(path = '', { method = 'GET', body } = {}) {
   return payload
 }
 
-function getDatasetPath(resource, { search = '', active = 'all' } = {}) {
+function getDatasetPath(resource, { search = '' } = {}) {
   const params = new URLSearchParams({ resource })
   if (search) params.set('search', search)
-  if (active !== 'all') params.set('active', active)
   return `?${params.toString()}`
 }
 
-function FieldInput({ field, value, onChange }) {
+function getFieldLayoutClass(resource, field) {
+  const [name, , type = 'text'] = field
+  return FORM_FIELD_LAYOUTS[resource]?.[name] || (type === 'textarea' ? 'md:col-span-2' : '')
+}
+
+function FieldInput({ field, value, onChange, className = '' }) {
   const [name, label, type = 'text', required = false] = field
   const inputId = `pricing-field-${name}`
   const displayLabel = name || label
@@ -335,7 +370,7 @@ function FieldInput({ field, value, onChange }) {
 
   if (type === 'checkbox') {
     return (
-      <label htmlFor={inputId} className="flex min-h-[64px] items-center gap-3 rounded-lg border border-slate-200 px-3 py-2">
+      <label htmlFor={inputId} className={`flex min-h-[64px] items-center gap-3 rounded-lg border border-slate-200 px-3 py-2 ${className}`}>
         <input
           id={inputId}
           type="checkbox"
@@ -349,7 +384,7 @@ function FieldInput({ field, value, onChange }) {
   }
 
   return (
-    <label htmlFor={inputId} className={type === 'textarea' ? 'md:col-span-2' : ''}>
+    <label htmlFor={inputId} className={className}>
       <span className="text-[12px] font-semibold text-slate-500">
         {displayLabel}
         {required ? <span className="text-orange-500"> *</span> : null}
@@ -365,9 +400,10 @@ function FieldInput({ field, value, onChange }) {
       ) : (
         <input
           id={inputId}
-          type={type}
-          value={value ?? ''}
-          onChange={event => onChange(name, event.target.value)}
+          type={type === 'number' ? 'text' : type}
+          inputMode={type === 'number' ? 'decimal' : undefined}
+          value={type === 'number' ? formatNumberInputValue(value) : (value ?? '')}
+          onChange={event => onChange(name, type === 'number' ? parseNumberInputValue(event.target.value) : event.target.value)}
           className={baseClass}
         />
       )}
@@ -384,6 +420,46 @@ function makeNewDraft(dataset, records = []) {
   return draft
 }
 
+function getEditorTitle(dataset, mode) {
+  if (dataset.resource === 'services' && mode === 'edit') return 'Thay đổi hạng mục báo giá chi tiết'
+  return mode === 'create' ? `Thêm ${dataset.resource}` : `Sửa ${dataset.resource}`
+}
+
+function getEditorSubtitle(dataset, draft) {
+  if (!draft) return 'Dòng mới'
+  if (dataset.resource === 'services') return draft.service_name || draft.service_code || 'Dòng mới'
+  return draft[dataset.keyField] || draft[dataset.summaryField] || 'Dòng mới'
+}
+
+function getDeleteConfirmRows(dataset, draft) {
+  if (!draft) return []
+  const baseRows = [
+    ['Bảng dữ liệu', dataset.resource],
+    ['ID', draft.id],
+    [dataset.keyField, draft[dataset.keyField]],
+  ]
+  if (dataset.summaryField !== dataset.keyField) baseRows.push([dataset.summaryField, draft[dataset.summaryField]])
+
+  const serviceRows = dataset.resource === 'services'
+    ? [
+      ['Tên hiển thị báo giá', draft.quote_display_name],
+      ['Đơn vị', draft.unit],
+      ['Giá tier 1', draft.price_tier_1],
+      ['Giá tier 2', draft.price_tier_2],
+      ['Giá tier 3', draft.price_tier_3],
+      ['Thứ tự', draft.sort_order],
+    ]
+    : []
+
+  return [...baseRows, ...serviceRows].filter(([, value]) => value !== null && value !== undefined && value !== '')
+}
+
+function formatConfirmValue(label, value) {
+  if (typeof value === 'boolean') return value ? 'Bật' : 'Tắt'
+  if (/giá|tier|fee|discount|thứ tự|sort/i.test(label)) return formatNumber(value)
+  return String(value)
+}
+
 export default function PricingAdminPage() {
   const navigate = useNavigate()
   const [datasetStats, setDatasetStats] = useState([])
@@ -394,9 +470,9 @@ export default function PricingAdminPage() {
   const [mode, setMode] = useState('idle')
   const [search, setSearch] = useState('')
   const [submittedSearch, setSubmittedSearch] = useState('')
-  const [activeFilter, setActiveFilter] = useState('all')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
 
@@ -414,7 +490,6 @@ export default function PricingAdminPage() {
     try {
       const payload = await requestPricingAdmin(getDatasetPath(activeResource, {
         search: submittedSearch,
-        active: activeFilter,
       }))
       const nextRecords = payload.records || []
       setRecords(nextRecords)
@@ -440,8 +515,29 @@ export default function PricingAdminPage() {
     setSelectedId('')
     setDraft(null)
     setMode('idle')
+    setDeleteConfirmOpen(false)
     loadRecords({ keepSelection: false })
-  }, [activeResource, submittedSearch, activeFilter])
+  }, [activeResource, submittedSearch])
+
+  useEffect(() => {
+    if (!draft) return undefined
+
+    function handleKeyDown(event) {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      if (saving) return
+      if (deleteConfirmOpen) {
+        setDeleteConfirmOpen(false)
+        return
+      }
+      setDraft(null)
+      setMode('idle')
+      setDeleteConfirmOpen(false)
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [draft, deleteConfirmOpen, saving])
 
   function submitSearch(event) {
     event.preventDefault()
@@ -452,6 +548,7 @@ export default function PricingAdminPage() {
     setSelectedId('')
     setDraft(makeNewDraft(activeDataset, records))
     setMode('create')
+    setDeleteConfirmOpen(false)
     setError('')
     setNotice('')
   }
@@ -460,6 +557,7 @@ export default function PricingAdminPage() {
     setSelectedId(String(record.id))
     setDraft({ ...record })
     setMode('edit')
+    setDeleteConfirmOpen(false)
     setError('')
     setNotice('')
   }
@@ -467,6 +565,7 @@ export default function PricingAdminPage() {
   function closeEditor() {
     setDraft(null)
     setMode('idle')
+    setDeleteConfirmOpen(false)
   }
 
   function updateDraft(fieldName, value) {
@@ -505,6 +604,7 @@ export default function PricingAdminPage() {
       setSelectedId(String(saved.id))
       setDraft(null)
       setMode('idle')
+      setDeleteConfirmOpen(false)
       setNotice(mode === 'create' ? 'Đã tạo dữ liệu bảng giá.' : 'Đã lưu thay đổi.')
     } catch (err) {
       setError(err?.message || 'Không lưu được dữ liệu.')
@@ -513,11 +613,13 @@ export default function PricingAdminPage() {
     }
   }
 
-  async function deleteDraft() {
+  function requestDeleteDraft() {
     if (!draft?.id || mode === 'create') return
-    const label = draft[activeDataset.keyField] || draft[activeDataset.summaryField] || draft.id
-    if (!window.confirm(`Xóa "${label}" khỏi bảng ${activeDataset.resource}?`)) return
+    setDeleteConfirmOpen(true)
+  }
 
+  async function confirmDeleteDraft() {
+    if (!draft?.id || mode === 'create') return
     setSaving(true)
     setError('')
     setNotice('')
@@ -534,6 +636,7 @@ export default function PricingAdminPage() {
       await loadRecords({ keepSelection: false })
       setDraft(null)
       setMode('idle')
+      setDeleteConfirmOpen(false)
       setNotice('Đã xóa dữ liệu bảng giá.')
     } catch (err) {
       setError(err?.message || 'Không xóa được dữ liệu.')
@@ -546,6 +649,7 @@ export default function PricingAdminPage() {
     () => Object.fromEntries(datasetStats.map(dataset => [dataset.resource, dataset])),
     [datasetStats],
   )
+  const deleteConfirmRows = useMemo(() => getDeleteConfirmRows(activeDataset, draft), [activeDataset, draft])
 
   return (
     <div className="mx-auto flex h-full max-w-[1700px] flex-col gap-3 overflow-hidden pb-[44px]">
@@ -572,15 +676,6 @@ export default function PricingAdminPage() {
               <Search className="h-4 w-4" />
             </button>
           </form>
-          <select
-            value={activeFilter}
-            onChange={event => setActiveFilter(event.target.value)}
-            className="rounded-lg border border-orange-200 bg-white px-3 py-2 text-[13px] font-semibold text-orange-700 shadow-sm outline-none focus:ring-2 focus:ring-orange-100"
-          >
-            <option value="all">Tất cả</option>
-            <option value="1">Đang dùng</option>
-            <option value="0">Tắt</option>
-          </select>
           <button
             type="button"
             onClick={startCreate}
@@ -721,10 +816,10 @@ export default function PricingAdminPage() {
             <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
               <div className="min-w-0">
                 <p className="text-[16px] font-semibold text-slate-950">
-                  {mode === 'create' ? `Thêm ${activeDataset.resource}` : `Sửa ${activeDataset.resource}`}
+                  {getEditorTitle(activeDataset, mode)}
                 </p>
                 <p className="mt-1 truncate text-[12px] font-semibold text-slate-500">
-                  {draft[activeDataset.keyField] || draft[activeDataset.summaryField] || 'Dòng mới'}
+                  {getEditorSubtitle(activeDataset, draft)}
                 </p>
               </div>
               <button
@@ -745,6 +840,7 @@ export default function PricingAdminPage() {
                     field={field}
                     value={draft[field[0]]}
                     onChange={updateDraft}
+                    className={getFieldLayoutClass(activeResource, field)}
                   />
                 ))}
               </div>
@@ -753,7 +849,7 @@ export default function PricingAdminPage() {
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 px-5 py-4">
               <button
                 type="button"
-                onClick={deleteDraft}
+                onClick={requestDeleteDraft}
                 disabled={saving || mode === 'create'}
                 className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[13px] font-semibold text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
                 title="Xóa dòng"
@@ -783,6 +879,55 @@ export default function PricingAdminPage() {
                 </button>
               </div>
             </div>
+
+            {deleteConfirmOpen ? (
+              <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/50 px-4 py-6">
+                <div className="w-full max-w-[560px] overflow-hidden rounded-lg bg-white shadow-2xl">
+                  <div className="flex items-start gap-3 border-b border-red-100 px-5 py-4">
+                    <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-50 text-red-700">
+                      <AlertTriangle className="h-5 w-5" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-[16px] font-semibold text-slate-950">Xác nhận xóa hạng mục</p>
+                      <p className="mt-1 text-[13px] leading-5 text-slate-600">
+                        Dữ liệu này sẽ bị xóa khỏi Pricing Admin. Vui lòng kiểm tra lại thông tin trước khi xác nhận.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="max-h-[45vh] overflow-y-auto px-5 py-4">
+                    <dl className="grid grid-cols-[150px_minmax(0,1fr)] gap-x-3 gap-y-2 text-[13px]">
+                      {deleteConfirmRows.map(([label, value]) => (
+                        <div key={label} className="contents">
+                          <dt className="font-semibold text-slate-500">{label}</dt>
+                          <dd className="min-w-0 break-words font-semibold text-slate-900">{formatConfirmValue(label, value)}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 px-5 py-4">
+                    <button
+                      type="button"
+                      onClick={() => setDeleteConfirmOpen(false)}
+                      disabled={saving}
+                      className="inline-flex items-center gap-2 rounded-lg border border-orange-200 bg-white px-3 py-2 text-[13px] font-semibold text-orange-700 hover:bg-orange-50 disabled:opacity-50"
+                      title="Hủy xóa"
+                    >
+                      Hủy
+                    </button>
+                    <button
+                      type="button"
+                      onClick={confirmDeleteDraft}
+                      disabled={saving}
+                      className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-3 py-2 text-[13px] font-semibold text-white shadow-sm hover:bg-red-700 disabled:opacity-50"
+                      title="Xác nhận xóa"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      {saving ? 'Đang xóa...' : 'Xóa hạng mục'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       ) : null}

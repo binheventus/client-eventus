@@ -106,7 +106,6 @@ const DATASETS = {
       price_tier_6: { normalize: normalizeNumber },
       description: { normalize: normalizeNullableText },
       internal_note: { normalize: normalizeNullableText },
-      is_active: { normalize: value => normalizeBoolean(value, true) ? 1 : 0 },
       sort_order: { normalize: value => normalizeNumber(value, 100) },
     },
   },
@@ -125,7 +124,6 @@ const DATASETS = {
       includes_accommodation: { normalize: value => normalizeBoolean(value) ? 1 : 0 },
       includes_transport: { normalize: value => normalizeBoolean(value) ? 1 : 0 },
       note: { normalize: normalizeNullableText },
-      is_active: { normalize: value => normalizeBoolean(value, true) ? 1 : 0 },
       sort_order: { normalize: value => normalizeNumber(value, 100) },
     },
     beforeSave(record) {
@@ -151,7 +149,6 @@ const DATASETS = {
       payment_terms: { normalize: normalizeNullableText },
       default_discount: { normalize: value => normalizeNumber(value, 0) },
       special_note: { normalize: normalizeNullableText },
-      is_active: { normalize: value => normalizeBoolean(value, true) ? 1 : 0 },
       sort_order: { normalize: value => normalizeNumber(value, 100) },
     },
   },
@@ -170,7 +167,6 @@ const DATASETS = {
       rule_value: { normalize: normalizeNullableText },
       description: { normalize: normalizeNullableText },
       derived: { normalize: value => normalizeBoolean(value) ? 1 : 0 },
-      is_active: { normalize: value => normalizeBoolean(value, true) ? 1 : 0 },
       sort_order: { normalize: value => normalizeNumber(value, 100) },
     },
   },
@@ -196,7 +192,6 @@ const DATASETS = {
       logo_file: { normalize: normalizeNullableText },
       is_default: { normalize: value => normalizeBoolean(value) ? 1 : 0 },
       display_name: { normalize: normalizeNullableText },
-      is_active: { normalize: value => normalizeBoolean(value, true) ? 1 : 0 },
       sort_order: { normalize: value => normalizeNumber(value, 100) },
     },
   },
@@ -213,7 +208,6 @@ const DATASETS = {
       equipment_description: { normalize: normalizeNullableText },
       internal_note: { normalize: normalizeNullableText },
       match_prefix_list: { normalize: value => JSON.stringify(Array.isArray(value) ? value.map(normalizeCode).filter(Boolean) : getPrefixListFromText(value)) },
-      is_active: { normalize: value => normalizeBoolean(value, true) ? 1 : 0 },
       sort_order: { normalize: value => normalizeNumber(value, 100) },
     },
     beforeSave(record) {
@@ -248,7 +242,6 @@ function getPublicDatasetMeta(dataset) {
 function publicRow(row = {}) {
   return {
     ...row,
-    is_active: row.is_active === 1 || row.is_active === true,
     is_default: row.is_default === 1 || row.is_default === true,
     derived: row.derived === 1 || row.derived === true,
     includes_accommodation: row.includes_accommodation === 1 || row.includes_accommodation === true,
@@ -256,6 +249,12 @@ function publicRow(row = {}) {
     match_prefix_list: parseJson(row.match_prefix_list, row.match_prefix_list),
     source_json: parseJson(row.source_json, null),
   }
+}
+
+function getSelectColumns(dataset) {
+  return ['id', ...Object.keys(dataset.fields), 'source_json', 'created_at', 'updated_at']
+    .map(column => `\`${column}\``)
+    .join(', ')
 }
 
 function getSearchWhere(dataset, search) {
@@ -281,19 +280,13 @@ async function listDatasets() {
   return rows
 }
 
-async function listRecords({ resource, search = '', active = 'all' } = {}) {
+async function listRecords({ resource, search = '' } = {}) {
   const dataset = getDataset(resource)
   const where = ['1 = 1']
   const params = []
 
-  if (String(active) === '1' || String(active) === 'true') {
-    where.push('`is_active` = 1')
-  } else if (String(active) === '0' || String(active) === 'false') {
-    where.push('`is_active` = 0')
-  }
-
   const searchWhere = getSearchWhere(dataset, search)
-  const sql = `select * from \`${dataset.tableName}\` where ${where.join(' and ')}${searchWhere.sql} order by ${dataset.orderBy}`
+  const sql = `select ${getSelectColumns(dataset)} from \`${dataset.tableName}\` where ${where.join(' and ')}${searchWhere.sql} order by ${dataset.orderBy}`
   const rows = await query(sql, [...params, ...searchWhere.params])
   return {
     dataset: getPublicDatasetMeta(dataset),
@@ -302,7 +295,7 @@ async function listRecords({ resource, search = '', active = 'all' } = {}) {
 }
 
 async function getRecordById(dataset, id) {
-  const rows = await query(`select * from \`${dataset.tableName}\` where id = ? limit 1`, [id])
+  const rows = await query(`select ${getSelectColumns(dataset)} from \`${dataset.tableName}\` where id = ? limit 1`, [id])
   return rows?.[0] || null
 }
 
@@ -416,7 +409,6 @@ export default async function handler(req, res) {
       const result = await listRecords({
         resource,
         search: getQueryValue(req.query?.search, ''),
-        active: getQueryValue(req.query?.active, 'all'),
       })
       return res.status(200).json(result)
     }

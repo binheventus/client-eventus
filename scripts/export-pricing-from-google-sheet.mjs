@@ -191,7 +191,6 @@ function transformServices(rows) {
     const service = {
       ...row,
       service_code: String(row.service_code || '').trim(),
-      is_active: row.is_active === undefined || row.is_active === null ? true : toBoolean(row.is_active),
       sort_order: toNumber(row.sort_order) || index + 1,
     }
     const groupCode = String(row.group_code || '').trim().toUpperCase()
@@ -207,7 +206,6 @@ function transformTravelFees(rows) {
     fee_per_person_per_day: toNumber(row.fee_per_person_per_day) ?? 0,
     includes_accommodation: toBoolean(row.includes_accommodation),
     includes_transport: toBoolean(row.includes_transport),
-    is_active: row.is_active === undefined || row.is_active === null ? true : toBoolean(row.is_active),
     sort_order: toNumber(row.sort_order) || index + 1,
   }))
 }
@@ -264,7 +262,6 @@ function transformLegalEntities(rows) {
       entity_code: code,
       display_name: displayName,
       is_default: toBoolean(row.is_default),
-      is_active: row.is_active === undefined || row.is_active === null ? true : toBoolean(row.is_active),
       sort_order: toNumber(row.sort_order) || index + 1,
     }
   })
@@ -287,7 +284,6 @@ function transformEquipmentRules(rows) {
       match_prefix_list: matchPrefixList,
       equipment_title: String(row.equipment_title || '').trim(),
       equipment_description: String(row.equipment_description || '').trim(),
-      is_active: row.is_active === undefined || row.is_active === null ? true : toBoolean(row.is_active),
       sort_order: toNumber(row.sort_order) || index + 1,
     }
   })

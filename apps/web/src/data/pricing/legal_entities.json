@@ -14,7 +14,6 @@
     "logo_file": "logo_eventus.png",
     "is_default": true,
     "display_name": "Eventus",
-    "is_active": true,
     "sort_order": 1
   },
   {
@@ -32,7 +31,6 @@
     "logo_file": "logo_mediamonster.png",
     "is_default": false,
     "display_name": "Mediamonster",
-    "is_active": true,
     "sort_order": 2
   }
 ]

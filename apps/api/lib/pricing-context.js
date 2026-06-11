@@ -17,26 +17,110 @@ const CACHE_TTL_MS = Number(process.env.PRICING_CONTEXT_CACHE_TTL_MS || 5 * 60 *
 const DATASETS = {
   services: {
     tableName: 'pricing_services',
+    columns: [
+      'id',
+      'service_code',
+      'equipment_group',
+      'service_name',
+      'quote_display_name',
+      'duration_tier',
+      'unit',
+      'price_tier_1',
+      'price_tier_2',
+      'price_tier_3',
+      'price_tier_4',
+      'price_tier_5',
+      'price_tier_6',
+      'description',
+      'internal_note',
+      'sort_order',
+      'source_json',
+    ],
     orderBy: '`sort_order` asc, `service_code` asc',
   },
   travel_fees: {
     tableName: 'pricing_travel_fees',
+    columns: [
+      'id',
+      'source_key',
+      'location',
+      'fee_per_person_per_day',
+      'condition',
+      'includes_accommodation',
+      'includes_transport',
+      'note',
+      'sort_order',
+      'source_json',
+    ],
     orderBy: '`sort_order` asc, `location` asc',
   },
   customer_tiers: {
     tableName: 'pricing_customer_tiers',
+    columns: [
+      'id',
+      'tier_code',
+      'tier_name',
+      'description',
+      'price_column_used',
+      'payment_terms',
+      'default_discount',
+      'special_note',
+      'sort_order',
+      'source_json',
+    ],
     orderBy: '`sort_order` asc, `tier_code` asc',
   },
   business_rules: {
     tableName: 'pricing_business_rules',
+    columns: [
+      'id',
+      'rule_code',
+      'category',
+      'rule_name',
+      'value',
+      'rule_value',
+      'description',
+      'derived',
+      'sort_order',
+      'source_json',
+    ],
     orderBy: '`category` asc, `sort_order` asc, `rule_code` asc',
   },
   legal_entities: {
     tableName: 'pricing_legal_entities',
+    columns: [
+      'id',
+      'entity_code',
+      'entity_name_full',
+      'tax_code',
+      'address',
+      'representative',
+      'position',
+      'email',
+      'hotline',
+      'website',
+      'bank_account',
+      'bank_name',
+      'logo_file',
+      'is_default',
+      'display_name',
+      'sort_order',
+      'source_json',
+    ],
     orderBy: '`sort_order` asc, `entity_code` asc',
   },
   equipment_rules: {
     tableName: 'pricing_equipment_rules',
+    columns: [
+      'id',
+      'match_prefixes',
+      'equipment_title',
+      'equipment_description',
+      'internal_note',
+      'match_prefix_list',
+      'sort_order',
+      'source_json',
+    ],
     orderBy: '`sort_order` asc, `match_prefixes` asc',
   },
 }
@@ -55,7 +139,6 @@ const NUMBER_FIELDS = new Set([
   'sort_order',
 ])
 const BOOLEAN_FIELDS = new Set([
-  'is_active',
   'is_default',
   'derived',
   'includes_accommodation',
@@ -106,10 +189,9 @@ function normalizePricingRow(row = {}) {
   }, {})
 }
 
-function getActiveRows(rows = []) {
+function getPricingRows(rows = []) {
   return [...(Array.isArray(rows) ? rows : [])]
     .map(normalizePricingRow)
-    .filter(row => row?.is_active !== false)
     .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0))
 }
 
@@ -132,7 +214,7 @@ export function getBusinessRulesMap(rows = []) {
 function buildContext(rowsByResource, meta) {
   const rows = Object.fromEntries(Object.keys(DATASETS).map(resource => [
     resource,
-    getActiveRows(rowsByResource[resource]),
+    getPricingRows(rowsByResource[resource]),
   ]))
   const businessRules = getBusinessRulesMap(rows.business_rules)
 
@@ -180,8 +262,9 @@ function buildJsonFallbackContext(reason) {
 
 async function loadMysqlPricingRows() {
   const entries = await Promise.all(Object.entries(DATASETS).map(async ([resource, config]) => {
+    const columns = config.columns.map(column => `\`${column}\``).join(', ')
     const rows = await query(
-      `select * from \`${config.tableName}\` where \`is_active\` = 1 order by ${config.orderBy}`,
+      `select ${columns} from \`${config.tableName}\` order by ${config.orderBy}`,
     )
     return [resource, rows || []]
   }))
@@ -268,5 +351,5 @@ export function toPricingApiPayload(context = {}) {
 export const __pricingContextTestInternals = Object.freeze({
   buildContext,
   buildJsonFallbackContext,
-  getActiveRows,
+  getPricingRows,
 })

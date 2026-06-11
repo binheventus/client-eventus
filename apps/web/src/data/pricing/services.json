@@ -14,7 +14,6 @@
     "price_tier_6": null,
     "description": null,
     "internal_note": null,
-    "is_active": true,
     "sort_order": 1
   },
   {
@@ -32,7 +31,6 @@
     "price_tier_6": null,
     "description": null,
     "internal_note": null,
-    "is_active": true,
     "sort_order": 2
   },
   {
@@ -50,7 +48,6 @@
     "price_tier_6": 2000000,
     "description": null,
     "internal_note": null,
-    "is_active": true,
     "sort_order": 3
   },
   {
@@ -68,7 +65,6 @@
     "price_tier_6": 2500000,
     "description": null,
     "internal_note": null,
-    "is_active": true,
     "sort_order": 4
   },
   {
@@ -86,7 +82,6 @@
     "price_tier_6": 3500000,
     "description": null,
     "internal_note": null,
-    "is_active": true,
     "sort_order": 5
   },
   {
@@ -104,7 +99,6 @@
     "price_tier_6": 4000000,
     "description": null,
     "internal_note": null,
-    "is_active": true,
     "sort_order": 6
   },
   {
@@ -122,7 +116,6 @@
     "price_tier_6": 1500000,
     "description": null,
     "internal_note": null,
-    "is_active": true,
     "sort_order": 7
   },
   {
@@ -140,7 +133,6 @@
     "price_tier_6": null,
     "description": null,
     "internal_note": null,
-    "is_active": true,
     "sort_order": 8
   },
   {
@@ -158,7 +150,6 @@
     "price_tier_6": null,
     "description": "Bao gồm 01 chụp ảnh, đèn chụp và 01 nhân sự kỹ thuật ánh sáng, phông trơn cá nhân. Ảnh được chỉnh sửa màu sắc, bố cục cơ bản",
     "internal_note": null,
-    "is_active": true,
     "sort_order": 9
   },
   {
@@ -176,7 +167,6 @@
     "price_tier_6": null,
     "description": "Bao gồm 01 chụp ảnh, đèn chụp và 01 nhân sự kỹ thuật ánh sáng, phông trơn cá nhân. Ảnh được chỉnh sửa màu sắc, bố cục cơ bản",
     "internal_note": null,
-    "is_active": true,
     "sort_order": 10
   },
   {
@@ -194,7 +184,6 @@
     "price_tier_6": null,
     "description": null,
     "internal_note": null,
-    "is_active": true,
     "sort_order": 11
   },
   {
@@ -212,7 +201,6 @@
     "price_tier_6": 2000000,
     "description": null,
     "internal_note": null,
-    "is_active": true,
     "sort_order": 12
   },
   {
@@ -230,7 +218,6 @@
     "price_tier_6": 2500000,
     "description": null,
     "internal_note": null,
-    "is_active": true,
     "sort_order": 13
   },
   {
@@ -248,7 +235,6 @@
     "price_tier_6": 3500000,
     "description": null,
     "internal_note": null,
-    "is_active": true,
     "sort_order": 14
   },
   {
@@ -266,7 +252,6 @@
     "price_tier_6": 4000000,
     "description": null,
     "internal_note": null,
-    "is_active": true,
     "sort_order": 15
   },
   {
@@ -284,7 +269,6 @@
     "price_tier_6": null,
     "description": null,
     "internal_note": null,
-    "is_active": true,
     "sort_order": 16
   },
   {
@@ -302,7 +286,6 @@
     "price_tier_6": null,
     "description": null,
     "internal_note": null,
-    "is_active": true,
     "sort_order": 17
   },
   {
@@ -320,7 +303,6 @@
     "price_tier_6": null,
     "description": null,
     "internal_note": null,
-    "is_active": true,
     "sort_order": 18
   },
   {
@@ -338,7 +320,6 @@
     "price_tier_6": null,
     "description": null,
     "internal_note": null,
-    "is_active": true,
     "sort_order": 19
   },
   {
@@ -356,7 +337,6 @@
     "price_tier_6": null,
     "description": null,
     "internal_note": null,
-    "is_active": true,
     "sort_order": 20
   },
   {
@@ -374,7 +354,6 @@
     "price_tier_6": null,
     "description": null,
     "internal_note": null,
-    "is_active": true,
     "sort_order": 21
   },
   {
@@ -392,7 +371,6 @@
     "price_tier_6": 1500000,
     "description": null,
     "internal_note": "Bao gồm 02 đèn quay và nhân sự kỹ thuật ánh sáng",
-    "is_active": true,
     "sort_order": 22
   },
   {
@@ -410,7 +388,6 @@
     "price_tier_6": 2500000,
     "description": null,
     "internal_note": "Bao gồm 02 đèn quay và nhân sự kỹ thuật ánh sáng",
-    "is_active": true,
     "sort_order": 23
   },
   {
@@ -428,7 +405,6 @@
     "price_tier_6": 2500000,
     "description": null,
     "internal_note": "Trên hóa đơn ghi: Dịch vụ quay phim",
-    "is_active": true,
     "sort_order": 24
   },
   {
@@ -446,7 +422,6 @@
     "price_tier_6": 3000000,
     "description": null,
     "internal_note": "Trên hóa đơn ghi: Dịch vụ quay phim",
-    "is_active": true,
     "sort_order": 25
   },
   {
@@ -464,7 +439,6 @@
     "price_tier_6": 4500000,
     "description": null,
     "internal_note": "Trên hóa đơn ghi: Dịch vụ quay phim",
-    "is_active": true,
     "sort_order": 26
   },
   {
@@ -482,7 +456,6 @@
     "price_tier_6": 5000000,
     "description": null,
     "internal_note": "Trên hóa đơn ghi: Dịch vụ quay phim",
-    "is_active": true,
     "sort_order": 27
   },
   {
@@ -500,7 +473,6 @@
     "price_tier_6": 7000000,
     "description": null,
     "internal_note": "Trên hóa đơn ghi: Dịch vụ quay phim",
-    "is_active": true,
     "sort_order": 28
   },
   {
@@ -518,7 +490,6 @@
     "price_tier_6": 10000000,
     "description": null,
     "internal_note": "Trên hóa đơn ghi: Dịch vụ quay phim",
-    "is_active": true,
     "sort_order": 29
   },
   {
@@ -536,7 +507,6 @@
     "price_tier_6": null,
     "description": "Thời gian xin cấp phép bay từ 4-6 ngày",
     "internal_note": null,
-    "is_active": true,
     "sort_order": 30
   },
   {
@@ -554,7 +524,6 @@
     "price_tier_6": 2000000,
     "description": null,
     "internal_note": "Tính theo máy: 1 máy quay ≤4.5h = 1, ≤8h = 2",
-    "is_active": true,
     "sort_order": 31
   },
   {
@@ -572,7 +541,6 @@
     "price_tier_6": 3000000,
     "description": null,
     "internal_note": "Tính theo máy: 1 máy quay ≤4.5h = 1, ≤8h = 2",
-    "is_active": true,
     "sort_order": 32
   },
   {
@@ -590,7 +558,6 @@
     "price_tier_6": 4000000,
     "description": null,
     "internal_note": "Tính theo máy: 1 máy quay ≤4.5h = 1, ≤8h = 2",
-    "is_active": true,
     "sort_order": 33
   },
   {
@@ -608,7 +575,6 @@
     "price_tier_6": 6000000,
     "description": null,
     "internal_note": "Tính theo máy: 1 máy quay ≤4.5h = 1, ≤8h = 2",
-    "is_active": true,
     "sort_order": 34
   },
   {
@@ -626,7 +592,6 @@
     "price_tier_6": 1000000,
     "description": null,
     "internal_note": "Phí cộng thêm vào chi phí dựng thông thường",
-    "is_active": true,
     "sort_order": 35
   },
   {
@@ -644,7 +609,6 @@
     "price_tier_6": 1000000,
     "description": null,
     "internal_note": "Phí cộng thêm vào chi phí dựng thông thường",
-    "is_active": true,
     "sort_order": 36
   },
   {
@@ -662,7 +626,6 @@
     "price_tier_6": 2500000,
     "description": null,
     "internal_note": "Bao gồm thời gian 02 tiếng setup và test tín hiệu",
-    "is_active": true,
     "sort_order": 37
   },
   {
@@ -680,7 +643,6 @@
     "price_tier_6": 4500000,
     "description": null,
     "internal_note": "Bao gồm thời gian 02 tiếng setup và test tín hiệu",
-    "is_active": true,
     "sort_order": 38
   },
   {
@@ -698,7 +660,6 @@
     "price_tier_6": null,
     "description": null,
     "internal_note": "Gimbal live cần wireless đi kèm. Tự động cộng khi sales chọn quay live có gimbal.",
-    "is_active": true,
     "sort_order": 39
   },
   {
@@ -716,7 +677,6 @@
     "price_tier_6": null,
     "description": null,
     "internal_note": null,
-    "is_active": true,
     "sort_order": 40
   },
   {
@@ -734,7 +694,6 @@
     "price_tier_6": null,
     "description": null,
     "internal_note": "Bao gồm thời gian 02 tiếng setup và test tín hiệu",
-    "is_active": true,
     "sort_order": 41
   },
   {
@@ -752,7 +711,6 @@
     "price_tier_6": null,
     "description": null,
     "internal_note": "Bao gồm thời gian 02 tiếng setup và test tín hiệu",
-    "is_active": true,
     "sort_order": 42
   },
   {
@@ -770,7 +728,6 @@
     "price_tier_6": null,
     "description": null,
     "internal_note": "Bao gồm thời gian 02 tiếng setup và test tín hiệu",
-    "is_active": true,
     "sort_order": 43
   },
   {
@@ -788,7 +745,6 @@
     "price_tier_6": null,
     "description": null,
     "internal_note": "Bao gồm thời gian 02 tiếng setup và test tín hiệu",
-    "is_active": true,
     "sort_order": 44
   },
   {
@@ -806,7 +762,6 @@
     "price_tier_6": 4000000,
     "description": "Chưa bao gồm chi phí kéo dây cáp quang (nếu cần)",
     "internal_note": "Bao gồm thời gian 02 tiếng setup",
-    "is_active": true,
     "sort_order": 45
   },
   {
@@ -824,7 +779,6 @@
     "price_tier_6": 7000000,
     "description": "Chưa bao gồm chi phí kéo dây cáp quang (nếu cần)",
     "internal_note": "Bao gồm thời gian 02 tiếng setup",
-    "is_active": true,
     "sort_order": 46
   },
   {
@@ -842,7 +796,6 @@
     "price_tier_6": 5000000,
     "description": "Chưa bao gồm chi phí kéo dây cáp quang (nếu cần)",
     "internal_note": "Bao gồm thời gian 02 tiếng setup",
-    "is_active": true,
     "sort_order": 47
   },
   {
@@ -860,7 +813,6 @@
     "price_tier_6": 9000000,
     "description": "Chưa bao gồm chi phí kéo dây cáp quang (nếu cần)",
     "internal_note": "Bao gồm thời gian 02 tiếng setup",
-    "is_active": true,
     "sort_order": 48
   },
   {
@@ -878,7 +830,6 @@
     "price_tier_6": null,
     "description": "Chưa bao gồm chi phí kéo dây cáp quang (nếu cần)",
     "internal_note": "Bao gồm thời gian 02 tiếng setup",
-    "is_active": true,
     "sort_order": 49
   },
   {
@@ -896,7 +847,6 @@
     "price_tier_6": null,
     "description": "Chưa bao gồm chi phí kéo dây cáp quang (nếu cần)",
     "internal_note": "Bao gồm thời gian 02 tiếng setup",
-    "is_active": true,
     "sort_order": 50
   },
   {
@@ -914,7 +864,6 @@
     "price_tier_6": 2500000,
     "description": "Chỉ đẩy hình lên live, không xử lý nội dung",
     "internal_note": "Bao gồm thời gian 02 tiếng setup",
-    "is_active": true,
     "sort_order": 51
   },
   {
@@ -932,7 +881,6 @@
     "price_tier_6": 4000000,
     "description": "Chỉ đẩy hình lên live, không xử lý nội dung",
     "internal_note": "Bao gồm thời gian 02 tiếng setup",
-    "is_active": true,
     "sort_order": 52
   },
   {
@@ -950,7 +898,6 @@
     "price_tier_6": null,
     "description": "Có trình chiếu slide, video, hình ảnh và nội dung khác",
     "internal_note": "Bao gồm thời gian 02 tiếng setup",
-    "is_active": true,
     "sort_order": 53
   },
   {
@@ -968,7 +915,6 @@
     "price_tier_6": null,
     "description": "Có trình chiếu slide, video, hình ảnh và nội dung khác",
     "internal_note": "Bao gồm thời gian 02 tiếng setup",
-    "is_active": true,
     "sort_order": 54
   },
   {
@@ -986,7 +932,6 @@
     "price_tier_6": 5000000,
     "description": "Xử lý nội dung tương tác 2 địa điểm qua nền tảng họp trực tuyến",
     "internal_note": "Bao gồm thời gian 02 tiếng setup",
-    "is_active": true,
     "sort_order": 55
   },
   {
@@ -1004,7 +949,6 @@
     "price_tier_6": 8000000,
     "description": "Xử lý nội dung tương tác 2 địa điểm qua nền tảng họp trực tuyến",
     "internal_note": "Bao gồm thời gian 02 tiếng setup",
-    "is_active": true,
     "sort_order": 56
   },
   {
@@ -1022,7 +966,6 @@
     "price_tier_6": null,
     "description": null,
     "internal_note": null,
-    "is_active": true,
     "sort_order": 57
   },
   {
@@ -1040,7 +983,6 @@
     "price_tier_6": null,
     "description": null,
     "internal_note": null,
-    "is_active": true,
     "sort_order": 58
   },
   {
@@ -1058,7 +1000,6 @@
     "price_tier_6": null,
     "description": null,
     "internal_note": null,
-    "is_active": true,
     "sort_order": 59
   },
   {
@@ -1076,7 +1017,6 @@
     "price_tier_6": null,
     "description": null,
     "internal_note": null,
-    "is_active": true,
     "sort_order": 60
   },
   {
@@ -1094,7 +1034,6 @@
     "price_tier_6": null,
     "description": null,
     "internal_note": null,
-    "is_active": true,
     "sort_order": 61
   },
   {
@@ -1112,7 +1051,6 @@
     "price_tier_6": null,
     "description": null,
     "internal_note": null,
-    "is_active": true,
     "sort_order": 62
   },
   {
@@ -1130,7 +1068,6 @@
     "price_tier_6": null,
     "description": null,
     "internal_note": null,
-    "is_active": true,
     "sort_order": 63
   },
   {
@@ -1148,7 +1085,6 @@
     "price_tier_6": null,
     "description": "Kích thước ảnh 10x15cm",
     "internal_note": null,
-    "is_active": true,
     "sort_order": 64
   },
   {
@@ -1166,7 +1102,6 @@
     "price_tier_6": null,
     "description": "Kích thước ảnh 10x15cm",
     "internal_note": null,
-    "is_active": true,
     "sort_order": 65
   },
   {
@@ -1184,7 +1119,6 @@
     "price_tier_6": null,
     "description": "Kích thước ảnh 10x15cm",
     "internal_note": null,
-    "is_active": true,
     "sort_order": 66
   },
   {
@@ -1202,7 +1136,6 @@
     "price_tier_6": null,
     "description": null,
     "internal_note": "Trên hóa đơn ghi: Dịch vụ chụp ảnh",
-    "is_active": true,
     "sort_order": 67
   },
   {
@@ -1220,7 +1153,6 @@
     "price_tier_6": null,
     "description": null,
     "internal_note": "Trên hóa đơn ghi: Dịch vụ chụp ảnh",
-    "is_active": true,
     "sort_order": 68
   },
   {
@@ -1238,7 +1170,6 @@
     "price_tier_6": null,
     "description": null,
     "internal_note": "Trên hóa đơn ghi: Dịch vụ chụp ảnh\nChưa bao gồm chi phí di chuyển",
-    "is_active": true,
     "sort_order": 69
   },
   {
@@ -1256,7 +1187,6 @@
     "price_tier_6": null,
     "description": null,
     "internal_note": null,
-    "is_active": true,
     "sort_order": 70
   },
   {
@@ -1274,7 +1204,6 @@
     "price_tier_6": null,
     "description": null,
     "internal_note": null,
-    "is_active": true,
     "sort_order": 71
   },
   {
@@ -1292,7 +1221,6 @@
     "price_tier_6": null,
     "description": null,
     "internal_note": null,
-    "is_active": true,
     "sort_order": 72
   },
   {
@@ -1310,7 +1238,6 @@
     "price_tier_6": null,
     "description": null,
     "internal_note": null,
-    "is_active": true,
     "sort_order": 73
   },
   {
@@ -1328,7 +1255,6 @@
     "price_tier_6": null,
     "description": null,
     "internal_note": "Chỉ áp dụng BUV",
-    "is_active": true,
     "sort_order": 74
   },
   {
@@ -1346,7 +1272,6 @@
     "price_tier_6": null,
     "description": null,
     "internal_note": "Chỉ áp dụng BUV",
-    "is_active": true,
     "sort_order": 75
   },
   {
@@ -1364,7 +1289,6 @@
     "price_tier_6": null,
     "description": null,
     "internal_note": "Chỉ áp dụng BUV",
-    "is_active": true,
     "sort_order": 76
   },
   {
@@ -1382,7 +1306,6 @@
     "price_tier_6": null,
     "description": null,
     "internal_note": "Chỉ áp dụng BUV",
-    "is_active": true,
     "sort_order": 77
   },
   {
@@ -1400,7 +1323,6 @@
     "price_tier_6": 2000000,
     "description": null,
     "internal_note": "Áp dụng HĐ khung FPT",
-    "is_active": true,
     "sort_order": 78
   },
   {
@@ -1418,7 +1340,6 @@
     "price_tier_6": 2500000,
     "description": null,
     "internal_note": "Áp dụng HĐ khung FPT",
-    "is_active": true,
     "sort_order": 79
   },
   {
@@ -1436,7 +1357,6 @@
     "price_tier_6": 3000000,
     "description": null,
     "internal_note": "Áp dụng HĐ khung FPT",
-    "is_active": true,
     "sort_order": 80
   },
   {
@@ -1454,7 +1374,6 @@
     "price_tier_6": 7500000,
     "description": "Chưa bao gồm chi phí xin cấp phép bay",
     "internal_note": "Áp dụng HĐ khung FPT",
-    "is_active": true,
     "sort_order": 81
   },
   {
@@ -1472,7 +1391,6 @@
     "price_tier_6": 10500000,
     "description": "Chưa bao gồm chi phí xin cấp phép bay",
     "internal_note": "Áp dụng HĐ khung FPT",
-    "is_active": true,
     "sort_order": 82
   },
   {
@@ -1490,7 +1408,6 @@
     "price_tier_6": 3000000,
     "description": null,
     "internal_note": "Áp dụng HĐ khung FPT",
-    "is_active": true,
     "sort_order": 83
   },
   {
@@ -1508,7 +1425,6 @@
     "price_tier_6": 5000000,
     "description": null,
     "internal_note": "Áp dụng HĐ khung FPT",
-    "is_active": true,
     "sort_order": 84
   },
   {
@@ -1526,7 +1442,6 @@
     "price_tier_6": 3000000,
     "description": null,
     "internal_note": "Áp dụng HĐ khung FPT",
-    "is_active": true,
     "sort_order": 85
   },
   {
@@ -1544,7 +1459,6 @@
     "price_tier_6": 4500000,
     "description": null,
     "internal_note": "Áp dụng HĐ khung FPT",
-    "is_active": true,
     "sort_order": 86
   },
   {
@@ -1562,7 +1476,6 @@
     "price_tier_6": 5500000,
     "description": null,
     "internal_note": "Áp dụng HĐ khung FPT",
-    "is_active": true,
     "sort_order": 87
   },
   {
@@ -1580,7 +1493,6 @@
     "price_tier_6": 8500000,
     "description": null,
     "internal_note": "Áp dụng HĐ khung FPT",
-    "is_active": true,
     "sort_order": 88
   },
   {
@@ -1598,7 +1510,6 @@
     "price_tier_6": 4500000,
     "description": null,
     "internal_note": "Áp dụng HĐ khung FPT",
-    "is_active": true,
     "sort_order": 89
   },
   {
@@ -1616,7 +1527,6 @@
     "price_tier_6": 7500000,
     "description": null,
     "internal_note": "Áp dụng HĐ khung FPT",
-    "is_active": true,
     "sort_order": 90
   },
   {
@@ -1634,7 +1544,6 @@
     "price_tier_6": 5500000,
     "description": null,
     "internal_note": "Áp dụng HĐ khung FPT",
-    "is_active": true,
     "sort_order": 91
   },
   {
@@ -1652,7 +1561,6 @@
     "price_tier_6": 9500000,
     "description": null,
     "internal_note": "Áp dụng HĐ khung FPT",
-    "is_active": true,
     "sort_order": 92
   },
   {
@@ -1670,7 +1578,6 @@
     "price_tier_6": 2000000,
     "description": null,
     "internal_note": "Áp dụng HĐ khung FPT",
-    "is_active": true,
     "sort_order": 93
   },
   {
@@ -1688,7 +1595,6 @@
     "price_tier_6": 3000000,
     "description": null,
     "internal_note": "Áp dụng HĐ khung FPT",
-    "is_active": true,
     "sort_order": 94
   },
   {
@@ -1706,7 +1612,6 @@
     "price_tier_6": 500000,
     "description": null,
     "internal_note": "Áp dụng HĐ khung FPT",
-    "is_active": true,
     "sort_order": 95
   },
   {
@@ -1724,7 +1629,6 @@
     "price_tier_6": 1000000,
     "description": null,
     "internal_note": "Áp dụng HĐ khung FPT",
-    "is_active": true,
     "sort_order": 96
   }
 ]

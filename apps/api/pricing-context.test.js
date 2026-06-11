@@ -10,40 +10,34 @@ test('pricing context normalizes MySQL rows and exposes quote aliases', () => {
       service_code: 'CHUP_IN_4H',
       service_name: 'Chụp ảnh',
       price_tier_2: '2200000.00',
-      is_active: 1,
       sort_order: 2,
     }],
     travel_fees: [{
       location: 'Hải Phòng',
       fee_per_person_per_day: '500000.00',
       includes_transport: 1,
-      is_active: 1,
       sort_order: 1,
     }],
     customer_tiers: [{
       tier_code: 'TIER_2',
       tier_name: 'Khách thường',
-      is_active: 1,
       sort_order: 1,
     }],
     business_rules: [{
       rule_code: 'VAT_RATE',
       rule_value: '0.08',
-      is_active: 1,
       sort_order: 1,
     }],
     legal_entities: [{
       entity_code: 'EVT',
       entity_name_full: 'Công ty TNHH Eventus Việt Nam',
       is_default: 1,
-      is_active: 1,
       sort_order: 1,
     }],
     equipment_rules: [{
       match_prefixes: 'CHUP',
       match_prefix_list: '["CHUP"]',
       equipment_title: 'Thiết bị chụp',
-      is_active: 1,
       sort_order: 1,
     }],
   }, {
@@ -61,12 +55,12 @@ test('pricing context normalizes MySQL rows and exposes quote aliases', () => {
 
 test('pricing API payload includes all quote pricing datasets', () => {
   const context = buildContext({
-    services: [{ service_code: 'SVC', service_name: 'Service', is_active: 1 }],
-    travel_fees: [{ location: 'Hà Nội', is_active: 1 }],
-    customer_tiers: [{ tier_code: 'TIER_2', tier_name: 'Tier 2', is_active: 1 }],
-    business_rules: [{ rule_code: 'DEFAULT_LOCATION', rule_value: 'Hà Nội', is_active: 1 }],
-    legal_entities: [{ entity_code: 'EVT', entity_name_full: 'Eventus', is_active: 1 }],
-    equipment_rules: [{ match_prefixes: 'SVC', equipment_title: 'Gear', is_active: 1 }],
+    services: [{ service_code: 'SVC', service_name: 'Service' }],
+    travel_fees: [{ location: 'Hà Nội' }],
+    customer_tiers: [{ tier_code: 'TIER_2', tier_name: 'Tier 2' }],
+    business_rules: [{ rule_code: 'DEFAULT_LOCATION', rule_value: 'Hà Nội' }],
+    legal_entities: [{ entity_code: 'EVT', entity_name_full: 'Eventus' }],
+    equipment_rules: [{ match_prefixes: 'SVC', equipment_title: 'Gear' }],
   }, {
     source: 'mysql',
     warnings: [],

@@ -4,7 +4,6 @@
     "equipment_title": "Thiết bị chụp ảnh",
     "equipment_description": "Canon R6 Mark II, Canon RF 15-35mm f/2.8L, Canon RF 24-70mm f/2.8L, Canon RF 70-200mm f/2.8L IS USM",
     "sort_order": 1,
-    "is_active": true,
     "internal_note": "Hiện khi có hạng mục chụp ảnh",
     "match_prefix_list": [
       "CHUP"
@@ -15,7 +14,6 @@
     "equipment_title": "Thiết bị quay",
     "equipment_description": "Sony FX3, Sony FE 16-35mm f/2.8 GM, Sony FE 24-70mm f/2.8 GM, Sony FE 70-200mm f/2.8 GM",
     "sort_order": 2,
-    "is_active": true,
     "internal_note": "Hiện khi có hạng mục quay phim",
     "match_prefix_list": [
       "QUAY"
@@ -26,7 +24,6 @@
     "equipment_title": "Đèn quay",
     "equipment_description": "Đèn Amaran 300c / Amaran 200X",
     "sort_order": 3,
-    "is_active": true,
     "internal_note": "Hiện khi có hạng mục đèn và kỹ thuật ánh sáng",
     "match_prefix_list": [
       "LIGHTING"
@@ -37,7 +34,6 @@
     "equipment_title": "Flycam",
     "equipment_description": "Flycam DJI Mavic 4 Pro",
     "sort_order": 4,
-    "is_active": true,
     "internal_note": "Hiện khi có hạng mục flycam",
     "match_prefix_list": [
       "FLYCAM"
@@ -48,7 +44,6 @@
     "equipment_title": "Fpv",
     "equipment_description": "FPV",
     "sort_order": 5,
-    "is_active": true,
     "internal_note": "Hiện khi có hạng mục FPV",
     "match_prefix_list": [
       "FPV"
@@ -59,7 +54,6 @@
     "equipment_title": "Bàn trộn hình",
     "equipment_description": "Bàn trộn hình",
     "sort_order": 6,
-    "is_active": true,
     "internal_note": null,
     "match_prefix_list": [
       "BANTRON"

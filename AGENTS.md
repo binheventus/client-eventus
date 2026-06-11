@@ -13,6 +13,14 @@
 - Database runtime: MySQL local qua `apps/api/lib/mysql.js`; không dùng Supabase cho app hiện tại.
 - Production chạy VPS với Nginx + PM2; thông tin deploy nằm trong `deploy/`.
 
+## Pricing runtime
+
+- Nguồn pricing chính cho quote flows là MySQL qua API/server cache, không phải JSON tĩnh.
+- Các quote flows gồm `/quotes/new`, parse brief, pricing calculation, lưu quote, duplicate quote, preview, PDF/DOCX/XLSX/export phải dùng pricing context từ MySQL qua API/cache.
+- JSON trong `apps/web/src/data/pricing/` chỉ là fallback an toàn khi MySQL pricing chưa có dữ liệu hoặc API lỗi; không coi JSON là source of truth.
+- Khi sửa quote/pricing/export, không import trực tiếp `services.json`, `travel_fees.json`, `customer_tiers.json`, `business_rules.json`, `legal_entities.json`, `equipment_rules.json` để làm nguồn runtime chính.
+- Sau khi Pricing Admin sửa dữ liệu, cache pricing server memory cần được invalidate để quote flows đọc dữ liệu mới.
+
 ## Cấu trúc quan trọng
 
 - `apps/web/src/features/quotes/`: quote, contract, PDF/DOCX/XLSX export.
