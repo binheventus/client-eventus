@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
   AlertTriangle,
@@ -71,14 +71,15 @@ function FieldLabel({ children }) {
   return <label className="text-[12px] font-semibold uppercase text-slate-500">{children}</label>
 }
 
-function TextInput(props) {
+const TextInput = forwardRef(function TextInput(props, ref) {
   return (
     <input
       {...props}
+      ref={ref}
       className={`h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-900 outline-none focus:border-[#f79820] focus:ring-2 focus:ring-[#f79820]/20 ${props.className || ''}`}
     />
   )
-}
+})
 
 const CUSTOMER_CALL_OPTIONS = [
   { value: 'anh', label: 'Anh' },
@@ -99,6 +100,7 @@ const CUSTOMER_MESSAGE_MODES = [
   { value: 'hello', label: 'Giới thiệu' },
   { value: 'brief', label: 'Xin brief' },
   { value: 'send', label: 'Gửi sản phẩm' },
+  { value: 'drive', label: 'Gửi link drive' },
   { value: 'confirm', label: 'Hẹn sửa' },
   { value: 'delay', label: 'Xin thêm thời gian' },
   { value: 'push', label: 'Giục feedback' },
@@ -114,6 +116,9 @@ const CUSTOMER_MESSAGE_TIME_SUGGESTIONS = [
 
 function getEditorFirstName(name = '') {
   const parts = String(name || '').trim().split(/\s+/).filter(Boolean)
+  if (parts.length >= 2 && parts[parts.length - 1].toLocaleLowerCase('vi') === 'anh') {
+    return parts.slice(-2).join(' ')
+  }
   return parts[parts.length - 1] || ''
 }
 
@@ -151,6 +156,7 @@ function getMissingCustomerMessageFields(text = '') {
   const missing = []
   if (text.includes('[tên editor]')) missing.push('tên editor')
   if (text.includes('[link feedback]')) missing.push('link feedback')
+  if (text.includes('[link Google Drive]')) missing.push('link Google Drive')
   if (text.includes('[giờ gửi]')) missing.push('giờ gửi')
   if (text.includes('[giờ trả]')) missing.push('giờ trả')
   if (text.includes('[giờ mới]')) missing.push('giờ mới')
@@ -168,6 +174,12 @@ function joinVietnameseList(items = []) {
   return `${list.slice(0, -1).join(', ')} và ${list[list.length - 1]}`
 }
 
+function formatFeedbackNameForCustomerMessage(name = '') {
+  const text = String(name || '').trim()
+  if (!text) return 'bản feedback này'
+  return text.replace(/^Feedback\s*#?\s*(\d+)\b/i, 'bản #$1')
+}
+
 function buildCustomerMessageVariants({
   mode,
   style,
@@ -175,14 +187,17 @@ function buildCustomerMessageVariants({
   editorName,
   feedbackName,
   feedbackUrl,
+  driveUrl,
   deadline,
   returnTime,
   delayTime,
 } = {}) {
   const m = getCustomerMessageMeta(customerCall)
   const editor = getEditorFirstName(editorName) || String(editorName || '').trim() || '[tên editor]'
-  const feedbackLabel = String(feedbackName || '').trim() || 'bản feedback này'
-  const link = String(feedbackUrl || '').trim() || '[link feedback]'
+  const feedbackLabel = formatFeedbackNameForCustomerMessage(feedbackName)
+  const link = mode === 'drive'
+    ? String(driveUrl || '').trim() || '[link Google Drive]'
+    : String(feedbackUrl || '').trim() || '[link feedback]'
   const firstDeadline = String(deadline || '').trim() || '[giờ gửi]'
   const nextReturnTime = String(returnTime || '').trim() || '[giờ trả]'
   const nextDelayTime = String(delayTime || '').trim() || '[giờ mới]'
@@ -201,13 +216,17 @@ function buildCustomerMessageVariants({
       `${greeting} ơi, ${m.customer} gửi giúp ${m.self} brief dựng video này để ${m.self} triển khai ${m.finish}.`,
       `${greeting} ơi, ${m.self} cần brief / yêu cầu dựng của video này để bắt đầu xử lý đúng hướng ${m.finish}.`,
     ]
+    if (mode === 'drive') return [
+      `${sendVerb} link tải file, ${m.customer} xem và tải về ở link này giúp ${m.self} ${m.finish}:\n${link}`,
+      `${sendVerb} link tải file. ${m.customerTitle} xem và tải file trong link dưới đây giúp ${m.self} ${m.finish}:\n${link}`,
+    ]
     if (mode === 'send') return [
       `${sendVerb} ${feedbackLabel}, ${m.customer} xem và feedback giúp ${m.self} tại link này ${m.finish}:\n${link}`,
       `${sendVerb} ${feedbackLabel}. ${m.customerTitle} xem và góp ý trực tiếp trong link dưới đây giúp ${m.self} ${m.finish}:\n${link}`,
     ]
     if (mode === 'confirm') return [
-      `${m.prefix}${m.selfTitle} đã nhận feedback của ${m.customer}. ${m.selfTitle} sẽ chỉnh sửa và gửi lại bản tiếp theo vào ${nextReturnTime} ${m.finish}.`,
-      `${m.prefix}${m.selfTitle} ghi nhận feedback rồi ${m.mid}. ${m.selfTitle} sẽ xử lý và gửi lại ${m.customer} vào ${nextReturnTime} ${m.finish}.`,
+      `${m.prefix}${m.self} đã nhận feedback của ${m.customer}. ${m.selfTitle} sẽ chỉnh sửa và gửi lại bản tiếp theo vào ${nextReturnTime} ${m.finish}.`,
+      `${m.prefix}${m.self} ghi nhận feedback rồi ${m.mid}. ${m.selfTitle} sẽ xử lý và gửi lại ${m.customer} vào ${nextReturnTime} ${m.finish}.`,
     ]
     if (mode === 'delay') return [
       `${greeting} ơi, phần dựng cần thêm thời gian để hoàn thiện. ${m.selfTitle} xin phép gửi lại vào ${nextDelayTime} ${m.finish}.`,
@@ -232,13 +251,17 @@ function buildCustomerMessageVariants({
       `${greeting} ơi, ${m.customer} gửi giúp ${m.self} brief / yêu cầu dựng cho video này để ${m.self} triển khai đúng mong muốn của ${m.customer} ${m.finish}.`,
       `${greeting} ơi, để phần dựng bám sát yêu cầu, ${m.customer} gửi ${m.self} brief chi tiết của video này giúp ${m.self} ${m.finish}.`,
     ]
+    if (mode === 'drive') return [
+      `${sendVerb} link tải file, ${m.customer} xem và tải về ở link này giúp ${m.self} ${m.finish}:\n${link}`,
+      `${sendVerb} link tải file ${m.mid}. ${m.customerTitle} xem và tải file trong link dưới đây giúp ${m.self} ${m.finish}:\n${link}`,
+    ]
     if (mode === 'send') return [
       `${sendVerb} ${feedbackLabel}, ${m.customer} xem và góp ý trực tiếp trong link này giúp ${m.self} ${m.finish}:\n${link}`,
       `${sendVerb} ${feedbackLabel} ${m.mid}. ${m.customerTitle} xem giúp ${m.self} và để lại feedback trong link dưới đây ${m.finish}:\n${link}`,
     ]
     if (mode === 'confirm') return [
-      `${m.prefix}${m.selfTitle} đã nhận đầy đủ feedback của ${m.customer} rồi ${m.mid}. ${m.selfTitle} sẽ chỉnh sửa và gửi lại bản tiếp theo vào ${nextReturnTime} ${m.finish}.`,
-      `${m.prefix}${m.selfTitle} ghi nhận các feedback của ${m.customer} rồi ${m.mid}. ${m.selfTitle} sẽ xử lý và gửi bản mới vào ${nextReturnTime} ${m.finish}.`,
+      `${m.prefix}${m.self} đã nhận đầy đủ feedback của ${m.customer} rồi ${m.mid}. ${m.selfTitle} sẽ chỉnh sửa và gửi lại bản tiếp theo vào ${nextReturnTime} ${m.finish}.`,
+      `${m.prefix}${m.self} ghi nhận các feedback của ${m.customer} rồi ${m.mid}. ${m.selfTitle} sẽ xử lý và gửi bản mới vào ${nextReturnTime} ${m.finish}.`,
     ]
     if (mode === 'delay') return [
       `${greeting} ơi, phần dựng cần thêm thời gian để hoàn thiện chỉn chu hơn. ${m.selfTitle} xin phép gửi lại vào ${nextDelayTime} ${m.finish}.`,
@@ -262,13 +285,17 @@ function buildCustomerMessageVariants({
     `${greeting} ơi, ${m.customer} gửi giúp ${m.self} brief dựng của video này để ${m.self} triển khai ${m.finish}.`,
     `${greeting} ơi, ${m.customer} gửi ${m.self} qua brief / yêu cầu dựng của video mình để ${m.self} làm cho đúng ý ${m.customer} ${m.finish}.`,
   ]
+  if (mode === 'drive') return [
+    `${sendVerb} link tải file, ${m.customer} xem và tải về ở link này giúp ${m.self} ${m.finish}:\n${link}`,
+    `${sendVerb} link tải file đây ${m.mid}, ${m.customer} xem và tải file ở link này giúp ${m.self} ${m.finish}:\n${link}`,
+  ]
   if (mode === 'send') return [
     `${sendVerb} ${feedbackLabel}, ${m.customer} xem và feedback giúp ${m.self} ở link này ${m.finish}:\n${link}`,
     `${sendVerb} ${feedbackLabel} đây ${m.mid}, ${m.customer} xem giúp ${m.self} rồi feedback ở link này ${m.finish}:\n${link}`,
   ]
   if (mode === 'confirm') return [
-    `${m.prefix}${m.selfTitle} đã nhận được feedback của ${m.customer} rồi ${m.mid}. ${m.selfTitle} sẽ chỉnh sửa và gửi lại ${m.customer} bản tiếp theo vào lúc ${nextReturnTime} ${m.finish}.`,
-    `${m.prefix}${m.selfTitle} ghi nhận hết feedback của ${m.customer} rồi ${m.mid}. ${m.selfTitle} sẽ sửa và gửi lại vào ${nextReturnTime} ${m.finish}.`,
+    `${m.prefix}${m.self} đã nhận được feedback của ${m.customer} rồi ${m.mid}. ${m.selfTitle} sẽ chỉnh sửa và gửi lại ${m.customer} bản tiếp theo vào lúc ${nextReturnTime} ${m.finish}.`,
+    `${m.prefix}${m.self} ghi nhận hết feedback của ${m.customer} rồi ${m.mid}. ${m.selfTitle} sẽ sửa và gửi lại vào ${nextReturnTime} ${m.finish}.`,
   ]
   if (mode === 'delay') return [
     `${greeting} ơi, bản dựng cần thêm chút thời gian để chỉn chu hơn, ${m.self} xin phép gửi ${m.customer} vào ${nextDelayTime} ${m.finish}. Xong sớm hơn ${m.self} gửi ngay ${m.finish}.`,
@@ -1061,13 +1088,15 @@ function OverallFeedbackPanel({ feedback, access, onChanged, fillHeight = false 
   )
 }
 
-function CustomerMessageSuggestionPopup({ feedback, publicUrl = '', onClose }) {
+function CustomerMessageSuggestionPopup({ feedback, publicUrl = '', darkMode = false, onClose }) {
   const feedbackName = getFeedbackNameParts(feedback || {}).name || 'bản feedback này'
   const editorName = feedback?.editor_name || feedback?.job?.editor_name || ''
   const editorDisplayName = getEditorFirstName(editorName) || String(editorName || '').trim()
   const feedbackUrl = buildAbsoluteFeedbackUrl(publicUrl, feedback)
+  const driveUrl = getSharedDriveUrl(feedback)
   const hasEditorName = Boolean(editorDisplayName)
   const hasFeedbackUrl = Boolean(String(feedbackUrl || '').trim())
+  const hasDriveUrl = Boolean(String(driveUrl || '').trim())
   const defaultMode = feedback?.video_url ? 'send' : 'hello'
   const [mode, setMode] = useState(defaultMode)
   const [style, setStyle] = useState('friendly')
@@ -1078,7 +1107,9 @@ function CustomerMessageSuggestionPopup({ feedback, publicUrl = '', onClose }) {
   const [variantIndex, setVariantIndex] = useState(0)
   const [message, setMessage] = useState('')
   const [copied, setCopied] = useState(false)
+  const [copyTimeWarning, setCopyTimeWarning] = useState('')
   const messageTextareaRef = useRef(null)
+  const timeInputRef = useRef(null)
 
   const fitMessageTextareaHeight = useCallback(() => {
     const textarea = messageTextareaRef.current
@@ -1094,10 +1125,11 @@ function CustomerMessageSuggestionPopup({ feedback, publicUrl = '', onClose }) {
     editorName,
     feedbackName,
     feedbackUrl,
+    driveUrl,
     deadline,
     returnTime,
     delayTime,
-  }), [customerCall, deadline, delayTime, editorName, feedbackName, feedbackUrl, mode, returnTime, style])
+  }), [customerCall, deadline, delayTime, driveUrl, editorName, feedbackName, feedbackUrl, mode, returnTime, style])
 
   const generatedMessage = useMemo(() => {
     const safeIndex = variants.length ? variantIndex % variants.length : 0
@@ -1124,8 +1156,9 @@ function CustomerMessageSuggestionPopup({ feedback, publicUrl = '', onClose }) {
 
   const missingFields = uniqueList([
     ...(!hasEditorName ? ['tên editor'] : []),
-    ...(!hasFeedbackUrl ? ['link feedback'] : []),
-    ...getMissingCustomerMessageFields(message).filter(field => field !== 'tên editor' && field !== 'link feedback'),
+    ...(mode === 'drive' && !hasDriveUrl ? ['link Google Drive'] : []),
+    ...(mode !== 'drive' && !hasFeedbackUrl ? ['link feedback'] : []),
+    ...getMissingCustomerMessageFields(message).filter(field => !['tên editor', 'link feedback', 'link Google Drive'].includes(field)),
   ])
   const canCopy = missingFields.length === 0
   const showDeadlineField = mode === 'hello'
@@ -1156,8 +1189,19 @@ function CustomerMessageSuggestionPopup({ feedback, publicUrl = '', onClose }) {
   const missingCopyMessage = missingFields.length
     ? `Cần bổ sung ${joinVietnameseList(missingFields)} trước khi copy.`
     : ''
+  const missingTimeWarning = showDeadlineField && !deadline.trim()
+    ? 'Bạn chưa nhập Thời gian gửi'
+    : showReturnTimeField && !returnTime.trim()
+      ? 'Bạn chưa nhập thời gian gửi bản sửa'
+      : showDelayTimeField && !delayTime.trim()
+        ? 'Bạn chưa nhập thời gian xin lùi giờ'
+        : ''
 
   async function copyMessage() {
+    if (missingTimeWarning) {
+      setCopyTimeWarning(missingTimeWarning)
+      return
+    }
     if (!canCopy) return
     let copiedSuccessfully = false
     try {
@@ -1213,7 +1257,13 @@ function CustomerMessageSuggestionPopup({ feedback, publicUrl = '', onClose }) {
                 <span className="text-slate-300">·</span>
                 <span>{feedbackName}</span>
                 <span className="text-slate-300">·</span>
-                {hasFeedbackUrl ? (
+                {mode === 'drive' ? (
+                  hasDriveUrl ? (
+                    <span>Đã có link Google Drive</span>
+                  ) : (
+                    <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 font-semibold text-amber-700">Thiếu link Google Drive</span>
+                  )
+                ) : hasFeedbackUrl ? (
                   <span>Đã có link feedback</span>
                 ) : (
                   <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 font-semibold text-amber-700">Thiếu link feedback</span>
@@ -1240,7 +1290,10 @@ function CustomerMessageSuggestionPopup({ feedback, publicUrl = '', onClose }) {
                 <button
                   key={option.value}
                   type="button"
-                  onClick={() => setMode(option.value)}
+                  onClick={() => {
+                    setMode(option.value)
+                    setCopyTimeWarning('')
+                  }}
                   className={`min-h-9 rounded-lg border px-2 text-[12px] font-semibold transition ${
                     mode === option.value
                       ? 'border-[#f79820] bg-[#f79820] text-white shadow-sm'
@@ -1277,8 +1330,12 @@ function CustomerMessageSuggestionPopup({ feedback, publicUrl = '', onClose }) {
             <div>
               <FieldLabel>{timeField.label}</FieldLabel>
               <TextInput
+                ref={timeInputRef}
                 value={timeField.value}
-                onChange={event => timeField.onChange(event.target.value)}
+                onChange={event => {
+                  timeField.onChange(event.target.value)
+                  setCopyTimeWarning('')
+                }}
                 placeholder={timeField.placeholder}
                 className="mt-1"
               />
@@ -1287,7 +1344,10 @@ function CustomerMessageSuggestionPopup({ feedback, publicUrl = '', onClose }) {
                   <button
                     key={option}
                     type="button"
-                    onClick={() => timeField.onChange(option)}
+                    onClick={() => {
+                      timeField.onChange(option)
+                      setCopyTimeWarning('')
+                    }}
                     className={`rounded-full border px-2.5 py-1 text-[12px] font-semibold transition ${
                       timeField.value === option
                         ? 'border-[#f79820] bg-[#f79820]/10 text-[#f79820]'
@@ -1311,7 +1371,13 @@ function CustomerMessageSuggestionPopup({ feedback, publicUrl = '', onClose }) {
                 setCopied(false)
               }}
               rows={1}
-              className="mt-1 block w-full resize-none overflow-hidden rounded-lg border border-[#f79820]/60 bg-[#fffaf3] px-3 py-2.5 text-[13px] leading-5 text-slate-900 outline-none shadow-sm focus:border-[#f79820] focus:ring-2 focus:ring-[#f79820]/20"
+              className="customer-message-preview mt-1 block w-full resize-none overflow-hidden rounded-lg border border-[#f79820]/60 bg-[#fffaf3] px-3 py-2.5 text-[13px] leading-5 text-slate-900 outline-none shadow-sm focus:border-[#f79820] focus:ring-2 focus:ring-[#f79820]/20"
+              style={{
+                backgroundColor: darkMode ? '#1e293b' : '#fffaf3',
+                color: darkMode ? '#f8fafc' : '#0f172a',
+                WebkitTextFillColor: darkMode ? '#f8fafc' : '#0f172a',
+                colorScheme: darkMode ? 'dark' : 'light',
+              }}
             />
           </div>
 
@@ -1359,8 +1425,7 @@ function CustomerMessageSuggestionPopup({ feedback, publicUrl = '', onClose }) {
               <button
                 type="button"
                 onClick={copyMessage}
-                disabled={!canCopy}
-                className="inline-flex h-9 min-w-[132px] flex-1 items-center justify-center gap-2 rounded-lg bg-[#f79820] px-4 text-[13px] font-semibold text-white hover:bg-[#df861d] disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
+                className="inline-flex h-9 min-w-[132px] flex-1 items-center justify-center gap-2 rounded-lg bg-[#f79820] px-4 text-[13px] font-semibold text-white hover:bg-[#df861d] sm:flex-none"
               >
                 {copied ? <CheckCircle2 className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                 {copied ? 'Đã copy' : 'Copy tin nhắn'}
@@ -1369,6 +1434,47 @@ function CustomerMessageSuggestionPopup({ feedback, publicUrl = '', onClose }) {
           </div>
         </div>
       </section>
+      {copyTimeWarning && (
+        <div
+          className="absolute inset-0 z-10 flex items-center justify-center bg-slate-950/55 px-4"
+          onClick={event => {
+            event.stopPropagation()
+            setCopyTimeWarning('')
+          }}
+        >
+          <section
+            className="w-full max-w-sm rounded-lg border border-[#f79820]/40 bg-white p-5 shadow-xl"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="copy-time-warning-title"
+            onClick={event => event.stopPropagation()}
+          >
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-[#f79820]" />
+              <div className="min-w-0">
+                <h3 id="copy-time-warning-title" className="text-[15px] font-semibold text-slate-950">
+                  {copyTimeWarning}
+                </h3>
+                <p className="mt-1 text-[13px] leading-5 text-slate-600">
+                  Hãy nhập thời gian để có thể copy.
+                </p>
+              </div>
+            </div>
+            <div className="mt-5 flex justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setCopyTimeWarning('')
+                  window.requestAnimationFrame(() => timeInputRef.current?.focus())
+                }}
+                className="inline-flex h-9 items-center justify-center rounded-lg bg-[#f79820] px-4 text-[13px] font-semibold text-white hover:bg-[#df861d]"
+              >
+                Nhập thời gian
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   )
 }
@@ -2314,6 +2420,7 @@ export default function FeedbackDetailPage() {
         <CustomerMessageSuggestionPopup
           feedback={feedback}
           publicUrl={feedbackPublicUrl}
+          darkMode={feedbackDarkMode}
           onClose={() => setCustomerMessageOpen(false)}
         />
       )}

@@ -109,6 +109,12 @@
   color: #64748b;
 }
 
+.feedback-detail-page--dark .customer-message-preview {
+  border-color: rgba(247, 152, 32, 0.65) !important;
+  background-color: #1e293b !important;
+  color: #f8fafc !important;
+}
+
 .feedback-detail-page--dark iframe {
   background-color: #020617 !important;
 }
