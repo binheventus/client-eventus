@@ -91,6 +91,10 @@ function isFeedbackPopupTarget(target) {
   return Boolean(target?.closest?.('[role="dialog"], .feedback-version-menu'))
 }
 
+function isFeedbackCommentListTarget(target) {
+  return Boolean(target?.closest?.('.feedback-detail-comment-list'))
+}
+
 function Alert({ type = 'info', children, className = '' }) {
   const styles = type === 'error'
     ? 'border-[#f79820]/30 bg-[#f79820]/10 text-[#b86414]'
@@ -1622,6 +1626,7 @@ export default function FeedbackDetailPage() {
 
   const handleFeedbackPageWheel = useCallback(event => {
     if (feedbackModalOpen || event.ctrlKey || event.metaKey || isFeedbackPopupTarget(event.target)) return
+    if (isFeedbackCommentListTarget(event.target)) return
     if (!scrollFeedbackWorkspaceBy(normalizeWheelDeltaY(event))) return
 
     event.preventDefault()
