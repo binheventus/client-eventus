@@ -733,11 +733,17 @@ function Totals({ quote, dense = false, spacious = false }) {
   const showTravelFee = Number(quote?.travel_fee_total || 0) > 0
   const showOvertimeFee = Number(quote?.overtime_fee_total || 0) > 0
   const showVat = Boolean(quote?.has_vat)
+  const preDiscountTotal = Number(quote?.pre_discount_total || 0) || (
+    Number(quote?.subtotal || 0) + Number(quote?.travel_fee_total || 0) + Number(quote?.overtime_fee_total || 0)
+  )
+  const discountAmount = Math.min(Math.max(0, Number(quote?.discount_amount || 0)), preDiscountTotal)
+  const showDiscount = discountAmount > 0
+  const taxableAmount = Number(quote?.taxable_amount || 0) || Math.max(0, preDiscountTotal - discountAmount)
 
   return (
     <View style={[styles.totals, dense ? styles.totalsDense : null, spacious ? styles.totalsSpacious : null]}>
       <View style={[styles.totalLine, dense ? styles.totalLineDense : null, spacious ? styles.totalLineSpacious : null]}>
-        <Text>Subtotal</Text>
+        <Text>Cộng tiền dịch vụ</Text>
         <Text>{formatCurrency(quote?.subtotal)}</Text>
       </View>
       {showTravelFee ? (
@@ -752,6 +758,18 @@ function Totals({ quote, dense = false, spacious = false }) {
           <Text>{formatCurrency(quote?.overtime_fee_total)}</Text>
         </View>
       ) : null}
+      {showDiscount ? (
+        <>
+          <View style={[styles.totalLine, dense ? styles.totalLineDense : null, spacious ? styles.totalLineSpacious : null]}>
+            <Text>Chiết khấu ưu đãi</Text>
+            <Text>-{formatCurrency(discountAmount)}</Text>
+          </View>
+          <View style={[styles.totalLine, dense ? styles.totalLineDense : null, spacious ? styles.totalLineSpacious : null]}>
+            <Text>Giá trị sau chiết khấu</Text>
+            <Text>{formatCurrency(taxableAmount)}</Text>
+          </View>
+        </>
+      ) : null}
       {showVat ? (
         <View style={[styles.totalLine, dense ? styles.totalLineDense : null, spacious ? styles.totalLineSpacious : null]}>
           <Text>Thuế GTGT 8%</Text>
@@ -759,7 +777,7 @@ function Totals({ quote, dense = false, spacious = false }) {
         </View>
       ) : null}
       <View style={[styles.grandTotal, dense ? styles.grandTotalDense : null, spacious ? styles.grandTotalSpacious : null]}>
-        <Text>Tổng cộng</Text>
+        <Text>Tổng thanh toán</Text>
         <Text>{formatCurrency(quote?.total_amount)}</Text>
       </View>
     </View>

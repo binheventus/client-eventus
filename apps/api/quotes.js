@@ -83,6 +83,8 @@ const QUOTE_COLUMNS = [
   'subtotal',
   'travel_fee_total',
   'overtime_fee_total',
+  'discount_amount',
+  'discount_note',
   'vat_amount',
   'total_amount',
   'share_token',
@@ -268,6 +270,8 @@ function normalizeQuoteRow(row = {}) {
     subtotal: normalizeNumber(row.subtotal),
     travel_fee_total: normalizeNumber(row.travel_fee_total),
     overtime_fee_total: normalizeNumber(row.overtime_fee_total),
+    discount_amount: normalizeNumber(row.discount_amount),
+    discount_note: row.discount_note || null,
     vat_amount: normalizeNumber(row.vat_amount),
     total_amount: normalizeNumber(row.total_amount),
     has_saved_contract: normalizeBoolean(row.has_saved_contract),
@@ -294,6 +298,8 @@ function normalizeQuoteItemRow(row = {}) {
 function normalizeQuotePayload(payload = {}) {
   const hasStatus = Object.prototype.hasOwnProperty.call(payload, 'status')
   const hasSentAt = Object.prototype.hasOwnProperty.call(payload, 'sent_at')
+  const hasDiscountAmount = Object.prototype.hasOwnProperty.call(payload, 'discount_amount')
+  const hasDiscountNote = Object.prototype.hasOwnProperty.call(payload, 'discount_note')
   const status = hasStatus ? normalizeQuoteStatus(payload.status) : undefined
   const sentAt = hasSentAt || hasStatus
     ? status === 'sent'
@@ -312,6 +318,8 @@ function normalizeQuotePayload(payload = {}) {
     validity_days: payload.validity_days ?? 15,
     has_vat: payload.has_vat === undefined ? true : Boolean(payload.has_vat),
     show_stamp: payload.show_stamp === undefined ? true : Boolean(payload.show_stamp),
+    ...(hasDiscountAmount ? { discount_amount: Math.max(0, Number(payload.discount_amount) || 0) } : {}),
+    ...(hasDiscountNote ? { discount_note: emptyToNull(payload.discount_note) } : {}),
     ...(hasStatus ? { status } : {}),
     ...(hasSentAt || hasStatus ? { sent_at: sentAt } : {}),
     deleted_at: toMysqlDateTime(payload.deleted_at),
@@ -554,7 +562,7 @@ async function getQuoteByShareToken(shareToken) {
   }
 
   const publicQuote = await getQuoteById(quote.id)
-  const { survey_response: _surveyResponse, ...safeQuote } = publicQuote
+  const { survey_response: _surveyResponse, discount_note: _discountNote, ...safeQuote } = publicQuote
   return safeQuote
 }
 
@@ -758,6 +766,20 @@ function getServiceDisplayName(service = {}) {
   return service?.quote_display_name || service?.service_name || service?.name || service?.service_code || service?.code || ''
 }
 
+function getPricedItemNameForSave(item = {}, serviceName = '', isCustom = false) {
+  if (isCustom) return item.service_name || item.service_name_raw || serviceName
+  return item.service_name || serviceName || item.service_name_raw
+}
+
+function getPricedItemRawNameForSave(item = {}, serviceName = '', isCustom = false) {
+  if (isCustom) return item.service_name_raw || item.service_name || serviceName
+
+  const displayName = String(item.service_name || '').trim()
+  const rawName = String(item.service_name_raw || '').trim()
+  if (rawName && rawName !== displayName) return rawName
+  return serviceName || rawName || displayName
+}
+
 function normalizeDuplicatedCalculatedItem(item = {}, index = 0) {
   const isCustom = Boolean(item.is_custom || normalizeCode(item.service_code) === 'CUSTOM')
   const serviceName = getServiceDisplayName(item.service)
@@ -784,14 +806,14 @@ function normalizePricedQuoteItemForSave(item = {}, index = 0) {
   const serviceName = getServiceDisplayName(item.service)
   const unitPrice = Number(item.unit_price) || 0
   const isOverridden = Boolean(item.is_overridden || isCustom)
+  const displayName = getPricedItemNameForSave(item, serviceName, isCustom)
+  const rawName = getPricedItemRawNameForSave(item, serviceName, isCustom)
 
   return {
     ...item,
     service_code: isCustom ? 'CUSTOM' : (item.resolved_service_code || item.service_code || null),
-    service_name: isCustom ? item.service_name : (serviceName || item.service_name),
-    service_name_raw: isCustom
-      ? (item.service_name_raw || item.service_name)
-      : (serviceName || item.service_name_raw || item.service_name),
+    service_name: displayName,
+    service_name_raw: rawName,
     unit: item.unit || item.pricing_unit || item.service?.unit || 'Người',
     unit_price: unitPrice,
     total_price: Number(item.total_price) || 0,
@@ -812,6 +834,7 @@ function getQuotePricingInput(payload = {}, pricingContext = {}) {
     location: payload.location,
     customer_tier: payload.tier_code,
     has_vat: payload.has_vat,
+    discount_amount: payload.discount_amount,
     duration_hours: payload.duration_hours,
   }
 }
@@ -841,6 +864,7 @@ async function applyServerPricingToQuotePayload(payload = {}, existingQuote = {}
     subtotal: pricing.subtotal,
     travel_fee_total: pricing.travel_fee_total,
     overtime_fee_total: pricing.overtime_fee_total,
+    discount_amount: pricing.discount_amount,
     vat_amount: pricing.vat_amount,
     total_amount: pricing.total_amount,
     items: (pricing.items_with_calculated_price || []).map(normalizePricedQuoteItemForSave),
@@ -876,6 +900,7 @@ function buildDuplicatedQuotePayload(quote = {}, actorPayload = {}, pricingConte
     location: quotePayload.location,
     customer_tier: quotePayload.tier_code,
     has_vat: quotePayload.has_vat,
+    discount_amount: quotePayload.discount_amount,
     duration_hours: quotePayload.duration_hours,
   })
 
@@ -888,6 +913,7 @@ function buildDuplicatedQuotePayload(quote = {}, actorPayload = {}, pricingConte
     subtotal: pricing.subtotal,
     travel_fee_total: pricing.travel_fee_total,
     overtime_fee_total: pricing.overtime_fee_total,
+    discount_amount: pricing.discount_amount,
     vat_amount: pricing.vat_amount,
     total_amount: pricing.total_amount,
     items: (pricing.items_with_calculated_price || []).map(normalizeDuplicatedCalculatedItem),
@@ -1206,4 +1232,5 @@ export const __quotesTestInternals = Object.freeze({
   buildQuoteSurveyNotificationContent,
   buildQuoteSurveyNotificationPayload,
   formatQuoteNotificationDate,
+  normalizePricedQuoteItemForSave,
 })

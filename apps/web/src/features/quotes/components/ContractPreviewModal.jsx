@@ -189,6 +189,7 @@ export function ContractPreviewDocument({ contract = {} }) {
     subtotal: quote.subtotal,
     travel_fee_total: quote.travel_fee_total,
     overtime_fee_total: quote.overtime_fee_total,
+    discount_amount: quote.discount_amount,
     vat_amount: quote.vat_amount,
     total_amount: quote.total_amount,
   }

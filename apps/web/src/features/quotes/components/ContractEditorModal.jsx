@@ -1038,6 +1038,7 @@ export default function ContractEditorModal({
     subtotal: baseQuoteSnapshot.subtotal,
     travel_fee_total: baseQuoteSnapshot.travel_fee_total,
     overtime_fee_total: baseQuoteSnapshot.overtime_fee_total,
+    discount_amount: baseQuoteSnapshot.discount_amount,
     vat_amount: baseQuoteSnapshot.vat_amount,
     total_amount: baseQuoteSnapshot.total_amount,
   }

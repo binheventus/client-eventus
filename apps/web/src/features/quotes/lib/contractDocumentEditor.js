@@ -58,12 +58,15 @@ export function getContractVatConfig(contract = {}) {
 
 export function getContractSubtotal(contract = {}) {
   const quote = contract.quote_snapshot || {}
+  const quoteSubtotal = toDocumentNumber(quote.subtotal, 0)
+  const requestedDiscountAmount = Math.max(0, toDocumentNumber(quote.discount_amount, 0))
   const itemSubtotal = Array.isArray(quote.items)
     ? quote.items.reduce((sum, item) => sum + toDocumentNumber(item.total_price, 0), 0)
     : 0
+  const discountAmount = Math.min(requestedDiscountAmount, quoteSubtotal || itemSubtotal)
 
-  if (toDocumentNumber(quote.subtotal, 0)) return roundDocumentCurrency(quote.subtotal)
-  if (itemSubtotal) return roundDocumentCurrency(itemSubtotal)
+  if (quoteSubtotal) return roundDocumentCurrency(quoteSubtotal - discountAmount)
+  if (itemSubtotal) return roundDocumentCurrency(itemSubtotal - discountAmount)
 
   const total = getContractTotal(contract)
   const vatConfig = getContractVatConfig(contract)
@@ -80,10 +83,12 @@ export function getContractTotal(contract = {}) {
 
   const subtotal = toDocumentNumber(quote.subtotal, 0)
   if (subtotal) {
+    const discountAmount = Math.min(Math.max(0, toDocumentNumber(quote.discount_amount, 0)), subtotal)
+    const taxableSubtotal = Math.max(0, subtotal - discountAmount)
     const vatConfig = getContractVatConfig(contract)
     return vatConfig.has_vat
-      ? roundDocumentCurrency(subtotal * (1 + vatConfig.vat_rate))
-      : roundDocumentCurrency(subtotal)
+      ? roundDocumentCurrency(taxableSubtotal * (1 + vatConfig.vat_rate))
+      : roundDocumentCurrency(taxableSubtotal)
   }
 
   return roundDocumentCurrency(source.price || 0)
@@ -91,6 +96,8 @@ export function getContractTotal(contract = {}) {
 
 export function buildContractValueRows(contract = {}) {
   const quote = contract.quote_snapshot || {}
+  const quoteSubtotal = toDocumentNumber(quote.subtotal, 0)
+  const requestedDiscountAmount = Math.max(0, toDocumentNumber(quote.discount_amount, 0))
   const items = Array.isArray(quote.items) ? quote.items : []
   const rows = items
     .filter(item => item && (item.service_name || item.total_price || item.unit_price))
@@ -107,7 +114,22 @@ export function buildContractValueRows(contract = {}) {
       }
     })
 
-  if (rows.length) return rows
+  if (rows.length) {
+    const itemSubtotal = rows.reduce((sum, row) => sum + toDocumentNumber(row.amount, 0), 0)
+    const discountAmount = Math.min(requestedDiscountAmount, quoteSubtotal || itemSubtotal)
+    if (discountAmount <= 0) return rows
+    return [
+      ...rows,
+      {
+        id: 'quote-discount',
+        description: quote.discount_note || 'Chiết khấu ưu đãi',
+        unit: 'Gói',
+        quantity: 1,
+        unit_price: -discountAmount,
+        amount: -discountAmount,
+      },
+    ]
+  }
 
   const subtotal = getContractSubtotal(contract)
   return [{

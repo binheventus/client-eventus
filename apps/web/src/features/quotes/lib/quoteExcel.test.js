@@ -14,8 +14,9 @@ const quote = {
   created_at: '2026-05-24T10:00:00.000Z',
   has_vat: true,
   subtotal: 17000000,
-  vat_amount: 1360000,
-  total_amount: 18360000,
+  discount_amount: 2000000,
+  vat_amount: 1200000,
+  total_amount: 16200000,
 }
 
 const items = [
@@ -70,8 +71,11 @@ test('buildQuoteExcelRows includes line items, VAT and grand total', () => {
   assert.ok(!rows.some(row => row[0] === 'Ngày lập'))
   assert.ok(!rows.some(row => row[0] === 'Lời mở đầu'))
   assert.ok(rows.some(row => row[0] === 'Chụp ảnh sự kiện' && row[5] === 10000000))
-  assert.ok(rows.some(row => row[0] === 'VAT 8%  ' && row[5] === 1360000))
-  assert.ok(rows.some(row => row[0] === 'Tổng chi phí (Đã bao gồm VAT)  ' && row[5] === 18360000))
+  assert.ok(rows.some(row => row[0] === 'Cộng tiền dịch vụ  ' && row[5] === 17000000))
+  assert.ok(rows.some(row => row[0] === 'Chiết khấu ưu đãi  ' && row[5] === -2000000))
+  assert.ok(rows.some(row => row[0] === 'Giá trị sau chiết khấu  ' && row[5] === 15000000))
+  assert.ok(rows.some(row => row[0] === 'VAT 8%  ' && row[5] === 1200000))
+  assert.ok(rows.some(row => row[0] === 'Tổng thanh toán (Đã bao gồm VAT)  ' && row[5] === 16200000))
 })
 
 test('buildQuoteExcelWorkbook creates a readable workbook with a quote sheet', () => {
@@ -85,6 +89,6 @@ test('buildQuoteExcelWorkbook creates a readable workbook with a quote sheet', (
   assert.equal(sheet.getCell('A13').fill.fgColor.argb, 'FF757070')
   assert.equal(sheet.getCell('F15').value, 14000000)
   assert.equal(sheet.getCell('F15').numFmt, '#,##0')
-  assert.equal(sheet.getCell('A20').value, 'Cộng  ')
+  assert.equal(sheet.getCell('A20').value, 'Cộng tiền dịch vụ  ')
   assert.equal(sheet.pageSetup.orientation, 'portrait')
 })

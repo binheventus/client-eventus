@@ -79,6 +79,32 @@ test('buildContractValueRows uses contract quote rows as pre-VAT values', () => 
   assert.equal(getContractTotal(contract), 10_800_000)
 })
 
+test('buildContractValueRows includes quote-level discount before VAT', () => {
+  const contract = {
+    quote_snapshot: {
+      has_vat: true,
+      subtotal: 10_000_000,
+      discount_amount: 1_000_000,
+      vat_amount: 720_000,
+      total_amount: 9_720_000,
+      items: [
+        { service_code: 'PHOTO', service_name: 'Chụp ảnh sự kiện', unit: 'Buổi', quantity: 2, unit_price: 3_000_000, total_price: 6_000_000 },
+        { service_code: 'VIDEO', service_name: 'Quay phim sự kiện', unit: 'Buổi', quantity: 1, unit_price: 4_000_000, total_price: 4_000_000 },
+      ],
+    },
+  }
+
+  const rows = buildContractValueRows(contract)
+  const totals = calculateTableTotals(rows, getContractVatConfig(contract))
+
+  assert.equal(rows.length, 3)
+  assert.equal(rows[2].description, 'Chiết khấu ưu đãi')
+  assert.equal(rows[2].amount, -1_000_000)
+  assert.equal(totals.subtotal, 9_000_000)
+  assert.equal(totals.vat_amount, 720_000)
+  assert.equal(totals.total_amount, 9_720_000)
+})
+
 test('calculateTableTotals supports negative acceptance adjustment rows', () => {
   const totals = calculateTableTotals([
     { amount: 10_000_000 },

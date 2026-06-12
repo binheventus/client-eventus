@@ -183,6 +183,8 @@ export function calculateQuotePricing(input = {}) {
     durationHours,
     event_days,
     eventDays,
+    discount_amount,
+    discountAmount,
   } = input
 
   const duration = toNumber(duration_hours ?? durationHours, getDefaultDurationHours(businessRules))
@@ -224,14 +226,20 @@ export function calculateQuotePricing(input = {}) {
   const travelFeeTotal = feePerPersonPerDay * totalStaff * totalDays
 
   const overtimeFeeTotal = 0
-  const preVatAmount = subtotal + travelFeeTotal
-  const vatAmount = has_vat ? Math.round(preVatAmount * vatRate) : 0
-  const totalAmount = preVatAmount + vatAmount
+  const preDiscountTotal = subtotal + travelFeeTotal + overtimeFeeTotal
+  const requestedDiscountAmount = Math.max(0, toNumber(discount_amount ?? discountAmount, 0))
+  const discountAmountValue = Math.min(requestedDiscountAmount, preDiscountTotal)
+  const taxableAmount = Math.max(0, preDiscountTotal - discountAmountValue)
+  const vatAmount = has_vat ? Math.round(taxableAmount * vatRate) : 0
+  const totalAmount = taxableAmount + vatAmount
 
   return {
     subtotal,
     travel_fee_total: travelFeeTotal,
     overtime_fee_total: overtimeFeeTotal,
+    pre_discount_total: preDiscountTotal,
+    discount_amount: discountAmountValue,
+    taxable_amount: taxableAmount,
     vat_amount: vatAmount,
     total_amount: totalAmount,
     items_with_calculated_price: itemsWithCalculatedPrice,

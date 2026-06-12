@@ -9,6 +9,7 @@ export const EMPTY_MANUAL_CONTRACT_SOURCE = {
     subtotal: 0,
     travel_fee_total: 0,
     overtime_fee_total: 0,
+    discount_amount: 0,
     vat_amount: 0,
     total_amount: 0,
     items: [
@@ -209,6 +210,7 @@ function buildJobQuoteSnapshot(job = {}, scheduleParams = {}) {
     location: scheduleParams.location || quoteSnapshot.location || job.location || '',
     has_vat: hasVat,
     subtotal,
+    discount_amount: Number(quoteSnapshot.discount_amount || 0),
     vat_amount: vatAmount,
     total_amount: total,
     items: [{

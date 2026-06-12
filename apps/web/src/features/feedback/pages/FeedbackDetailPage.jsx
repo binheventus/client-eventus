@@ -57,6 +57,40 @@ const FEEDBACK_IMAGE_MAX_BYTES = Math.max(128 * 1024, Number(import.meta.env.VIT
 const EVENTUS_FEEDBACK_LOGO = '/logos/logo_eventus.png'
 const EVENTUS_FEEDBACK_DARK_LOGO = '/logos/logo_eventus_dark.png'
 
+function normalizeWheelDeltaY(event) {
+  const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? window.innerHeight : 1
+  return event.deltaY * unit
+}
+
+function getMaxScrollTop(element) {
+  if (!element) return 0
+  return Math.max(0, element.scrollHeight - element.clientHeight)
+}
+
+function scrollElementByDeltaY(element, deltaY = 0) {
+  if (!element || !Number.isFinite(deltaY) || Math.abs(deltaY) < 0.5) return false
+
+  const maxScrollTop = getMaxScrollTop(element)
+  if (maxScrollTop <= 1) return false
+
+  const nextScrollTop = Math.max(0, Math.min(maxScrollTop, element.scrollTop + deltaY))
+  if (Math.abs(nextScrollTop - element.scrollTop) < 0.5) return false
+
+  element.scrollTop = nextScrollTop
+  return true
+}
+
+function scrollClosestFeedbackWorkspaceToEnd(target) {
+  const workspace = target?.closest?.('.feedback-detail-workspace')
+  const maxScrollTop = getMaxScrollTop(workspace)
+  if (maxScrollTop <= 1) return
+  workspace.scrollTo({ top: maxScrollTop, behavior: 'smooth' })
+}
+
+function isFeedbackPopupTarget(target) {
+  return Boolean(target?.closest?.('[role="dialog"], .feedback-version-menu'))
+}
+
 function Alert({ type = 'info', children, className = '' }) {
   const styles = type === 'error'
     ? 'border-[#f79820]/30 bg-[#f79820]/10 text-[#b86414]'
@@ -372,7 +406,7 @@ function FeedbackNameInline({ feedback, fallbackDate, className = '', nameClassN
   )
 }
 
-function LinkifiedFeedbackText({ value }) {
+function LinkifiedFeedbackText({ value, compactLinks = false }) {
   const parts = useMemo(() => linkifyFeedbackText(value), [value])
   return (
     <>
@@ -382,8 +416,9 @@ function LinkifiedFeedbackText({ value }) {
           href={part.href}
           target="_blank"
           rel="noreferrer"
+          title={compactLinks ? part.text : undefined}
           onClick={event => event.stopPropagation()}
-          className="text-[13px] font-normal text-blue-600 underline-offset-2 hover:underline"
+          className={`${compactLinks ? 'block w-full min-w-0 truncate whitespace-nowrap' : ''} text-[13px] font-normal text-blue-600 underline-offset-2 hover:underline`}
         >
           {part.text}
         </a>
@@ -403,6 +438,9 @@ function LinkedEditableText({
   minHeightClass = 'min-h-[34px]',
   className = '',
   autoResize = true,
+  compactLinks = false,
+  onMouseEnter,
+  onFocus,
 }) {
   const [editing, setEditing] = useState(false)
   const textareaRef = useRef(null)
@@ -441,6 +479,8 @@ function LinkedEditableText({
           setEditing(false)
         }}
         onChange={event => onChange?.(event.target.value)}
+        onFocus={onFocus}
+        onMouseEnter={onMouseEnter}
         placeholder={placeholder}
         rows={rows}
         className={`block ${minHeightClass} w-full resize-none ${autoResize ? 'overflow-hidden' : 'overflow-y-auto'} border-0 bg-transparent p-0 text-[13px] leading-5 text-slate-900 outline-none placeholder:text-slate-400 ${className}`}
@@ -453,6 +493,8 @@ function LinkedEditableText({
       role="textbox"
       tabIndex={0}
       onClick={startEditing}
+      onFocus={onFocus}
+      onMouseEnter={onMouseEnter}
       onKeyDown={event => {
         if (event.key !== 'Enter' && event.key !== ' ') return
         event.preventDefault()
@@ -460,7 +502,7 @@ function LinkedEditableText({
       }}
       className={`block ${minHeightClass} w-full cursor-text whitespace-pre-wrap break-words text-[13px] leading-5 outline-none focus:ring-2 focus:ring-[#f79820]/20 ${hasValue ? 'text-slate-900' : 'text-slate-400'} ${className}`}
     >
-      {hasValue ? <LinkifiedFeedbackText value={value} /> : placeholder}
+      {hasValue ? <LinkifiedFeedbackText value={value} compactLinks={compactLinks} /> : placeholder}
     </div>
   )
 }
@@ -755,7 +797,8 @@ function InlineFeedbackField({ comment, column, access, className = '', placehol
         placeholder={placeholder}
         rows={1}
         minHeightClass="min-h-[34px]"
-        className={`flex-1 ${className}`}
+        className={`min-w-0 flex-1 ${className}`}
+        compactLinks
       />
       {saving && <span className="mt-1 shrink-0 text-[10px] font-semibold text-slate-400">Đang lưu</span>}
     </>
@@ -1056,8 +1099,19 @@ function OverallFeedbackPanel({ feedback, access, onChanged, fillHeight = false 
     }
   }
 
+  const scrollContentEndIntoView = useCallback(event => {
+    if (!fillHeight) return
+    const target = event.currentTarget
+    window.requestAnimationFrame(() => {
+      scrollClosestFeedbackWorkspaceToEnd(target)
+    })
+  }, [fillHeight])
+
   return (
-    <section onMouseLeave={save} className={`${fillHeight ? 'flex h-full min-h-0 flex-col overflow-hidden p-3' : 'p-2.5'} rounded-lg border border-[#f79820]/30 bg-[#f79820]/10 shadow-sm`}>
+    <section
+      onMouseLeave={save}
+      className={`${fillHeight ? 'p-3' : 'p-2.5'} rounded-lg border border-[#f79820]/30 bg-[#f79820]/10 shadow-sm`}
+    >
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-[12px] font-semibold uppercase text-slate-950">Feedback tổng quan</h2>
         {saveStatus && (
@@ -1067,11 +1121,13 @@ function OverallFeedbackPanel({ feedback, access, onChanged, fillHeight = false 
           </span>
         )}
       </div>
-      <div className={`${fillHeight ? 'flex min-h-0 flex-1 flex-col' : ''} mt-2`}>
-        <div className={`${fillHeight ? 'flex min-h-0 flex-1 flex-col overflow-hidden' : ''} rounded-md border border-slate-200 bg-white px-2.5 py-2 focus-within:border-[#f79820] focus-within:ring-2 focus-within:ring-[#f79820]/20`}>
+      <div className="mt-2">
+        <div className="rounded-md border border-slate-200 bg-white px-2.5 py-2 focus-within:border-[#f79820] focus-within:ring-2 focus-within:ring-[#f79820]/20">
           <LinkedEditableText
             value={value}
             onBlur={save}
+            onMouseEnter={scrollContentEndIntoView}
+            onFocus={scrollContentEndIntoView}
             onChange={nextValue => {
               setValue(nextValue)
               setSaveStatus('')
@@ -1079,8 +1135,7 @@ function OverallFeedbackPanel({ feedback, access, onChanged, fillHeight = false 
             placeholder="Nhập nhận xét tổng quan..."
             rows={fillHeight ? 2 : 3}
             minHeightClass={fillHeight ? 'min-h-[42px]' : 'min-h-[60px]'}
-            className={fillHeight ? 'min-h-0 flex-1 overflow-y-auto' : ''}
-            autoResize={!fillHeight}
+            autoResize
           />
         </div>
       </div>
@@ -1554,6 +1609,24 @@ export default function FeedbackDetailPage() {
   const footerCopyright = footerStatus || 'Copyright © 2017 - 2026 Eventus Production. All rights reserved.'
   const feedbackLogoSrc = feedbackDarkMode ? EVENTUS_FEEDBACK_DARK_LOGO : EVENTUS_FEEDBACK_LOGO
   const feedbackPublicUrl = detail?.public_url || getFeedbackPublicPath(feedback)
+  const feedbackModalOpen = Boolean(feedbackDonePopup)
+    || footerEditorOpen
+    || customerMessageOpen
+    || deleteFeedbackDialogOpen
+    || newFeedbackDraftOpen
+    || newFeedbackClonePromptOpen
+
+  const scrollFeedbackWorkspaceBy = useCallback((deltaY = 0) => {
+    return scrollElementByDeltaY(feedbackWorkspaceRef.current, deltaY)
+  }, [])
+
+  const handleFeedbackPageWheel = useCallback(event => {
+    if (feedbackModalOpen || event.ctrlKey || event.metaKey || isFeedbackPopupTarget(event.target)) return
+    if (!scrollFeedbackWorkspaceBy(normalizeWheelDeltaY(event))) return
+
+    event.preventDefault()
+    event.stopPropagation()
+  }, [feedbackModalOpen, scrollFeedbackWorkspaceBy])
 
   async function load() {
     setLoading(true)
@@ -1794,33 +1867,62 @@ export default function FeedbackDetailPage() {
   useEffect(() => {
     const shell = videoShellRef.current
     if (!shell) return undefined
+    let lastTouchY = null
 
     function isInsideVideo(clientX, clientY) {
       const rect = shell.getBoundingClientRect()
       return clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom
     }
 
-    function preventVideoWheel(event) {
+    function scrollVideoWheel(event) {
       if (!isInsideVideo(event.clientX, event.clientY)) return
+      if (event.ctrlKey || event.metaKey) return
+      if (!scrollFeedbackWorkspaceBy(normalizeWheelDeltaY(event))) return
+
       event.preventDefault()
       event.stopPropagation()
     }
 
-    function preventVideoTouch(event) {
+    function rememberVideoTouch(event) {
       const touch = event.touches?.[0]
       if (!touch || !isInsideVideo(touch.clientX, touch.clientY)) return
+      lastTouchY = touch.clientY
+    }
+
+    function scrollVideoTouch(event) {
+      const touch = event.touches?.[0]
+      if (!touch || !isInsideVideo(touch.clientX, touch.clientY)) return
+      if (lastTouchY === null) {
+        lastTouchY = touch.clientY
+        return
+      }
+
+      const deltaY = lastTouchY - touch.clientY
+      lastTouchY = touch.clientY
+      if (!scrollFeedbackWorkspaceBy(deltaY)) return
+
       event.preventDefault()
       event.stopPropagation()
     }
 
-    window.addEventListener('wheel', preventVideoWheel, { passive: false, capture: true })
-    window.addEventListener('touchmove', preventVideoTouch, { passive: false, capture: true })
+    function clearVideoTouch() {
+      lastTouchY = null
+    }
+
+    window.addEventListener('wheel', scrollVideoWheel, { passive: false, capture: true })
+    window.addEventListener('touchstart', rememberVideoTouch, { passive: true, capture: true })
+    window.addEventListener('touchmove', scrollVideoTouch, { passive: false, capture: true })
+    window.addEventListener('touchend', clearVideoTouch, { capture: true })
+    window.addEventListener('touchcancel', clearVideoTouch, { capture: true })
 
     return () => {
-      window.removeEventListener('wheel', preventVideoWheel, { capture: true })
-      window.removeEventListener('touchmove', preventVideoTouch, { capture: true })
+      window.removeEventListener('wheel', scrollVideoWheel, { capture: true })
+      window.removeEventListener('touchstart', rememberVideoTouch, { capture: true })
+      window.removeEventListener('touchmove', scrollVideoTouch, { capture: true })
+      window.removeEventListener('touchend', clearVideoTouch, { capture: true })
+      window.removeEventListener('touchcancel', clearVideoTouch, { capture: true })
     }
-  }, [embedUrl])
+  }, [embedUrl, scrollFeedbackWorkspaceBy])
 
   async function refresh() {
     const next = await getFeedbackDetail(id, access)
@@ -2080,7 +2182,10 @@ export default function FeedbackDetailPage() {
   }
 
   return (
-    <main className={`feedback-detail-page h-[100dvh] overflow-hidden bg-slate-50 ${feedbackDarkMode ? 'feedback-detail-page--dark' : ''}`}>
+    <main
+      className={`feedback-detail-page h-[100dvh] overflow-hidden bg-slate-50 ${feedbackDarkMode ? 'feedback-detail-page--dark' : ''}`}
+      onWheelCapture={handleFeedbackPageWheel}
+    >
       <div className="flex h-full flex-col px-3 py-2 lg:pl-0 lg:pr-3">
         <header className="shrink-0 rounded-lg border border-slate-200 bg-white shadow-sm lg:rounded-l-none">
           <div className="flex flex-col gap-2 px-3 py-2 lg:flex-row lg:items-center lg:justify-between lg:gap-3 lg:px-4 lg:py-3">
@@ -2181,7 +2286,12 @@ export default function FeedbackDetailPage() {
             {!feedback.video_url && (
               <div className="lg:grid lg:gap-3 lg:grid-cols-[minmax(0,2.2fr)_minmax(380px,0.85fr)] xl:grid-cols-[minmax(0,2.35fr)_minmax(410px,0.9fr)]">
                 <SetupPanel detail={detail} access={access} onSaved={setDetail} />
-                <OverallFeedbackPanel feedback={feedback} access={access} onChanged={refresh} fillHeight />
+                <OverallFeedbackPanel
+                  feedback={feedback}
+                  access={access}
+                  onChanged={refresh}
+                  fillHeight
+                />
               </div>
             )}
           </div>
@@ -2189,22 +2299,22 @@ export default function FeedbackDetailPage() {
 
         <section
           ref={feedbackWorkspaceRef}
-          className="feedback-detail-workspace mt-2 flex min-h-0 flex-1 flex-col gap-2 overflow-hidden lg:grid lg:gap-3"
+          className="feedback-detail-workspace mt-2 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overflow-x-hidden overscroll-contain pb-3 pr-1 lg:grid lg:gap-3"
         >
-	          <div ref={videoShellRef} className="min-w-0 shrink-0 overscroll-none lg:h-full lg:self-start">
-              <div className="feedback-detail-video-stack mx-auto w-full max-w-full lg:flex lg:h-full lg:flex-col">
-	            <div className="overflow-hidden overscroll-none rounded-lg border border-slate-200 bg-white shadow-sm lg:rounded-l-none">
-	              {embedUrl ? (
-	                <div className="relative aspect-video overflow-hidden bg-white">
-	                  <iframe
-	                    id="feedback-youtube-player"
-	                    title={feedback.video_title || feedback.name || 'Feedback video'}
-	                    src={embedUrl}
-	                    className="absolute -top-px left-0 block h-[calc(100%+2px)] w-full border-0 bg-white overscroll-none"
-	                    scrolling="no"
-		                    allow="accelerometer; autoplay; encrypted-media; gyroscope"
-		                    referrerPolicy="strict-origin-when-cross-origin"
-			                  />
+          <div ref={videoShellRef} className="min-w-0 shrink-0 overscroll-none lg:self-start">
+            <div className="feedback-detail-video-stack mx-auto w-full max-w-full lg:flex lg:flex-col">
+              <div className="overflow-hidden overscroll-none rounded-lg border border-slate-200 bg-white shadow-sm lg:rounded-l-none">
+                {embedUrl ? (
+                  <div className="relative aspect-video overflow-hidden bg-white">
+                    <iframe
+                      id="feedback-youtube-player"
+                      title={feedback.video_title || feedback.name || 'Feedback video'}
+                      src={embedUrl}
+                      className="absolute -top-px left-0 block h-[calc(100%+2px)] w-full border-0 bg-white overscroll-none"
+                      scrolling="no"
+                      allow="accelerometer; autoplay; encrypted-media; gyroscope"
+                      referrerPolicy="strict-origin-when-cross-origin"
+                    />
                     {videoClickToPlayActive && (
                       <button
                         type="button"
@@ -2213,45 +2323,53 @@ export default function FeedbackDetailPage() {
                         aria-label="Phát video từ timecode đã chọn"
                       />
                     )}
-			                </div>
-	              ) : (
-	                <div className="grid aspect-video place-items-center bg-slate-100 text-center">
-	                  <div>
-	                    <Video className="mx-auto h-10 w-10 text-slate-300" />
-	                    <p className="mt-2 text-[13px] font-semibold text-slate-500">Chưa có video để hiển thị.</p>
-	                  </div>
-	                </div>
-	              )}
-	            </div>
-            <div ref={videoTimelineRef}>
-              <FeedbackTimelineBar comments={comments} duration={videoDuration} onSelect={selectTimelineComment} />
+                  </div>
+                ) : (
+                  <div className="grid aspect-video place-items-center bg-slate-100 text-center">
+                    <div>
+                      <Video className="mx-auto h-10 w-10 text-slate-300" />
+                      <p className="mt-2 text-[13px] font-semibold text-slate-500">Chưa có video để hiển thị.</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div ref={videoTimelineRef}>
+                <FeedbackTimelineBar comments={comments} duration={videoDuration} onSelect={selectTimelineComment} />
+              </div>
+              {feedback.video_url && (
+                <div
+                  ref={feedbackOverviewSlotRef}
+                  className="feedback-overview-slot mt-2 min-h-[120px] overflow-visible lg:min-h-0 lg:flex-none"
+                >
+                  <OverallFeedbackPanel
+                    feedback={feedback}
+                    access={access}
+                    onChanged={refresh}
+                    fillHeight
+                  />
+                </div>
+              )}
             </div>
-            {feedback.video_url && (
-              <div ref={feedbackOverviewSlotRef} className="feedback-overview-slot mt-2 min-h-[120px] lg:min-h-0 lg:flex-1 lg:overflow-hidden">
-                <OverallFeedbackPanel feedback={feedback} access={access} onChanged={refresh} fillHeight />
-              </div>
-            )}
-              </div>
           </div>
 
           <aside className="flex min-h-0 flex-1 flex-col overflow-hidden lg:h-full lg:pr-1">
             <div className="feedback-detail-comment-list min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pb-0">
-	              {comments.length ? comments.map(comment => (
-	                <CommentCard
-	                  key={comment.id}
-	                  comment={comment}
-	                  showSecondColumn={feedback.more_column}
-	                  access={access}
+              {comments.length ? comments.map(comment => (
+                <CommentCard
+                  key={comment.id}
+                  comment={comment}
+                  showSecondColumn={feedback.more_column}
+                  access={access}
                   onChanged={refresh}
                   onSeek={seekTo}
                   onSelect={setSelectedCommentId}
                   isHighlighted={selectedCommentId === comment.id || selectedTimelineCommentId === comment.id}
-	                  cardRef={node => {
-	                    if (node) commentCardRefs.current[comment.id] = node
-	                    else delete commentCardRefs.current[comment.id]
-	                  }}
-	                />
-	              )) : (
+                  cardRef={node => {
+                    if (node) commentCardRefs.current[comment.id] = node
+                    else delete commentCardRefs.current[comment.id]
+                  }}
+                />
+              )) : (
                 <div className="rounded-lg border border-dashed border-slate-300 bg-white px-5 py-10 text-center">
                   <p className="text-[14px] font-semibold text-slate-800">Chưa có feedback timeline</p>
                   <p className="mt-1 text-[13px] text-slate-500">Nhập nội dung góp ý ở ô bên dưới để bắt đầu.</p>
@@ -2302,7 +2420,7 @@ export default function FeedbackDetailPage() {
               </div>
             </form>
           </aside>
-	        </section>
+        </section>
         <footer className="mt-2 hidden shrink-0 rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-1.5 text-[11px] text-slate-400 lg:block lg:rounded-l-none">
           <div className="flex flex-col gap-1.5 lg:flex-row lg:items-center">
             <div className="shrink-0">

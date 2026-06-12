@@ -101,6 +101,22 @@ function getGroupTotal(items = []) {
   return items.reduce((sum, item) => sum + Number(item.total_price || 0), 0)
 }
 
+function getPreDiscountTotal(totals = {}) {
+  const explicitTotal = Number(totals.pre_discount_total)
+  if (Number.isFinite(explicitTotal) && explicitTotal > 0) return explicitTotal
+  return Number(totals.subtotal || 0) + Number(totals.travel_fee_total || 0) + Number(totals.overtime_fee_total || 0)
+}
+
+function getTaxableAmount(totals = {}) {
+  const explicitAmount = Number(totals.taxable_amount)
+  if (Number.isFinite(explicitAmount) && explicitAmount >= 0) return explicitAmount
+  return Math.max(0, getPreDiscountTotal(totals) - getDiscountAmount(totals))
+}
+
+function getDiscountAmount(totals = {}) {
+  return Math.min(Math.max(0, Number(totals.discount_amount || 0)), getPreDiscountTotal(totals))
+}
+
 function ContactRow({ row, highlight = false }) {
   if (row.includes(' | ')) {
     const [first, second] = row.split(' | ')
@@ -269,7 +285,7 @@ export default function QuotePreview({
   sticky = true,
   tableOnly = false,
   showStamp,
-  subtotalLabel = 'Subtotal',
+  subtotalLabel = 'Cộng tiền dịch vụ',
 }) {
   const entityRows = entities.length ? entities : legalEntitiesData
   const entity = getEntity(quote.entity_code, entityRows)
@@ -279,6 +295,8 @@ export default function QuotePreview({
   const mobileContactRows = getEntityMobileContactRows(entity, quote.entity_code)
   const showTravelFee = Number(totals.travel_fee_total || 0) > 0
   const showOvertimeFee = Number(totals.overtime_fee_total || 0) > 0
+  const discountAmount = getDiscountAmount(totals)
+  const showDiscount = discountAmount > 0
   const showVat = Boolean(quote.has_vat)
   const clientName = client?.name || quote.client_name || 'Quý khách hàng'
   const quoteCode = quote.quote_number || quote.id || quote.share_token || ''
@@ -393,6 +411,18 @@ export default function QuotePreview({
               <span>{formatCurrency(totals.overtime_fee_total)}đ</span>
             </div>
           ) : null}
+          {showDiscount ? (
+            <>
+              <div className="flex justify-between gap-6 text-black">
+                <span>Chiết khấu ưu đãi</span>
+                <span>-{formatCurrency(discountAmount)}đ</span>
+              </div>
+              <div className="flex justify-between gap-6 font-semibold text-black">
+                <span>Giá trị sau chiết khấu</span>
+                <span>{formatCurrency(getTaxableAmount(totals))}đ</span>
+              </div>
+            </>
+          ) : null}
           {showVat ? (
             <div className="flex justify-between gap-6 text-black">
               <span>Thuế GTGT 8%</span>
@@ -401,7 +431,7 @@ export default function QuotePreview({
           ) : null}
           <div className="border-t border-slate-200 pt-2">
             <div className={`flex justify-between font-bold text-black ${tableOnly ? 'text-[14px]' : 'text-[15px]'}`}>
-              <span>Tổng cộng</span>
+              <span>Tổng thanh toán</span>
               <span>{formatCurrency(totals.total_amount)}đ</span>
             </div>
           </div>

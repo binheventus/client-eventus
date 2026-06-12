@@ -95,6 +95,22 @@ function getGroupTotal(items = []) {
   return items.reduce((sum, item) => sum + Number(item.total_price || 0), 0)
 }
 
+function getPreDiscountTotal(quote = {}) {
+  const explicitTotal = Number(quote.pre_discount_total)
+  if (Number.isFinite(explicitTotal) && explicitTotal > 0) return explicitTotal
+  return Number(quote.subtotal || 0) + Number(quote.travel_fee_total || 0) + Number(quote.overtime_fee_total || 0)
+}
+
+function getTaxableAmount(quote = {}) {
+  const explicitAmount = Number(quote.taxable_amount)
+  if (Number.isFinite(explicitAmount) && explicitAmount >= 0) return explicitAmount
+  return Math.max(0, getPreDiscountTotal(quote) - getDiscountAmount(quote))
+}
+
+function getDiscountAmount(quote = {}) {
+  return Math.min(Math.max(0, Number(quote.discount_amount || 0)), getPreDiscountTotal(quote))
+}
+
 export function getQuoteExcelFilename(quote = {}) {
   const quoteNumber = String(quote.quote_number || getQuoteCode(quote) || 'DRAFT').replace(/^#/, '').replace(/[^a-zA-Z0-9]/g, '') || 'DRAFT'
   const entityLabel = isMediaMonsterEntityCode(quote.entity_code) ? 'Mediamonster' : 'Eventus'
@@ -143,11 +159,16 @@ export function buildQuoteExcelRows(quote = {}, items = [], options = {}) {
     rows.push(['Chưa có hạng mục.', null, null, null, null, 0])
   }
 
-  rows.push(['Cộng  ', null, null, null, null, Number(quote.subtotal || 0)])
+  rows.push(['Cộng tiền dịch vụ  ', null, null, null, null, Number(quote.subtotal || 0)])
   if (Number(quote.travel_fee_total || 0) > 0) rows.push(['Phụ phí di chuyển  ', null, null, null, null, Number(quote.travel_fee_total || 0)])
   if (Number(quote.overtime_fee_total || 0) > 0) rows.push(['Phụ phí Over-time  ', null, null, null, null, Number(quote.overtime_fee_total || 0)])
+  const discountAmount = getDiscountAmount(quote)
+  if (discountAmount > 0) {
+    rows.push(['Chiết khấu ưu đãi  ', null, null, null, null, -discountAmount])
+    rows.push(['Giá trị sau chiết khấu  ', null, null, null, null, getTaxableAmount(quote)])
+  }
   if (quote.has_vat) rows.push(['VAT 8%  ', null, null, null, null, Number(quote.vat_amount || 0)])
-  rows.push([quote.has_vat ? 'Tổng chi phí (Đã bao gồm VAT)  ' : 'Tổng chi phí  ', null, null, null, null, Number(quote.total_amount || 0)])
+  rows.push([quote.has_vat ? 'Tổng thanh toán (Đã bao gồm VAT)  ' : 'Tổng thanh toán  ', null, null, null, null, Number(quote.total_amount || 0)])
 
   const matchedEquipmentRules = getMatchedEquipmentRules(items, equipmentRules)
   const terms = getQuoteTerms(quote)
@@ -256,8 +277,8 @@ function applyQuoteSheetFormatting(sheet, rows) {
   })
   sheet.getRow(headerRowNumber + 1).height = 6
 
-  const subtotalRowNumber = rows.findIndex(row => row[0] === 'Cộng  ') + 1
-  const grandTotalRowNumber = rows.findIndex(row => String(row[0] || '').startsWith('Tổng chi phí')) + 1
+  const subtotalRowNumber = rows.findIndex(row => row[0] === 'Cộng tiền dịch vụ  ') + 1
+  const grandTotalRowNumber = rows.findIndex(row => String(row[0] || '').startsWith('Tổng thanh toán')) + 1
   const tableEndRowNumber = subtotalRowNumber - 1
 
   for (let rowNumber = headerRowNumber + 2; rowNumber <= tableEndRowNumber; rowNumber += 1) {

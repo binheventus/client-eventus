@@ -33,6 +33,8 @@ const DEFAULT_QUOTE = {
   has_vat: true,
   show_stamp: false,
   terms_text: '',
+  discount_amount: 0,
+  discount_note: '',
   status: 'sent',
   sent_at: null,
 }
@@ -446,6 +448,18 @@ function renumberQuoteItems(items = []) {
 
 function calculateQuoteItemTotal(item = {}) {
   return (Number(item.quantity) || 0) * (Number(item.num_sessions) || 1) * (Number(item.unit_price) || 0)
+}
+
+function getPreDiscountTotal(totals = {}) {
+  const explicitTotal = Number(totals.pre_discount_total)
+  if (Number.isFinite(explicitTotal) && explicitTotal > 0) return explicitTotal
+  return Number(totals.subtotal || 0) + Number(totals.travel_fee_total || 0) + Number(totals.overtime_fee_total || 0)
+}
+
+function getTaxableAmount(totals = {}) {
+  const explicitAmount = Number(totals.taxable_amount)
+  if (Number.isFinite(explicitAmount) && explicitAmount >= 0) return explicitAmount
+  return Math.max(0, getPreDiscountTotal(totals) - Number(totals.discount_amount || 0))
 }
 
 function getBillableDurationHours(value, fallback = DEFAULT_QUOTE.duration_hours) {
@@ -874,6 +888,8 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
           has_vat: existingQuote.has_vat !== false,
           show_stamp: existingQuote.show_stamp !== false,
           terms_text: existingQuote.terms_text || '',
+          discount_amount: Number(existingQuote.discount_amount || 0),
+          discount_note: existingQuote.discount_note || '',
           status: existingQuote.status || 'sent',
           sent_at: existingQuote.sent_at || null,
         }
@@ -938,8 +954,9 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
     location: quote.location,
     customer_tier: quote.tier_code,
     has_vat: quote.has_vat,
+    discount_amount: quote.discount_amount,
     duration_hours: quote.duration_hours,
-  }), [displayItems, services, travelFees, rulesMap, quote.location, quote.tier_code, quote.has_vat, quote.duration_hours])
+  }), [displayItems, services, travelFees, rulesMap, quote.location, quote.tier_code, quote.has_vat, quote.discount_amount, quote.duration_hours])
 
   const selectedClient = clients.find(client => client.id === quote.client_id) || null
   const normalizedClientQuery = clientQuery.trim().toLowerCase()
@@ -1215,6 +1232,7 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
     if (!hasEnteredClientName(quote.client_name || clientQuery)) return 'Bạn chưa nhập tên khách hàng.'
     if (!displayItems.length) return 'Phải có ít nhất 1 hạng mục.'
     if (displayItems.some(item => item.is_custom && !String(item.service_name || '').trim())) return 'Custom item cần có tên hạng mục.'
+    if (Number(quote.discount_amount || 0) > getPreDiscountTotal(totals)) return 'Chiết khấu không được lớn hơn tổng trước chiết khấu.'
     return ''
   }
 
@@ -1274,12 +1292,14 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
         subtotal: totals.subtotal,
         travel_fee_total: totals.travel_fee_total,
         overtime_fee_total: totals.overtime_fee_total,
+        discount_amount: totals.discount_amount,
+        discount_note: quote.discount_note || null,
         vat_amount: totals.vat_amount,
         total_amount: totals.total_amount,
         items: displayItems.map((item, index) => ({
           service_code: item.is_custom ? 'CUSTOM' : (item.service_code || item.resolved_service_code),
           service_name: item.service_name,
-          service_name_raw: item.service_name_raw || item.service_name,
+          service_name_raw: item.service_name_raw || item.service?.service_name || item.service?.quote_display_name || item.service_name,
           unit: item.unit || item.pricing_unit || item.service?.unit || 'Người',
           quantity: Number(item.quantity),
           num_sessions: Number(item.num_sessions),
@@ -1315,6 +1335,8 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
       setSaveState('idle')
     }
   }
+
+  const showDiscount = Number(totals.discount_amount || 0) > 0
 
   return (
     <div className="mx-auto w-full max-w-[1920px] space-y-5">
@@ -1506,17 +1528,35 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
                 />
               </div>
               <div className="ml-auto w-full max-w-md space-y-2 text-[14px]">
-                <div className="flex justify-end gap-5 text-slate-600"><span className="text-right">Subtotal</span><span className="min-w-[132px] text-right">{formatCurrency(totals.subtotal)}đ</span></div>
+                <div className="flex justify-end gap-5 text-slate-600"><span className="text-right">Cộng tiền dịch vụ</span><span className="min-w-[132px] text-right">{formatCurrency(totals.subtotal)}đ</span></div>
+                <label className="flex items-center justify-end gap-5 text-slate-600">
+                  <span className="text-right text-[13px] font-semibold">Giảm giá</span>
+                  <div className="flex h-[34px] w-[132px] shrink-0 items-center rounded-lg border border-slate-200 bg-white px-2.5 shadow-sm focus-within:border-[#f8981d] focus-within:ring-2 focus-within:ring-orange-100">
+                    <span className={`w-2 text-right text-[12px] font-semibold ${Number(quote.discount_amount || 0) > 0 ? 'text-slate-500' : 'text-transparent'}`}>-</span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      aria-label="Giảm giá"
+                      value={formatCurrency(quote.discount_amount)}
+                      onChange={event => setQuote(prev => ({ ...prev, discount_amount: parseCurrencyInput(event.target.value) }))}
+                      className="min-w-0 flex-1 bg-transparent text-right text-[13px] font-semibold text-slate-800 outline-none"
+                    />
+                    <span className="ml-1.5 text-[11px] font-semibold text-slate-400">đ</span>
+                  </div>
+                </label>
                 {Number(totals.travel_fee_total || 0) > 0 ? (
                   <div className="flex justify-end gap-5 text-slate-600"><span className="text-right">Phụ phí di chuyển</span><span className="min-w-[132px] text-right">{formatCurrency(totals.travel_fee_total)}đ</span></div>
                 ) : null}
                 {Number(totals.overtime_fee_total || 0) > 0 ? (
                   <div className="flex justify-end gap-5 text-slate-600"><span className="text-right">Phụ phí giờ vượt</span><span className="min-w-[132px] text-right">{formatCurrency(totals.overtime_fee_total)}đ</span></div>
                 ) : null}
+                {showDiscount ? (
+                  <div className="flex justify-end gap-5 text-slate-800"><span className="text-right font-semibold">Giá trị sau chiết khấu</span><span className="min-w-[132px] text-right font-semibold">{formatCurrency(getTaxableAmount(totals))}đ</span></div>
+                ) : null}
                 {quote.has_vat ? (
                   <div className="flex justify-end gap-5 text-slate-600"><span className="text-right">Thuế GTGT 8%</span><span className="min-w-[132px] text-right">{formatCurrency(totals.vat_amount)}đ</span></div>
                 ) : null}
-                <div className="flex justify-end gap-5 border-t border-slate-200 pt-3 text-[20px] font-bold text-slate-950"><span className="text-right">Total</span><span className="min-w-[132px] text-right">{formatCurrency(totals.total_amount)}đ</span></div>
+                <div className="flex justify-end gap-5 border-t border-slate-200 pt-3 text-[20px] font-bold text-slate-950"><span className="text-right">Tổng thanh toán</span><span className="min-w-[132px] text-right">{formatCurrency(totals.total_amount)}đ</span></div>
               </div>
             </div>
 

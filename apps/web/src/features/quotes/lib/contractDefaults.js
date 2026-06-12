@@ -534,6 +534,8 @@ export function buildQuoteSnapshot(quote = {}) {
     subtotal: Number(quote.subtotal || 0),
     travel_fee_total: Number(quote.travel_fee_total || 0),
     overtime_fee_total: Number(quote.overtime_fee_total || 0),
+    discount_amount: Number(quote.discount_amount || 0),
+    discount_note: quote.discount_note || '',
     vat_amount: Number(quote.vat_amount || 0),
     total_amount: Number(quote.total_amount || 0),
     items: items.map((item, index) => ({
@@ -602,6 +604,8 @@ export function buildSingleLineQuoteSnapshot(snapshot = {}, patch = {}) {
     vat_mode: vatMode,
     contract_value_input: inputAmount,
     subtotal,
+    discount_amount: 0,
+    discount_note: '',
     vat_amount: vatAmount,
     total_amount: totalAmount,
     items: [nextItem],

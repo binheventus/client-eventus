@@ -7,6 +7,7 @@ const {
   buildQuoteSurveyNotificationContent,
   buildQuoteSurveyNotificationPayload,
   formatQuoteNotificationDate,
+  normalizePricedQuoteItemForSave,
 } = __quotesTestInternals
 
 test('duplicated quote payload resets identity, ownership, status, and reprices service items', () => {
@@ -108,6 +109,68 @@ test('duplicated quote payload keeps custom item manual pricing', () => {
   assert.equal(payload.items[0].service_code, 'CUSTOM')
   assert.equal(payload.items[0].unit_price, 800_000)
   assert.equal(payload.items[0].is_overridden, true)
+})
+
+test('duplicated quote payload preserves quote-level discount and recalculates VAT', () => {
+  const payload = buildDuplicatedQuotePayload({
+    tier_code: 'TIER_2',
+    location: 'Nội thành Hà Nội',
+    duration_hours: 4,
+    has_vat: true,
+    discount_amount: 500_000,
+    items: [{
+      service_code: 'CHUP_IN_4H',
+      service_name: 'Chụp ảnh sự kiện',
+      quantity: 2,
+      num_sessions: 1,
+      unit_price: 1_500_000,
+      original_unit_price: 1_500_000,
+      is_overridden: false,
+    }],
+  }, {}, {
+    services: [{
+      service_code: 'CHUP_IN_4H',
+      quote_display_name: 'Chụp ảnh sự kiện',
+      unit: 'Người',
+      price_tier_2: 1_500_000,
+    }],
+    travelFees: [],
+    businessRules: {
+      VAT_RATE: 0.08,
+    },
+  })
+
+  assert.equal(payload.subtotal, 3_000_000)
+  assert.equal(payload.discount_amount, 500_000)
+  assert.equal(payload.vat_amount, 200_000)
+  assert.equal(payload.total_amount, 2_700_000)
+})
+
+test('saving a repriced quote item keeps the edited display service name', () => {
+  const item = normalizePricedQuoteItemForSave({
+    service_code: 'CHUP_IN_4H',
+    resolved_service_code: 'CHUP_IN_4H',
+    service_name: 'Chụp ảnh booth check-in theo concept riêng',
+    service_name_raw: 'Chụp ảnh booth check-in theo concept riêng',
+    unit: 'Người',
+    quantity: 1,
+    num_sessions: 1,
+    unit_price: 2_200_000,
+    total_price: 2_200_000,
+    is_overridden: false,
+    service: {
+      service_code: 'CHUP_IN_4H',
+      quote_display_name: 'Chụp ảnh sự kiện',
+      service_name: 'Chụp ảnh sự kiện tại nội thành',
+      unit: 'Người',
+    },
+  })
+
+  assert.equal(item.service_code, 'CHUP_IN_4H')
+  assert.equal(item.service_name, 'Chụp ảnh booth check-in theo concept riêng')
+  assert.equal(item.service_name_raw, 'Chụp ảnh sự kiện')
+  assert.equal(item.unit_price, 2_200_000)
+  assert.equal(item.is_overridden, false)
 })
 
 test('quote survey notification title uses customer name and quote created date', () => {

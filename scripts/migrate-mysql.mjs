@@ -89,6 +89,16 @@ const quoteColumns = [
     columnName: 'show_stamp',
     definition: 'tinyint(1) not null default 1 after `has_vat`',
   },
+  {
+    tableName: 'client_quotes',
+    columnName: 'discount_amount',
+    definition: 'decimal(18,2) not null default 0 after `overtime_fee_total`',
+  },
+  {
+    tableName: 'client_quotes',
+    columnName: 'discount_note',
+    definition: 'varchar(255) null after `discount_amount`',
+  },
 ]
 
 const contractColumns = [

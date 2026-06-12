@@ -77,6 +77,41 @@ test('case 2: 2 chụp 1 quay 2 flycam, 5 tiếng, Hải Phòng, tier_2, có VAT
   assert.equal(result.items_with_calculated_price[2].unit_price, 3500000)
 })
 
+test('discount is applied before VAT and is capped at the pre-discount total', () => {
+  const result = calculateQuotePricing({
+    items: [{ service_code: 'PHOTO', quantity: 2, num_sessions: 1 }],
+    services,
+    travelFees,
+    businessRules,
+    location: 'nội thành Hà Nội',
+    customer_tier: 'TIER_2',
+    has_vat: true,
+    discount_amount: 500000,
+    duration_hours: 4,
+  })
+  const capped = calculateQuotePricing({
+    items: [{ service_code: 'PHOTO', quantity: 1, num_sessions: 1 }],
+    services,
+    travelFees,
+    businessRules,
+    location: 'nội thành Hà Nội',
+    customer_tier: 'TIER_2',
+    has_vat: true,
+    discount_amount: 5000000,
+    duration_hours: 4,
+  })
+
+  assert.equal(result.subtotal, 3000000)
+  assert.equal(result.pre_discount_total, 3000000)
+  assert.equal(result.discount_amount, 500000)
+  assert.equal(result.taxable_amount, 2500000)
+  assert.equal(result.vat_amount, 200000)
+  assert.equal(result.total_amount, 2700000)
+  assert.equal(capped.discount_amount, 1500000)
+  assert.equal(capped.taxable_amount, 0)
+  assert.equal(capped.total_amount, 0)
+})
+
 test('case 3: 1 quay, 10 tiếng nội thành, tier_2, có VAT', () => {
   const result = calculateQuotePricing({
     items: [{ service_code: 'VIDEO', quantity: 1, num_sessions: 1 }],

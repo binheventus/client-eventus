@@ -569,6 +569,7 @@ function buildJobQuoteSnapshot(job = {}) {
     subtotal: total,
     travel_fee_total: 0,
     overtime_fee_total: 0,
+    discount_amount: 0,
     vat_amount: 0,
     total_amount: total,
     items: [
@@ -897,6 +898,7 @@ function buildPublicQuoteSnapshot(snapshot = {}) {
     vat_mode: snapshot.vat_mode || '',
     vat_rate: snapshot.vat_rate ?? null,
     subtotal: Number(snapshot.subtotal || 0),
+    discount_amount: Number(snapshot.discount_amount || 0),
     vat_amount: Number(snapshot.vat_amount || 0),
     total_amount: Number(snapshot.total_amount || 0),
   }

@@ -29,6 +29,8 @@ create table if not exists client_quotes (
   subtotal decimal(18,2) not null default 0,
   travel_fee_total decimal(18,2) not null default 0,
   overtime_fee_total decimal(18,2) not null default 0,
+  discount_amount decimal(18,2) not null default 0,
+  discount_note varchar(255) null,
   vat_amount decimal(18,2) not null default 0,
   total_amount decimal(18,2) not null default 0,
   share_token varchar(32) not null unique,

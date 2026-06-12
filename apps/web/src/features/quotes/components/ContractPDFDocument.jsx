@@ -379,8 +379,15 @@ function QuoteItemsTable({ items = [] }) {
 }
 
 function Totals({ quote = {} }) {
+  const preDiscountTotal = Number(quote.pre_discount_total || 0) || (
+    Number(quote.subtotal || 0) + Number(quote.travel_fee_total || 0) + Number(quote.overtime_fee_total || 0)
+  )
+  const discountAmount = Math.min(Math.max(0, Number(quote.discount_amount || 0)), preDiscountTotal)
+  const taxableAmount = Number(quote.taxable_amount || 0) || Math.max(0, preDiscountTotal - discountAmount)
   const rows = [
     [CONTRACT_SUBTOTAL_LABEL, quote.subtotal],
+    discountAmount > 0 ? ['Chiết khấu ưu đãi', -discountAmount] : null,
+    discountAmount > 0 ? ['Giá trị sau chiết khấu', taxableAmount] : null,
     quote.has_vat !== false ? ['Thuế GTGT 8%', quote.vat_amount] : null,
   ].filter(Boolean)
 

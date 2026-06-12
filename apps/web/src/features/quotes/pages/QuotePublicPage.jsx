@@ -18,6 +18,7 @@ function sanitizePublicQuote(quote) {
     created_by: _createdBy,
     created_by_name: _createdByName,
     sales_name: _salesName,
+    discount_note: _discountNote,
     ...publicQuote
   } = quote
   return publicQuote
