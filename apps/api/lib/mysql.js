@@ -24,6 +24,7 @@ export const tables = {
   feedbackSurveyResponses: 'client_feedback_survey_responses',
   feedbackSurveyResponseAnswers: 'client_feedback_survey_response_answers',
   pages: 'client_pages',
+  videoReviewTasks: 'video_review_tasks',
   surveyVersions: 'survey_versions',
   surveyQuestions: 'questions',
   surveyAnswers: 'answers',

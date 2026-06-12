@@ -60,7 +60,7 @@ npm run build
 npm start
 ```
 
-NestJS server phục vụ cả API `/api/quotes`, `/api/contracts`, `/api/client-pages`, `/api/parse-quote` và frontend đã build trong `apps/web/dist`.
+NestJS server phục vụ cả API `/api/quotes`, `/api/contracts`, `/api/feedback`, `/api/parse-quote` và frontend đã build trong `apps/web/dist`.
 
 ## Feedback module
 
@@ -134,9 +134,9 @@ npm run pricing:export
 
 Các biến `GOOGLE_SERVICE_ACCOUNT_KEY_FILE` và `PRICING_SPREADSHEET_ID` chỉ dùng cho lệnh này, không liên quan tới MySQL runtime.
 
-## Cập nhật nội dung
+## Cập nhật dữ liệu
 
-Nội dung client portal runtime lưu trong bảng `client_pages`. Dữ liệu pricing nằm trong `apps/web/src/data/pricing/`. Khung năng lực cũ vẫn nằm tại `apps/web/src/data/competency.json`.
+Dữ liệu pricing nằm trong `apps/web/src/data/pricing/` và được dùng làm fallback khi MySQL pricing runtime chưa có dữ liệu hoặc API lỗi.
 
 ## Cấu trúc thư mục
 
@@ -145,8 +145,6 @@ apps/
 ├── api/                    NestJS API + MySQL runtime
 └── web/                    React/Vite frontend
     └── src/
-        ├── data/
-        │   └── competency.json
         ├── features/
         └── pages/
 ```

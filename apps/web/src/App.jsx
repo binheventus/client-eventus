@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Routes, Route, useLocation, useParams } from '
 
 const ClientPortalPage = lazy(() => import('./pages/ClientPortalPage'))
 const LandingPage = lazy(() => import('./pages/LandingPage'))
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
 const QuoteListPage = lazy(() => import('./features/quotes/pages/QuoteListPage'))
 const QuoteCreatePage = lazy(() => import('./features/quotes/pages/QuoteCreatePage'))
 const QuoteDetailPage = lazy(() => import('./features/quotes/pages/QuoteDetailPage'))
@@ -101,6 +102,7 @@ export default function App() {
       <Suspense fallback={<AppLoading />}>
         <Routes>
           <Route path="/" element={<LandingPage />} />
+          <Route path="/dashboard" element={<ClientPortalPage />} />
           <Route path="/quotes" element={<QuoteModuleShell><QuoteListPage /></QuoteModuleShell>} />
           <Route path="/quotes/new" element={<QuoteModuleShell><QuoteCreatePage /></QuoteModuleShell>} />
           <Route path="/quotes/trash" element={<QuoteModuleShell><QuoteTrashPage /></QuoteModuleShell>} />
@@ -133,9 +135,7 @@ export default function App() {
           <Route path="/q/:share_token" element={<QuotePublicPage />} />
           <Route path="/c/:share_token" element={<ContractPublicPage />} />
           <Route path="/d/:share_token" element={<ContractDocumentPublicPage />} />
-          <Route path="/position/:positionId" element={<ClientPortalPage />} />
-          <Route path="/position/:positionId/level/:levelIndex" element={<ClientPortalPage />} />
-          <Route path="*" element={<ClientPortalPage />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </Suspense>
     </BrowserRouter>

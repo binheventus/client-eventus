@@ -2,7 +2,6 @@ import 'reflect-metadata'
 import { All, Controller, Module, Req, Res } from '@nestjs/common'
 import { NestFactory } from '@nestjs/core'
 import contractsHandler from './contracts.js'
-import clientPagesHandler from './client-pages.js'
 import feedbackHandler from './feedback.js'
 import parseQuoteHandler from './parse-quote.js'
 import pricingHandler from './pricing.js'
@@ -31,14 +30,6 @@ class ContractsController {
 }
 Controller('api/contracts')(ContractsController)
 bindAllRoute(ContractsController, 'handle')
-
-class ClientPagesController {
-  handle(req, res) {
-    return clientPagesHandler(req, res)
-  }
-}
-Controller('api/client-pages')(ClientPagesController)
-bindAllRoute(ClientPagesController, 'handle')
 
 class FeedbackController {
   handle(req, res) {
@@ -77,7 +68,6 @@ Module({
   controllers: [
     QuotesController,
     ContractsController,
-    ClientPagesController,
     FeedbackController,
     ParseQuoteController,
     PricingAdminController,

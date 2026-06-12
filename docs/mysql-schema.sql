@@ -235,16 +235,6 @@ create table if not exists client_contract_document_number_ledger (
   key client_contract_doc_no_ledger_number_idx (document_number)
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 
-create table if not exists client_pages (
-  id bigint unsigned primary key auto_increment,
-  category varchar(120) not null,
-  title varchar(255) not null,
-  content longtext not null,
-  created_at datetime(3) not null default current_timestamp(3),
-  updated_at datetime(3) not null default current_timestamp(3) on update current_timestamp(3),
-  unique key client_pages_category_title_unique (category, title)
-) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
-
 create table if not exists client_feedbacks (
   id varchar(64) primary key,
   legacy_id bigint unsigned null,

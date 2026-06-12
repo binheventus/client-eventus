@@ -40,6 +40,8 @@ const JOB_PUBLIC_TOKEN_LENGTH = 18
 const PUBLIC_CODE_ALPHABET = '23456789abcdefghjkmnpqrstuvwxyz'
 const PUBLIC_CODE_LENGTH = 4
 const DEFAULT_PAGE_SIZE = 20
+const VIDEO_REVIEW_TASKS_TABLE = 'video_review_tasks'
+const JOB_TYPES_REQUIRING_FEEDBACK = [2, 3]
 const DEFAULT_FEEDBACK_IMAGE_MAX_BYTES = 3 * 1024 * 1024
 const DEFAULT_FEEDBACK_IMAGE_MAX_COUNT = 4
 const DEFAULT_FEEDBACK_ATTACHMENT_TTL_DAYS = 20
@@ -656,6 +658,8 @@ function normalizeFeedbackRow(row = {}) {
     job_date: row.job_date,
     drive_feedback: row.job_drive_feedback,
     gallery_drive: row.gallery_drive,
+    start_feedback: row.job_start_feedback,
+    end_feedback: row.job_end_feedback,
     editor_name: row.job_editor_name,
     editor_phone: row.job_editor_phone,
   })
@@ -716,6 +720,8 @@ function normalizeJobRow(row = {}) {
     gallery_drive: row.gallery_drive || '',
     editor_name: row.editor_name || '',
     editor_phone: row.editor_phone || '',
+    start_feedback: row.start_feedback || null,
+    end_feedback: row.end_feedback || null,
   }
 }
 
@@ -756,6 +762,8 @@ function getFeedbackListSelect() {
     j.public_token as job_public_token,
     j.drive_feedback as job_drive_feedback,
     j.gallery_drive,
+    j.start_feedback as job_start_feedback,
+    j.end_feedback as job_end_feedback,
     j.editor_name as job_editor_name,
     j.editor_phone as job_editor_phone
   `
@@ -824,7 +832,86 @@ async function listJobEmployees(jobId) {
   }
 }
 
-async function listFeedbackJobs({ search = '', page = 1, pageSize = DEFAULT_PAGE_SIZE } = {}) {
+function groupEmployeeNamesByJob(rows = []) {
+  return rows.reduce((map, row) => {
+    const jobId = String(row.job_id || '').trim()
+    const name = trimText(row.name || row.full_name, 255)
+    if (!jobId || !name) return map
+    const names = map.get(jobId) || []
+    if (!names.includes(name)) names.push(name)
+    map.set(jobId, names)
+    return map
+  }, new Map())
+}
+
+async function listJobCameraCrewByJobIds(jobIds = []) {
+  const ids = [...new Set(jobIds.map(id => String(id || '').trim()).filter(Boolean))]
+  if (!ids.length) return new Map()
+
+  const placeholders = ids.map(() => '?').join(', ')
+  try {
+    const rows = await query(
+      `select distinct ej.job_id, e.name
+       from ${tables.employeeJobs} ej
+       inner join ${tables.employees} e on e.id = ej.employee_id
+       inner join employee_skill es on es.employee_id = e.id
+       inner join skills s on s.id = es.skill_id
+       where ej.job_id in (${placeholders})
+         and ej.status = 'accepted'
+         and lower(s.name) like ?
+       order by e.name asc`,
+      [...ids, '%quay%'],
+    )
+    return groupEmployeeNamesByJob(rows)
+  } catch {
+    return new Map()
+  }
+}
+
+async function listJobVideoReviewersByJobIds(jobIds = []) {
+  const ids = [...new Set(jobIds.map(id => String(id || '').trim()).filter(Boolean))]
+  if (!ids.length) return new Map()
+
+  const placeholders = ids.map(() => '?').join(', ')
+  try {
+    const rows = await query(
+      `select distinct vrt.job_id, coalesce(e.zalo_name, e.name) as name
+       from ${VIDEO_REVIEW_TASKS_TABLE} vrt
+       inner join ${tables.employees} e on e.id = vrt.reviewer_id
+       where vrt.job_id in (${placeholders})
+         and vrt.revoked_at is null
+       order by name asc`,
+      ids,
+    )
+    return groupEmployeeNamesByJob(rows)
+  } catch {
+    return new Map()
+  }
+}
+
+async function attachCameraCrewToJobs(jobs = []) {
+  const crewByJobId = await listJobCameraCrewByJobIds(jobs.map(job => job.id))
+  return jobs.map(job => ({
+    ...job,
+    camera_staff_names: crewByJobId.get(String(job.id || '')) || [],
+  }))
+}
+
+async function attachVideoReviewersToJobs(jobs = []) {
+  const reviewersByJobId = await listJobVideoReviewersByJobIds(jobs.map(job => job.id))
+  return jobs.map(job => ({
+    ...job,
+    video_reviewer_names: reviewersByJobId.get(String(job.id || '')) || [],
+  }))
+}
+
+function addFeedbackRequiredJobTypeFilter(where = [], params = []) {
+  const placeholders = JOB_TYPES_REQUIRING_FEEDBACK.map(() => '?').join(', ')
+  where.push(`j.job_type in (${placeholders})`)
+  params.push(...JOB_TYPES_REQUIRING_FEEDBACK)
+}
+
+async function listFeedbackJobs({ search = '', page = 1, pageSize = DEFAULT_PAGE_SIZE, feedbackStatus = '' } = {}) {
   const limit = Math.min(Math.max(Number(pageSize) || DEFAULT_PAGE_SIZE, 1), 100)
   const offset = (Math.max(Number(page) || 1, 1) - 1) * limit
   const params = []
@@ -836,16 +923,14 @@ async function listFeedbackJobs({ search = '', page = 1, pageSize = DEFAULT_PAGE
     params.push(like, like)
   }
 
-  const whereSql = `where ${where.join(' and ')}`
-  const countRows = await query(`select count(*) as count from ${tables.jobs} j ${whereSql}`, params)
-  const rows = await query(
-    `select j.*,
-      latest.id as feedback_id,
-      latest.public_code as feedback_public_code,
-      latest.share_token as feedback_share_token,
-      latest.name as feedback_name,
-      latest.done_feedback as feedback_done
-     from ${tables.jobs} j
+  const normalizedFeedbackStatus = String(feedbackStatus || '').trim().toLowerCase()
+  if (['missing', 'none', 'not_created'].includes(normalizedFeedbackStatus)) {
+    where.push('latest.id is null')
+    addFeedbackRequiredJobTypeFilter(where, params)
+  }
+  if (['exists', 'created'].includes(normalizedFeedbackStatus)) where.push('latest.id is not null')
+
+  const latestFeedbackJoinSql = `
      left join (
        select f1.*
        from ${tables.feedbacks} f1
@@ -856,29 +941,229 @@ async function listFeedbackJobs({ search = '', page = 1, pageSize = DEFAULT_PAGE
          group by job_id
        ) f2 on f2.job_id = f1.job_id and f2.latest_created_at = f1.created_at
        where f1.deleted_at is null
-     ) latest on latest.job_id = j.id
+     ) latest on latest.job_id = j.id`
+  const whereSql = `where ${where.join(' and ')}`
+  const countRows = await query(`select count(distinct j.id) as count from ${tables.jobs} j ${latestFeedbackJoinSql} ${whereSql}`, params)
+  const rows = await query(
+    `select j.*,
+      latest.id as feedback_id,
+      latest.public_code as feedback_public_code,
+      latest.share_token as feedback_share_token,
+      latest.name as feedback_name,
+      latest.done_feedback as feedback_done
+     from ${tables.jobs} j
+     ${latestFeedbackJoinSql}
      ${whereSql}
      order by coalesce(j.job_date, j.created_at) desc, j.id desc
      limit ? offset ?`,
     [...params, limit, offset],
   )
 
+  const jobs = rows.map(row => ({
+    ...normalizeJobRow(row),
+    feedback_id: row.feedback_id || null,
+    feedback_public_code: row.feedback_public_code || null,
+    feedback_share_token: row.feedback_share_token || null,
+    feedback_name: row.feedback_name || null,
+    feedback_done: normalizeBoolean(row.feedback_done),
+  }))
+
   return {
-    jobs: rows.map(row => ({
-      ...normalizeJobRow(row),
-      feedback_id: row.feedback_id || null,
-      feedback_public_code: row.feedback_public_code || null,
-      feedback_share_token: row.feedback_share_token || null,
-      feedback_name: row.feedback_name || null,
-      feedback_done: normalizeBoolean(row.feedback_done),
-    })),
+    jobs: await attachCameraCrewToJobs(jobs),
     page: Number(page) || 1,
     pageSize: limit,
     total: Number(countRows?.[0]?.count || 0),
   }
 }
 
-async function listFeedbacks({ search = '', jobId = '', page = 1, pageSize = DEFAULT_PAGE_SIZE } = {}) {
+async function getFeedbackDashboardSummary({ search = '' } = {}) {
+  const latestFeedbackJoinSql = `
+     left join (
+       select f1.*
+       from ${tables.feedbacks} f1
+       inner join (
+         select job_id, max(created_at) as latest_created_at
+         from ${tables.feedbacks}
+         where deleted_at is null
+         group by job_id
+       ) f2 on f2.job_id = f1.job_id and f2.latest_created_at = f1.created_at
+       where f1.deleted_at is null
+     ) latest on latest.job_id = j.id`
+
+  const jobWhere = ['j.deleted_at is null']
+  const jobParams = []
+  const feedbackWhere = ['f.deleted_at is null']
+  const feedbackParams = []
+
+  if (search) {
+    const like = `%${search}%`
+    jobWhere.push('(j.job_title like ? or j.customer_name like ?)')
+    jobParams.push(like, like)
+    feedbackWhere.push('(f.name like ? or f.public_code like ? or f.video_title like ? or j.job_title like ? or j.customer_name like ?)')
+    feedbackParams.push(like, like, like, like, like)
+  }
+  addFeedbackRequiredJobTypeFilter(jobWhere, jobParams)
+
+  const missingWhereSql = `where ${[...jobWhere, 'latest.id is null'].join(' and ')}`
+  const feedbackWhereSql = `where ${feedbackWhere.join(' and ')}`
+
+  const missingRows = await query(
+    `select
+       count(distinct j.id) as total,
+       count(distinct case when j.end_feedback is not null and j.end_feedback < current_timestamp(3) then j.id end) as overdue,
+       count(distinct case when j.end_feedback is not null and j.end_feedback >= current_timestamp(3) and j.end_feedback <= date_add(current_timestamp(3), interval 24 hour) then j.id end) as due_soon,
+       count(distinct case when j.end_feedback is null then j.id end) as missing_deadline
+     from ${tables.jobs} j
+     ${latestFeedbackJoinSql}
+     ${missingWhereSql}`,
+    jobParams,
+  )
+  const feedbackRows = await query(
+    `select
+       count(*) as total,
+       count(case when coalesce(f.done_feedback, 0) = 0 then 1 end) as open_count,
+       count(case when coalesce(f.done_feedback, 0) = 1 then 1 end) as done_count,
+       count(case when coalesce(f.done_feedback, 0) = 0 and (f.video_url is null or f.video_url = '') then 1 end) as waiting_video,
+       count(case when coalesce(f.done_feedback, 0) = 0 and j.end_feedback is not null and j.end_feedback < current_timestamp(3) then 1 end) as overdue,
+       count(case when coalesce(f.done_feedback, 0) = 0 and j.end_feedback is not null and j.end_feedback >= current_timestamp(3) and j.end_feedback <= date_add(current_timestamp(3), interval 24 hour) then 1 end) as due_soon,
+       count(case when coalesce(f.done_feedback, 0) = 0 and j.end_feedback is null then 1 end) as missing_deadline
+     from ${tables.feedbacks} f
+     left join ${tables.jobs} j on j.id = f.job_id
+     ${feedbackWhereSql}`,
+    feedbackParams,
+  )
+  const missingAlertRows = await query(
+    `select
+       'missing_feedback' as type,
+       j.id as job_id,
+       null as feedback_id,
+       null as share_token,
+       j.job_title,
+       j.customer_name,
+       j.job_date,
+       j.end_feedback,
+       j.editor_name
+     from ${tables.jobs} j
+     ${latestFeedbackJoinSql}
+     ${missingWhereSql}
+       and j.end_feedback is not null
+       and j.end_feedback < current_timestamp(3)
+     order by j.end_feedback asc
+     limit 6`,
+    jobParams,
+  )
+  const feedbackAlertRows = await query(
+    `select
+       'open_feedback' as type,
+       j.id as job_id,
+       f.id as feedback_id,
+       f.share_token,
+       j.job_title,
+       j.customer_name,
+       j.job_date,
+       j.end_feedback,
+       coalesce(f.editor_name, j.editor_name) as editor_name
+     from ${tables.feedbacks} f
+     left join ${tables.jobs} j on j.id = f.job_id
+     ${feedbackWhereSql}
+       and coalesce(f.done_feedback, 0) = 0
+       and j.end_feedback is not null
+       and j.end_feedback < current_timestamp(3)
+     order by j.end_feedback asc
+     limit 6`,
+    feedbackParams,
+  )
+  const missingDueSoonRows = await query(
+    `select
+       'missing_feedback' as type,
+       j.id as job_id,
+       null as feedback_id,
+       null as share_token,
+       j.job_title,
+       j.customer_name,
+       j.job_date,
+       j.end_feedback,
+       j.editor_name
+     from ${tables.jobs} j
+     ${latestFeedbackJoinSql}
+     ${missingWhereSql}
+       and j.end_feedback is not null
+       and j.end_feedback >= current_timestamp(3)
+       and j.end_feedback <= date_add(current_timestamp(3), interval 24 hour)
+     order by j.end_feedback asc
+     limit 6`,
+    jobParams,
+  )
+  const feedbackDueSoonRows = await query(
+    `select
+       'open_feedback' as type,
+       j.id as job_id,
+       f.id as feedback_id,
+       f.share_token,
+       j.job_title,
+       j.customer_name,
+       j.job_date,
+       j.end_feedback,
+       coalesce(f.editor_name, j.editor_name) as editor_name
+     from ${tables.feedbacks} f
+     left join ${tables.jobs} j on j.id = f.job_id
+     ${feedbackWhereSql}
+       and coalesce(f.done_feedback, 0) = 0
+       and j.end_feedback is not null
+       and j.end_feedback >= current_timestamp(3)
+       and j.end_feedback <= date_add(current_timestamp(3), interval 24 hour)
+     order by j.end_feedback asc
+     limit 6`,
+    feedbackParams,
+  )
+
+  const missing = missingRows?.[0] || {}
+  const feedback = feedbackRows?.[0] || {}
+  const overdueItems = [...missingAlertRows, ...feedbackAlertRows]
+    .sort((a, b) => new Date(a.end_feedback || 0) - new Date(b.end_feedback || 0))
+    .slice(0, 6)
+  const dueSoonItems = [...missingDueSoonRows, ...feedbackDueSoonRows]
+    .sort((a, b) => new Date(a.end_feedback || 0) - new Date(b.end_feedback || 0))
+    .slice(0, 6)
+  const mapAlertItems = items => items.map(item => ({
+    type: item.type,
+    job_id: item.job_id || null,
+    feedback_id: item.feedback_id || null,
+    share_token: item.share_token || null,
+    job_title: normalizeHtmlText(item.job_title || ''),
+    customer_name: item.customer_name || '',
+    job_date: item.job_date || null,
+    end_feedback: item.end_feedback || null,
+    editor_name: item.editor_name || '',
+  }))
+
+  return {
+    missing_feedback_jobs: {
+      total: Number(missing.total || 0),
+      overdue: Number(missing.overdue || 0),
+      due_soon: Number(missing.due_soon || 0),
+      missing_deadline: Number(missing.missing_deadline || 0),
+    },
+    feedbacks: {
+      total: Number(feedback.total || 0),
+      open: Number(feedback.open_count || 0),
+      done: Number(feedback.done_count || 0),
+      waiting_video: Number(feedback.waiting_video || 0),
+      overdue: Number(feedback.overdue || 0),
+      due_soon: Number(feedback.due_soon || 0),
+      missing_deadline: Number(feedback.missing_deadline || 0),
+    },
+    risk: {
+      overdue: Number(missing.overdue || 0) + Number(feedback.overdue || 0),
+      due_soon: Number(missing.due_soon || 0) + Number(feedback.due_soon || 0),
+      missing_deadline: Number(missing.missing_deadline || 0) + Number(feedback.missing_deadline || 0),
+    },
+    overdue_items: mapAlertItems(overdueItems),
+    due_soon_items: mapAlertItems(dueSoonItems),
+  }
+}
+
+async function listFeedbacks({ search = '', jobId = '', page = 1, pageSize = DEFAULT_PAGE_SIZE, feedbackStatus = '' } = {}) {
   const limit = Math.min(Math.max(Number(pageSize) || DEFAULT_PAGE_SIZE, 1), 100)
   const offset = (Math.max(Number(page) || 1, 1) - 1) * limit
   const params = []
@@ -889,6 +1174,10 @@ async function listFeedbacks({ search = '', jobId = '', page = 1, pageSize = DEF
     params.push(jobId)
   }
 
+  const normalizedFeedbackStatus = String(feedbackStatus || '').trim().toLowerCase()
+  if (['open', 'active'].includes(normalizedFeedbackStatus)) where.push('coalesce(f.done_feedback, 0) = 0')
+  if (['done', 'completed'].includes(normalizedFeedbackStatus)) where.push('coalesce(f.done_feedback, 0) = 1')
+
   if (search) {
     const like = `%${search}%`
     where.push('(f.name like ? or f.public_code like ? or f.video_title like ? or j.job_title like ? or j.customer_name like ?)')
@@ -896,6 +1185,16 @@ async function listFeedbacks({ search = '', jobId = '', page = 1, pageSize = DEF
   }
 
   const whereSql = `where ${where.join(' and ')}`
+  const orderSql = ['open', 'active'].includes(normalizedFeedbackStatus)
+    ? `order by
+        case
+          when j.end_feedback is not null and j.end_feedback < current_timestamp(3) then 0
+          when j.end_feedback is not null then 1
+          else 2
+        end asc,
+        j.end_feedback asc,
+        f.created_at desc`
+    : 'order by f.created_at desc'
   const countRows = await query(
     `select count(*) as count
      from ${tables.feedbacks} f
@@ -904,17 +1203,42 @@ async function listFeedbacks({ search = '', jobId = '', page = 1, pageSize = DEF
     params,
   )
   const rows = await query(
-    `select ${getFeedbackListSelect()}
+    `select ${getFeedbackListSelect()},
+       coalesce(comment_stats.comment_count, 0) as comment_count,
+       coalesce(comment_stats.unresolved_comment_count, 0) as unresolved_comment_count
      from ${tables.feedbacks} f
      left join ${tables.jobs} j on j.id = f.job_id
+     left join (
+       select
+         feedback_id,
+         count(*) as comment_count,
+         sum(case when coalesce(is_done_1, 0) = 0 then 1 else 0 end) as unresolved_comment_count
+       from ${tables.feedbackComments}
+       group by feedback_id
+     ) comment_stats on comment_stats.feedback_id = f.id
      ${whereSql}
-     order by f.created_at desc
+     ${orderSql}
      limit ? offset ?`,
     [...params, limit, offset],
   )
 
+  const feedbacks = rows.map(normalizeFeedbackRow)
+  const jobsWithCrew = await attachCameraCrewToJobs(feedbacks.map(feedback => feedback.job).filter(Boolean))
+  const jobsWithReviewers = await attachVideoReviewersToJobs(jobsWithCrew)
+  const crewByJobId = new Map(jobsWithCrew.map(job => [String(job.id || ''), job.camera_staff_names || []]))
+  const reviewersByJobId = new Map(jobsWithReviewers.map(job => [String(job.id || ''), job.video_reviewer_names || []]))
+
   return {
-    feedbacks: rows.map(normalizeFeedbackRow),
+    feedbacks: feedbacks.map(feedback => ({
+      ...feedback,
+      job: feedback.job
+        ? {
+            ...feedback.job,
+            camera_staff_names: crewByJobId.get(String(feedback.job.id || '')) || [],
+            video_reviewer_names: reviewersByJobId.get(String(feedback.job.id || '')) || [],
+          }
+        : feedback.job,
+    })),
     page: Number(page) || 1,
     pageSize: limit,
     total: Number(countRows?.[0]?.count || 0),
@@ -2319,6 +2643,13 @@ export default async function handler(req, res) {
           search: getQueryValue(req.query?.search, ''),
           page: getPositiveInteger(req.query?.page, 1),
           pageSize: getPositiveInteger(req.query?.pageSize, DEFAULT_PAGE_SIZE),
+          feedbackStatus: getQueryValue(req.query?.feedback_status, ''),
+        }))
+      }
+
+      if (resource === 'summary') {
+        return res.status(200).json(await getFeedbackDashboardSummary({
+          search: getQueryValue(req.query?.search, ''),
         }))
       }
 
@@ -2328,6 +2659,7 @@ export default async function handler(req, res) {
           jobId: getQueryValue(req.query?.job_id, ''),
           page: getPositiveInteger(req.query?.page, 1),
           pageSize: getPositiveInteger(req.query?.pageSize, DEFAULT_PAGE_SIZE),
+          feedbackStatus: getQueryValue(req.query?.feedback_status, ''),
         }))
       }
 
