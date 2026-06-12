@@ -1,7 +1,11 @@
 import mysql from 'mysql2/promise'
 import { loadServerEnv } from './server-env.js'
 
-let pool
+const MYSQL_POOL_STATE_KEY = Symbol.for('eventus.mysql.poolState')
+const mysqlPoolState = globalThis[MYSQL_POOL_STATE_KEY] ||= {
+  pool: null,
+  signalHandlersInstalled: false,
+}
 
 export const tables = {
   customers: 'customers',
@@ -32,6 +36,7 @@ export const tables = {
   jobAnswers: 'job_answers',
   employees: 'employees',
   employeeJobs: 'employee_job',
+  videoEmployeeStatuses: 'video_employee_statuses',
 }
 
 function getDbConfig() {
@@ -63,8 +68,25 @@ function getDbConfig() {
 }
 
 export function getPool() {
-  if (!pool) pool = mysql.createPool(getDbConfig())
-  return pool
+  if (!mysqlPoolState.pool) mysqlPoolState.pool = mysql.createPool(getDbConfig())
+  return mysqlPoolState.pool
+}
+
+export async function closePool() {
+  const activePool = mysqlPoolState.pool
+  mysqlPoolState.pool = null
+  if (activePool) await activePool.end()
+}
+
+if (!mysqlPoolState.signalHandlersInstalled) {
+  mysqlPoolState.signalHandlersInstalled = true
+  for (const signal of ['SIGINT', 'SIGTERM']) {
+    process.once(signal, () => {
+      closePool()
+        .catch(() => {})
+        .finally(() => process.exit(0))
+    })
+  }
 }
 
 function normalizeSqlParams(params = []) {

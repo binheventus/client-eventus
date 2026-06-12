@@ -42,6 +42,14 @@ const PUBLIC_CODE_LENGTH = 4
 const DEFAULT_PAGE_SIZE = 20
 const VIDEO_REVIEW_TASKS_TABLE = 'video_review_tasks'
 const JOB_TYPES_REQUIRING_FEEDBACK = [2, 3]
+const MISSING_FEEDBACK_JOB_LOOKBACK_DAYS = 90
+const COMPLETED_VIDEO_EMPLOYEE_STATUS_ID = 4
+const VIDEO_EMPLOYEE_STATUS_LABELS = {
+  1: 'Chưa làm',
+  2: 'Đang làm',
+  3: 'Đang feedback',
+  4: 'Đã feedback',
+}
 const DEFAULT_FEEDBACK_IMAGE_MAX_BYTES = 3 * 1024 * 1024
 const DEFAULT_FEEDBACK_IMAGE_MAX_COUNT = 4
 const DEFAULT_FEEDBACK_ATTACHMENT_TTL_DAYS = 20
@@ -660,6 +668,9 @@ function normalizeFeedbackRow(row = {}) {
     gallery_drive: row.gallery_drive,
     start_feedback: row.job_start_feedback,
     end_feedback: row.job_end_feedback,
+    customer_appointment_at: row.job_customer_appointment_at,
+    video_employee_status_id: row.job_video_employee_status_id,
+    video_employee_status_name: row.job_video_employee_status_name,
     editor_name: row.job_editor_name,
     editor_phone: row.job_editor_phone,
   })
@@ -708,6 +719,10 @@ function summarizeFeedbackCloneSource(feedback = null) {
 function normalizeJobRow(row = {}) {
   if (!row) return null
   const title = normalizeHtmlText(row.job_title || row.title)
+  const hasCustomerAppointment = Object.prototype.hasOwnProperty.call(row, 'customer_appointment_at')
+    || Object.prototype.hasOwnProperty.call(row, 'job_customer_appointment_at')
+  const customerAppointmentAt = row.customer_appointment_at || row.job_customer_appointment_at || null
+  const videoEmployeeStatusId = Number(row.video_employee_status_id || row.job_video_employee_status_id || 1)
   return {
     ...row,
     id: row.id,
@@ -721,7 +736,13 @@ function normalizeJobRow(row = {}) {
     editor_name: row.editor_name || '',
     editor_phone: row.editor_phone || '',
     start_feedback: row.start_feedback || null,
-    end_feedback: row.end_feedback || null,
+    customer_appointment_at: customerAppointmentAt,
+    end_feedback: hasCustomerAppointment ? customerAppointmentAt : (row.end_feedback || null),
+    video_employee_status_id: videoEmployeeStatusId,
+    video_employee_status_name: row.video_employee_status_name
+      || row.job_video_employee_status_name
+      || VIDEO_EMPLOYEE_STATUS_LABELS[videoEmployeeStatusId]
+      || VIDEO_EMPLOYEE_STATUS_LABELS[1],
   }
 }
 
@@ -764,6 +785,9 @@ function getFeedbackListSelect() {
     j.gallery_drive,
     j.start_feedback as job_start_feedback,
     j.end_feedback as job_end_feedback,
+    j.video_employee_status_id as job_video_employee_status_id,
+    ves.name as job_video_employee_status_name,
+    ${getCustomerAppointmentAtSql('f.editor_employee_id')} as job_customer_appointment_at,
     j.editor_name as job_editor_name,
     j.editor_phone as job_editor_phone
   `
@@ -911,6 +935,42 @@ function addFeedbackRequiredJobTypeFilter(where = [], params = []) {
   params.push(...JOB_TYPES_REQUIRING_FEEDBACK)
 }
 
+function addRecentJobDateFilter(where = [], params = []) {
+  where.push(`j.job_date is not null and j.job_date >= date_sub(current_date(), interval ? day)`)
+  params.push(MISSING_FEEDBACK_JOB_LOOKBACK_DAYS)
+}
+
+function addIncompleteVideoJobStatusFilter(where = []) {
+  where.push(`(j.video_employee_status_id is null or j.video_employee_status_id <> ${COMPLETED_VIDEO_EMPLOYEE_STATUS_ID})`)
+}
+
+function getVideoEmployeeStatusJoinSql() {
+  return `left join ${tables.videoEmployeeStatuses} ves on ves.id = j.video_employee_status_id`
+}
+
+function getCustomerAppointmentAtSql(editorEmployeeIdSql = 'null') {
+  return `(
+    select ej.customer_appointment_at
+    from ${tables.employeeJobs} ej
+    left join ${tables.employees} e on e.id = ej.employee_id
+    where ej.job_id = j.id
+      and ej.status = 'accepted'
+      and ej.customer_appointment_at is not null
+    order by
+      case
+        when ${editorEmployeeIdSql} is not null and ej.employee_id = ${editorEmployeeIdSql} then 0
+        when nullif(trim(coalesce(j.editor_name, '')), '') is not null
+          and (
+            lower(trim(coalesce(e.zalo_name, ''))) = lower(trim(j.editor_name))
+            or lower(trim(coalesce(e.name, ''))) = lower(trim(j.editor_name))
+          ) then 1
+        else 2
+      end asc,
+      ej.customer_appointment_at asc
+    limit 1
+  )`
+}
+
 async function listFeedbackJobs({ search = '', page = 1, pageSize = DEFAULT_PAGE_SIZE, feedbackStatus = '' } = {}) {
   const limit = Math.min(Math.max(Number(pageSize) || DEFAULT_PAGE_SIZE, 1), 100)
   const offset = (Math.max(Number(page) || 1, 1) - 1) * limit
@@ -927,6 +987,8 @@ async function listFeedbackJobs({ search = '', page = 1, pageSize = DEFAULT_PAGE
   if (['missing', 'none', 'not_created'].includes(normalizedFeedbackStatus)) {
     where.push('latest.id is null')
     addFeedbackRequiredJobTypeFilter(where, params)
+    addRecentJobDateFilter(where, params)
+    addIncompleteVideoJobStatusFilter(where)
   }
   if (['exists', 'created'].includes(normalizedFeedbackStatus)) where.push('latest.id is not null')
 
@@ -942,6 +1004,7 @@ async function listFeedbackJobs({ search = '', page = 1, pageSize = DEFAULT_PAGE
        ) f2 on f2.job_id = f1.job_id and f2.latest_created_at = f1.created_at
        where f1.deleted_at is null
      ) latest on latest.job_id = j.id`
+  const customerAppointmentAtSql = getCustomerAppointmentAtSql('latest.editor_employee_id')
   const whereSql = `where ${where.join(' and ')}`
   const countRows = await query(`select count(distinct j.id) as count from ${tables.jobs} j ${latestFeedbackJoinSql} ${whereSql}`, params)
   const rows = await query(
@@ -950,9 +1013,12 @@ async function listFeedbackJobs({ search = '', page = 1, pageSize = DEFAULT_PAGE
       latest.public_code as feedback_public_code,
       latest.share_token as feedback_share_token,
       latest.name as feedback_name,
-      latest.done_feedback as feedback_done
+      latest.done_feedback as feedback_done,
+      ves.name as video_employee_status_name,
+      ${customerAppointmentAtSql} as customer_appointment_at
      from ${tables.jobs} j
      ${latestFeedbackJoinSql}
+     ${getVideoEmployeeStatusJoinSql()}
      ${whereSql}
      order by coalesce(j.job_date, j.created_at) desc, j.id desc
      limit ? offset ?`,
@@ -1003,16 +1069,17 @@ async function getFeedbackDashboardSummary({ search = '' } = {}) {
     feedbackParams.push(like, like, like, like, like)
   }
   addFeedbackRequiredJobTypeFilter(jobWhere, jobParams)
+  addRecentJobDateFilter(jobWhere, jobParams)
+  addIncompleteVideoJobStatusFilter(jobWhere)
+  addFeedbackRequiredJobTypeFilter(feedbackWhere, feedbackParams)
+  addIncompleteVideoJobStatusFilter(feedbackWhere)
 
   const missingWhereSql = `where ${[...jobWhere, 'latest.id is null'].join(' and ')}`
   const feedbackWhereSql = `where ${feedbackWhere.join(' and ')}`
 
   const missingRows = await query(
     `select
-       count(distinct j.id) as total,
-       count(distinct case when j.end_feedback is not null and j.end_feedback < current_timestamp(3) then j.id end) as overdue,
-       count(distinct case when j.end_feedback is not null and j.end_feedback >= current_timestamp(3) and j.end_feedback <= date_add(current_timestamp(3), interval 24 hour) then j.id end) as due_soon,
-       count(distinct case when j.end_feedback is null then j.id end) as missing_deadline
+       count(distinct j.id) as total
      from ${tables.jobs} j
      ${latestFeedbackJoinSql}
      ${missingWhereSql}`,
@@ -1021,145 +1088,24 @@ async function getFeedbackDashboardSummary({ search = '' } = {}) {
   const feedbackRows = await query(
     `select
        count(*) as total,
-       count(case when coalesce(f.done_feedback, 0) = 0 then 1 end) as open_count,
-       count(case when coalesce(f.done_feedback, 0) = 1 then 1 end) as done_count,
-       count(case when coalesce(f.done_feedback, 0) = 0 and (f.video_url is null or f.video_url = '') then 1 end) as waiting_video,
-       count(case when coalesce(f.done_feedback, 0) = 0 and j.end_feedback is not null and j.end_feedback < current_timestamp(3) then 1 end) as overdue,
-       count(case when coalesce(f.done_feedback, 0) = 0 and j.end_feedback is not null and j.end_feedback >= current_timestamp(3) and j.end_feedback <= date_add(current_timestamp(3), interval 24 hour) then 1 end) as due_soon,
-       count(case when coalesce(f.done_feedback, 0) = 0 and j.end_feedback is null then 1 end) as missing_deadline
+       count(case when coalesce(f.done_feedback, 0) = 0 then 1 end) as open_count
      from ${tables.feedbacks} f
      left join ${tables.jobs} j on j.id = f.job_id
      ${feedbackWhereSql}`,
     feedbackParams,
   )
-  const missingAlertRows = await query(
-    `select
-       'missing_feedback' as type,
-       j.id as job_id,
-       null as feedback_id,
-       null as share_token,
-       j.job_title,
-       j.customer_name,
-       j.job_date,
-       j.end_feedback,
-       j.editor_name
-     from ${tables.jobs} j
-     ${latestFeedbackJoinSql}
-     ${missingWhereSql}
-       and j.end_feedback is not null
-       and j.end_feedback < current_timestamp(3)
-     order by j.end_feedback asc
-     limit 6`,
-    jobParams,
-  )
-  const feedbackAlertRows = await query(
-    `select
-       'open_feedback' as type,
-       j.id as job_id,
-       f.id as feedback_id,
-       f.share_token,
-       j.job_title,
-       j.customer_name,
-       j.job_date,
-       j.end_feedback,
-       coalesce(f.editor_name, j.editor_name) as editor_name
-     from ${tables.feedbacks} f
-     left join ${tables.jobs} j on j.id = f.job_id
-     ${feedbackWhereSql}
-       and coalesce(f.done_feedback, 0) = 0
-       and j.end_feedback is not null
-       and j.end_feedback < current_timestamp(3)
-     order by j.end_feedback asc
-     limit 6`,
-    feedbackParams,
-  )
-  const missingDueSoonRows = await query(
-    `select
-       'missing_feedback' as type,
-       j.id as job_id,
-       null as feedback_id,
-       null as share_token,
-       j.job_title,
-       j.customer_name,
-       j.job_date,
-       j.end_feedback,
-       j.editor_name
-     from ${tables.jobs} j
-     ${latestFeedbackJoinSql}
-     ${missingWhereSql}
-       and j.end_feedback is not null
-       and j.end_feedback >= current_timestamp(3)
-       and j.end_feedback <= date_add(current_timestamp(3), interval 24 hour)
-     order by j.end_feedback asc
-     limit 6`,
-    jobParams,
-  )
-  const feedbackDueSoonRows = await query(
-    `select
-       'open_feedback' as type,
-       j.id as job_id,
-       f.id as feedback_id,
-       f.share_token,
-       j.job_title,
-       j.customer_name,
-       j.job_date,
-       j.end_feedback,
-       coalesce(f.editor_name, j.editor_name) as editor_name
-     from ${tables.feedbacks} f
-     left join ${tables.jobs} j on j.id = f.job_id
-     ${feedbackWhereSql}
-       and coalesce(f.done_feedback, 0) = 0
-       and j.end_feedback is not null
-       and j.end_feedback >= current_timestamp(3)
-       and j.end_feedback <= date_add(current_timestamp(3), interval 24 hour)
-     order by j.end_feedback asc
-     limit 6`,
-    feedbackParams,
-  )
 
   const missing = missingRows?.[0] || {}
   const feedback = feedbackRows?.[0] || {}
-  const overdueItems = [...missingAlertRows, ...feedbackAlertRows]
-    .sort((a, b) => new Date(a.end_feedback || 0) - new Date(b.end_feedback || 0))
-    .slice(0, 6)
-  const dueSoonItems = [...missingDueSoonRows, ...feedbackDueSoonRows]
-    .sort((a, b) => new Date(a.end_feedback || 0) - new Date(b.end_feedback || 0))
-    .slice(0, 6)
-  const mapAlertItems = items => items.map(item => ({
-    type: item.type,
-    job_id: item.job_id || null,
-    feedback_id: item.feedback_id || null,
-    share_token: item.share_token || null,
-    job_title: normalizeHtmlText(item.job_title || ''),
-    customer_name: item.customer_name || '',
-    job_date: item.job_date || null,
-    end_feedback: item.end_feedback || null,
-    editor_name: item.editor_name || '',
-  }))
 
   return {
     missing_feedback_jobs: {
       total: Number(missing.total || 0),
-      overdue: Number(missing.overdue || 0),
-      due_soon: Number(missing.due_soon || 0),
-      missing_deadline: Number(missing.missing_deadline || 0),
     },
     feedbacks: {
       total: Number(feedback.total || 0),
       open: Number(feedback.open_count || 0),
-      done: Number(feedback.done_count || 0),
-      waiting_video: Number(feedback.waiting_video || 0),
-      overdue: Number(feedback.overdue || 0),
-      due_soon: Number(feedback.due_soon || 0),
-      missing_deadline: Number(feedback.missing_deadline || 0),
     },
-    risk: {
-      overdue: Number(missing.overdue || 0) + Number(feedback.overdue || 0),
-      due_soon: Number(missing.due_soon || 0) + Number(feedback.due_soon || 0),
-      missing_deadline: Number(missing.missing_deadline || 0) + Number(feedback.missing_deadline || 0),
-    },
-    overdue_items: mapAlertItems(overdueItems),
-    due_soon_items: mapAlertItems(dueSoonItems),
   }
 }
 
@@ -1175,7 +1121,11 @@ async function listFeedbacks({ search = '', jobId = '', page = 1, pageSize = DEF
   }
 
   const normalizedFeedbackStatus = String(feedbackStatus || '').trim().toLowerCase()
-  if (['open', 'active'].includes(normalizedFeedbackStatus)) where.push('coalesce(f.done_feedback, 0) = 0')
+  if (['open', 'active'].includes(normalizedFeedbackStatus)) {
+    where.push('coalesce(f.done_feedback, 0) = 0')
+    addFeedbackRequiredJobTypeFilter(where, params)
+    addIncompleteVideoJobStatusFilter(where)
+  }
   if (['done', 'completed'].includes(normalizedFeedbackStatus)) where.push('coalesce(f.done_feedback, 0) = 1')
 
   if (search) {
@@ -1185,14 +1135,15 @@ async function listFeedbacks({ search = '', jobId = '', page = 1, pageSize = DEF
   }
 
   const whereSql = `where ${where.join(' and ')}`
+  const feedbackDeadlineSql = getCustomerAppointmentAtSql('f.editor_employee_id')
   const orderSql = ['open', 'active'].includes(normalizedFeedbackStatus)
     ? `order by
         case
-          when j.end_feedback is not null and j.end_feedback < current_timestamp(3) then 0
-          when j.end_feedback is not null then 1
+          when ${feedbackDeadlineSql} is not null and ${feedbackDeadlineSql} < current_timestamp(3) then 0
+          when ${feedbackDeadlineSql} is not null then 1
           else 2
         end asc,
-        j.end_feedback asc,
+        ${feedbackDeadlineSql} asc,
         f.created_at desc`
     : 'order by f.created_at desc'
   const countRows = await query(
@@ -1208,6 +1159,7 @@ async function listFeedbacks({ search = '', jobId = '', page = 1, pageSize = DEF
        coalesce(comment_stats.unresolved_comment_count, 0) as unresolved_comment_count
      from ${tables.feedbacks} f
      left join ${tables.jobs} j on j.id = f.job_id
+     ${getVideoEmployeeStatusJoinSql()}
      left join (
        select
          feedback_id,
@@ -1251,6 +1203,7 @@ async function getFeedbackByIdentifier(identifier) {
     `select ${getFeedbackListSelect()}
      from ${tables.feedbacks} f
      left join ${tables.jobs} j on j.id = f.job_id
+     ${getVideoEmployeeStatusJoinSql()}
      where (f.id = ? or f.legacy_id = ? or f.public_code = ? or f.share_token = ?) and f.deleted_at is null
      limit 1`,
     [identifier, Number(identifier) || 0, identifier, identifier],
@@ -1264,6 +1217,7 @@ async function getFeedbackByShareToken(shareToken) {
     `select ${getFeedbackListSelect()}
      from ${tables.feedbacks} f
      left join ${tables.jobs} j on j.id = f.job_id
+     ${getVideoEmployeeStatusJoinSql()}
      where f.share_token = ? and f.deleted_at is null
      limit 1`,
     [shareToken],
@@ -1277,6 +1231,7 @@ async function getLatestFeedbackForJob(jobId) {
     `select ${getFeedbackListSelect()}
      from ${tables.feedbacks} f
      left join ${tables.jobs} j on j.id = f.job_id
+     ${getVideoEmployeeStatusJoinSql()}
      where f.job_id = ? and f.deleted_at is null
      order by f.created_at desc, f.id desc
      limit 1`,
@@ -1346,6 +1301,7 @@ async function ensureFeedbackForJob(jobId, patch = {}) {
     `select ${getFeedbackListSelect()}
      from ${tables.feedbacks} f
      left join ${tables.jobs} j on j.id = f.job_id
+     ${getVideoEmployeeStatusJoinSql()}
      where f.job_id = ? and f.deleted_at is null
      order by f.created_at asc
      limit 1`,
@@ -2052,6 +2008,7 @@ async function deleteFeedback(req, body = {}) {
     `select ${getFeedbackListSelect()}
      from ${tables.feedbacks} f
      left join ${tables.jobs} j on j.id = f.job_id
+     ${getVideoEmployeeStatusJoinSql()}
      where f.job_id = ? and f.deleted_at is null
      order by f.created_at desc
      limit 1`,

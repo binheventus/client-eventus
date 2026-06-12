@@ -63,10 +63,6 @@ export async function listFeedbackJobs({ search = '', page = 1, pageSize = 20, f
   return requestFeedbackApi(buildQuery({ resource: 'jobs', search, page, pageSize, feedback_status: feedbackStatus }))
 }
 
-export async function getFeedbackSummary({ search = '' } = {}) {
-  return requestFeedbackApi(buildQuery({ resource: 'summary', search }))
-}
-
 export async function listFeedbacks({ search = '', jobId = '', page = 1, pageSize = 20, feedbackStatus = '' } = {}) {
   return requestFeedbackApi(buildQuery({ resource: 'feedbacks', search, job_id: jobId, page, pageSize, feedback_status: feedbackStatus }))
 }
