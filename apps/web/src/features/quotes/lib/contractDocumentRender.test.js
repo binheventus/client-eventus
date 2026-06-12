@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   getAcceptanceLiquidationContent,
   getAcceptanceSummary,
+  getContractDocumentFilename,
   shouldShowAcceptanceAmountTables,
 } from './contractDocumentRender.js'
 
@@ -74,6 +75,42 @@ test('acceptance amount tables are only shown for cost difference templates', ()
       },
     },
   }), true)
+})
+
+test('contract document filename uses job date, document code, parties and event name', () => {
+  assert.equal(getContractDocumentFilename({
+    document_type: 'advance_request',
+    seller_entity_code: 'EVENTUS',
+    contract_snapshot: {
+      schedule_rows: [{ date_text: '16.09.2026' }],
+      source_snapshot: { job_title: 'Year End Party' },
+      customer_snapshot: { customer_code: 'ABC' },
+    },
+  }), '16.09-DNTU-EVT-ABC-Year-End-Party.pdf')
+})
+
+test('contract document filename formats ISO job dates and docx extension', () => {
+  assert.equal(getContractDocumentFilename({
+    document_type: 'acceptance_liquidation',
+    seller_entity_code: 'MEDIAMONSTER',
+    contract_snapshot: {
+      schedule_rows: [{ date_text: '2026-10-05' }],
+      quote_snapshot: { event_name: 'Ra mắt sản phẩm mới' },
+      customer_snapshot: { customer_code: 'C.S.Q' },
+    },
+  }, 'docx'), '05.10-BBNTTL-MMT-C-S-Q-Ra-mat-san-pham-moi.docx')
+})
+
+test('contract document filename omits date when job date is missing', () => {
+  assert.equal(getContractDocumentFilename({
+    document_type: 'payment_request',
+    seller_entity_code: 'EVT',
+    contract_snapshot: {
+      schedule_rows: [{ date_text: '' }],
+      source_snapshot: { job_title: 'Kickoff Meeting' },
+      customer_snapshot: { customer_code: 'VINFAST' },
+    },
+  }), 'DNTT-EVT-VINFAST-Kickoff-Meeting.pdf')
 })
 
 test('acceptance liquidation uses related advance request amount in article two', () => {

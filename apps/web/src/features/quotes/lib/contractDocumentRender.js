@@ -4,7 +4,9 @@ import {
   calculatePaymentSummary,
   calculateTableTotals,
   formatContractDocumentNumberForDisplay,
+  getContractDocumentCustomerCode,
   getContractVatConfig,
+  getDocumentNumberSellerCode,
   roundDocumentCurrency,
   toDocumentNumber,
 } from './contractDocumentEditor.js'
@@ -183,6 +185,59 @@ function getContractProjectEventName(contract = {}) {
       || contract.service_scope
       || '',
   ).trim()
+}
+
+function getContractDocumentJobDatePart(contract = {}) {
+  const rows = Array.isArray(contract.schedule_rows) ? contract.schedule_rows : []
+  const rawDate = rows.map(row => String(row?.date_text || '').trim()).find(Boolean) || ''
+  if (!rawDate) return ''
+
+  const isoMatch = rawDate.match(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b/)
+  if (isoMatch) return `${isoMatch[3].padStart(2, '0')}.${isoMatch[2].padStart(2, '0')}`
+
+  const displayMatch = rawDate.match(/\b(\d{1,2})[./-](\d{1,2})(?:[./-]\d{2,4})?\b/)
+  if (displayMatch) return `${displayMatch[1].padStart(2, '0')}.${displayMatch[2].padStart(2, '0')}`
+
+  return ''
+}
+
+function getContractDocumentDownloadEventName(document = {}) {
+  const contract = getContractFromDocument(document)
+  return String(
+    contract.source_snapshot?.job_title
+      || contract.quote_snapshot?.event_name
+      || contract.event_name
+      || contract.source_snapshot?.event_name
+      || contract.title
+      || getDocumentTitle(document)
+      || '',
+  ).trim()
+}
+
+function getContractDocumentDownloadBaseName(document = {}) {
+  const contract = getContractFromDocument(document)
+  const jobDatePart = getContractDocumentJobDatePart(contract)
+  const documentTypeCode = CONTRACT_DOCUMENT_TYPES[document.document_type]?.code || String(document.document_type || 'Chung-tu').toUpperCase()
+  const sellerCode = getDocumentNumberSellerCode(
+    document.seller_entity_code
+      || contract.seller_entity_code
+      || getSellerProfile(document).entity_code
+      || 'EVT',
+  )
+  const customerCode = getContractDocumentCustomerCode(contract)
+  const eventName = getContractDocumentDownloadEventName(document)
+
+  const filenameParts = [
+    jobDatePart,
+    `${documentTypeCode}-${sellerCode}`,
+    customerCode,
+    eventName,
+  ].filter(Boolean)
+
+  return filenameParts
+    .map(part => (part === jobDatePart ? part : sanitizeFilenamePart(part)))
+    .filter(Boolean)
+    .join('-')
 }
 
 function getAdvanceTemplateSection(document = {}, sectionId = '') {
@@ -485,7 +540,13 @@ export function getPaymentRequestContent(document = {}) {
 }
 
 export function getContractDocumentFilename(document = {}, extension = 'pdf') {
-  const rawName = formatContractDocumentNumberForDisplay(document.document_number) || getDocumentTitle(document) || document.id || 'Chung-tu'
+  const downloadName = getContractDocumentDownloadBaseName(document)
+  if (downloadName) return `${downloadName}.${extension}`
+
+  const rawName = formatContractDocumentNumberForDisplay(document.document_number)
+    || getDocumentTitle(document)
+    || document.id
+    || 'Chung-tu'
   return `${sanitizeFilenamePart(rawName)}.${extension}`
 }
 

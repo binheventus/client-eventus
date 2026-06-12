@@ -1,78 +1,101 @@
-import { useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
+import {
+  ArrowUpRight,
+  BriefcaseBusiness,
+  Database,
+  FileSignature,
+  MessageSquareText,
+} from 'lucide-react'
 
-const MODULES = [
+const PORTAL_ITEMS = [
   {
     id: 'quotes',
     label: 'Báo giá',
-    icon: '💼',
-    shortDesc: 'Tạo, quản lý và chia sẻ báo giá dịch vụ',
-    desc: 'Module tạo báo giá tự động cho sales Eventus.',
+    desc: 'Tạo và quản lý báo giá dịch vụ',
     path: '/quotes',
-    accent: 'from-slate-900 via-blue-900 to-teal-700',
+    icon: BriefcaseBusiness,
+    borderTone: 'border-l-[#f8981d]',
+    iconTone: 'text-[#d97706] bg-orange-50',
+  },
+  {
+    id: 'contracts',
+    label: 'Hợp đồng & chứng từ',
+    desc: 'Quản lý hợp đồng và tài liệu liên quan',
+    path: '/contracts',
+    icon: FileSignature,
+    borderTone: 'border-l-blue-500',
+    iconTone: 'text-blue-700 bg-blue-50',
   },
   {
     id: 'feedback',
     label: 'Feedback',
-    icon: '💬',
-    shortDesc: 'Quản lý feedback video, survey và gallery',
-    desc: 'Module nhận góp ý chỉnh sửa video, theo dõi phản hồi khách hàng và khảo sát sau dịch vụ.',
+    desc: 'Theo dõi phản hồi và job cần xử lý',
     path: '/feedbacks',
-    accent: 'from-slate-900 via-indigo-900 to-cyan-700',
+    icon: MessageSquareText,
+    borderTone: 'border-l-emerald-500',
+    iconTone: 'text-emerald-700 bg-emerald-50',
+  },
+  {
+    id: 'pricing',
+    label: 'Bảng giá & cấu hình',
+    desc: 'Cập nhật pricing và thiết lập dữ liệu',
+    path: '/pricing-admin',
+    icon: Database,
+    borderTone: 'border-l-slate-700',
+    iconTone: 'text-slate-700 bg-slate-100',
   },
 ]
 
-export default function ClientPortalPage() {
-  const navigate = useNavigate()
+function PortalTile({ item }) {
+  const Icon = item.icon
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-5 py-8 sm:px-8">
-        <header className="rounded-[28px] border border-slate-200 bg-white shadow-sm">
-          <div className="rounded-[28px] bg-gradient-to-r from-slate-900 via-blue-900 to-teal-700 px-6 py-8 text-white sm:px-8">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-100/90">
+    <Link
+      to={item.path}
+      aria-label={item.label}
+      className={`group flex min-h-[110px] min-w-0 items-center gap-4 rounded-lg border border-l-4 border-slate-200 bg-white px-5 py-4 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-200 ${item.borderTone}`}
+    >
+      <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg ${item.iconTone}`}>
+        <Icon className="h-[22px] w-[22px]" />
+      </span>
+
+      <span className="min-w-0 flex-1">
+        <span className="block text-[20px] font-semibold leading-6 text-slate-950">
+          {item.label}
+        </span>
+        <span className="mt-1 block text-[13px] font-medium leading-5 text-slate-500">
+          {item.desc}
+        </span>
+      </span>
+
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition group-hover:border-orange-200 group-hover:bg-orange-50 group-hover:text-[#d97706]">
+        <ArrowUpRight className="h-4 w-4" />
+      </span>
+    </Link>
+  )
+}
+
+export default function ClientPortalPage() {
+  return (
+    <div className="min-h-screen bg-[#f6f7f9]">
+      <main className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 lg:py-8">
+        <header className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b border-slate-200 pb-4">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#d97706]">
               Eventus Dashboard
             </p>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
+            <h1 className="mt-1.5 text-[26px] font-semibold tracking-tight text-slate-950 sm:text-[30px]">
               Eventus Client Portal
             </h1>
-            <p className="mt-4 max-w-3xl text-sm leading-6 text-blue-100/90">
-              Truy cập nhanh các module đang dùng cho báo giá, hợp đồng và feedback khách hàng.
-            </p>
           </div>
+          <span className="rounded-full bg-white px-3 py-1.5 text-[12px] font-semibold text-slate-500 ring-1 ring-slate-200">
+            4 chức năng chính
+          </span>
         </header>
 
-        <section className="mt-6 grid flex-1 content-start gap-4 md:grid-cols-2">
-          {MODULES.map((module) => (
-            <button
-              key={module.id}
-              type="button"
-              onClick={() => navigate(module.path)}
-              className="group overflow-hidden rounded-[24px] border border-slate-200 bg-white text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
-            >
-              <div className={`bg-gradient-to-r ${module.accent} px-5 py-5 text-white`}>
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-white/12 text-2xl ring-1 ring-white/15">
-                      {module.icon}
-                    </div>
-                    <div>
-                      <h2 className="text-xl font-semibold tracking-tight">{module.label}</h2>
-                      <p className="mt-1 text-xs leading-5 text-white/75">{module.shortDesc}</p>
-                    </div>
-                  </div>
-                  <span className="mt-1 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white/75 transition group-hover:translate-x-0.5 group-hover:bg-white/15 group-hover:text-white">
-                    →
-                  </span>
-                </div>
-              </div>
-
-              <div className="px-5 py-5">
-                <p className="text-sm leading-6 text-slate-600">{module.desc}</p>
-                <div className="mt-5 inline-flex rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600">
-                  Mở {module.path}
-                </div>
-              </div>
-            </button>
+        <section className="grid gap-3 sm:grid-cols-2">
+          {PORTAL_ITEMS.map(item => (
+            <PortalTile key={item.id} item={item} />
           ))}
         </section>
       </main>

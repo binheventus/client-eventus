@@ -9,9 +9,11 @@ import { getFeedbackPublicPath } from '../lib/feedbackFormat'
 const ORANGE_BUTTON_CLASS = 'bg-[#f79820] text-white hover:bg-[#df861d]'
 const TABLE_HEADER_CLASS = 'bg-slate-200 text-[12px] uppercase text-slate-950'
 const JOB_COLUMN_CLASS = 'w-[42%]'
+const FEEDBACK_JOB_COLUMN_CLASS = 'w-[34%]'
 const CAMERA_COLUMN_CLASS = 'w-[14%]'
 const EDITOR_COLUMN_CLASS = 'w-[22%]'
 const STATUS_COLUMN_CLASS = 'w-[10%]'
+const PRODUCTION_DAYS_COLUMN_CLASS = 'w-[8%]'
 const DEADLINE_COLUMN_CLASS = 'w-[12%]'
 const INITIAL_DASHBOARD_PAGE_SIZE = 12
 const LOAD_MORE_INCREMENT = 10
@@ -63,6 +65,24 @@ function formatDeadline(value) {
   const hour = String(date.getHours()).padStart(2, '0')
   const minute = String(date.getMinutes()).padStart(2, '0')
   return `${day}/${month}/${year} ${hour}:${minute}`
+}
+
+function getLocalDateStart(date) {
+  if (!date) return null
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+}
+
+function getProductionDays(createdAt) {
+  const createdDate = getLocalDateStart(toDate(createdAt))
+  if (!createdDate) return null
+  const today = getLocalDateStart(new Date())
+  return Math.floor((today.getTime() - createdDate.getTime()) / (24 * 60 * 60 * 1000))
+}
+
+function formatProductionDays(createdAt) {
+  const days = getProductionDays(createdAt)
+  if (!Number.isFinite(days)) return '-'
+  return Number(days).toLocaleString('vi-VN')
 }
 
 function getDeadlineStatus(deadline) {
@@ -150,14 +170,19 @@ function StaffCell({ children, className = '' }) {
   )
 }
 
-function FeedbackTableHead() {
+function FeedbackTableHead({ showProductionDays = false }) {
+  const jobColumnClass = showProductionDays ? FEEDBACK_JOB_COLUMN_CLASS : JOB_COLUMN_CLASS
+
   return (
     <thead className={TABLE_HEADER_CLASS}>
       <tr>
-        <th className={`${JOB_COLUMN_CLASS} px-4 py-3 font-bold`}>Job</th>
+        <th className={`${jobColumnClass} px-4 py-3 font-bold`}>Job</th>
         <th className={`${CAMERA_COLUMN_CLASS} px-4 py-3 font-bold`}>Nhân sự quay</th>
         <th className={`${EDITOR_COLUMN_CLASS} px-4 py-3 font-bold`}>Video-Editor</th>
         <th className={`${STATUS_COLUMN_CLASS} px-4 py-3 font-bold`}>Trạng thái</th>
+        {showProductionDays ? (
+          <th className={`${PRODUCTION_DAYS_COLUMN_CLASS} px-4 py-3 font-bold`}>Số ngày dựng</th>
+        ) : null}
         <th className={`${DEADLINE_COLUMN_CLASS} px-4 py-3 font-bold`}>Deadline</th>
       </tr>
     </thead>
@@ -218,7 +243,7 @@ function RecentFeedbackRow({ feedback }) {
 
   return (
     <tr className="border-b border-slate-100 last:border-0">
-      <td className={`${JOB_COLUMN_CLASS} px-4 py-3`}>
+      <td className={`${FEEDBACK_JOB_COLUMN_CLASS} px-4 py-3`}>
         <a
           href={feedbackPath}
           target="_blank"
@@ -237,6 +262,9 @@ function RecentFeedbackRow({ feedback }) {
       </StaffCell>
       <td className={`${STATUS_COLUMN_CLASS} px-4 py-3`}>
         <JobStatusBadge job={job} />
+      </td>
+      <td className={`${PRODUCTION_DAYS_COLUMN_CLASS} px-4 py-3 align-top text-[13px] font-semibold text-slate-800`}>
+        {formatProductionDays(job.created_at)}
       </td>
       <td className={`${DEADLINE_COLUMN_CLASS} px-4 py-3`}>
         <DeadlineBadge deadline={job.end_feedback} />
@@ -366,8 +394,8 @@ export default function FeedbackDashboardPage() {
             ) : feedbacks.length ? (
               <div>
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[860px] text-left text-[13px]">
-                    <FeedbackTableHead />
+                  <table className="w-full min-w-[980px] text-left text-[13px]">
+                    <FeedbackTableHead showProductionDays />
                     <tbody>
                       {feedbacks.map(feedback => (
                         <RecentFeedbackRow key={feedback.id} feedback={feedback} />
