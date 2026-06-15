@@ -131,7 +131,6 @@ const CUSTOMER_CALL_OPTIONS = [
 const MESSAGE_STYLE_OPTIONS = [
   { value: 'friendly', label: 'Thân thiện' },
   { value: 'professional', label: 'Chuyên nghiệp' },
-  { value: 'serious', label: 'Nghiêm túc' },
 ]
 
 const CUSTOMER_MESSAGE_MODES = [
@@ -218,6 +217,142 @@ function formatFeedbackNameForCustomerMessage(name = '') {
   return text.replace(/^Feedback\s*#?\s*(\d+)\b/i, 'bản #$1')
 }
 
+const CUSTOMER_MESSAGE_TEMPLATES = {
+  hello: {
+    friendly: [
+      '{Khach} ơi, {toi} là {editor} phụ trách dựng video cho mình. {Toi} nhận đủ nội dung rồi, dự kiến {gio_gui} {toi} gửi bản đầu tiên ạ.',
+      'Hi {khach}, {toi} là {editor} phụ trách dựng video dự án lần này. {Toi} đã nhận đủ dữ liệu và sẽ gửi {ban} vào {gio_gui} nhé.',
+      '{Khach} ơi, {toi} đã nhận đủ thông tin và đang triển khai video cho mình rồi. {Toi} dự kiến gửi {ban} đến {khach} vào {gio_gui} nha.',
+    ],
+    professional: [
+      'Hi {khach}, {toi} là {editor} phụ trách dự án này. Hiện {toi} đã nhận được các nội dung và sẽ gửi {ban} tới {khach} vào {gio_gui} ạ.',
+      '{Toi} chào {khach}, {toi} là {editor} phụ trách video trong dự án này. {Toi} đã xác nhận đủ dữ liệu và dự kiến hoàn thiện {ban} vào {gio_gui} ạ.',
+      'Xin chào {khach}, {toi} là {editor} chịu trách nhiệm cho video lần này. {Toi} đã nhận đầy đủ tài liệu và dự kiến gửi {ban} vào {gio_gui} ạ.',
+    ],
+  },
+  brief: {
+    friendly: [
+      '{Khach} ơi, để video đúng với mong muốn và tinh thần của dự án, {khach} gửi cho {toi} brief hoặc yêu cầu cụ thể nhé. {Toi} đợi thông tin từ {khach} ạ.',
+      'Nếu {khach} có ý tưởng hay yêu cầu gì cho video, {khach} chia sẻ để {toi} hiểu thêm ạ. {Toi} đang triển khai video rồi, có thêm thông tin sẽ đúng tinh thần hơn ạ.',
+      '{Khach} gửi cho {toi} yêu cầu dựng video nhé, để {toi} bám sát mong muốn của bên mình nhất ạ.',
+    ],
+    professional: [
+      'Để thuận tiện hơn trong quá trình dựng, {khach} gửi cho {toi} bản brief hoặc các yêu cầu chi tiết ạ. {Toi} sẽ bám sát theo đó để thực hiện ạ.',
+      'Hi {khach}, {toi} mong nhận được brief hoặc các yêu cầu dựng từ {khach} để sản phẩm đầu ra đúng với mong muốn nhất ạ.',
+      'Để đảm bảo sản phẩm đúng định hướng, {khach} gửi cho {toi} brief hoặc các yêu cầu chi tiết để {toi} triển khai dựng ạ.',
+    ],
+  },
+  send: {
+    friendly: [
+      '{Khach} ơi, {toi} gửi {ban}, {khach} xem rồi phản hồi cho {toi} tại link này nhé:\n{link_feedback}',
+      'Hi {khach}, {toi} gửi {khach} {ban} mới nhất ạ. {Khach} xem và cho {toi} xin feedback tại link này nhé:\n{link_feedback}',
+      '{Khach} ơi, {ban} đã xong, {khach} xem và gửi feedback cho {toi} ở link này nhé:\n{link_feedback}',
+    ],
+    professional: [
+      '{Khach} ơi, {toi} gửi {ban}. Nhờ {khach} xem và gửi feedback cho {toi} qua link này ạ:\n{link_feedback}',
+      '{Toi} xin gửi {ban} tới {khach}. {Khach} vui lòng xem và phản hồi nội dung tại link này ạ:\n{link_feedback}',
+      '{Toi} xin phép gửi {khach} {ban}. {Khach} vui lòng xem và cập nhật ý kiến feedback tại link này ạ:\n{link_feedback}',
+    ],
+  },
+  drive: {
+    friendly: [
+      '{Toi} gửi {khach} link tải file, {khach} xem và tải về ở link này giúp {toi} ạ:\n{link_drive}',
+      '{Khach} ơi, file hoàn thiện đã được update ở link này rồi, {khach} tải về xem nha:\n{link_drive}',
+      'Link tải file đây ạ, {khach} kiểm tra và tải về từ link này nha:\n{link_drive}',
+    ],
+    professional: [
+      'Hi {khach}, {toi} xin phép gửi link truy cập file dự án. {Khach} vui lòng kiểm tra và tải về tại link này ạ:\n{link_drive}',
+      '{Toi} gửi {khach} đường dẫn tải file dự án. {Khach} có thể truy cập và tải file tại link này ạ:\n{link_drive}',
+      '{Toi} xin thông báo tới {khach}, file đã hoàn thiện, {khach} vui lòng truy cập để tải dữ liệu tại link này ạ:\n{link_drive}',
+    ],
+  },
+  confirm: {
+    friendly: [
+      '{Khach} ơi, {toi} nhận được feedback rồi nhé. {Toi} sẽ sửa và gửi lại vào {gio_tra} cho mình ạ.',
+      'Cảm ơn {khach} đã feedback, {toi} đã nắm được yêu cầu và sẽ gửi lại bản hoàn thiện vào {gio_tra} nhé ạ.',
+      '{Toi} nhận được góp ý của {khach} rồi, {toi} sẽ chỉnh sửa và gửi lại bản mới vào {gio_tra} nha ạ.',
+    ],
+    professional: [
+      '{Toi} đã nhận được phản hồi của {khach} ạ. {Toi} sẽ tiến hành chỉnh sửa và gửi lại vào {gio_tra} ạ.',
+      'Hi {khach}, {toi} xác nhận đã nhận được feedback rồi ạ. {Toi} sẽ gửi lại bản cập nhật cho {khach} vào {gio_tra} ạ.',
+      '{Toi} xác nhận đã nhận được feedback của {khach}. {Toi} dự kiến hoàn tất chỉnh sửa và gửi lại vào {gio_tra} ạ.',
+    ],
+  },
+  delay: {
+    friendly: [
+      '{Khach} ơi, cho {toi} xin thêm chút thời gian để hoàn thiện video kỹ hơn nhé, {toi} sẽ gửi lại vào {gio_moi} ạ.',
+      '{Khach} thông cảm giúp {toi}, để video đạt chất lượng tốt nhất, {toi} cần thêm chút thời gian và sẽ gửi {khach} vào {gio_moi} nha.',
+      '{Toi} đang hoàn thiện nốt video cho {khach}, cho {toi} xin thêm thời gian đến {gio_moi} để sản phẩm chỉn chu nhất nha.',
+    ],
+    professional: [
+      'Hi {khach}, để đảm bảo chất lượng tốt nhất, {toi} xin phép lùi thời gian gửi bản hoàn thiện tới {gio_moi} ạ.',
+      'Do cần thêm thời gian để hoàn thiện kỹ lưỡng hơn, {toi} xin phép gửi sản phẩm tới {khach} vào {gio_moi} ạ.',
+      'Vì cần thêm thời gian để tối ưu sản phẩm, {toi} xin phép gửi muộn hơn vào lúc {gio_moi} ạ.',
+    ],
+  },
+  push: {
+    friendly: [
+      '{Khach} ơi, {khach} đã xem được video chưa ạ? {Toi} đang chờ feedback của {khach} để hoàn thiện nốt nha.',
+      'Hi {khach}, không biết {khach} xem sản phẩm chưa ạ? Nếu có chỉnh sửa gì {khach} nhắn {toi} sớm nhé.',
+      '{Khach} ơi, {toi} đang đợi feedback để hoàn thành dự án, {khach} xem giúp {toi} nha.',
+    ],
+    professional: [
+      'Hi {khach}, {toi} đang chờ phản hồi từ {khach} để tiếp tục hoàn thiện video ạ.',
+      'Hi {khach}, {toi} xin phép remind về bản gửi trước đó. Mong sớm nhận được feedback từ {khach} ạ.',
+      'Để đảm bảo tiến độ, {toi} xin phép remind về việc phản hồi video. Rất mong nhận được phản hồi từ {khach} ạ.',
+    ],
+  },
+  thanks: {
+    friendly: [
+      '{Khach} ơi, cảm ơn {khach} đã phối hợp cùng {toi}. Hi vọng lần sau mình được đồng hành cùng nhau tiếp ạ.',
+      'Cảm ơn {khach} đã đồng hành cùng {toi} trong dự án này. Mong sớm có dịp hợp tác tiếp cùng {khach} nha.',
+      'Cảm ơn {khach} vì đã hỗ trợ {toi} trong dự án này nhé. Dự án diễn ra suôn sẻ và sản phẩm đầu ra cũng đạt chất lượng tốt ạ.',
+    ],
+    professional: [
+      '{Toi} cảm ơn {khach} đã hỗ trợ trong dự án. Rất mong sẽ tiếp tục được đồng hành cùng {khach} trong thời gian tới ạ.',
+      'Cảm ơn {khach} vì sự hợp tác nhiệt tình. Hi vọng chúng ta sẽ có nhiều cơ hội làm việc cùng nhau hơn ạ.',
+      'Thay mặt team, {toi} xin gửi lời cảm ơn tới {khach}. Rất mong được tiếp tục đồng hành cùng {khach} trong các dự án sau ạ.',
+    ],
+  },
+}
+
+function capitalizeCustomerMessageValue(value = '') {
+  const text = String(value || '').trim()
+  if (!text) return ''
+  return text.charAt(0).toUpperCase() + text.slice(1)
+}
+
+function templateUsesCustomerMinh(template = '') {
+  return /\b(?:bên\s+)?mình\b/iu.test(String(template || ''))
+}
+
+function putCustomerMessageLinksOnNewLine(message = '') {
+  return String(message || '').replace(/([^\n])\s*((?:https?:\/\/|\[link feedback\]|\[link Google Drive\]))/gi, '$1\n$2')
+}
+
+function renderCustomerMessageTemplate(template = '', values = {}) {
+  const self = values.self === 'mình' && templateUsesCustomerMinh(template) ? 'em' : values.self
+  const replacements = {
+    khach: values.customer,
+    Khach: values.customerTitle,
+    toi: self,
+    Toi: capitalizeCustomerMessageValue(self),
+    editor: values.editor,
+    ban: values.feedbackLabel,
+    link_feedback: values.feedbackUrl,
+    link_drive: values.driveUrl,
+    gio_gui: values.deadline,
+    gio_tra: values.returnTime,
+    gio_moi: values.delayTime,
+  }
+
+  const rendered = String(template || '').replace(/\{([A-Za-z0-9_]+)\}/g, (match, key) => (
+    Object.prototype.hasOwnProperty.call(replacements, key) ? replacements[key] : match
+  ))
+
+  return putCustomerMessageLinksOnNewLine(rendered)
+}
+
 function buildCustomerMessageVariants({
   mode,
   style,
@@ -233,120 +368,21 @@ function buildCustomerMessageVariants({
   const m = getCustomerMessageMeta(customerCall)
   const editor = getEditorFirstName(editorName) || String(editorName || '').trim() || '[tên editor]'
   const feedbackLabel = formatFeedbackNameForCustomerMessage(feedbackName)
-  const link = mode === 'drive'
-    ? String(driveUrl || '').trim() || '[link Google Drive]'
-    : String(feedbackUrl || '').trim() || '[link feedback]'
-  const firstDeadline = String(deadline || '').trim() || '[giờ gửi]'
-  const nextReturnTime = String(returnTime || '').trim() || '[giờ trả]'
-  const nextDelayTime = String(delayTime || '').trim() || '[giờ mới]'
-  const greeting = m.prefix ? `${m.prefix}${m.customer}` : `${m.customerTitle}`
-  const selfOpening = m.prefix ? `${m.prefix}${m.self}` : m.selfTitle
-  const sendVerb = customerCall === 'ban' || customerCall === 'mnm'
-    ? `${m.selfTitle} gửi`
-    : `${m.selfTitle} gửi ${m.customer}`
-
-  if (style === 'serious') {
-    if (mode === 'hello') return [
-      `${greeting} ơi, ${m.self} là ${editor}, phụ trách dựng video này ${m.mid}.\n${m.selfTitle} đã nhận nội dung và dự kiến gửi ${feedbackLabel} vào ${firstDeadline} ${m.finish}.`,
-      `${greeting} ơi, ${editor} bên Eventus sẽ phụ trách dựng video này ${m.mid}.\n${m.selfTitle} đã nhận brief và sẽ gửi ${feedbackLabel} vào ${firstDeadline} ${m.finish}.`,
-    ]
-    if (mode === 'brief') return [
-      `${greeting} ơi, ${m.customer} gửi giúp ${m.self} brief dựng video này để ${m.self} triển khai ${m.finish}.`,
-      `${greeting} ơi, ${m.self} cần brief / yêu cầu dựng của video này để bắt đầu xử lý đúng hướng ${m.finish}.`,
-    ]
-    if (mode === 'drive') return [
-      `${sendVerb} link tải file, ${m.customer} xem và tải về ở link này giúp ${m.self} ${m.finish}:\n${link}`,
-      `${sendVerb} link tải file. ${m.customerTitle} xem và tải file trong link dưới đây giúp ${m.self} ${m.finish}:\n${link}`,
-    ]
-    if (mode === 'send') return [
-      `${sendVerb} ${feedbackLabel}, ${m.customer} xem và feedback giúp ${m.self} tại link này ${m.finish}:\n${link}`,
-      `${sendVerb} ${feedbackLabel}. ${m.customerTitle} xem và góp ý trực tiếp trong link dưới đây giúp ${m.self} ${m.finish}:\n${link}`,
-    ]
-    if (mode === 'confirm') return [
-      `${m.prefix}${m.self} đã nhận feedback của ${m.customer}. ${m.selfTitle} sẽ chỉnh sửa và gửi lại bản tiếp theo vào ${nextReturnTime} ${m.finish}.`,
-      `${m.prefix}${m.self} ghi nhận feedback rồi ${m.mid}. ${m.selfTitle} sẽ xử lý và gửi lại ${m.customer} vào ${nextReturnTime} ${m.finish}.`,
-    ]
-    if (mode === 'delay') return [
-      `${greeting} ơi, phần dựng cần thêm thời gian để hoàn thiện. ${m.selfTitle} xin phép gửi lại vào ${nextDelayTime} ${m.finish}.`,
-      `${greeting} ơi, ${m.self} xin phép lùi thời gian gửi đến ${nextDelayTime} để bản dựng chỉn chu hơn ${m.finish}.`,
-    ]
-    if (mode === 'push') return [
-      `${m.customerTitle} ơi, ${m.customer} đã xem ${feedbackLabel} chưa ${m.mid}? ${m.customerTitle} feedback giúp ${m.self} để ${m.self} hoàn thiện tiếp ${m.finish}.`,
-      `${m.customerTitle} ơi, ${m.self} gửi ${feedbackLabel} rồi. Khi tiện, ${m.customer} xem và feedback giúp ${m.self} ${m.finish}.`,
-    ]
-    return [
-      `${selfOpening} cảm ơn ${m.customer} đã đồng hành và hỗ trợ team Eventus hoàn thành công việc ${m.mid}. Hẹn gặp lại ${m.customer} ở job tiếp theo ${m.finish}.`,
-      `${selfOpening} cảm ơn ${m.customer} vì đã hỗ trợ trong quá trình dựng ${m.mid}. Mong tiếp tục được đồng hành cùng ${m.customer} ở các job sau ${m.finish}.`,
-    ]
+  const templates = CUSTOMER_MESSAGE_TEMPLATES[mode]?.[style] || CUSTOMER_MESSAGE_TEMPLATES[mode]?.friendly || []
+  const values = {
+    customer: m.customer,
+    customerTitle: m.customerTitle,
+    self: m.self,
+    editor,
+    feedbackLabel,
+    feedbackUrl: String(feedbackUrl || '').trim() || '[link feedback]',
+    driveUrl: String(driveUrl || '').trim() || '[link Google Drive]',
+    deadline: String(deadline || '').trim() || '[giờ gửi]',
+    returnTime: String(returnTime || '').trim() || '[giờ trả]',
+    delayTime: String(delayTime || '').trim() || '[giờ mới]',
   }
 
-  if (style === 'professional') {
-    if (mode === 'hello') return [
-      `${greeting} ơi, ${m.self} là ${editor}, editor phụ trách video này bên Eventus ${m.mid}.\n${m.selfTitle} đã nhận thông tin dựng và dự kiến gửi ${feedbackLabel} vào ${firstDeadline} ${m.finish}.`,
-      `${greeting} ơi, ${m.self} ${editor} bên Eventus sẽ phụ trách dựng video này ${m.mid}.\n${m.selfTitle} đang triển khai và dự kiến gửi ${feedbackLabel} vào ${firstDeadline} ${m.finish}.`,
-    ]
-    if (mode === 'brief') return [
-      `${greeting} ơi, ${m.customer} gửi giúp ${m.self} brief / yêu cầu dựng cho video này để ${m.self} triển khai đúng mong muốn của ${m.customer} ${m.finish}.`,
-      `${greeting} ơi, để phần dựng bám sát yêu cầu, ${m.customer} gửi ${m.self} brief chi tiết của video này giúp ${m.self} ${m.finish}.`,
-    ]
-    if (mode === 'drive') return [
-      `${sendVerb} link tải file, ${m.customer} xem và tải về ở link này giúp ${m.self} ${m.finish}:\n${link}`,
-      `${sendVerb} link tải file ${m.mid}. ${m.customerTitle} xem và tải file trong link dưới đây giúp ${m.self} ${m.finish}:\n${link}`,
-    ]
-    if (mode === 'send') return [
-      `${sendVerb} ${feedbackLabel}, ${m.customer} xem và góp ý trực tiếp trong link này giúp ${m.self} ${m.finish}:\n${link}`,
-      `${sendVerb} ${feedbackLabel} ${m.mid}. ${m.customerTitle} xem giúp ${m.self} và để lại feedback trong link dưới đây ${m.finish}:\n${link}`,
-    ]
-    if (mode === 'confirm') return [
-      `${m.prefix}${m.self} đã nhận đầy đủ feedback của ${m.customer} rồi ${m.mid}. ${m.selfTitle} sẽ chỉnh sửa và gửi lại bản tiếp theo vào ${nextReturnTime} ${m.finish}.`,
-      `${m.prefix}${m.self} ghi nhận các feedback của ${m.customer} rồi ${m.mid}. ${m.selfTitle} sẽ xử lý và gửi bản mới vào ${nextReturnTime} ${m.finish}.`,
-    ]
-    if (mode === 'delay') return [
-      `${greeting} ơi, phần dựng cần thêm thời gian để hoàn thiện chỉn chu hơn. ${m.selfTitle} xin phép gửi lại vào ${nextDelayTime} ${m.finish}.`,
-      `${greeting} ơi, ${m.self} xin phép lùi thời gian gửi đến ${nextDelayTime} để đảm bảo chất lượng bản dựng ${m.finish}.`,
-    ]
-    if (mode === 'push') return [
-      `${m.customerTitle} ơi, ${m.customer} đã xem ${feedbackLabel} chưa ${m.mid}? ${m.customerTitle} feedback giúp ${m.self} để team hoàn thiện đúng tiến độ ${m.finish}.`,
-      `${m.customerTitle} ơi, khi tiện ${m.customer} xem và feedback ${feedbackLabel} giúp ${m.self} trong link đã gửi ${m.finish}.`,
-    ]
-    return [
-      `${selfOpening} cảm ơn ${m.customer} đã phối hợp và hỗ trợ team Eventus hoàn thành job này ${m.mid}. Hẹn gặp lại ${m.customer} ở những dự án tiếp theo ${m.finish}.`,
-      `${selfOpening} cảm ơn ${m.customer} rất nhiều vì đã đồng hành cùng team trong quá trình dựng ${m.mid}. Mong tiếp tục được hỗ trợ ${m.customer} ở các job sau ${m.finish}.`,
-    ]
-  }
-
-  if (mode === 'hello') return [
-    `Hi ${m.customer}, ${m.self} là ${editor}, phụ trách dựng video này ${m.mid}.\n${m.selfTitle} đã nhận nội dung và đang triển khai, dự kiến ${firstDeadline} ${m.self} gửi ${m.customer} ${feedbackLabel} ${m.finish}.`,
-    `${m.customerTitle} ơi, ${m.self} ${editor} bên Eventus phụ trách dựng video này ${m.mid}.\n${m.selfTitle} đã nhận đủ nội dung, dự kiến gửi ${feedbackLabel} vào ${firstDeadline} ${m.finish}.`,
-  ]
-  if (mode === 'brief') return [
-    `${greeting} ơi, ${m.customer} gửi giúp ${m.self} brief dựng của video này để ${m.self} triển khai ${m.finish}.`,
-    `${greeting} ơi, ${m.customer} gửi ${m.self} qua brief / yêu cầu dựng của video mình để ${m.self} làm cho đúng ý ${m.customer} ${m.finish}.`,
-  ]
-  if (mode === 'drive') return [
-    `${sendVerb} link tải file, ${m.customer} xem và tải về ở link này giúp ${m.self} ${m.finish}:\n${link}`,
-    `${sendVerb} link tải file đây ${m.mid}, ${m.customer} xem và tải file ở link này giúp ${m.self} ${m.finish}:\n${link}`,
-  ]
-  if (mode === 'send') return [
-    `${sendVerb} ${feedbackLabel}, ${m.customer} xem và feedback giúp ${m.self} ở link này ${m.finish}:\n${link}`,
-    `${sendVerb} ${feedbackLabel} đây ${m.mid}, ${m.customer} xem giúp ${m.self} rồi feedback ở link này ${m.finish}:\n${link}`,
-  ]
-  if (mode === 'confirm') return [
-    `${m.prefix}${m.self} đã nhận được feedback của ${m.customer} rồi ${m.mid}. ${m.selfTitle} sẽ chỉnh sửa và gửi lại ${m.customer} bản tiếp theo vào lúc ${nextReturnTime} ${m.finish}.`,
-    `${m.prefix}${m.self} ghi nhận hết feedback của ${m.customer} rồi ${m.mid}. ${m.selfTitle} sẽ sửa và gửi lại vào ${nextReturnTime} ${m.finish}.`,
-  ]
-  if (mode === 'delay') return [
-    `${greeting} ơi, bản dựng cần thêm chút thời gian để chỉn chu hơn, ${m.self} xin phép gửi ${m.customer} vào ${nextDelayTime} ${m.finish}. Xong sớm hơn ${m.self} gửi ngay ${m.finish}.`,
-    `${greeting} ơi, ${m.self} xin phép lùi thời gian gửi đến ${nextDelayTime} để hoàn thiện kỹ hơn ${m.finish}.`,
-  ]
-  if (mode === 'push') return [
-    `${m.customerTitle} ơi, ${m.customer} xem được ${feedbackLabel} chưa ${m.mid}? ${m.customerTitle} feedback giúp ${m.self} để ${m.self} hoàn thiện tiếp ${m.finish}.`,
-    `${m.customerTitle} ơi, ${m.customer} tranh thủ xem và feedback ${feedbackLabel} giúp ${m.self} ${m.finish}.`,
-  ]
-  return [
-    `${selfOpening} cảm ơn ${m.customer} đã support, đồng hành để team ${m.self} hoàn thành công việc ${m.mid}. Hẹn gặp lại ${m.customer} ở job tiếp theo ${m.finish}.`,
-    `${selfOpening} cảm ơn ${m.customer} nhiều ${m.mid}. Có ${m.customer} support nên team ${m.self} hoàn thành job suôn sẻ, hẹn gặp lại ${m.customer} ở job tiếp theo ${m.finish}.`,
-  ]
+  return templates.map(template => renderCustomerMessageTemplate(template, values))
 }
 
 function getSharedDriveUrl(feedback = {}) {
@@ -1213,12 +1249,7 @@ function CustomerMessageSuggestionPopup({ feedback, publicUrl = '', darkMode = f
     return () => window.removeEventListener('resize', fitMessageTextareaHeight)
   }, [fitMessageTextareaHeight])
 
-  const missingFields = uniqueList([
-    ...(!hasEditorName ? ['tên editor'] : []),
-    ...(mode === 'drive' && !hasDriveUrl ? ['link Google Drive'] : []),
-    ...(mode !== 'drive' && !hasFeedbackUrl ? ['link feedback'] : []),
-    ...getMissingCustomerMessageFields(message).filter(field => !['tên editor', 'link feedback', 'link Google Drive'].includes(field)),
-  ])
+  const missingFields = uniqueList(getMissingCustomerMessageFields(message))
   const canCopy = missingFields.length === 0
   const showDeadlineField = mode === 'hello'
   const showReturnTimeField = mode === 'confirm'
@@ -1252,8 +1283,8 @@ function CustomerMessageSuggestionPopup({ feedback, publicUrl = '', darkMode = f
     ? 'Bạn chưa nhập Thời gian gửi'
     : showReturnTimeField && !returnTime.trim()
       ? 'Bạn chưa nhập thời gian gửi bản sửa'
-      : showDelayTimeField && !delayTime.trim()
-        ? 'Bạn chưa nhập thời gian xin lùi giờ'
+    : showDelayTimeField && !delayTime.trim()
+        ? 'Bạn chưa nhập thời gian xin lùi giờ...'
         : ''
 
   async function copyMessage() {
@@ -1446,7 +1477,7 @@ function CustomerMessageSuggestionPopup({ feedback, publicUrl = '', darkMode = f
         <div className="shrink-0 border-t border-slate-100 bg-white px-4 py-4 sm:px-6">
           <div className="mb-5">
             <FieldLabel>Giọng văn</FieldLabel>
-            <div className="mt-1 grid grid-cols-3 gap-1.5 rounded-lg border border-slate-200 bg-slate-50 p-1">
+            <div className="mt-1 grid grid-cols-2 gap-1.5 rounded-lg border border-slate-200 bg-slate-50 p-1">
               {MESSAGE_STYLE_OPTIONS.map(option => (
                 <button
                   key={option.value}
