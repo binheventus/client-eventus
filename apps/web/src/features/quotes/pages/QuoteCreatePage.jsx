@@ -21,8 +21,18 @@ import { getQuoteActorPayload, getQuoteUserContext } from '../lib/quoteAuth'
 import { getDefaultQuoteTermsText, getQuoteTerms, normalizeQuoteTermsText } from '../lib/quoteTerms'
 import { normalizeQuoteValidityDays } from '../lib/quoteValidity'
 
+function formatDateInputValue(value = new Date()) {
+  const date = value instanceof Date ? value : new Date(value)
+  const safeDate = Number.isNaN(date.getTime()) ? new Date() : date
+  const year = safeDate.getFullYear()
+  const month = String(safeDate.getMonth() + 1).padStart(2, '0')
+  const day = String(safeDate.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 const DEFAULT_QUOTE = {
   entity_code: 'EVT',
+  created_at: '',
   event_date: '',
   location: '',
   duration_hours: '4',
@@ -827,7 +837,7 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
   const { customerTiers } = useCustomerTiers()
   const { serviceGroups } = useServiceGroups()
   const { pricingWarning } = usePricingContext()
-  const [quote, setQuote] = useState(DEFAULT_QUOTE)
+  const [quote, setQuote] = useState(() => ({ ...DEFAULT_QUOTE, created_at: formatDateInputValue() }))
   const [items, setItems] = useState([])
   const [clients, setClients] = useState([])
   const [clientQuery, setClientQuery] = useState(DEFAULT_QUOTE.client_name)
@@ -878,6 +888,7 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
 
         const nextQuote = {
           entity_code: existingQuote.entity_code || DEFAULT_QUOTE.entity_code,
+          created_at: formatDateInputValue(existingQuote.created_at || new Date()),
           event_date: existingQuote.event_date || '',
           location: existingQuote.location || '',
           duration_hours: existingQuote.duration_hours || '',
@@ -1275,6 +1286,7 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
         ...(!isEditMode ? getQuoteActorPayload(userContext) : {}),
         ai_input: inputText,
         entity_code: quote.entity_code || DEFAULT_QUOTE.entity_code,
+        created_at: quote.created_at || formatDateInputValue(),
         client_id: clientId,
         client_name: clientName || null,
         tier_code: quote.tier_code || DEFAULT_QUOTE.tier_code,
@@ -1526,6 +1538,15 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
                     </button>
                   )}
                 />
+                <label className="flex w-[232px] items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm focus-within:border-[#f8981d] focus-within:ring-2 focus-within:ring-orange-100">
+                  <span className="shrink-0 text-[11px] font-semibold text-slate-700">Ngày lập</span>
+                  <input
+                    type="date"
+                    value={quote.created_at || formatDateInputValue()}
+                    onChange={event => setQuote(prev => ({ ...prev, created_at: event.target.value }))}
+                    className="w-[126px] bg-transparent text-right text-[12px] font-semibold text-slate-800 outline-none"
+                  />
+                </label>
               </div>
               <div className="ml-auto w-full max-w-md space-y-2 text-[14px]">
                 <div className="flex justify-end gap-5 text-slate-600"><span className="text-right">Cộng tiền dịch vụ</span><span className="min-w-[132px] text-right">{formatCurrency(totals.subtotal)}đ</span></div>

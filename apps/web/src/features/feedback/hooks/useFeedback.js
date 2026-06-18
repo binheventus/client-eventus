@@ -237,8 +237,8 @@ export async function clearFeedbackColumn(feedbackId, payload = {}, access = {})
   })
 }
 
-export async function getFeedbackSurvey({ jobId } = {}) {
-  return requestFeedbackApi(buildQuery({ resource: 'survey', job: jobId }))
+export async function getFeedbackSurvey({ jobId, surveyType = 'general' } = {}) {
+  return requestFeedbackApi(buildQuery({ resource: 'survey', job: jobId, survey_type: surveyType }))
 }
 
 export async function submitFeedbackSurvey(payload = {}) {

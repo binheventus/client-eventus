@@ -227,6 +227,10 @@ function sendError(res, error, fallback = 'Khong xu ly duoc hop dong.') {
   })
 }
 
+function isMissingQuoteDocumentColumnError(error) {
+  return error?.code === 'ER_BAD_FIELD_ERROR' && /quote_id/i.test(String(error?.message || ''))
+}
+
 function makeHttpError(message, statusCode = 400, code) {
   const error = new Error(message)
   error.statusCode = statusCode
@@ -441,6 +445,7 @@ function normalizeContractDocumentBadge(row = {}) {
     label: CONTRACT_DOCUMENT_BADGE_LABELS[type] || type,
     id: row.id || '',
     contract_id: row.contract_id || '',
+    quote_id: row.quote_id || '',
     share_token: shareToken,
     number: row.document_number || '',
     url: shareToken ? `/d/${encodeURIComponent(shareToken)}` : '',
@@ -589,6 +594,99 @@ function buildJobQuoteSnapshot(job = {}) {
   }
 }
 
+function buildQuoteSnapshot(quote = {}, items = []) {
+  return {
+    id: quote.id || '',
+    quote_number: quote.quote_number || '',
+    share_token: quote.share_token || '',
+    entity_code: quote.entity_code || '',
+    client_name: quote.client_name || quote.customer_name || '',
+    event_name: quote.event_name || '',
+    event_date: quote.event_date || '',
+    location: quote.location || '',
+    duration_hours: quote.duration_hours || '',
+    validity_days: quote.validity_days || '',
+    has_vat: quote.has_vat !== false,
+    terms_text: quote.terms_text || '',
+    subtotal: Number(quote.subtotal || 0),
+    travel_fee_total: Number(quote.travel_fee_total || 0),
+    overtime_fee_total: Number(quote.overtime_fee_total || 0),
+    discount_amount: Number(quote.discount_amount || 0),
+    discount_note: quote.discount_note || '',
+    vat_amount: Number(quote.vat_amount || 0),
+    total_amount: Number(quote.total_amount || 0),
+    items: (Array.isArray(items) ? items : []).map((item, index) => ({
+      service_code: item.service_code || '',
+      service_name: item.service_name || item.service_name_raw || '',
+      unit: item.unit || 'Gói',
+      quantity: Number(item.quantity || 0),
+      num_sessions: Number(item.num_sessions || 1),
+      billable_duration_hours: item.billable_duration_hours ?? '',
+      unit_price: Number(item.unit_price || 0),
+      total_price: Number(item.total_price || 0),
+      sort_order: item.sort_order ?? index + 1,
+      group_code: item.group_code || '',
+      group_label: item.group_label || '',
+      group_sort_order: item.group_sort_order ?? null,
+    })),
+  }
+}
+
+function buildCustomerSnapshotFromQuote(quote = {}) {
+  return {
+    customer_code: quote.customer_code || '',
+    company_name: quote.company_name || quote.client_name || quote.customer_name || '',
+    tax_code: quote.client_tax_code || '',
+    address: quote.client_address || '',
+    representative: quote.client_representative || '',
+    position: quote.client_position || '',
+    authorization_number: quote.client_authorization_number || '',
+    authorization_date: quote.client_authorization_date || '',
+    email: quote.client_email || '',
+    phone_number: quote.client_phone || '',
+  }
+}
+
+function buildQuoteBackedContractSnapshot({ quote = {}, items = [], inputSnapshot = {} } = {}) {
+  const sellerEntityCode = inputSnapshot.seller_entity_code || quote.entity_code || 'EVT'
+  const quoteSnapshot = buildQuoteSnapshot(quote, items)
+
+  return {
+    id: '',
+    quote_id: quote.id || inputSnapshot.quote_id || null,
+    quote_number: quote.quote_number || inputSnapshot.quote_number || null,
+    source_type: 'quote',
+    external_job_id: null,
+    contract_number: inputSnapshot.contract_number || quote.quote_number || '',
+    status: inputSnapshot.status || 'draft',
+    title: inputSnapshot.title || (quote.quote_number ? `Chung tu theo bao gia ${quote.quote_number}` : 'Chung tu theo bao gia'),
+    seller_entity_code: sellerEntityCode,
+    seller_snapshot: inputSnapshot.seller_snapshot || {},
+    customer_snapshot: inputSnapshot.customer_snapshot || buildCustomerSnapshotFromQuote(quote),
+    party_role_config: inputSnapshot.party_role_config || {},
+    signing_date: inputSnapshot.signing_date || quote.created_at || null,
+    service_scope: inputSnapshot.service_scope || 'cung cap dich vu theo bao gia',
+    schedule_rows: Array.isArray(inputSnapshot.schedule_rows) && inputSnapshot.schedule_rows.length
+      ? inputSnapshot.schedule_rows
+      : [{ time_range: quote.duration_hours ? `${quote.duration_hours} gio` : '', date_text: quote.event_date || '', location: quote.location || '' }],
+    quote_table_config: inputSnapshot.quote_table_config || {},
+    payment_config: inputSnapshot.payment_config || {},
+    quote_snapshot: {
+      ...quoteSnapshot,
+      ...(inputSnapshot.quote_snapshot || {}),
+      items: Array.isArray(inputSnapshot.quote_snapshot?.items) && inputSnapshot.quote_snapshot.items.length
+        ? inputSnapshot.quote_snapshot.items
+        : quoteSnapshot.items,
+    },
+    source_snapshot: inputSnapshot.source_snapshot || {
+      source_type: 'quote',
+      quote_id: quote.id || '',
+      quote_number: quote.quote_number || '',
+    },
+    updated_at: quote.updated_at || null,
+  }
+}
+
 async function getQuoteById(id) {
   const rows = await runQuery(`select * from ${tables.quotes} where id = ? limit 1`, [id])
   const quote = rows?.[0]
@@ -598,6 +696,17 @@ async function getQuoteById(id) {
     throw error
   }
   return quote
+}
+
+async function getQuoteItems(quoteId) {
+  if (!quoteId) return []
+  return runQuery(
+    `select *
+     from ${tables.quoteItems}
+     where quote_id = ?
+     order by sort_order asc, created_at asc`,
+    [quoteId],
+  )
 }
 
 async function getQuoteByShareToken(shareToken) {
@@ -1240,14 +1349,30 @@ async function getDocumentById(id, { includeDeleted = false } = {}) {
 }
 
 async function getDocumentByShareToken(shareToken) {
-  const rows = await runQuery(
-    `select d.*
-     from ${tables.contractDocuments} d
-     inner join ${tables.contracts} c on c.id = d.contract_id and c.deleted_at is null
-     where d.share_token = ? and d.deleted_at is null
-     limit 1`,
-    [shareToken],
-  )
+  let rows = []
+  try {
+    rows = await runQuery(
+      `select d.*
+       from ${tables.contractDocuments} d
+       left join ${tables.contracts} c on c.id = d.contract_id and c.deleted_at is null
+       left join ${tables.quotes} q on q.id = d.quote_id and q.deleted_at is null
+       where d.share_token = ?
+         and d.deleted_at is null
+         and (c.id is not null or q.id is not null)
+       limit 1`,
+      [shareToken],
+    )
+  } catch (error) {
+    if (!isMissingQuoteDocumentColumnError(error)) throw error
+    rows = await runQuery(
+      `select d.*
+       from ${tables.contractDocuments} d
+       inner join ${tables.contracts} c on c.id = d.contract_id and c.deleted_at is null
+       where d.share_token = ? and d.deleted_at is null
+       limit 1`,
+      [shareToken],
+    )
+  }
   return rows?.[0] ? buildPublicDocumentDto(rows[0]) : null
 }
 
@@ -1315,15 +1440,16 @@ async function validatePaymentDocumentLinks({ contractId, documentData, currentD
 
 async function listDocumentsByContract(queryParams = {}) {
   const contractId = getQueryValue(queryParams.contract_id, '')
-  if (!contractId) {
-    const error = new Error('Thieu contract id.')
+  const quoteId = getQueryValue(queryParams.quote_id, '')
+  if (!contractId && !quoteId) {
+    const error = new Error('Thieu contract id hoac quote id.')
     error.statusCode = 400
     throw error
   }
 
   const documentType = normalizeDocumentType(getQueryValue(queryParams.document_type, ''))
-  const where = ['contract_id = ?', 'deleted_at is null']
-  const params = [contractId]
+  const where = [contractId ? 'contract_id = ?' : 'quote_id = ?', 'deleted_at is null']
+  const params = [contractId || quoteId]
   if (documentType) {
     where.push('document_type = ?')
     params.push(documentType)
@@ -1428,16 +1554,37 @@ async function reassignDocumentNumber(connection, {
 }
 
 async function cleanDocumentPayload(document = {}, existing = null) {
-  const contractId = document.contract_id || existing?.contract_id
-  const contract = await getContractForDocument(contractId)
   const documentType = normalizeDocumentType(document.document_type || existing?.document_type)
   const status = normalizeDocumentStatus(document.status || existing?.status || 'draft')
   const documentData = document.document_data || document.data || existing?.document_data || {}
+  const contractId = document.contract_id || existing?.contract_id || ''
+  const quoteId = document.quote_id || existing?.quote_id || ''
 
   if (!documentType) {
     const error = new Error('Loai chung tu khong hop le.')
     error.statusCode = 400
     throw error
+  }
+
+  let contract = null
+  let sourceQuoteId = ''
+  if (contractId) {
+    contract = await getContractForDocument(contractId)
+  } else {
+    if (documentType !== 'acceptance_liquidation') {
+      throw makeHttpError('Chi BBNT duoc tao truc tiep tu bao gia.', 400, 'QUOTE_DOCUMENT_TYPE_INVALID')
+    }
+    if (!quoteId) {
+      throw makeHttpError('Thieu quote id de tao BBNT.', 400, 'QUOTE_DOCUMENT_REQUIRED')
+    }
+    const quote = await getQuoteById(quoteId)
+    const quoteItems = await getQuoteItems(quoteId)
+    sourceQuoteId = quote.id
+    contract = buildQuoteBackedContractSnapshot({
+      quote,
+      items: quoteItems,
+      inputSnapshot: document.contract_snapshot || existing?.contract_snapshot || {},
+    })
   }
 
   if (existing?.id && existing.document_type !== documentType) {
@@ -1465,9 +1612,10 @@ async function cleanDocumentPayload(document = {}, existing = null) {
     ? existing.template_snapshot
     : explicitTemplateSnapshot || buildDocumentTemplateSnapshot(template)
   const autoSyncContract = document.auto_sync_contract ?? existing?.auto_sync_contract ?? true
-  const contractSnapshot = autoSyncContract && OPEN_DOCUMENT_STATUSES.has(status)
+  const canAutoSyncContract = Boolean(contract.id)
+  const contractSnapshot = canAutoSyncContract && autoSyncContract && OPEN_DOCUMENT_STATUSES.has(status)
     ? buildDocumentContractSnapshot(contract)
-    : document.contract_snapshot || existing?.contract_snapshot || buildDocumentContractSnapshot(contract)
+    : document.contract_snapshot || existing?.contract_snapshot || (contract.id ? buildDocumentContractSnapshot(contract) : contract)
   const requestedSellerEntityCode = normalizeDocumentSellerEntityCode(
     document.seller_entity_code
       || existing?.seller_entity_code
@@ -1505,7 +1653,8 @@ async function cleanDocumentPayload(document = {}, existing = null) {
   return {
     contract,
     payload: {
-      contract_id: contract.id,
+      contract_id: contract.id || null,
+      quote_id: contract.id ? null : sourceQuoteId,
       document_type: documentType,
       status,
       template_id: templateId,

@@ -154,6 +154,22 @@ const contractIndexes = [
   },
 ]
 
+const contractDocumentColumns = [
+  {
+    tableName: 'client_contract_documents',
+    columnName: 'quote_id',
+    definition: 'varchar(32) null after `contract_id`',
+  },
+]
+
+const contractDocumentIndexes = [
+  {
+    tableName: 'client_contract_documents',
+    indexName: 'client_contract_documents_quote_idx',
+    columns: ['quote_id', 'deleted_at', 'created_at'],
+  },
+]
+
 const feedbackJobColumns = [
   {
     tableName: 'jobs',
@@ -831,6 +847,69 @@ async function ensureContractQuoteNullable(pool) {
   return true
 }
 
+async function dropForeignKeysForColumn(pool, tableName, columnName, referencedTableName = '') {
+  const [constraints] = await pool.query(
+    `select constraint_name as constraintName
+     from information_schema.key_column_usage
+     where table_schema = database()
+       and table_name = ?
+       and column_name = ?
+       ${referencedTableName ? 'and referenced_table_name = ?' : ''}`,
+    referencedTableName ? [tableName, columnName, referencedTableName] : [tableName, columnName],
+  )
+
+  for (const row of constraints) {
+    if (row.constraintName) {
+      await pool.query(`alter table \`${tableName}\` drop foreign key \`${row.constraintName}\``)
+    }
+  }
+}
+
+async function ensureContractDocumentContractNullable(pool) {
+  const [columns] = await pool.query(
+    `select is_nullable
+     from information_schema.columns
+     where table_schema = database()
+       and table_name = 'client_contract_documents'
+       and column_name = 'contract_id'
+     limit 1`,
+  )
+
+  if (columns?.[0]?.is_nullable === 'YES') return false
+
+  await dropForeignKeysForColumn(pool, 'client_contract_documents', 'contract_id', 'client_contracts')
+  await pool.query('alter table `client_contract_documents` modify column `contract_id` varchar(64) null')
+  await pool.query(
+    `alter table \`client_contract_documents\`
+     add constraint \`client_contract_documents_contract_fk\`
+     foreign key (\`contract_id\`) references \`client_contracts\`(\`id\`) on delete cascade`,
+  )
+  return true
+}
+
+async function ensureContractDocumentQuoteForeignKey(pool) {
+  if (!await hasColumn(pool, 'client_contract_documents', 'quote_id')) return false
+
+  const [constraints] = await pool.query(
+    `select constraint_name as constraintName
+     from information_schema.key_column_usage
+     where table_schema = database()
+       and table_name = 'client_contract_documents'
+       and column_name = 'quote_id'
+       and referenced_table_name = 'client_quotes'
+     limit 1`,
+  )
+
+  if (constraints.length) return false
+
+  await pool.query(
+    `alter table \`client_contract_documents\`
+     add constraint \`client_contract_documents_quote_fk\`
+     foreign key (\`quote_id\`) references \`client_quotes\`(\`id\`) on delete cascade`,
+  )
+  return true
+}
+
 async function removeQuoteDraftMode(pool) {
   const [draftRows] = await pool.query('select id from `client_quotes` where lower(`status`) = ?', ['draft'])
   if (draftRows.length) {
@@ -921,6 +1000,10 @@ try {
     if (await ensureColumn(pool, columnConfig)) createdColumns.push(`${columnConfig.tableName}.${columnConfig.columnName}`)
   }
 
+  for (const columnConfig of contractDocumentColumns) {
+    if (await ensureColumn(pool, columnConfig)) createdColumns.push(`${columnConfig.tableName}.${columnConfig.columnName}`)
+  }
+
   for (const columnConfig of feedbackJobColumns) {
     if (await ensureColumnIfTableExists(pool, columnConfig)) createdColumns.push(`${columnConfig.tableName}.${columnConfig.columnName}`)
   }
@@ -960,9 +1043,15 @@ try {
   if (await ensureFeedbackSurveyTypeDefault(pool)) createdColumns.push('client_feedback_survey_responses.survey_type default general')
 
   if (await ensureContractQuoteNullable(pool)) createdColumns.push('client_contracts.quote_id nullable')
+  if (await ensureContractDocumentContractNullable(pool)) createdColumns.push('client_contract_documents.contract_id nullable')
+  if (await ensureContractDocumentQuoteForeignKey(pool)) createdIndexes.push('client_contract_documents_quote_fk')
   const quoteDraftModeCleanup = await removeQuoteDraftMode(pool)
 
   for (const indexConfig of contractIndexes) {
+    if (await ensureConfiguredIndex(pool, indexConfig)) createdIndexes.push(indexConfig.indexName)
+  }
+
+  for (const indexConfig of contractDocumentIndexes) {
     if (await ensureConfiguredIndex(pool, indexConfig)) createdIndexes.push(indexConfig.indexName)
   }
 

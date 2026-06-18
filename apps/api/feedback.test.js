@@ -134,7 +134,7 @@ test('feedback done notification payload sends only the editor employee id', () 
   })
 })
 
-test('survey submitted notification payload points to the dashboard', () => {
+test('survey submitted notification payload renders full answers for Eventus CSS', () => {
   const payload = __feedbackTestInternals.buildSurveySubmittedNotificationPayload({
     job: {
       id: 25,
@@ -143,19 +143,71 @@ test('survey submitted notification payload points to the dashboard', () => {
       customer_name: 'Eventus',
     },
     response: {
+      id: 'fbsr_abc',
+      job_id: 25,
+      survey_type: 'general',
+      submission_no: 2,
       display_name: 'Khảo sát #2',
     },
     recipients: [1, 2],
     answerCount: 8,
     dashboardUrl: 'https://lichlamviec.eventusproduction.com/admin/survey/dashboard',
+    answerRows: [
+      {
+        question_id: '10',
+        question_text: 'Anh/Chị đánh giá tổng thể thế nào?',
+        answer_id: '100',
+        option_answer_text: '5',
+        answer_text: null,
+      },
+      {
+        question_id: '11',
+        question_text: 'Góp ý thêm',
+        answer_id: '101',
+        option_answer_text: '__free_text__',
+        answer_text: 'Rất tốt <script>alert(1)</script>',
+      },
+      {
+        question_id: '12',
+        question_text: 'Câu chưa trả lời',
+        answer_id: null,
+        option_answer_text: null,
+        answer_text: null,
+      },
+    ],
   })
 
-  assert.deepEqual(payload, {
-    type: 5,
-    need_to_send: [1, 2],
-    title: 'Khách vừa hoàn thành khảo sát CSS',
-    content: 'Khảo sát #2 từ job 2026-06-05 Year End Party 2026.\n\nTên khách hàng: Eventus\n\nSố câu trả lời: 8\n\nXem kết quả tại dashboard: https://lichlamviec.eventusproduction.com/admin/survey/dashboard',
+  assert.equal(payload.type, 5)
+  assert.deepEqual(payload.need_to_send, [1, 2])
+  assert.equal(payload.title, 'Khách vừa hoàn thành khảo sát CSS')
+  assert.equal(payload.content, 'Khảo sát #2 từ job 2026-06-05 Year End Party 2026.\n\nTên khách hàng: Eventus')
+  assert.equal(payload.target, 25)
+  assert.deepEqual(payload.data, {
+    survey_response_id: 'fbsr_abc',
+    job_id: 25,
+    submission_no: 2,
+    survey_type: 'general',
   })
+
+  assert.match(payload.markdown_content, /color:#ea580c/)
+  assert.match(payload.markdown_content, /Tên khách hàng: <strong>Eventus<\/strong>/)
+  assert.match(payload.markdown_content, /01\.Anh\/Chị đánh giá tổng thể thế nào\?/)
+  assert.match(payload.markdown_content, />5\/10<\/span>/)
+  assert.match(payload.markdown_content, /color:#ea580c;font-size:13px;font-weight:700;line-height:1\.5;white-space:pre-wrap;">Rất tốt &lt;script&gt;alert\(1\)&lt;\/script&gt;/)
+  assert.match(payload.markdown_content, /Rất tốt &lt;script&gt;alert\(1\)&lt;\/script&gt;/)
+  assert.match(payload.markdown_content, /03\.Câu chưa trả lời/)
+  assert.match(payload.markdown_content, />N\/A<\/span>/)
+  assert.doesNotMatch(payload.markdown_content, /font-weight:700;line-height:1\.45;">01\./)
+  assert.doesNotMatch(payload.markdown_content, /Số câu trả lời/)
+  assert.doesNotMatch(payload.markdown_content, /Xem kết quả tại dashboard/)
+  assert.doesNotMatch(payload.markdown_content, /Chi tiết câu trả lời/)
+  assert.doesNotMatch(payload.markdown_content, /Trả lời/)
+})
+
+test('survey type accepts only dashboard-supported values', () => {
+  assert.equal(__feedbackTestInternals.getSurveyType('image'), 'image')
+  assert.equal(__feedbackTestInternals.getSurveyType('video'), 'video')
+  assert.equal(__feedbackTestInternals.getSurveyType('anything-else'), 'general')
 })
 
 test('survey answer count includes selected answers and free text', () => {

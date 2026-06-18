@@ -319,7 +319,7 @@ function applyQuoteSheetFormatting(sheet, rows) {
     labelCell.font = { name: FONT_NAME, size: 11, bold: true, color: { argb: DARK_TEXT } }
     valueCell.font = { name: FONT_NAME, size: 11, bold: true, color: { argb: DARK_TEXT } }
     valueCell.numFmt = MONEY_FORMAT
-    labelCell.alignment = { horizontal: 'right' }
+    labelCell.alignment = { horizontal: 'right', vertical: 'middle' }
     valueCell.alignment = { horizontal: 'center', vertical: 'middle' }
     labelCell.border = border
     valueCell.border = border

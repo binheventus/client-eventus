@@ -1,6 +1,6 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { CopyPlus, FileSignature } from 'lucide-react'
+import { ChevronDown, CopyPlus, FileCheck2, FileSignature } from 'lucide-react'
 import { useEscapeToClose } from '../../../hooks/useEscapeToClose'
 import QuoteBreadcrumb from '../components/QuoteBreadcrumb'
 import QuotePreview from '../components/QuotePreview'
@@ -21,15 +21,18 @@ import {
   getQuoteSurveySuggestion,
   hasQuoteSurveyResponse,
 } from '../lib/quoteSurvey'
-import { getContractRoute, getNewContractRoute } from '../lib/contractRouting'
+import { getContractRoute, getNewContractRoute, getNewQuoteDocumentRoute } from '../lib/contractRouting'
 
 const QuotePDFDownloadButton = lazy(() => import('../components/QuotePDFDownloadButton'))
+const QuoteExcelDownloadButton = lazy(() => import('../components/QuoteExcelDownloadButton'))
 
 const DETAIL_ACTION_BUTTON_BASE = 'inline-flex h-9 items-center justify-center gap-1.5 rounded-xl px-3 text-center text-[12px] font-semibold shadow-sm transition focus-visible:outline-none focus-visible:ring-2 disabled:cursor-not-allowed'
 const DETAIL_SECONDARY_ACTION_BUTTON = `${DETAIL_ACTION_BUTTON_BASE} w-[132px] border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 focus-visible:ring-slate-200`
 const DETAIL_DUPLICATE_ACTION_BUTTON = `${DETAIL_ACTION_BUTTON_BASE} min-w-[144px] whitespace-nowrap border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 focus-visible:ring-slate-200 disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-300 disabled:shadow-none`
 const DETAIL_CONTRACT_ACTION_BUTTON = `${DETAIL_ACTION_BUTTON_BASE} min-w-[148px] whitespace-nowrap border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 focus-visible:ring-slate-200 disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-300 disabled:shadow-none`
 const DETAIL_PRIMARY_ACTION_BUTTON = `${DETAIL_ACTION_BUTTON_BASE} min-w-[156px] whitespace-nowrap bg-[#f8981d] text-white hover:bg-orange-500 focus-visible:ring-orange-200`
+const DETAIL_DOWNLOAD_MENU_BUTTON = `${DETAIL_ACTION_BUTTON_BASE} w-full justify-start rounded-lg border border-slate-200 bg-white px-3 text-left text-slate-700 shadow-none hover:bg-slate-50 focus-visible:ring-slate-200`
+const DETAIL_DOCUMENT_MENU_BUTTON = `${DETAIL_ACTION_BUTTON_BASE} w-full justify-start rounded-lg border border-slate-200 bg-white px-3 text-left text-slate-700 shadow-none hover:bg-slate-50 focus-visible:ring-slate-200 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-300`
 
 function formatDateTime(value) {
   if (!value) return '-'
@@ -128,6 +131,157 @@ function DuplicateQuoteConfirmModal({ quote, duplicating, error, onCancel, onCon
   )
 }
 
+function QuoteDownloadMenu({ quote }) {
+  const [open, setOpen] = useState(false)
+  const menuRef = useRef(null)
+
+  useEffect(() => {
+    if (!open) return undefined
+
+    function closeOnOutsideClick(event) {
+      if (!menuRef.current?.contains(event.target)) {
+        setOpen(false)
+      }
+    }
+
+    function closeOnEscape(event) {
+      if (event.key === 'Escape') {
+        setOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', closeOnOutsideClick)
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutsideClick)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [open])
+
+  return (
+    <div ref={menuRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        className={DETAIL_PRIMARY_ACTION_BUTTON}
+        aria-expanded={open}
+        aria-haspopup="menu"
+      >
+        Download
+        <ChevronDown className={`h-4 w-4 transition ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open ? (
+        <div
+          role="menu"
+          className="absolute right-0 top-11 z-20 w-44 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg shadow-slate-200/70"
+        >
+          <Suspense fallback={<span className={DETAIL_DOWNLOAD_MENU_BUTTON}>Đang tải...</span>}>
+            <QuotePDFDownloadButton
+              quote={quote}
+              items={quote.items || []}
+              className={DETAIL_DOWNLOAD_MENU_BUTTON}
+            >
+              Download PDF
+            </QuotePDFDownloadButton>
+            <QuoteExcelDownloadButton
+              quote={quote}
+              items={quote.items || []}
+              className={DETAIL_DOWNLOAD_MENU_BUTTON}
+            >
+              Download Excel
+            </QuoteExcelDownloadButton>
+          </Suspense>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function QuoteDocumentMenu({
+  quote,
+  contractActionLabel,
+  contractActionTitle,
+  canOpenContract,
+  canCreateQuoteDocument,
+  onOpenContract,
+  onCreateAcceptance,
+}) {
+  const [open, setOpen] = useState(false)
+  const menuRef = useRef(null)
+
+  useEffect(() => {
+    if (!open) return undefined
+
+    function closeOnOutsideClick(event) {
+      if (!menuRef.current?.contains(event.target)) setOpen(false)
+    }
+
+    function closeOnEscape(event) {
+      if (event.key === 'Escape') setOpen(false)
+    }
+
+    document.addEventListener('mousedown', closeOnOutsideClick)
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutsideClick)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [open])
+
+  return (
+    <div ref={menuRef} className="relative">
+      <button
+        type="button"
+        disabled={!quote?.id}
+        onClick={() => setOpen((current) => !current)}
+        title="Tạo chứng từ từ báo giá"
+        className={DETAIL_CONTRACT_ACTION_BUTTON}
+        aria-expanded={open}
+        aria-haspopup="menu"
+      >
+        <FileSignature className="h-4 w-4" />
+        Tạo chứng từ
+        <ChevronDown className={`h-4 w-4 transition ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open ? (
+        <div
+          role="menu"
+          className="absolute right-0 top-11 z-20 w-48 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg shadow-slate-200/70"
+        >
+          <button
+            type="button"
+            role="menuitem"
+            disabled={!canOpenContract}
+            onClick={() => {
+              setOpen(false)
+              onOpenContract()
+            }}
+            title={contractActionTitle}
+            className={DETAIL_DOCUMENT_MENU_BUTTON}
+          >
+            <FileSignature className="h-4 w-4" />
+            {contractActionLabel}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            disabled={!canCreateQuoteDocument}
+            onClick={() => {
+              setOpen(false)
+              onCreateAcceptance()
+            }}
+            title={canCreateQuoteDocument ? 'Tạo BBNT trực tiếp từ báo giá' : 'Báo giá này chưa tạo được BBNT'}
+            className={DETAIL_DOCUMENT_MENU_BUTTON}
+          >
+            <FileCheck2 className="h-4 w-4" />
+            Tạo BBNT
+          </button>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 function QuoteSurveyResponseSummary({ response }) {
   if (!hasQuoteSurveyResponse(response)) {
     return (
@@ -181,6 +335,7 @@ export default function QuoteDetailPage() {
   const contractRequested = useMemo(() => new URLSearchParams(location.search).get('contract') === '1', [location.search])
   const canCreateContract = canCreateContractFromQuote(quote)
   const canOpenContract = canOpenContractFromQuote(quote)
+  const canCreateQuoteDocument = canCreateContractFromQuote(quote)
   const hasContract = hasSavedContract(quote)
   const contractActionLabel = hasContract ? 'Xem hợp đồng đã tạo' : 'Tạo hợp đồng'
   const contractActionTitle = hasContract
@@ -218,6 +373,11 @@ export default function QuoteDetailPage() {
   function openContractPage() {
     if (!canOpenContract) return
     navigate(getQuoteContractEditorPath(quote))
+  }
+
+  function openAcceptanceDocumentPage() {
+    if (!canCreateQuoteDocument) return
+    navigate(getNewQuoteDocumentRoute(quote, 'acceptance_liquidation'))
   }
 
   async function copyShareLink() {
@@ -266,16 +426,15 @@ export default function QuoteDetailPage() {
           >
             Sửa báo giá
           </button>
-          <button
-            type="button"
-            disabled={!canOpenContract}
-            onClick={openContractPage}
-            title={contractActionTitle}
-            className={DETAIL_CONTRACT_ACTION_BUTTON}
-          >
-            <FileSignature className="h-4 w-4" />
-            {contractActionLabel}
-          </button>
+          <QuoteDocumentMenu
+            quote={quote}
+            contractActionLabel={contractActionLabel}
+            contractActionTitle={contractActionTitle}
+            canOpenContract={canOpenContract}
+            canCreateQuoteDocument={canCreateQuoteDocument}
+            onOpenContract={openContractPage}
+            onCreateAcceptance={openAcceptanceDocumentPage}
+          />
           <button
             type="button"
             disabled={duplicating}
@@ -288,15 +447,7 @@ export default function QuoteDetailPage() {
             <CopyPlus className={`h-4 w-4 ${duplicating ? 'animate-pulse' : ''}`} />
             {duplicating ? 'Đang nhân bản...' : 'Nhân bản báo giá'}
           </button>
-          <Suspense fallback={<span className={DETAIL_SECONDARY_ACTION_BUTTON}>Đang tải PDF...</span>}>
-            <QuotePDFDownloadButton
-              quote={quote}
-              items={quote.items || []}
-              className={DETAIL_SECONDARY_ACTION_BUTTON}
-            >
-              Download PDF
-            </QuotePDFDownloadButton>
-          </Suspense>
+          <QuoteDownloadMenu quote={quote} />
         </div>
       </div>
 

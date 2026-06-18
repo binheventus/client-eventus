@@ -91,6 +91,7 @@ const QUOTE_COLUMNS = [
   'created_by',
   'created_by_name',
   'sales_name',
+  'created_at',
   'deleted_at',
 ]
 
@@ -136,6 +137,10 @@ function sendError(res, error, fallback = 'Khong xu ly duoc bao gia.') {
     error: error?.message || fallback,
     code: error?.code,
   })
+}
+
+function isMissingQuoteDocumentColumnError(error) {
+  return error?.code === 'ER_BAD_FIELD_ERROR' && /quote_id/i.test(String(error?.message || ''))
 }
 
 function getRequestBody(req) {
@@ -298,6 +303,7 @@ function normalizeQuoteItemRow(row = {}) {
 function normalizeQuotePayload(payload = {}) {
   const hasStatus = Object.prototype.hasOwnProperty.call(payload, 'status')
   const hasSentAt = Object.prototype.hasOwnProperty.call(payload, 'sent_at')
+  const hasCreatedAt = Object.prototype.hasOwnProperty.call(payload, 'created_at')
   const hasDiscountAmount = Object.prototype.hasOwnProperty.call(payload, 'discount_amount')
   const hasDiscountNote = Object.prototype.hasOwnProperty.call(payload, 'discount_note')
   const status = hasStatus ? normalizeQuoteStatus(payload.status) : undefined
@@ -322,6 +328,7 @@ function normalizeQuotePayload(payload = {}) {
     ...(hasDiscountNote ? { discount_note: emptyToNull(payload.discount_note) } : {}),
     ...(hasStatus ? { status } : {}),
     ...(hasSentAt || hasStatus ? { sent_at: sentAt } : {}),
+    ...(hasCreatedAt ? { created_at: toMysqlDateTime(payload.created_at) } : {}),
     deleted_at: toMysqlDateTime(payload.deleted_at),
   }, QUOTE_COLUMNS)
 }
@@ -419,6 +426,7 @@ function normalizeQuoteDocumentBadge(row = {}) {
     label: QUOTE_DOCUMENT_LABELS[type] || type,
     id: row.id || '',
     contract_id: row.contract_id || '',
+    quote_id: row.quote_id || '',
     share_token: shareToken,
     number: row.document_number || '',
     url: shareToken ? `/d/${encodeURIComponent(shareToken)}` : '',
@@ -479,37 +487,71 @@ async function attachQuoteSurveyResponses(quotes = []) {
 }
 
 async function attachQuoteDocuments(quotes = []) {
+  const quoteIds = [...new Set(quotes.map(quote => quote.id).filter(Boolean))]
   const contractIds = [...new Set(quotes.map(quote => quote.contract_id).filter(Boolean))]
-  if (!contractIds.length) {
+  if (!contractIds.length && !quoteIds.length) {
     return quotes.map(quote => ({
       ...quote,
       quote_documents: [getContractQuoteDocument(quote)].filter(Boolean),
     }))
   }
 
-  const placeholders = contractIds.map(() => '?').join(', ')
-  const documentRows = await query(
-    `select id, contract_id, document_type, document_number, share_token, issued_date, created_at
-     from ${tables.contractDocuments}
-     where deleted_at is null
-       and contract_id in (${placeholders})
-       and document_type in (${QUOTE_DOCUMENT_TYPES.map(() => '?').join(', ')})
-     order by contract_id asc,
-       field(document_type, ${QUOTE_DOCUMENT_TYPES.map(() => '?').join(', ')}),
-       issued_date desc,
-       created_at desc`,
-    [...contractIds, ...QUOTE_DOCUMENT_TYPES, ...QUOTE_DOCUMENT_TYPES],
-  )
+  const whereParts = []
+  const params = []
+  if (contractIds.length) {
+    whereParts.push(`contract_id in (${contractIds.map(() => '?').join(', ')})`)
+    params.push(...contractIds)
+  }
+  if (quoteIds.length) {
+    whereParts.push(`quote_id in (${quoteIds.map(() => '?').join(', ')})`)
+    params.push(...quoteIds)
+  }
 
-  const documentsByContract = new Map()
+  let documentRows = []
+  try {
+    documentRows = await query(
+      `select id, contract_id, quote_id, document_type, document_number, share_token, issued_date, created_at
+       from ${tables.contractDocuments}
+       where deleted_at is null
+         and (${whereParts.join(' or ')})
+         and document_type in (${QUOTE_DOCUMENT_TYPES.map(() => '?').join(', ')})
+       order by contract_id asc,
+         quote_id asc,
+         field(document_type, ${QUOTE_DOCUMENT_TYPES.map(() => '?').join(', ')}),
+         issued_date desc,
+         created_at desc`,
+      [...params, ...QUOTE_DOCUMENT_TYPES, ...QUOTE_DOCUMENT_TYPES],
+    )
+  } catch (error) {
+    if (!isMissingQuoteDocumentColumnError(error)) throw error
+    if (contractIds.length) {
+      documentRows = await query(
+        `select id, contract_id, '' as quote_id, document_type, document_number, share_token, issued_date, created_at
+         from ${tables.contractDocuments}
+         where deleted_at is null
+           and contract_id in (${contractIds.map(() => '?').join(', ')})
+           and document_type in (${QUOTE_DOCUMENT_TYPES.map(() => '?').join(', ')})
+         order by contract_id asc,
+           field(document_type, ${QUOTE_DOCUMENT_TYPES.map(() => '?').join(', ')}),
+           issued_date desc,
+           created_at desc`,
+        [...contractIds, ...QUOTE_DOCUMENT_TYPES, ...QUOTE_DOCUMENT_TYPES],
+      )
+    }
+  }
+
+  const quoteIdByContractId = new Map(quotes.map(quote => [quote.contract_id, quote.id]).filter(([contractId]) => contractId))
+  const documentsByQuote = new Map()
   for (const row of documentRows) {
-    if (!documentsByContract.has(row.contract_id)) documentsByContract.set(row.contract_id, new Map())
-    const documentsByType = documentsByContract.get(row.contract_id)
+    const ownerQuoteId = row.quote_id || quoteIdByContractId.get(row.contract_id)
+    if (!ownerQuoteId) continue
+    if (!documentsByQuote.has(ownerQuoteId)) documentsByQuote.set(ownerQuoteId, new Map())
+    const documentsByType = documentsByQuote.get(ownerQuoteId)
     if (!documentsByType.has(row.document_type)) documentsByType.set(row.document_type, normalizeQuoteDocumentBadge(row))
   }
 
   return quotes.map(quote => {
-    const documentsByType = documentsByContract.get(quote.contract_id) || new Map()
+    const documentsByType = documentsByQuote.get(quote.id) || new Map()
     return {
       ...quote,
       quote_documents: [

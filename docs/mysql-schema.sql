@@ -183,7 +183,8 @@ create table if not exists client_contract_document_templates (
 
 create table if not exists client_contract_documents (
   id varchar(64) primary key,
-  contract_id varchar(64) not null,
+  contract_id varchar(64) null,
+  quote_id varchar(32) null,
   document_type varchar(60) not null,
   document_number varchar(160) not null,
   document_number_pattern varchar(255) null,
@@ -206,10 +207,12 @@ create table if not exists client_contract_documents (
   created_at datetime(3) not null default current_timestamp(3),
   updated_at datetime(3) not null default current_timestamp(3) on update current_timestamp(3),
   key client_contract_documents_contract_idx (contract_id, deleted_at, created_at),
+  key client_contract_documents_quote_idx (quote_id, deleted_at, created_at),
   key client_contract_documents_type_idx (document_type, status, deleted_at),
   key client_contract_documents_sequence_idx (seller_entity_code, document_type, sequence_year, sequence_number),
   unique key client_contract_documents_share_unique (share_token),
-  constraint client_contract_documents_contract_fk foreign key (contract_id) references client_contracts (id) on delete cascade
+  constraint client_contract_documents_contract_fk foreign key (contract_id) references client_contracts (id) on delete cascade,
+  constraint client_contract_documents_quote_fk foreign key (quote_id) references client_quotes (id) on delete cascade
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 
 create table if not exists client_contract_document_number_counters (

@@ -41,6 +41,7 @@ function useSurveyParams() {
     const params = new URLSearchParams(location.search)
     return {
       jobId: params.get('job') || params.get('job_id') || params.get('token') || params.get('t') || '',
+      surveyType: params.get('survey_type') || params.get('type') || 'general',
     }
   }, [location.search])
 }
@@ -309,7 +310,7 @@ export default function FeedbackSurveyPage() {
     return () => {
       cancelled = true
     }
-  }, [params.jobId])
+  }, [params.jobId, params.surveyType])
 
   useEffect(() => () => {
     Object.values(savedStatusTimerRef.current).forEach(timer => window.clearTimeout(timer))
@@ -363,6 +364,7 @@ export default function FeedbackSurveyPage() {
       const result = await submitFeedbackSurvey({
         job: params.jobId,
         submission_key: submissionKeyRef.current,
+        survey_type: params.surveyType,
         answers,
         free_text: freeText,
       })

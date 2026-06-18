@@ -17,8 +17,11 @@ import {
   deleteContractDocument,
   listContractDocumentTemplates,
   listContractDocuments,
+  listQuoteContractDocuments,
   saveContractDocument,
 } from '../hooks/useContracts'
+import { getQuote } from '../hooks/useQuotes'
+import { buildQuoteBackedContractSnapshot } from '../lib/contractDefaults'
 import { CONTRACT_DOCUMENT_TYPES as DOCUMENT_TYPES } from '../lib/contractDocumentTemplates'
 import {
   getContractDocumentsRoute,
@@ -54,7 +57,10 @@ function PageState({ type = 'loading', title, message, onBack }) {
 }
 
 function validateDocumentDraft(draft = {}) {
-  if (!draft.contract_id) return 'Cần lưu hợp đồng trước khi tạo chứng từ.'
+  if (!draft.contract_id && !draft.quote_id) return 'Cần có hợp đồng hoặc báo giá trước khi tạo chứng từ.'
+  if (!draft.contract_id && draft.quote_id && draft.document_type !== 'acceptance_liquidation') {
+    return 'Chỉ BBNT được tạo trực tiếp từ báo giá.'
+  }
   if (!String(draft.title || '').trim()) return 'Cần nhập tiêu đề chứng từ.'
   if (draft.document_type === 'payment_request' && !draft.form_data?.acceptance_document_id) {
     return 'Đề nghị thanh toán cần liên kết với một BBNT.'
@@ -100,7 +106,7 @@ async function copyTextToClipboard(text) {
 }
 
 export default function ContractDocumentEditorPage() {
-  const { contractId = '', documentType = '', documentId = '' } = useParams()
+  const { contractId = '', quoteId = '', documentType = '', documentId = '' } = useParams()
   const navigate = useNavigate()
   const isEditMode = Boolean(documentId)
   const invalidNewDocumentType = !isEditMode && Boolean(documentType) && !DOCUMENT_TYPES[documentType]
@@ -119,8 +125,8 @@ export default function ContractDocumentEditorPage() {
   const [shareCopied, setShareCopied] = useState(false)
   const shareCopiedTimerRef = useRef(null)
   const formKey = useMemo(
-    () => [contract?.id || contractId, document?.id || 'new', document?.document_type || documentType || '', document?.updated_at || ''].join(':'),
-    [contract?.id, contractId, document?.id, document?.document_type, document?.updated_at, documentType],
+    () => [contract?.id || contract?.quote_id || contractId || quoteId, document?.id || 'new', document?.document_type || documentType || '', document?.updated_at || ''].join(':'),
+    [contract?.id, contract?.quote_id, contractId, quoteId, document?.id, document?.document_type, document?.updated_at, documentType],
   )
 
   useEffect(() => {
@@ -145,10 +151,32 @@ export default function ContractDocumentEditorPage() {
           if (contractId && documentData.contract_id && String(documentData.contract_id) !== String(contractId)) {
             throw new Error('Chứng từ không thuộc hợp đồng này.')
           }
+          if (quoteId && documentData.quote_id && String(documentData.quote_id) !== String(quoteId)) {
+            throw new Error('Chứng từ không thuộc báo giá này.')
+          }
           resolvedContractId = documentData.contract_id || contractId
         }
 
-        if (!resolvedContractId) throw new Error('Không tìm thấy hợp đồng của chứng từ.')
+        if (!resolvedContractId && !quoteId && !documentData?.quote_id) throw new Error('Không tìm thấy hợp đồng hoặc báo giá của chứng từ.')
+
+        if (!resolvedContractId) {
+          const resolvedQuoteId = documentData?.quote_id || quoteId
+          if ((documentData?.document_type || documentType) !== 'acceptance_liquidation') {
+            throw new Error('Chỉ BBNT được tạo trực tiếp từ báo giá.')
+          }
+
+          const quoteData = await getQuote(resolvedQuoteId)
+          if (!quoteData?.id) throw new Error('Không tìm thấy báo giá.')
+          const quoteDocumentRows = await listQuoteContractDocuments(resolvedQuoteId, { documentType: 'acceptance_liquidation' })
+          const templateRows = await listContractDocumentTemplates()
+
+          if (!mounted) return
+          setContract(buildQuoteBackedContractSnapshot(quoteData))
+          setDocuments(quoteDocumentRows || [])
+          setTemplates(templateRows || [])
+          setDocument(documentData || null)
+          return
+        }
 
         const [contractData, documentRows, templateRows] = await Promise.all([
           getContractById(resolvedContractId),
@@ -174,14 +202,22 @@ export default function ContractDocumentEditorPage() {
     return () => {
       mounted = false
     }
-  }, [contractId, documentId, invalidNewDocumentType, isEditMode])
+  }, [contractId, documentId, documentType, invalidNewDocumentType, isEditMode, quoteId])
 
   useEffect(() => () => {
     if (shareCopiedTimerRef.current) window.clearTimeout(shareCopiedTimerRef.current)
   }, [])
 
   function backToDocuments() {
-    navigate(contract ? getContractDocumentsRoute(contract) : getContractDocumentsRoute(contractId))
+    if (contract?.id || contractId) {
+      navigate(contract ? getContractDocumentsRoute(contract) : getContractDocumentsRoute(contractId))
+      return
+    }
+    if (contract?.quote_id || quoteId) {
+      navigate(`/quotes/${encodeURIComponent(contract?.quote_id || quoteId)}`)
+      return
+    }
+    navigate('/contracts')
   }
 
   async function handleSaveDocument(draft) {
@@ -233,7 +269,11 @@ export default function ContractDocumentEditorPage() {
     try {
       await deleteContractDocument(document.id)
       setDeleteConfirmOpen(false)
-      navigate(getContractDocumentsRoute(contract), { replace: true })
+      if (contract?.id) {
+        navigate(getContractDocumentsRoute(contract), { replace: true })
+      } else {
+        navigate(`/quotes/${encodeURIComponent(contract?.quote_id || quoteId)}`, { replace: true })
+      }
     } catch (err) {
       setDeleteError(err?.message || 'Không xóa được chứng từ.')
       setDeleting(false)
@@ -241,7 +281,7 @@ export default function ContractDocumentEditorPage() {
   }
 
   if (invalidNewDocumentType) {
-    return <Navigate replace to={getContractDocumentsRoute(contractId)} />
+    return <Navigate replace to={quoteId ? `/quotes/${encodeURIComponent(quoteId)}` : getContractDocumentsRoute(contractId)} />
   }
 
   if (loading) {
@@ -257,6 +297,20 @@ export default function ContractDocumentEditorPage() {
   const canDownloadPreview = Boolean(previewDocument)
   const publicDocumentUrl = getPublicDocumentUrl(previewDocument || document || {})
   const canDeleteDocument = Boolean(document?.id)
+  const isQuoteBoundDocument = Boolean(!contract.id && (contract.quote_id || quoteId))
+  const breadcrumbRoot = isQuoteBoundDocument
+    ? { label: 'Báo giá', to: `/quotes/${encodeURIComponent(contract.quote_id || quoteId)}` }
+    : { label: 'Hợp đồng', to: '/contracts' }
+  const breadcrumbItems = isQuoteBoundDocument
+    ? [
+        { label: contract.quote_number || contract.quote_snapshot?.quote_number || 'Chi tiết báo giá', to: `/quotes/${encodeURIComponent(contract.quote_id || quoteId)}` },
+        { label: pageLabel },
+      ]
+    : [
+        { label: contract.contract_number || 'Chi tiết hợp đồng', to: getContractRoute(contract) },
+        { label: 'Chứng từ', to: getContractDocumentsRoute(contract) },
+        { label: pageLabel },
+      ]
 
   return (
     <div className="min-h-screen bg-slate-50 px-5 py-5 lg:px-7">
@@ -267,12 +321,8 @@ export default function ContractDocumentEditorPage() {
       />
       <div className="mx-auto max-w-[1700px] space-y-5">
         <QuoteBreadcrumb
-          root={{ label: 'Hợp đồng', to: '/contracts' }}
-          items={[
-            { label: contract.contract_number || 'Chi tiết hợp đồng', to: getContractRoute(contract) },
-            { label: 'Chứng từ', to: getContractDocumentsRoute(contract) },
-            { label: pageLabel },
-          ]}
+          root={breadcrumbRoot}
+          items={breadcrumbItems}
         />
 
         <div className="grid gap-5 xl:grid-cols-[minmax(0,0.92fr)_minmax(560px,1.08fr)]">

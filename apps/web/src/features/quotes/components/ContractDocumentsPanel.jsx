@@ -27,7 +27,10 @@ import {
 import {
   buildDocumentTemplateSnapshot,
   CONTRACT_DOCUMENT_TYPES as DOCUMENT_TYPES,
+  DEFAULT_DOCUMENT_NUMBER_PATTERN,
   getDefaultDocumentTemplate,
+  QUOTE_ACCEPTANCE_TEMPLATE_BLOCKS,
+  sectionsToDocumentTermsText,
 } from '../lib/contractDocumentTemplates'
 import {
   buildContractValueRows,
@@ -50,7 +53,7 @@ import {
   summarizeContractAdvanceDocuments,
   toDocumentNumber,
 } from '../lib/contractDocumentEditor'
-import { getContractDocumentValidationWarnings, hasAcceptanceCostDifference } from '../lib/contractDocumentRender'
+import { getContractDocumentValidationWarnings, hasAcceptanceCostDifference, isQuoteBoundAcceptanceDocument } from '../lib/contractDocumentRender'
 import { formatQuoteCurrency, formatQuoteDate } from '../lib/quoteList'
 
 function Field({ label, children, className = '' }) {
@@ -226,6 +229,14 @@ function getDocumentDisplayName(document = {}) {
   return formatContractDocumentNumberForDisplay(document.document_number) || document.title || document.id || 'Chứng từ'
 }
 
+function isQuoteBoundAcceptanceDraft(draft = {}) {
+  return (
+    draft.document_type === 'acceptance_liquidation'
+    && !draft.contract_id
+    && Boolean(draft.quote_id || draft.contract_source?.quote_id || draft.contract_source?.source_snapshot?.quote_id)
+  )
+}
+
 function getPublicDocumentUrl(document = {}) {
   if (!document.share_token) return ''
   return `${window.location.origin}/d/${encodeURIComponent(document.share_token)}`
@@ -281,6 +292,13 @@ function buildAcceptanceFormData(document = null, contract = {}, documents = [])
   const data = document?.document_data || {}
   const savedFormData = data.form_data || {}
   const amountConfig = data.amount_config || {}
+  const isQuoteBoundAcceptance = isQuoteBoundAcceptanceDocument({
+    ...(document || {}),
+    document_type: 'acceptance_liquidation',
+    quote_id: document?.quote_id || contract.quote_id,
+    contract_id: document?.contract_id || contract.id || '',
+    contract_snapshot: document?.contract_snapshot || contract,
+  })
   const fallbackRows = buildContractValueRows(contract)
   const syncContractRows = savedFormData.sync_contract_rows ?? amountConfig.sync_contract_rows ?? true
   const contractRows = syncContractRows
@@ -316,6 +334,7 @@ function buildAcceptanceFormData(document = null, contract = {}, documents = [])
     excluded_advance_document_ids: excludedAdvanceDocumentIds,
     linked_advance_documents: linkedAdvanceDocuments,
     advance_paid: advancePaid,
+    payment_due_days: savedFormData.payment_due_days || amountConfig.payment_due_days || (isQuoteBoundAcceptance ? '30 ngày' : '07 ngày'),
   }
 }
 
@@ -395,6 +414,7 @@ function buildDocumentAmountConfig(draft = {}, documents = []) {
       linked_advance_documents: linkedAdvanceDocuments,
       advance_paid: advancePaid,
       remaining_amount: remainingAmount,
+      payment_due_days: formData.payment_due_days || (isQuoteBoundAcceptanceDraft(draft) ? '30 ngày' : '07 ngày'),
       amount: actualTotals.total_amount,
     }
   }
@@ -492,10 +512,16 @@ function buildDocumentData(draft = {}, documents = []) {
 
 function buildEditorDraft(document = null, documentType = 'advance_request', contract = {}, templates = [], documents = [], legalEntities = []) {
   const config = DOCUMENT_TYPES[document?.document_type || documentType] || DOCUMENT_TYPES.advance_request
-  const template = document?.id
-    ? null
-    : getDefaultDocumentTemplate(templates, documentType)
   const resolvedDocumentType = document?.document_type || documentType
+  const quoteBoundAcceptance = (
+    resolvedDocumentType === 'acceptance_liquidation'
+    && !document?.contract_id
+    && !contract.id
+    && Boolean(document?.quote_id || contract.quote_id || contract.source_snapshot?.quote_id)
+  )
+  const template = document?.id || quoteBoundAcceptance
+    ? null
+    : getDefaultDocumentTemplate(templates, resolvedDocumentType)
   const sellerEntityCode = document?.seller_entity_code || contract.seller_entity_code || template?.seller_entity_code || 'EVT'
   const sellerProfile = getSellerProfileForCode(sellerEntityCode, legalEntities)
   const sourceContract = {
@@ -508,23 +534,37 @@ function buildEditorDraft(document = null, documentType = 'advance_request', con
     formData.hide_issued_date = true
   }
   const hideIssuedDate = Boolean(formData.hide_issued_date)
+  const quoteAcceptanceSections = QUOTE_ACCEPTANCE_TEMPLATE_BLOCKS
+  const savedContentSections = Array.isArray(document?.content_sections) ? document.content_sections : null
+  const shouldUseQuoteAcceptanceSections = quoteBoundAcceptance && (
+    !savedContentSections?.length ||
+    savedContentSections.some(section => /hợp\s*đồng/i.test(`${section.title || ''}\n${section.body || ''}`))
+  )
+  const initialContentSections = shouldUseQuoteAcceptanceSections
+    ? quoteAcceptanceSections
+    : savedContentSections
+      ? savedContentSections
+      : quoteBoundAcceptance
+      ? quoteAcceptanceSections
+      : template?.content_sections || []
   return {
     id: document?.id || '',
     contract_id: document?.contract_id || contract.id || '',
+    quote_id: document?.quote_id || contract.quote_id || '',
     document_type: resolvedDocumentType,
     status: document?.status || 'draft',
-    template_id: document?.template_id || template?.id || '',
-    title: document?.title || template?.title || config.defaultTitle,
+    template_id: quoteBoundAcceptance ? '' : document?.template_id || template?.id || '',
+    title: document?.title || (quoteBoundAcceptance ? 'Biên bản nghiệm thu' : template?.title || config.defaultTitle),
     seller_entity_code: sellerProfile.entity_code || sellerEntityCode,
-    document_number_pattern: document?.document_number_pattern || template?.document_number_pattern || '',
+    document_number_pattern: document?.document_number_pattern || template?.document_number_pattern || DEFAULT_DOCUMENT_NUMBER_PATTERN,
     document_number: document?.document_number || '',
     sequence_number: Number(document?.sequence_number || 0),
     sequence_year: Number(document?.sequence_year || 0),
     issued_date: hideIssuedDate ? '' : toDateInputValue(document?.issued_date) || getTodayInputDate(),
     form_data: formData,
     contract_source: sourceContract,
-    content_sections: Array.isArray(document?.content_sections) ? document.content_sections : template?.content_sections || [],
-    terms_text: document?.terms_text ?? template?.terms_text ?? '',
+    content_sections: initialContentSections,
+    terms_text: shouldUseQuoteAcceptanceSections ? sectionsToDocumentTermsText(quoteAcceptanceSections) : document?.terms_text ?? (quoteBoundAcceptance ? sectionsToDocumentTermsText(quoteAcceptanceSections) : template?.terms_text ?? ''),
     auto_sync_contract: document?.auto_sync_contract !== false,
     share_token: document?.share_token || '',
   }
@@ -535,7 +575,8 @@ export function buildDocumentPayload(draft = {}, templates = [], documents = [])
   const shouldRefreshTemplateSnapshot = Boolean(draft.id && draft.refresh_template_snapshot && selectedTemplate)
   return {
     id: draft.id || undefined,
-    contract_id: draft.contract_id,
+    contract_id: draft.contract_id || undefined,
+    quote_id: draft.quote_id || undefined,
     document_type: draft.document_type,
     status: draft.status || 'draft',
     template_id: draft.template_id || undefined,
@@ -545,6 +586,7 @@ export function buildDocumentPayload(draft = {}, templates = [], documents = [])
     issued_date: draft.issued_date || null,
     auto_sync_contract: draft.auto_sync_contract,
     share_token: draft.share_token || undefined,
+    contract_snapshot: !draft.contract_id && draft.quote_id ? draft.contract_source || undefined : undefined,
     refresh_template_snapshot: shouldRefreshTemplateSnapshot || undefined,
     template_snapshot: (!draft.id || shouldRefreshTemplateSnapshot) && selectedTemplate ? buildDocumentTemplateSnapshot(selectedTemplate) : undefined,
     content_sections: Array.isArray(draft.content_sections) ? draft.content_sections : undefined,
@@ -569,11 +611,11 @@ function CustomerValidationBanner({ contract }) {
   )
 }
 
-function VatModeNotice({ vatConfig }) {
+function VatModeNotice({ vatConfig, sourceLabel = 'hợp đồng' }) {
   const vatRate = Math.round(Number(vatConfig.vat_rate || 0) * 100)
   const label = vatConfig.has_vat === false
-    ? 'Không áp VAT theo cấu hình hợp đồng.'
-    : `VAT ${vatRate}% áp dụng chung cho toàn bảng theo hợp đồng.`
+    ? `Không áp VAT theo cấu hình ${sourceLabel}.`
+    : `VAT ${vatRate}% áp dụng chung cho toàn bảng theo ${sourceLabel}.`
   return (
     <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] font-semibold text-slate-600">
       {label}
@@ -795,9 +837,66 @@ function AdvanceRequestEditor({ draft, updateFormData }) {
   )
 }
 
-function AcceptanceLiquidationEditor({ draft, documents = [], showCostDifferenceFields = false, updateFormData }) {
+function QuoteAcceptancePartyAEditor({ draft, updateDraft }) {
+  const customer = draft.contract_source?.customer_snapshot || {}
+
+  function updateCustomerSnapshot(patch) {
+    updateDraft(prev => {
+      const contractSource = prev.contract_source || {}
+      const nextCustomer = {
+        ...(contractSource.customer_snapshot || {}),
+        ...patch,
+      }
+      return {
+        ...prev,
+        contract_source: {
+          ...contractSource,
+          customer_snapshot: nextCustomer,
+          quote_snapshot: {
+            ...(contractSource.quote_snapshot || {}),
+            client_name: nextCustomer.company_name || contractSource.quote_snapshot?.client_name || '',
+          },
+        },
+      }
+    })
+  }
+
+  return (
+    <section className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+      <div>
+        <h3 className="text-[14px] font-semibold text-slate-900">Thông tin Bên A</h3>
+      </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        <Field label="Tên công ty">
+          <TextInput value={customer.company_name || ''} onChange={event => updateCustomerSnapshot({ company_name: event.target.value })} placeholder="CÔNG TY..." />
+        </Field>
+        <Field label="Mã số thuế">
+          <TextInput value={customer.tax_code || ''} onChange={event => updateCustomerSnapshot({ tax_code: event.target.value })} />
+        </Field>
+        <Field label="Đại diện">
+          <TextInput value={customer.representative || ''} onChange={event => updateCustomerSnapshot({ representative: event.target.value })} />
+        </Field>
+        <Field label="Chức vụ">
+          <TextInput value={customer.position || ''} onChange={event => updateCustomerSnapshot({ position: event.target.value })} />
+        </Field>
+        <Field label="Địa chỉ" className="md:col-span-2">
+          <TextInput value={customer.address || ''} onChange={event => updateCustomerSnapshot({ address: event.target.value })} />
+        </Field>
+        <Field label="Email">
+          <TextInput type="email" value={customer.email || ''} onChange={event => updateCustomerSnapshot({ email: event.target.value })} />
+        </Field>
+        <Field label="Số điện thoại">
+          <TextInput value={customer.phone_number || customer.phone || ''} onChange={event => updateCustomerSnapshot({ phone_number: event.target.value, phone: event.target.value })} />
+        </Field>
+      </div>
+    </section>
+  )
+}
+
+function AcceptanceLiquidationEditor({ draft, documents = [], showCostDifferenceFields = false, updateDraft, updateFormData }) {
   const formData = draft.form_data || {}
   const vatConfig = getContractVatConfig(draft.contract_source || {})
+  const isQuoteBoundAcceptance = isQuoteBoundAcceptanceDraft(draft)
 
   function resetContractRows() {
     updateFormData({
@@ -815,7 +914,8 @@ function AcceptanceLiquidationEditor({ draft, documents = [], showCostDifference
 
   return (
     <section className="space-y-4">
-      <VatModeNotice vatConfig={vatConfig} />
+      {isQuoteBoundAcceptance ? <QuoteAcceptancePartyAEditor draft={draft} updateDraft={updateDraft} /> : null}
+      <VatModeNotice vatConfig={vatConfig} sourceLabel={isQuoteBoundAcceptance ? 'báo giá' : 'hợp đồng'} />
       <AcceptanceAdvanceReference draft={draft} documents={documents} updateFormData={updateFormData} />
       {showCostDifferenceFields ? (
         <>
@@ -1115,14 +1215,15 @@ export function ContractDocumentEditorForm({
   const { legalEntities } = useLegalEntities()
   const [draft, setDraft] = useState(() => buildEditorDraft(document, documentType, contract, templates, documents, legalEntities))
   const [pendingTemplateId, setPendingTemplateId] = useState('')
-  const availableTemplates = templates.filter(template => template.document_type === draft.document_type)
+  const isQuoteBoundAcceptance = isQuoteBoundAcceptanceDraft(draft)
+  const availableTemplates = isQuoteBoundAcceptance ? [] : templates.filter(template => template.document_type === draft.document_type)
   const isExistingDocument = Boolean(document?.id)
   const isFinalizedDocument = isExistingDocument && String(document?.status || draft.status || '').toLowerCase() === 'finalized'
   const dateLabel = draft.document_type === 'acceptance_liquidation' ? 'Ngày nghiệm thu' : 'Ngày lập'
   const isPage = variant === 'page'
 
   function updateDraft(patch) {
-    setDraft(prev => ({ ...prev, ...patch }))
+    setDraft(prev => (typeof patch === 'function' ? patch(prev) : { ...prev, ...patch }))
   }
 
   function updateFormData(patch) {
@@ -1233,7 +1334,7 @@ export function ContractDocumentEditorForm({
         fields_config: selectedTemplate?.fields_config,
         template_snapshot: selectedTemplate ? { fields_config: selectedTemplate.fields_config } : undefined,
       })
-      return <AcceptanceLiquidationEditor draft={draft} documents={documents} showCostDifferenceFields={showCostDifferenceFields} updateFormData={updateFormData} />
+      return <AcceptanceLiquidationEditor draft={draft} documents={documents} showCostDifferenceFields={showCostDifferenceFields} updateDraft={updateDraft} updateFormData={updateFormData} />
     }
     if (draft.document_type === 'payment_request') {
       return <PaymentRequestEditor draft={draft} documents={documents} updateFormData={updateFormData} />
@@ -1256,9 +1357,13 @@ export function ContractDocumentEditorForm({
     })
   }
 
-  const title = document?.id
-    ? `Sửa ${DOCUMENT_TYPES[draft.document_type]?.label || 'chứng từ'}`
-    : DOCUMENT_TYPES[draft.document_type]?.actionLabel || 'Tạo chứng từ'
+  const title = isQuoteBoundAcceptance
+    ? document?.id
+      ? 'Sửa BIÊN BẢN NGHIỆM THU'
+      : 'Tạo BIÊN BẢN NGHIỆM THU'
+    : document?.id
+      ? `Sửa ${DOCUMENT_TYPES[draft.document_type]?.label || 'chứng từ'}`
+      : DOCUMENT_TYPES[draft.document_type]?.actionLabel || 'Tạo chứng từ'
 
   const pendingTemplate = availableTemplates.find(template => template.id === pendingTemplateId)
 
@@ -1292,7 +1397,9 @@ export function ContractDocumentEditorForm({
                   onChange={event => handleTemplateSelect(event.target.value)}
                   disabled={isFinalizedDocument || !availableTemplates.length}
                 >
-                  <option value="" disabled={isExistingDocument}>{availableTemplates.length ? 'Không dùng mẫu' : 'Chưa có mẫu đang bật'}</option>
+                  <option value="" disabled={isExistingDocument}>
+                    {isQuoteBoundAcceptance ? 'Mẫu BIÊN BẢN NGHIỆM THU từ báo giá' : availableTemplates.length ? 'Không dùng mẫu' : 'Chưa có mẫu đang bật'}
+                  </option>
                   {availableTemplates.map(template => (
                     <option key={template.id} value={template.id}>
                       {template.name}{template.is_default ? ' (Default)' : ''}
@@ -1365,24 +1472,26 @@ export function ContractDocumentEditorForm({
           <CustomerValidationBanner contract={draft.contract_source || contract} />
           {renderTypeEditor()}
 
-          <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-[12px] font-semibold text-slate-600">
-            <input
-              type="checkbox"
-              checked={draft.auto_sync_contract}
-              onChange={event => updateDraft({
-                auto_sync_contract: event.target.checked,
-                contract_source: event.target.checked
-                  ? {
-                    ...getOpenSyncedContract(document, contract),
-                    seller_entity_code: draft.seller_entity_code,
-                    seller_snapshot: getSellerProfileForCode(draft.seller_entity_code, legalEntities),
-                  }
-                  : draft.contract_source,
-              })}
-              className="h-4 w-4 rounded border-slate-300 text-[#f8981d] focus:ring-orange-100"
-            />
-            Tự đồng bộ thông tin hợp đồng khi cập nhật chứng từ
-          </label>
+          {!isQuoteBoundAcceptance ? (
+            <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-[12px] font-semibold text-slate-600">
+              <input
+                type="checkbox"
+                checked={draft.auto_sync_contract}
+                onChange={event => updateDraft({
+                  auto_sync_contract: event.target.checked,
+                  contract_source: event.target.checked
+                    ? {
+                      ...getOpenSyncedContract(document, contract),
+                      seller_entity_code: draft.seller_entity_code,
+                      seller_snapshot: getSellerProfileForCode(draft.seller_entity_code, legalEntities),
+                    }
+                    : draft.contract_source,
+                })}
+                className="h-4 w-4 rounded border-slate-300 text-[#f8981d] focus:ring-orange-100"
+              />
+              Tự đồng bộ thông tin hợp đồng khi cập nhật chứng từ
+            </label>
+          ) : null}
 
           {error ? <p className="rounded-xl bg-red-50 px-4 py-3 text-[13px] text-red-700">{error}</p> : null}
         </div>

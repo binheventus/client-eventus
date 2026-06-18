@@ -75,6 +75,16 @@ export function getNewContractDocumentRoute(contractOrId = '', documentType = 'a
     : '/contracts'
 }
 
+export function getNewQuoteDocumentRoute(quoteOrId = '', documentType = 'acceptance_liquidation') {
+  const quoteId = typeof quoteOrId === 'string' || typeof quoteOrId === 'number'
+    ? compactText(quoteOrId)
+    : compactText(quoteOrId?.quote_id || quoteOrId?.id)
+  const type = compactText(documentType) || 'acceptance_liquidation'
+  return quoteId
+    ? `/quotes/${encodeURIComponent(quoteId)}/documents/new/${encodeURIComponent(type)}`
+    : '/quotes'
+}
+
 export function getContractDocumentEditRoute(contractOrId = '', documentOrId = '') {
   const documentId = getDocumentIdentifier(documentOrId)
   return documentId

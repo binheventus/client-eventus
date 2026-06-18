@@ -148,6 +148,49 @@ export const ACCEPTANCE_LIQUIDATION_TEMPLATE_BLOCKS = [
   },
 ]
 
+export const QUOTE_ACCEPTANCE_TEMPLATE_BLOCKS = [
+  {
+    id: 'acceptance-basis-contract',
+    title: 'Căn cứ yêu cầu cung cấp dịch vụ',
+    body: 'Căn cứ vào yêu cầu cung cấp {{service_scope}} giữa {{customer_name}} và {{seller_entity_name_full}};',
+  },
+  {
+    id: 'acceptance-basis-completed',
+    title: 'Căn cứ hoàn thành công việc',
+    body: 'Căn cứ các công việc hai bên đã hoàn thành;',
+  },
+  {
+    id: 'acceptance-party-intro',
+    title: 'Dẫn nhập thông tin hai bên',
+    body: 'Hôm nay, ngày {{issued_date}} chúng tôi gồm có:',
+  },
+  {
+    id: 'acceptance-signing-intro',
+    title: 'Nội dung thống nhất',
+    body: 'Hai bên thống nhất ký biên bản nghiệm thu công việc và thanh lý theo yêu cầu cung cấp {{service_scope}} với các nội dung sau:',
+  },
+  {
+    id: 'acceptance-article-1',
+    title: 'ĐIỀU I: NỘI DUNG NGHIỆM THU THANH LÝ',
+    body: 'Bên A xác nhận Bên B đã hoàn thành các nghĩa vụ của mình và đã thực hiện đầy đủ các hạng mục công việc theo yêu cầu của hai bên.\nBên A xác nhận bên B đã đạt được các yêu cầu của công việc đảm bảo về cả chất lượng và tiến độ và đã bàn giao File gốc qua hệ thống lưu trữ online Google Drive như đã cam kết với các hạng mục công việc.\nBên A và Bên B đồng thuận để nghiệm thu và tiến hành các thủ tục thanh toán theo nội dung quy định theo yêu cầu hai bên.',
+  },
+  {
+    id: 'acceptance-article-2',
+    title: 'ĐIỀU II: TỔNG GIÁ TRỊ',
+    body: 'Tổng giá trị: {{contract_total}} VNĐ (Đã bao gồm VAT)\nTổng giá trị nghiệm thu: {{acceptance_total}} VNĐ (Đã bao gồm VAT)\nBên A đã tạm ứng cho bên B: {{advance_paid}} VNĐ\nBên A phải thanh toán cho bên B: {{remaining_amount}} VNĐ (Đã bao gồm VAT)\n(Bằng chữ: {{acceptance_amount_words}} ./.)',
+  },
+  {
+    id: 'acceptance-article-3',
+    title: 'ĐIỀU III: THANH TOÁN',
+    body: 'Bên A có trách nhiệm thanh toán nốt số tiền còn lại cho bên B theo như điều 2 của biên bản nghiệm thu công việc thanh lý này trong vòng {{payment_due_days}} kể từ ngày nhận được nghiệm thu.\nTrường hợp Bên A chậm thanh toán quá thời hạn nêu trên, Bên A có nghĩa vụ thanh toán lãi chậm trả với mức lãi suất 0,05%/ngày (tương đương khoảng 18%/năm) tính trên số tiền chậm trả, kể từ ngày thứ 08 cho đến ngày Bên A thanh toán thực tế cho Bên B.\nBên B có trách nhiệm cung cấp đầy đủ hóa đơn tài chính cho bên A. Trường hợp Bên A có khiếu nại về tính hợp lệ của hóa đơn, Bên A phải thông báo bằng văn bản cho Bên B trong vòng 03 (ba) ngày làm việc kể từ ngày nhận hóa đơn, nêu rõ lý do. Quá thời hạn này, hóa đơn được coi là đã được Bên A chấp nhận và nghĩa vụ thanh toán được kích hoạt theo điều khoản nêu trên.\nQuyền sở hữu và quyền sử dụng đầy đủ đối với toàn bộ sản phẩm đã bàn giao (bao gồm file gốc, video thành phẩm và các tài liệu liên quan) chính thức chuyển giao cho Bên A sau khi Bên A hoàn tất nghĩa vụ thanh toán 100% giá trị nghiệm thu cho Bên B.\nBên A thanh toán cho Bên B thông qua hình thức: Chuyển khoản\nTài khoản chuyển khoản: {{seller_bank_account}}\nNgân hàng: {{seller_bank_name}}\nChủ tài khoản: {{seller_account_holder}}',
+  },
+  {
+    id: 'acceptance-article-4',
+    title: 'ĐIỀU IV: ĐIỀU KHOẢN CHUNG',
+    body: 'Hai bên đã hoàn thành trách nhiệm như theo yêu cầu và thống nhất nghiệm thu thanh lý.\nBiên bản thanh lý này là căn cứ để kết thúc nghĩa vụ giữa hai bên.\nBiên bản này được lập thành hai (02) bản có giá trị pháp lý như nhau, mỗi bên giữ một (01) bản, có hiệu lực kể từ ngày ký.',
+  },
+]
+
 export const ACCEPTANCE_COST_DIFFERENCE_NOTE_BLOCK = {
   id: 'acceptance-cost-difference-note',
   title: 'Ghi chú phát sinh',

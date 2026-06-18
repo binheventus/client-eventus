@@ -124,6 +124,7 @@ export default function App() {
           <Route path="/contracts/document-templates" element={<ContractTemplatesRedirect kind="documents" />} />
           <Route path="/contracts/:contractId/documents" element={<ContractDocumentsPage />} />
           <Route path="/contracts/:contractId/documents/new/:documentType" element={<ContractDocumentEditorPage />} />
+          <Route path="/quotes/:quoteId/documents/new/:documentType" element={<ContractDocumentEditorPage />} />
           <Route path="/documents/:documentId/edit" element={<ContractDocumentEditorPage />} />
           <Route path="/contracts/:contractId/documents/:documentId/edit" element={<ContractDocumentEditorPage />} />
           <Route path="/contracts/:id" element={<ContractEditorPage />} />

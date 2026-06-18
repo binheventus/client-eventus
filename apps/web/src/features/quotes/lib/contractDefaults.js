@@ -665,6 +665,38 @@ export function buildInitialContractDraft(quote = {}, templateInput = DEFAULT_CO
   }
 }
 
+export function buildQuoteBackedContractSnapshot(quote = {}, templateInput = DEFAULT_CONTRACT_TEMPLATES[0]) {
+  const template = normalizeContractTemplate(templateInput)
+  const sellerEntityCode = quote.entity_code || template.seller_entity_code || 'EVT'
+  const quoteSnapshot = buildQuoteSnapshot(quote)
+
+  return {
+    id: '',
+    quote_id: quote.id || '',
+    quote_number: quote.quote_number || '',
+    source_type: 'quote',
+    external_job_id: quote.external_job_id || null,
+    contract_number: quote.quote_number || '',
+    status: 'draft',
+    title: quote.quote_number ? `Chứng từ theo báo giá ${quote.quote_number}` : 'Chứng từ theo báo giá',
+    seller_entity_code: sellerEntityCode,
+    seller_snapshot: getEntityProfile(sellerEntityCode),
+    customer_snapshot: getCustomerProfileFromQuote(quote),
+    party_role_config: template.party_role_config,
+    signing_date: quote.signing_date || quote.quote_table_config?.signing_date || quote.created_at || getTodayInputDate(),
+    service_scope: inferServiceScope(quote, template),
+    schedule_rows: buildScheduleRows(quote, template),
+    quote_table_config: template.quote_table_config,
+    payment_config: template.payment_config,
+    quote_snapshot: quoteSnapshot,
+    source_snapshot: {
+      source_type: 'quote',
+      quote_id: quote.id || '',
+      quote_number: quote.quote_number || '',
+    },
+  }
+}
+
 export function buildInitialContractDraftFromSource(source = {}, templateInput = DEFAULT_CONTRACT_TEMPLATES[0]) {
   const template = normalizeContractTemplate(templateInput)
   const quoteSnapshot = source.quote_snapshot || {}

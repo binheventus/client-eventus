@@ -228,6 +228,14 @@ export async function listContractDocuments(contractId, { documentType = '' } = 
   return result.documents || []
 }
 
+export async function listQuoteContractDocuments(quoteId, { documentType = '' } = {}) {
+  if (!quoteId) return []
+  const query = new URLSearchParams({ resource: 'documents', quote_id: quoteId })
+  if (documentType) query.set('document_type', documentType)
+  const result = await requestContractApi(`?${query.toString()}`)
+  return result.documents || []
+}
+
 export async function getContractDocument(id) {
   if (!id) return null
   const result = await requestContractApi(`?resource=document&id=${encodeURIComponent(id)}`)

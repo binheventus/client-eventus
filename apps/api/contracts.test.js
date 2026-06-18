@@ -20,6 +20,7 @@ function createFakeContractsApi() {
     [tables.contractDocumentNumberCounters]: new Map(),
     [tables.contractDocumentNumberLedger]: new Map(),
     [tables.quotes]: new Map(),
+    [tables.quoteItems]: new Map(),
   }
 
   const rowsFor = tableName => Array.from(state[tableName].values())
@@ -57,6 +58,16 @@ function createFakeContractsApi() {
       return selectFirst(tables.contractDocuments, row => {
         const contract = state[tables.contracts].get(row.contract_id)
         return row.share_token === params[0] && active(row) && contract && active(contract)
+      })
+    }
+
+    if (compactSql.startsWith(`select d.* from ${tables.contractDocuments} d left join ${tables.contracts} c`)) {
+      return selectFirst(tables.contractDocuments, row => {
+        const contract = row.contract_id ? state[tables.contracts].get(row.contract_id) : null
+        const quote = row.quote_id ? state[tables.quotes].get(row.quote_id) : null
+        return row.share_token === params[0] && active(row) && (
+          (contract && active(contract)) || (quote && active(quote))
+        )
       })
     }
 
@@ -181,6 +192,17 @@ function createFakeContractsApi() {
 
     if (compactSql.startsWith(`select * from ${tables.contracts} where id = ? and deleted_at is null`)) {
       return selectFirst(tables.contracts, row => row.id === params[0] && active(row))
+    }
+
+    if (compactSql.startsWith(`select * from ${tables.quotes} where id = ? limit 1`)) {
+      return selectFirst(tables.quotes, row => row.id === params[0])
+    }
+
+    if (compactSql.startsWith(`select * from ${tables.quoteItems} where quote_id = ?`)) {
+      return rowsFor(tables.quoteItems)
+        .filter(row => row.quote_id === params[0])
+        .sort((left, right) => Number(left.sort_order || 0) - Number(right.sort_order || 0))
+        .map(clone)
     }
 
     if (compactSql.startsWith(`select * from ${tables.contracts} where id = ? limit 1`)) {
@@ -355,6 +377,63 @@ test('contract list includes related document badges', () => withFakeContractsAp
     payment.id,
   ])
   assert.equal(row.contract_documents[0].contract_id, contract.id)
+}))
+
+test('acceptance documents can be saved directly from a quote without a contract', () => withFakeContractsApi(async ({ state }) => {
+  state[tables.quotes].set('quote-1', {
+    id: 'quote-1',
+    quote_number: 'BG-0001',
+    client_name: 'Cong ty Quote',
+    entity_code: 'EVT',
+    event_date: '2026-06-01',
+    location: 'Ha Noi',
+    duration_hours: 4,
+    has_vat: 1,
+    subtotal: 10_000_000,
+    vat_amount: 800_000,
+    total_amount: 10_800_000,
+    deleted_at: null,
+  })
+  state[tables.quoteItems].set('item-1', {
+    id: 'item-1',
+    quote_id: 'quote-1',
+    service_name: 'Dich vu media',
+    unit: 'Goi',
+    quantity: 1,
+    num_sessions: 1,
+    unit_price: 10_000_000,
+    total_price: 10_000_000,
+    sort_order: 1,
+  })
+
+  const document = await __contractsTestInternals.saveDocument({
+    quote_id: 'quote-1',
+    document_type: 'acceptance_liquidation',
+    status: 'draft',
+    issued_date: '2026-06-02',
+    title: 'BBNT theo bao gia',
+    seller_entity_code: 'EVT',
+    document_data: {
+      form_data: {},
+      amount_config: {},
+    },
+  })
+
+  assert.equal(document.contract_id, null)
+  assert.equal(document.quote_id, 'quote-1')
+  assert.equal(document.document_type, 'acceptance_liquidation')
+  assert.equal(document.contract_snapshot.quote_id, 'quote-1')
+  assert.equal(document.contract_snapshot.contract_number, 'BG-0001')
+  assert.equal(document.contract_snapshot.quote_snapshot.items[0].service_name, 'Dich vu media')
+
+  await assert.rejects(
+    () => __contractsTestInternals.saveDocument({
+      quote_id: 'quote-1',
+      document_type: 'payment_request',
+      title: 'DNTT theo bao gia',
+    }),
+    /Chi BBNT duoc tao truc tiep tu bao gia/,
+  )
 }))
 
 test('creates multiple documents of the same type in one contract', () => withFakeContractsApi(async () => {

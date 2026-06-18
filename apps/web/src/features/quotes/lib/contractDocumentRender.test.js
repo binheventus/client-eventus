@@ -64,6 +64,59 @@ test('acceptance liquidation renders handwritten date placeholder when issued da
   assert.doesNotMatch(content.party_intro, /ngày - chúng/)
 })
 
+test('quote-bound acceptance uses quote wording without contract references', () => {
+  const content = getAcceptanceLiquidationContent({
+    document_type: 'acceptance_liquidation',
+    quote_id: 'quote-1',
+    contract_id: null,
+    title: 'Biên bản nghiệm thu',
+    contract_snapshot: {
+      quote_id: 'quote-1',
+      quote_number: 'BG-001',
+      service_scope: 'dịch vụ chụp ảnh sự kiện',
+      customer_snapshot: {
+        company_name: 'CÔNG TY TNHH ĐỨC VINH',
+        representative: 'Nguyễn Văn A',
+        position: 'Giám đốc',
+        address: 'Hà Nội',
+        tax_code: '0101234567',
+      },
+      seller_snapshot: {
+        entity_name_full: 'CÔNG TY TNHH MEDIAMONSTER',
+        representative: 'Trần Văn B',
+        position: 'Giám đốc',
+        address: 'TP. Hồ Chí Minh',
+        tax_code: '0312345678',
+        bank_account: '123456789',
+        bank_name: 'Vietcombank',
+        account_holder: 'CÔNG TY TNHH MEDIAMONSTER',
+      },
+    },
+    document_data: {
+      form_data: {
+        hide_issued_date: true,
+      },
+      amount_config: {
+        has_vat: true,
+        vat_rate: 0.08,
+        contract_total: 2700000,
+        acceptance_actual_total: 2700000,
+        acceptance_amount: 2700000,
+        remaining_amount: 2700000,
+      },
+    },
+  })
+  const rendered = JSON.stringify(content)
+  const articleTwo = content.articles.find(section => section.id === 'acceptance-article-2')
+  const articleThree = content.articles.find(section => section.id === 'acceptance-article-3')
+
+  assert.match(content.basis_contract, /Căn cứ vào yêu cầu cung cấp dịch vụ chụp ảnh sự kiện/)
+  assert.match(articleTwo.body, /Tổng giá trị: 2\.700\.000 VNĐ/)
+  assert.match(articleTwo.body, /Bằng chữ: Hai triệu bảy trăm nghìn đồng/)
+  assert.match(articleThree.body, /trong vòng 30 ngày/)
+  assert.doesNotMatch(rendered, /Hợp Đồng|hợp đồng/)
+})
+
 test('acceptance amount tables are only shown for cost difference templates', () => {
   assert.equal(shouldShowAcceptanceAmountTables(baseAcceptanceDocument), false)
 

@@ -16,6 +16,7 @@ import {
   ACCEPTANCE_LIQUIDATION_WITH_DIFFERENCE_TEMPLATE_BLOCKS,
   CONTRACT_DOCUMENT_TYPES,
   PAYMENT_REQUEST_TEMPLATE_BLOCKS,
+  QUOTE_ACCEPTANCE_TEMPLATE_BLOCKS,
 } from './contractDocumentTemplates.js'
 
 export function hasDocumentText(value) {
@@ -65,6 +66,15 @@ export function getDocumentAmountConfig(document = {}) {
 
 export function getDocumentTitle(document = {}) {
   return document.title || document.template_snapshot?.title || getDocumentTypeLabel(document.document_type)
+}
+
+export function isQuoteBoundAcceptanceDocument(document = {}) {
+  const contract = getContractFromDocument(document)
+  return (
+    document.document_type === 'acceptance_liquidation'
+    && !document.contract_id
+    && Boolean(document.quote_id || contract.quote_id || contract.source_snapshot?.quote_id)
+  )
 }
 
 export function getPartyRole(contract = {}, partyKey = 'party_a') {
@@ -346,17 +356,22 @@ export function getAcceptanceSummary(document = {}) {
     linked_advance_documents: linkedAdvanceDocuments,
     advance_paid: advancePaid,
     remaining_amount: remainingAmount,
-    payment_due_days: formData.payment_due_days || amountConfig.payment_due_days || '07 ngày',
+    payment_due_days: formData.payment_due_days || amountConfig.payment_due_days || (isQuoteBoundAcceptanceDocument(document) ? '30 ngày' : '07 ngày'),
     amount_words: actualTotals.total_amount > 0 ? numberToVietnameseWords(actualTotals.total_amount) : '',
   }
+}
+
+function getAcceptanceFallbackSections(document = {}) {
+  if (isQuoteBoundAcceptanceDocument(document)) return QUOTE_ACCEPTANCE_TEMPLATE_BLOCKS
+  return hasAcceptanceCostDifference(document)
+    ? ACCEPTANCE_LIQUIDATION_WITH_DIFFERENCE_TEMPLATE_BLOCKS
+    : ACCEPTANCE_LIQUIDATION_TEMPLATE_BLOCKS
 }
 
 function getAcceptanceTemplateSection(document = {}, sectionId = '') {
   const sections = Array.isArray(document.content_sections) ? document.content_sections : []
   const section = sections.find(row => row.id === sectionId)
-  const fallbackSections = hasAcceptanceCostDifference(document)
-    ? ACCEPTANCE_LIQUIDATION_WITH_DIFFERENCE_TEMPLATE_BLOCKS
-    : ACCEPTANCE_LIQUIDATION_TEMPLATE_BLOCKS
+  const fallbackSections = getAcceptanceFallbackSections(document)
   const fallback = fallbackSections.find(row => row.id === sectionId)
   return String(section?.body ?? fallback?.body ?? '').trim()
 }
@@ -364,9 +379,7 @@ function getAcceptanceTemplateSection(document = {}, sectionId = '') {
 function getAcceptanceTemplateSections(document = {}) {
   const sections = Array.isArray(document.content_sections) ? document.content_sections : []
   if (sections.length) return sections
-  return hasAcceptanceCostDifference(document)
-    ? ACCEPTANCE_LIQUIDATION_WITH_DIFFERENCE_TEMPLATE_BLOCKS
-    : ACCEPTANCE_LIQUIDATION_TEMPLATE_BLOCKS
+  return getAcceptanceFallbackSections(document)
 }
 
 export function hasAcceptanceCostDifference(document = {}) {
@@ -393,11 +406,16 @@ function getAcceptanceTemplateTokenValues(document = {}) {
     ? HANDWRITTEN_DATE_PLACEHOLDER
     : getDisplayDocumentIssuedDate(document)
   const signingDate = formatDocumentDate(contract.signing_date || contract.quote_table_config?.signing_date)
+  const contractNumber = contract.contract_number || contract.quote_number || contract.quote_snapshot?.quote_number || ''
+  const quoteNumber = contract.quote_number || contract.quote_snapshot?.quote_number || contract.source_snapshot?.quote_number || ''
+  const serviceScope = contract.service_scope || getContractProjectEventName(contract) || contract.quote_snapshot?.event_name || 'dịch vụ theo báo giá'
 
   return {
     '{{issued_date}}': issuedDate || '-',
-    '{{contract_number}}': contract.contract_number || '-',
+    '{{contract_number}}': contractNumber || '-',
+    '{{quote_number}}': quoteNumber || '-',
     '{{contract_signing_date}}': signingDate || '-',
+    '{{service_scope}}': serviceScope || '-',
     '{{customer_name}}': getProfileName(customer) || '-',
     '{{customer_representative}}': customer.representative || '-',
     '{{customer_position}}': customer.position || '-',
@@ -414,9 +432,10 @@ function getAcceptanceTemplateTokenValues(document = {}) {
     '{{seller_account_holder}}': bank.account_holder || '-',
     '{{contract_total}}': formatDocumentCurrency(summary.contract_totals.total_amount, ''),
     '{{acceptance_total}}': formatDocumentCurrency(summary.actual_totals.total_amount, ''),
+    '{{acceptance_amount_words}}': summary.amount_words || '-',
     '{{advance_paid}}': formatDocumentCurrency(summary.advance_paid, ''),
     '{{remaining_amount}}': formatDocumentCurrency(summary.remaining_amount, ''),
-    '{{payment_due_days}}': summary.payment_due_days || '07 ngày',
+    '{{payment_due_days}}': summary.payment_due_days || (isQuoteBoundAcceptanceDocument(document) ? '30 ngày' : '07 ngày'),
   }
 }
 

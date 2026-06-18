@@ -472,8 +472,9 @@ function sanitizeFeedbackName(value = '') {
   return trimText(stripFeedbackDateSuffix(value), 255)
 }
 
-function getSurveyType(value = 'video') {
-  return 'general'
+function getSurveyType(value = 'general') {
+  const normalized = String(value || 'general').trim().toLowerCase()
+  return ['general', 'image', 'video'].includes(normalized) ? normalized : 'general'
 }
 
 export function buildSurveyResponseName(type = 'general', submissionNo = 1) {
@@ -558,21 +559,157 @@ function getSurveyDashboardUrl() {
   return trimText(process.env.SURVEY_DASHBOARD_URL || DEFAULT_SURVEY_DASHBOARD_URL, 500)
 }
 
+function escapeNotificationText(value = '') {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
+function getSurveyAnswerDisplayText(answer = {}) {
+  const freeText = trimText(answer.answer_text, 4000)
+  if (freeText) return freeText
+
+  const optionText = trimText(answer.option_answer_text, 1000)
+  if (optionText && optionText !== '__free_text__') return optionText
+
+  return ''
+}
+
+function formatSurveyAnswerBadgeText(answerText = '') {
+  const text = trimText(answerText, 1000)
+  const numericScore = Number(text)
+
+  if (text && Number.isFinite(numericScore) && /^-?\d+(\.\d+)?$/.test(text)) {
+    return `${Number.isInteger(numericScore) ? numericScore : text}/10`
+  }
+
+  return text || 'N/A'
+}
+
+function isSurveyAnswerBadge(answerText = '') {
+  const text = trimText(answerText, 1000)
+  return !text || (!text.includes('\n') && text.length <= 48)
+}
+
+function isSurveyFreeTextAnswer(answer = {}) {
+  return Boolean(trimText(answer.answer_text, 4000))
+}
+
+function renderSurveyAnswerBadge(answerText = '') {
+  return `<span style="display:inline-flex;align-items:center;min-height:24px;padding:3px 10px;border-radius:999px;background:#fff7ed;border:1px solid #fdba74;color:#ea580c;font-size:12px;font-weight:700;line-height:1.2;white-space:nowrap;">${escapeNotificationText(formatSurveyAnswerBadgeText(answerText))}</span>`
+}
+
+function renderSurveyTextAnswer(answerText = '') {
+  return `<div style="margin-top:8px;padding:9px 10px;border-radius:8px;background:#f8fafc;color:#ea580c;font-size:13px;font-weight:700;line-height:1.5;white-space:pre-wrap;">${escapeNotificationText(answerText)}</div>`
+}
+
+function formatSurveySubmittedNotificationDetails(answerRows = []) {
+  if (!Array.isArray(answerRows) || !answerRows.length) return ''
+
+  const questionGroups = []
+  const questionIndex = new Map()
+
+  for (const answer of answerRows) {
+    const questionId = String(answer.question_id || '')
+    const questionText = trimText(answer.question_text, 1000) || `Câu hỏi ${questionGroups.length + 1}`
+    const key = questionId || questionText
+
+    if (!questionIndex.has(key)) {
+      questionIndex.set(key, questionGroups.length)
+      questionGroups.push({
+        question: questionText,
+        answers: [],
+      })
+    }
+
+    const displayAnswer = getSurveyAnswerDisplayText(answer)
+    if (displayAnswer) {
+      questionGroups[questionIndex.get(key)].answers.push({
+        text: displayAnswer,
+        isFreeText: isSurveyFreeTextAnswer(answer),
+      })
+    }
+  }
+
+  if (!questionGroups.length) return ''
+
+  const questionHtml = questionGroups.map((group, index) => {
+    const answers = group.answers.length ? group.answers : [{ text: '', isFreeText: false }]
+    const badgeAnswers = answers.filter(answer => !answer.isFreeText && isSurveyAnswerBadge(answer.text))
+    const textAnswers = answers.filter(answer => answer.isFreeText || !isSurveyAnswerBadge(answer.text))
+    const questionNumber = String(index + 1).padStart(2, '0')
+
+    return [
+      '<div style="padding:12px 0;border-top:1px solid #e2e8f0;">',
+      '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">',
+      `<div style="flex:1;min-width:0;color:#0f172a;font-size:14px;font-weight:400;line-height:1.45;">${questionNumber}.${escapeNotificationText(group.question)}</div>`,
+      badgeAnswers.length ? `<div style="display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;">${badgeAnswers.map(answer => renderSurveyAnswerBadge(answer.text)).join('')}</div>` : '',
+      '</div>',
+      textAnswers.map(answer => renderSurveyTextAnswer(answer.text)).join(''),
+      '</div>',
+    ].join('')
+  }).join('')
+
+  return `<div style="margin-top:12px;">${questionHtml}</div>`
+}
+
+function buildSurveySubmittedNotificationContent({
+  job = {},
+  response = {},
+  answerCount = 0,
+  dashboardUrl = DEFAULT_SURVEY_DASHBOARD_URL,
+  answerRows = [],
+} = {}) {
+  const jobId = job.id || response.job_id || null
+  const jobTitle = trimText([job.job_date, job.title || job.job_title || jobId].filter(Boolean).join(' '), 255)
+  const summary = `${response.display_name || 'Khảo sát mới'} từ job ${jobTitle || '-'}.\n\nTên khách hàng: ${job.customer_name || '-'}`
+  const escapedSummary = [
+    `<div style="color:#ea580c;font-size:14px;font-weight:700;line-height:1.45;">${escapeNotificationText(response.display_name || 'Khảo sát mới')} từ job ${escapeNotificationText(jobTitle || '-')}.</div>`,
+    `<div style="margin-top:6px;color:#475569;font-size:13px;line-height:1.4;">Tên khách hàng: <strong>${escapeNotificationText(job.customer_name || '-')}</strong></div>`,
+  ].join('')
+
+  return {
+    summary,
+    detail: `${escapedSummary}${formatSurveySubmittedNotificationDetails(answerRows)}`,
+  }
+}
+
 function buildSurveySubmittedNotificationPayload({
   job = {},
   response = {},
   recipients = [],
   answerCount = 0,
   dashboardUrl = DEFAULT_SURVEY_DASHBOARD_URL,
+  answerRows = [],
 } = {}) {
-  const jobTitle = trimText([job.job_date, job.title || job.job_title || job.id].filter(Boolean).join(' '), 255)
+  const jobId = job.id || response.job_id || null
+  const submissionNo = Number(response.submission_no || 0) || null
+  const surveyType = getSurveyType(response.survey_type)
+  const notificationContent = buildSurveySubmittedNotificationContent({
+    job,
+    response,
+    answerCount,
+    dashboardUrl,
+    answerRows,
+  })
+
   return {
     type: 5,
     need_to_send: recipients.filter(Boolean),
     title: 'Khách vừa hoàn thành khảo sát CSS',
-    content: `${response.display_name || 'Khảo sát mới'} từ job ${jobTitle || '-'}.\n\nTên khách hàng: ${job.customer_name || '-'}\n\nSố câu trả lời: ${answerCount}\n\nXem kết quả tại dashboard: ${dashboardUrl}`,
+    content: notificationContent.summary,
+    markdown_content: notificationContent.detail,
+    target: jobId,
+    data: {
+      survey_response_id: response.id || null,
+      job_id: jobId,
+      submission_no: submissionNo,
+      survey_type: surveyType,
+    },
   }
 }
+
 
 function getBaseUrlHost(value = '') {
   const text = String(value || '').trim()
@@ -2203,34 +2340,20 @@ async function getActiveSurveyQuestions(type = 'video') {
   }
 }
 
-async function getLegacyFeedbackSurveyQuestions(type = 'video') {
-  const rows = await query(
-    `select q.*, a.id as answer_id, a.answer, a.is_star, a.sort_order as answer_sort_order
-     from ${tables.feedbackSurveyQuestions} q
-     left join ${tables.feedbackSurveyAnswers} a on a.question_id = q.id
-     where q.type = ? and q.is_active = 1
-     order by q.sort_order asc, a.sort_order asc`,
-    [type],
-  )
-
-  return normalizeSurveyQuestionRows(rows, type)
-}
-
-async function getSurveyQuestions(type = 'video') {
+async function getSurveyQuestions(type = 'general') {
   const activeSurvey = await getActiveSurveyQuestions(type)
   if (activeSurvey.questions.length) return activeSurvey
 
   const fallbackType = type === 'general' ? 'video' : type
-  const legacyQuestions = await getLegacyFeedbackSurveyQuestions(fallbackType)
   return {
     version: null,
-    questions: legacyQuestions.length ? legacyQuestions : DEFAULT_SURVEY_QUESTIONS.filter(question => question.type === fallbackType),
+    questions: DEFAULT_SURVEY_QUESTIONS.filter(question => question.type === fallbackType),
   }
 }
 
 async function getSurvey(req) {
   const jobIdentifier = getQueryValue(req.query?.job || req.query?.job_id, '')
-  const type = getSurveyType()
+  const type = getSurveyType(req.query?.survey_type || req.query?.type)
   const job = await getJobBySurveyIdentifier(jobIdentifier)
   if (!job?.id) throw makeHttpError('Không tìm thấy job.', 404, 'JOB_NOT_FOUND')
   const publicJob = await ensureJobPublicToken(job)
@@ -2279,7 +2402,7 @@ function countSurveySubmittedAnswers(answers = {}, freeText = {}) {
   return choiceCount + freeTextCount
 }
 
-async function getDashboardSurveyAnswerContext(connection, questionId, answerId) {
+async function getSurveyAnswerContext(connection, questionId, answerId) {
   const safeQuestionId = String(questionId || '').trim()
   const safeAnswerId = String(answerId || '').trim()
   if (!/^\d+$/.test(safeQuestionId) || !/^\d+$/.test(safeAnswerId)) return null
@@ -2292,7 +2415,8 @@ async function getDashboardSurveyAnswerContext(connection, questionId, answerId)
        q.sort_order as question_order,
        a.id as answer_id,
        a.answer,
-       a.sort_order as answer_order
+       a.sort_order as answer_order,
+       a.is_star
      from ${tables.surveyQuestions} q
      inner join ${tables.surveyAnswers} a on a.question_id = q.id and a.id = ?
      where q.id = ?
@@ -2302,48 +2426,131 @@ async function getDashboardSurveyAnswerContext(connection, questionId, answerId)
   return rows?.[0] || null
 }
 
-async function mirrorSurveyAnswerToDashboard(connection, {
-  jobId,
-  questionId,
-  answerId,
-  answerText = '',
-  createdAt = nowMysql(),
-} = {}) {
-  const context = await getDashboardSurveyAnswerContext(connection, questionId, answerId)
-  if (!context) return false
+async function getFreeTextAnswerContext(connection, questionId) {
+  const safeQuestionId = String(questionId || '').trim()
+  if (!/^\d+$/.test(safeQuestionId)) return null
 
-  await insertRow(connection, tables.jobAnswers, {
-    question_id: context.question_id,
-    answer_id: context.answer_id,
-    job_id: jobId,
-    survey_version_id: context.survey_version_id,
-    question_text: context.question,
-    answer_text: trimText(answerText, 4000) || context.answer,
-    question_order: context.question_order,
-    answer_order: context.answer_order,
-    created_at: createdAt,
-    updated_at: createdAt,
-  })
-  return true
+  const [rows] = await connection.query(
+    `select
+       q.id as question_id,
+       q.survey_version_id,
+       q.question,
+       q.sort_order as question_order,
+       a.id as answer_id,
+       a.answer,
+       a.sort_order as answer_order,
+       a.is_star
+     from ${tables.surveyQuestions} q
+     inner join ${tables.surveyAnswers} a on a.question_id = q.id
+     where q.id = ? and a.answer = ? and a.is_star = 0
+     order by a.sort_order asc, a.id asc
+     limit 1`,
+    [safeQuestionId, '__free_text__'],
+  )
+  if (rows?.[0]) return rows[0]
+
+  const [questionRows] = await connection.query(
+    `select id, survey_version_id, question, sort_order
+     from ${tables.surveyQuestions}
+     where id = ?
+     limit 1`,
+    [safeQuestionId],
+  )
+  const question = questionRows?.[0]
+  if (!question) return null
+
+  const [sortRows] = await connection.query(
+    `select coalesce(max(sort_order), 0) + 1 as next_sort_order
+     from ${tables.surveyAnswers}
+     where question_id = ?`,
+    [safeQuestionId],
+  )
+  const now = nowMysql()
+  const [result] = await connection.query(
+    `insert into ${tables.surveyAnswers}
+       (question_id, answer, is_star, sort_order, created_at, updated_at)
+     values (?, ?, 0, ?, ?, ?)`,
+    [safeQuestionId, '__free_text__', Number(sortRows?.[0]?.next_sort_order || 1), now, now],
+  )
+
+  return {
+    question_id: question.id,
+    survey_version_id: question.survey_version_id,
+    question: question.question,
+    question_order: question.sort_order,
+    answer_id: result.insertId,
+    answer: '__free_text__',
+    answer_order: Number(sortRows?.[0]?.next_sort_order || 1),
+    is_star: 0,
+  }
+}
+
+async function getSurveyResponseAnswerCount(responseId) {
+  if (!responseId) return 0
+  const rows = await query(
+    `select count(*) as count
+     from ${tables.feedbackSurveyResponseAnswers}
+     where response_id = ?`,
+    [responseId],
+  )
+  return Number(rows?.[0]?.count || 0)
+}
+
+async function getSurveyResponseAnswerDetails(responseId) {
+  if (!responseId) return []
+
+  return query(
+    `select
+       q.id as question_id,
+       response_answers.answer_id,
+       response_answers.answer_text,
+       q.question as question_text,
+       q.sort_order as question_order,
+       answers.answer as option_answer_text,
+       answers.sort_order as answer_order,
+       answers.is_star
+     from ${tables.surveyQuestions} q
+     left join ${tables.feedbackSurveyResponseAnswers} response_answers
+       on response_answers.response_id = ?
+      and q.id = cast(response_answers.question_id as unsigned)
+     left join ${tables.surveyAnswers} answers
+       on answers.id = cast(response_answers.answer_id as unsigned)
+     where q.survey_version_id = (
+       select q2.survey_version_id
+       from ${tables.feedbackSurveyResponseAnswers} response_answers2
+       inner join ${tables.surveyQuestions} q2
+         on q2.id = cast(response_answers2.question_id as unsigned)
+       where response_answers2.response_id = ?
+       order by q2.survey_version_id desc
+       limit 1
+     )
+     order by
+       q.sort_order asc,
+       q.id asc,
+       answers.sort_order asc,
+       response_answers.created_at asc,
+       response_answers.id asc`,
+    [responseId, responseId],
+  ).catch(() => [])
 }
 
 async function submitSurvey(req, body = {}) {
   const jobIdentifier = body.job || body.job_id
-  const type = getSurveyType()
+  const type = getSurveyType(body.survey_type || body.type)
   const job = await getJobBySurveyIdentifier(jobIdentifier)
   if (!job?.id) throw makeHttpError('Không tìm thấy job.', 404, 'JOB_NOT_FOUND')
 
   const answers = body.answers || {}
   const freeText = body.free_text || body.freeText || {}
-  const submissionKey = trimText(body.submission_key || body.submissionKey, 80)
+  const providedSubmissionKey = trimText(body.submission_key || body.submissionKey, 80)
+  const submissionKey = providedSubmissionKey || randomUUID()
   const userAgent = req.headers?.['user-agent'] || null
-  const answerCount = countSurveySubmittedAnswers(answers, freeText)
   let result = null
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
     try {
       result = await withTransaction(async connection => {
-        if (submissionKey) {
+        if (providedSubmissionKey) {
           const [existingKeyRows] = await connection.query(
             `select * from ${tables.feedbackSurveyResponses} where submission_key = ? limit 1 for update`,
             [submissionKey],
@@ -2393,7 +2600,7 @@ async function submitSurvey(req, body = {}) {
           feedback_id: emptyToNull(body.feedback_id),
           survey_type: type,
           submission_no: submissionNo,
-          submission_key: emptyToNull(submissionKey),
+          submission_key: submissionKey,
           respondent_name: emptyToNull(body.respondent_name),
           user_agent: userAgent,
           created_at: createdAt,
@@ -2402,18 +2609,16 @@ async function submitSurvey(req, body = {}) {
         for (const [questionId, answerValues] of Object.entries(answers)) {
           const values = Array.isArray(answerValues) ? answerValues : [answerValues]
           for (const answerId of values.filter(value => value !== undefined && value !== null && value !== '')) {
+            const answerContext = await getSurveyAnswerContext(connection, questionId, answerId)
+            if (!answerContext) continue
+
             await insertRow(connection, tables.feedbackSurveyResponseAnswers, {
               id: makeId('fbsra'),
               response_id: responseId,
-              question_id: questionId,
-              answer_id: String(answerId),
+              question_id: String(answerContext.question_id),
+              answer_id: String(answerContext.answer_id),
               answer_text: null,
-            })
-            await mirrorSurveyAnswerToDashboard(connection, {
-              jobId: job.id,
-              questionId,
-              answerId: String(answerId),
-              createdAt,
+              created_at: createdAt,
             })
           }
         }
@@ -2422,35 +2627,16 @@ async function submitSurvey(req, body = {}) {
           const answerText = trimText(answerTextValue, 4000)
           if (!answerText) continue
 
-          const [answerRows] = await connection.query(
-            `select id from ${tables.surveyAnswers}
-             where question_id = ? and answer = ? and is_star = 0
-             order by sort_order asc, id asc
-             limit 1`,
-            [questionId, '__free_text__'],
-          )
-          const [legacyAnswerRows] = answerRows.length ? [[]] : await connection.query(
-            `select id from ${tables.feedbackSurveyAnswers}
-             where question_id = ? and answer = ? and is_star = 0
-             order by sort_order asc, id asc
-             limit 1`,
-            [questionId, '__free_text__'],
-          )
-          const freeTextAnswer = answerRows?.[0] || legacyAnswerRows?.[0]
+          const freeTextAnswer = await getFreeTextAnswerContext(connection, questionId)
+          if (!freeTextAnswer) continue
 
           await insertRow(connection, tables.feedbackSurveyResponseAnswers, {
             id: makeId('fbsra'),
             response_id: responseId,
-            question_id: questionId,
-            answer_id: emptyToNull(freeTextAnswer?.id),
+            question_id: String(freeTextAnswer.question_id),
+            answer_id: String(freeTextAnswer.answer_id),
             answer_text: answerText,
-          })
-          await mirrorSurveyAnswerToDashboard(connection, {
-            jobId: job.id,
-            questionId,
-            answerId: emptyToNull(freeTextAnswer?.id),
-            answerText,
-            createdAt,
+            created_at: createdAt,
           })
         }
 
@@ -2485,17 +2671,24 @@ async function submitSurvey(req, body = {}) {
   }
 
   if (!result?.response) throw makeHttpError('Không tạo được khảo sát.', 500, 'SURVEY_CREATE_FAILED')
-  if (!result.duplicate) notifySurveySubmitted(job, answerCount, result.response).catch(() => {})
+
+  const [answerCount, answerRows] = await Promise.all([
+    getSurveyResponseAnswerCount(result.response.id),
+    getSurveyResponseAnswerDetails(result.response.id),
+  ])
+  const response = { ...result.response, answer_count: answerCount }
+  if (!result.duplicate) notifySurveySubmitted(job, answerCount, response, answerRows).catch(() => {})
   return {
     ok: true,
-    response_id: result.response.id,
-    submission_no: result.response.submission_no,
-    display_name: result.response.display_name,
+    response_id: response.id,
+    submission_no: response.submission_no,
+    display_name: response.display_name,
+    answer_count: answerCount,
     duplicate: Boolean(result.duplicate),
   }
 }
 
-async function notifySurveySubmitted(job, answerCount = 0, response = {}) {
+async function notifySurveySubmitted(job, answerCount = 0, response = {}, answerRows = []) {
   const baseUrl = getNhansuBaseUrl()
   if (!baseUrl) return
 
@@ -2512,6 +2705,7 @@ async function notifySurveySubmitted(job, answerCount = 0, response = {}) {
       recipients: needToSend,
       answerCount,
       dashboardUrl: getSurveyDashboardUrl(),
+      answerRows,
     })),
   }).catch(() => {})
 }
@@ -2577,13 +2771,16 @@ export function isPublicFeedbackRequest(req) {
 
 export const __feedbackTestInternals = Object.freeze({
   buildFeedbackDoneNotificationPayload,
+  buildSurveySubmittedNotificationContent,
   buildSurveySubmittedNotificationPayload,
   countSurveySubmittedAnswers,
+  formatSurveySubmittedNotificationDetails,
   getEmployeePhoneLookupValues,
   getFeedbackNotificationEditorEmployeeId,
   getFeedbackNotificationEditorName,
   getFeedbackNotificationEditorPhone,
   getNhansuBaseUrl,
+  getSurveyType,
   normalizeJobRow,
   normalizeVietnamPhone,
 })
