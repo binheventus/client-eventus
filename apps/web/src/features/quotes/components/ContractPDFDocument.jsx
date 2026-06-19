@@ -31,6 +31,10 @@ function formatCurrency(value) {
   return `${new Intl.NumberFormat('vi-VN').format(Number(value) || 0)} VNĐ`
 }
 
+function formatCurrencyAmount(value) {
+  return new Intl.NumberFormat('vi-VN').format(Number(value) || 0)
+}
+
 function formatDate(value) {
   const date = value ? new Date(value) : new Date()
   return date.toLocaleDateString('vi-VN')
@@ -46,6 +50,7 @@ function normalizePdfBodyLine(value = '') {
     .trim()
     .replace(/^([-•])\s+/, '$1 ')
     .replace(/^(\d+(?:\.\d+)+)(?=\S)/, '$1 ')
+    .replace(/^((?:\d+(?:\.\d+)*|\([a-z]\)|[a-z]\)|[ivxlcdm]+\.))\s{2,}/i, '$1 ')
 }
 
 function getSeller(contract = {}) {
@@ -111,6 +116,13 @@ function getProfileName(profile = {}) {
   return profile.company_name || '-'
 }
 
+function formatSignatureName(profile = {}) {
+  return String(profile.representative || '')
+    .trim()
+    .replace(/^(ông|bà)\s+/i, '')
+    .toLocaleUpperCase('vi-VN')
+}
+
 export function getContractPdfFilename(contract = {}) {
   return getContractDownloadFilename(contract, 'pdf')
 }
@@ -120,19 +132,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 40,
     paddingVertical: 34,
     fontFamily: PDF_FONT_FAMILY,
-    fontSize: 9,
+    fontSize: 11,
     lineHeight: 1.45,
     color: '#0f172a',
   },
   national: {
     textAlign: 'center',
-    fontSize: 9,
+    fontSize: 11,
     fontWeight: 400,
     marginBottom: 2,
   },
   nationalMotto: {
     textAlign: 'center',
-    fontSize: 9,
+    fontSize: 11,
     fontWeight: 400,
     marginBottom: 2,
   },
@@ -146,14 +158,14 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     textAlign: 'center',
-    fontSize: 9,
+    fontSize: 11,
     color: '#475569',
     marginBottom: 7,
   },
   sectionTitle: {
     marginTop: 12,
     marginBottom: 6,
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: 700,
     color: '#111827',
     textTransform: 'uppercase',
@@ -176,18 +188,22 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   partyHeading: {
-    fontSize: 9,
+    fontSize: 11,
+    lineHeight: 1.25,
     fontWeight: 700,
     color: '#111827',
     textTransform: 'uppercase',
+    marginBottom: 2,
   },
   partyLine: {
-    fontSize: 7.5,
-    color: '#475569',
-    marginBottom: 1.5,
+    fontSize: 11,
+    lineHeight: 1.25,
+    color: '#334155',
+    marginBottom: 2,
   },
   partyJoiner: {
-    fontSize: 8.5,
+    fontSize: 11,
+    lineHeight: 1.25,
     fontWeight: 700,
     color: '#111827',
     marginTop: 1,
@@ -204,7 +220,7 @@ const styles = StyleSheet.create({
   },
   signatureHeading: {
     fontWeight: 700,
-    marginBottom: 48,
+    marginBottom: 80,
   },
   signatureName: {
     fontWeight: 700,
@@ -231,7 +247,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#eef2f7',
     paddingHorizontal: 6,
     paddingVertical: 5,
-    fontSize: 7.6,
+    fontSize: 11,
     fontWeight: 700,
     color: '#334155',
   },
@@ -242,27 +258,27 @@ const styles = StyleSheet.create({
   cell: {
     paddingHorizontal: 5,
     paddingVertical: 5,
-    fontSize: 7.2,
+    fontSize: 11,
   },
   headerCell: {
     fontWeight: 700,
     color: '#475569',
     textTransform: 'uppercase',
-    fontSize: 6.2,
+    fontSize: 11,
   },
   itemName: {
-    width: '37%',
+    width: '35%',
   },
   unit: {
-    width: '12%',
+    width: '11%',
     textAlign: 'center',
   },
   qty: {
-    width: '10%',
+    width: '12%',
     textAlign: 'center',
   },
   sessions: {
-    width: '8%',
+    width: '10%',
     textAlign: 'center',
   },
   price: {
@@ -285,13 +301,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#e2e8f0',
     paddingVertical: 3,
-    fontSize: 8,
+    fontSize: 11,
   },
   grandTotal: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingTop: 5,
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: 700,
   },
   pageNumber: {
@@ -309,8 +325,7 @@ function PartyCard({ heading, profile = {}, role = 'customer' }) {
   return (
     <View style={styles.partyCard}>
       <Text style={styles.partyHeading}>{heading} {getProfileName(profile)}</Text>
-      <Text style={styles.partyLine}>Đại diện: {profile.representative || '-'}</Text>
-      <Text style={styles.partyLine}>Chức vụ: {profile.position || '-'}</Text>
+      <Text style={styles.partyLine}>Đại diện: {profile.representative || '-'} - Chức vụ: {profile.position || '-'}</Text>
       {role === 'customer' && hasText(profile.authorization_number) ? <Text style={styles.partyLine}>Giấy ủy quyền số: {profile.authorization_number}</Text> : null}
       {role === 'customer' && hasText(profile.authorization_date) ? <Text style={styles.partyLine}>Ngày giấy ủy quyền: {profile.authorization_date}</Text> : null}
       <Text style={styles.partyLine}>Địa chỉ: {profile.address || '-'}</Text>
@@ -376,8 +391,8 @@ function QuoteItemsTable({ items = [] }) {
               <Text style={[styles.cell, styles.unit]}>{getItemUnit(item)}</Text>
               <Text style={[styles.cell, styles.qty]}>{item.quantity || 1}</Text>
               <Text style={[styles.cell, styles.sessions]}>{item.num_sessions || 1}</Text>
-              <Text style={[styles.cell, styles.price]}>{formatCurrency(item.unit_price)}</Text>
-              <Text style={[styles.cell, styles.amount]}>{formatCurrency(item.total_price)}</Text>
+              <Text style={[styles.cell, styles.price]}>{formatCurrencyAmount(item.unit_price)}</Text>
+              <Text style={[styles.cell, styles.amount]}>{formatCurrencyAmount(item.total_price)}</Text>
             </View>
           ))}
         </View>
@@ -493,12 +508,12 @@ function Signature({ contract = {} }) {
     <View style={styles.signatureWrap}>
       <View style={styles.signature}>
         <Text style={styles.signatureHeading}>ĐẠI DIỆN BÊN A</Text>
-        <Text style={styles.signatureName}>{partyA.representative || ''}</Text>
+        <Text style={styles.signatureName}>{formatSignatureName(partyA)}</Text>
         {partyA.position ? <Text style={styles.signaturePosition}>{partyA.position}</Text> : null}
       </View>
       <View style={styles.signature}>
         <Text style={styles.signatureHeading}>ĐẠI DIỆN BÊN B</Text>
-        <Text style={styles.signatureName}>{partyB.representative || ''}</Text>
+        <Text style={styles.signatureName}>{formatSignatureName(partyB)}</Text>
         {partyB.position ? <Text style={styles.signaturePosition}>{partyB.position}</Text> : null}
       </View>
     </View>

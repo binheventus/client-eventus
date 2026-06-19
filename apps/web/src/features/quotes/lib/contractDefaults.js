@@ -370,9 +370,10 @@ export function formatEntityBankDetails(details = {}) {
   return [details.account_number, details.bank_name, details.account_holder].filter(Boolean).join(' - ')
 }
 
-export function getEntityProfile(entityCode = 'EVT') {
+export function getEntityProfile(entityCode = 'EVT', legalEntities = legalEntitiesData) {
   const code = entityCode || 'EVT'
-  const entity = findLegalEntityByCode(code, legalEntitiesData) || legalEntitiesData[0] || {}
+  const entityRows = Array.isArray(legalEntities) && legalEntities.length ? legalEntities : legalEntitiesData
+  const entity = findLegalEntityByCode(code, entityRows) || entityRows[0] || {}
   const legalName = entity.entity_name_full || entity.legal_name || entity.name || entity.display_name || ''
 
   return {

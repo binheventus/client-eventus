@@ -54,6 +54,20 @@ function getProfileName(profile = {}) {
   return profile.company_name || ''
 }
 
+function formatSignatureName(profile = {}) {
+  return String(profile.representative || '')
+    .trim()
+    .replace(/^(ông|bà)\s+/i, '')
+    .toLocaleUpperCase('vi-VN')
+}
+
+function normalizeContractBodyLine(value = '') {
+  return String(value || '')
+    .replace(/\t+/g, ' ')
+    .trim()
+    .replace(/^((?:\d+(?:\.\d+)*|\([a-z]\)|[a-z]\)|[ivxlcdm]+\.))\s{2,}/i, '$1 ')
+}
+
 function PreviewValue({ value, fallback, className = '' }) {
   const missing = !hasText(value)
   return (
@@ -65,22 +79,37 @@ function PreviewValue({ value, fallback, className = '' }) {
 
 function PreviewLine({ label, value, fallback = label }) {
   return (
-    <p className="text-[13px] leading-6 text-slate-700">
+    <p className="text-[11pt] leading-[1.3] text-slate-700">
       <span className="font-semibold text-slate-900">{label}:</span>{' '}
       <PreviewValue value={value} fallback={fallback} />
     </p>
   )
 }
 
+function RepresentativeLine({ profile = {}, fallbackPrefix = '' }) {
+  return (
+    <p className="text-[11pt] leading-[1.3] text-slate-700">
+      <span className="font-semibold text-slate-900">Đại diện:</span>{' '}
+      <PreviewValue value={profile.representative} fallback={`Người đại diện ${fallbackPrefix}`} />
+      {hasText(profile.position) ? (
+        <>
+          <span className="px-3 text-slate-500">-</span>
+          <span className="font-semibold text-slate-900">Chức vụ:</span>{' '}
+          <span>{profile.position}</span>
+        </>
+      ) : null}
+    </p>
+  )
+}
+
 function PartyPreview({ heading, profile = {}, fallbackPrefix, role = 'customer' }) {
   return (
-    <div className="space-y-1">
-      <p className="text-[13px] leading-6 text-slate-950">
+    <div className="space-y-0.5">
+      <p className="text-[11pt] leading-[1.3] text-slate-950">
         <span className="font-bold">{heading}</span>{' '}
         <PreviewValue value={getProfileName(profile)} fallback={`Tên ${fallbackPrefix}`} className="font-semibold text-slate-950" />
       </p>
-      <PreviewLine label="Đại diện" value={profile.representative} fallback={`Người đại diện ${fallbackPrefix}`} />
-      {profile.position ? <PreviewLine label="Chức vụ" value={profile.position} /> : null}
+      <RepresentativeLine profile={profile} fallbackPrefix={fallbackPrefix} />
       {role === 'customer' && hasText(profile.authorization_number) ? <PreviewLine label="Giấy ủy quyền số" value={profile.authorization_number} /> : null}
       {role === 'customer' && hasText(profile.authorization_date) ? <PreviewLine label="Ngày giấy ủy quyền" value={profile.authorization_date} /> : null}
       <PreviewLine label="Địa chỉ" value={profile.address} fallback={`Địa chỉ ${fallbackPrefix}`} />
@@ -92,16 +121,34 @@ function PartyPreview({ heading, profile = {}, fallbackPrefix, role = 'customer'
   )
 }
 
+function BodyPreview({ text = '' }) {
+  const lines = String(text || '')
+    .replace(/\r\n?/g, '\n')
+    .split(/\n+/)
+    .map(normalizeContractBodyLine)
+    .filter(Boolean)
+
+  return (
+    <div className="mt-1 space-y-1 text-[11pt] leading-[1.5] text-slate-700">
+      {lines.map((line, lineIndex) => (
+        <p key={`${line}-${lineIndex}`}>{line}</p>
+      ))}
+    </div>
+  )
+}
+
 function SignaturePreview({ heading, profile = {} }) {
+  const signatureName = formatSignatureName(profile)
+
   return (
     <div>
-      <p className="text-[13px] font-bold text-slate-950">{heading}</p>
+      <p className="text-[11pt] font-bold text-slate-950">{heading}</p>
       <div className="h-24" aria-hidden="true" />
-      {profile.representative ? (
-        <p className="text-[13px] font-bold text-slate-950">{profile.representative}</p>
+      {signatureName ? (
+        <p className="text-[11pt] font-bold text-slate-950">{signatureName}</p>
       ) : null}
       {profile.position ? (
-        <p className="mt-1 text-[13px] italic text-slate-800">{profile.position}</p>
+        <p className="mt-1 text-[11pt] italic text-slate-800">{profile.position}</p>
       ) : null}
     </div>
   )
@@ -110,7 +157,7 @@ function SignaturePreview({ heading, profile = {} }) {
 function SchedulePreview({ row = {} }) {
   return (
     <div className="space-y-1">
-      <p className="text-[13px] leading-6 text-slate-700">
+      <p className="text-[11pt] leading-[1.5] text-slate-700">
         <span className="font-semibold text-slate-900">Thời gian:</span>{' '}
         <PreviewValue value={row.time_range} fallback="Thời gian" />{' '}
         <span>ngày</span>{' '}
@@ -223,20 +270,20 @@ export function ContractPreviewDocument({ contract = {} }) {
     >
       <section className="rounded-xl bg-white p-5 pb-3">
         <div className="text-center">
-          <p className="text-[13px] uppercase text-slate-950">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
-          <p className="text-[13px] text-slate-950">Độc lập – Tự do – Hạnh phúc</p>
+          <p className="text-[11pt] uppercase text-slate-950">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
+          <p className="text-[11pt] text-slate-950">Độc lập – Tự do – Hạnh phúc</p>
         </div>
         <h3 className="mt-4 text-center text-[20px] font-bold uppercase tracking-wide text-slate-950">
           <PreviewValue value={contract.title} fallback="Tiêu đề hợp đồng" />
         </h3>
-        <p className="mt-1 text-center text-[13px] font-semibold text-slate-700">
+        <p className="mt-1 text-center text-[11pt] font-semibold text-slate-700">
           Số: <PreviewValue value={contract.contract_number} fallback="Số hợp đồng" />
         </p>
         <div className="mt-4 space-y-1">
           {preambleLines.map((line, index) => (
-            <p key={`${line}-${index}`} className="text-[13px] leading-6 text-slate-700">{line}</p>
+            <p key={`${line}-${index}`} className="text-[11pt] leading-[1.5] text-slate-700">{line}</p>
           ))}
-          <p className="pt-2 text-[13px] leading-6 text-slate-700">
+          <p className="pt-2 text-[11pt] leading-[1.5] text-slate-700">
             Hợp đồng cung cấp dịch vụ (sau đây gọi tắt là “Hợp đồng”) được lập và ký kết ngày <PreviewValue value={signingDate} fallback="Ngày ký hợp đồng" /> giữa các bên gồm:
           </p>
         </div>
@@ -244,13 +291,13 @@ export function ContractPreviewDocument({ contract = {} }) {
           <PartyPreview heading="BÊN A:" profile={partyA} fallbackPrefix="khách hàng" role={getPartyRole(contract, 'party_a')} />
           <PartyPreview heading="BÊN B:" profile={partyB} fallbackPrefix="Bên B" role={getPartyRole(contract, 'party_b')} />
         </div>
-        <p className="mt-3 -mb-2 text-[13px] leading-6 text-slate-700">Sau khi thỏa thuận, Các Bên đồng ý ký kết Hợp Đồng này theo các điều khoản sau:</p>
+        <p className="mt-3 -mb-2 text-[11pt] leading-[1.5] text-slate-700">Sau khi thỏa thuận, Các Bên đồng ý ký kết Hợp Đồng này theo các điều khoản sau:</p>
       </section>
 
       <section className="rounded-xl bg-white px-5 py-4">
         <div className="space-y-2">
-          <h3 className="text-[14px] font-semibold text-slate-900">ĐIỀU 1: NỘI DUNG HỢP ĐỒNG</h3>
-          <p className="text-[13px] leading-6 text-slate-700">
+          <h3 className="text-[11pt] font-semibold text-slate-900">ĐIỀU 1: NỘI DUNG HỢP ĐỒNG</h3>
+          <p className="text-[11pt] leading-[1.5] text-slate-700">
             Bên A đề nghị Bên B và Bên B đồng ý cung cấp <PreviewValue value={serviceScopeDetail} fallback="Nội dung dịch vụ" /> cho Bên A, chi tiết như sau:
           </p>
           {scheduleRows.length ? (
@@ -262,7 +309,7 @@ export function ContractPreviewDocument({ contract = {} }) {
           ) : (
             <PreviewLine label="Thời gian / Địa điểm" value="" />
           )}
-          <p className="text-[13px] font-semibold text-slate-900">Chi tiết hạng mục</p>
+          <p className="text-[11pt] font-semibold text-slate-900">Chi tiết hạng mục</p>
           <QuotePreview
             quote={{ ...quote, created_at: quote.created_at || contract.created_at }}
             items={quoteItems}
@@ -270,10 +317,11 @@ export function ContractPreviewDocument({ contract = {} }) {
             sticky={false}
             tableOnly
             subtotalLabel={CONTRACT_SUBTOTAL_LABEL}
+            lineItemAmountSuffix=""
           />
           <div className="space-y-1 pt-1">
-            <p className="text-[13px] font-semibold text-slate-900">Lưu ý về thời gian làm việc và tiến độ bàn giao:</p>
-            <ul className="list-disc space-y-1 pl-5 text-[13px] leading-6 text-slate-700">
+            <p className="text-[11pt] font-semibold text-slate-900">Lưu ý về thời gian làm việc và tiến độ bàn giao:</p>
+            <ul className="list-disc space-y-1 pl-5 text-[11pt] leading-[1.5] text-slate-700">
               {workProgressNotes.map(item => <li key={item}>{item}</li>)}
             </ul>
           </div>
@@ -283,17 +331,17 @@ export function ContractPreviewDocument({ contract = {} }) {
       <section className="rounded-xl bg-white px-5 py-4">
         <ContractPaymentSummary quote={quote} paymentConfig={paymentConfig} />
         <div className="mt-3">
-          <p className="text-[13px] font-semibold text-slate-900">Hồ sơ thanh toán:</p>
+          <p className="text-[11pt] font-semibold text-slate-900">Hồ sơ thanh toán:</p>
           {paymentDocuments.length ? (
-            <ul className="mt-1 list-disc space-y-1 pl-5 text-[13px] leading-6 text-slate-700">
+            <ul className="mt-1 list-disc space-y-1 pl-5 text-[11pt] leading-[1.5] text-slate-700">
               {paymentDocuments.map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}
             </ul>
           ) : (
-            <p className="mt-1 text-[13px] font-semibold text-red-600">Hồ sơ thanh toán</p>
+            <p className="mt-1 text-[11pt] font-semibold text-red-600">Hồ sơ thanh toán</p>
           )}
           <div className="mt-3 space-y-1">
-            <p className="text-[13px] font-semibold text-slate-900">Lưu ý về thanh toán:</p>
-            <ul className="list-disc space-y-1 pl-5 text-[13px] leading-6 text-slate-700">
+            <p className="text-[11pt] font-semibold text-slate-900">Lưu ý về thanh toán:</p>
+            <ul className="list-disc space-y-1 pl-5 text-[11pt] leading-[1.5] text-slate-700">
               {paymentNotes.map(item => <li key={item}>{item}</li>)}
             </ul>
           </div>
@@ -305,13 +353,13 @@ export function ContractPreviewDocument({ contract = {} }) {
           <div className="space-y-3">
             {contentSections.map((section, index) => (
               <div key={section.id || `${section.article_no}-${index}`}>
-                <p className="text-[13px] font-bold uppercase text-slate-950">ĐIỀU {section.article_no || index + 3}: {section.title || 'ĐIỀU KHOẢN'}</p>
-                <div className="mt-1 whitespace-pre-wrap text-[13px] leading-6 text-slate-700">{section.body}</div>
+                <p className="text-[11pt] font-bold uppercase text-slate-950">ĐIỀU {section.article_no || index + 3}: {section.title || 'ĐIỀU KHOẢN'}</p>
+                <BodyPreview text={section.body} />
               </div>
             ))}
           </div>
         ) : (
-          <p className="whitespace-pre-wrap text-[13px] font-semibold leading-6 text-red-600">Nội dung từ ĐIỀU 3 trở đi</p>
+          <p className="whitespace-pre-wrap text-[11pt] font-semibold leading-[1.5] text-red-600">Nội dung từ ĐIỀU 3 trở đi</p>
         )}
         <div className="mt-12 grid gap-3 text-center md:grid-cols-2">
           <SignaturePreview heading="ĐẠI DIỆN BÊN A" profile={partyA} />

@@ -48,6 +48,23 @@ test('getEntityProfile uses full legal entity name for contract party fields', (
   assert.equal(profile.company_name, profile.entity_name_full)
 })
 
+test('getEntityProfile can use runtime legal entity rows', () => {
+  const profile = getEntityProfile('EVT', [{
+    entity_code: 'EVT',
+    entity_name_full: 'CÔNG TY RUNTIME',
+    tax_code: '0100000001',
+    address: 'Runtime address',
+    representative: 'Runtime rep',
+    position: 'Runtime title',
+    bank_account: '0001',
+    bank_name: 'Runtime bank',
+  }])
+
+  assert.equal(profile.company_name, 'CÔNG TY RUNTIME')
+  assert.equal(profile.tax_code, '0100000001')
+  assert.equal(profile.representative, 'Runtime rep')
+})
+
 test('buildInitialContractDraftFromSource preserves job source snapshots and totals', () => {
   const draft = buildInitialContractDraftFromSource({
     source_type: 'job',

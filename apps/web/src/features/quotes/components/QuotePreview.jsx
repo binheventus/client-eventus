@@ -226,13 +226,17 @@ function QuoteEndNotes({ quote = {}, items = [], equipmentRules = [] }) {
   )
 }
 
-function QuoteItemsMobileCards({ items = [] }) {
+function QuoteItemsMobileCards({ items = [], tableOnly = false, lineItemAmountSuffix = 'đ' }) {
   const groups = groupQuoteItems(items)
   const showGroupHeaders = groups.length > 1
+  const cardTitleClass = tableOnly ? 'text-[11pt] leading-[1.5]' : 'text-[13px] leading-5'
+  const cardMetaClass = tableOnly ? 'text-[11pt] leading-[1.5]' : 'text-[11px] leading-4'
+  const cardGroupClass = tableOnly ? 'text-[11pt]' : 'text-[12px]'
+  const cardGroupBadgeClass = tableOnly ? 'text-[11pt]' : 'text-[10px]'
 
   if (!items.length) {
     return (
-      <section className="rounded-xl border border-slate-300 px-4 py-8 text-center text-[12px] text-black sm:hidden">
+      <section className={`rounded-xl border border-slate-300 px-4 py-8 text-center text-black sm:hidden ${tableOnly ? 'text-[11pt]' : 'text-[12px]'}`}>
         Chưa có hạng mục.
       </section>
     )
@@ -244,9 +248,9 @@ function QuoteItemsMobileCards({ items = [] }) {
         <div key={group.key} className="overflow-hidden rounded-xl border border-slate-300 bg-white text-black">
           {showGroupHeaders ? (
             <div className="border-b border-slate-200 bg-slate-50 px-3.5 py-2.5">
-              <div className="flex flex-wrap items-center justify-between gap-2 text-[12px] font-bold uppercase tracking-[0.04em] text-black">
+              <div className={`flex flex-wrap items-center justify-between gap-2 font-bold uppercase tracking-[0.04em] text-black ${cardGroupClass}`}>
                 <span className="min-w-0">{group.label}</span>
-                <span className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] tracking-normal text-amber-800">
+                <span className={`shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 tracking-normal text-amber-800 ${cardGroupBadgeClass}`}>
                   {formatCurrency(getGroupTotal(group.items))}đ
                 </span>
               </div>
@@ -255,15 +259,15 @@ function QuoteItemsMobileCards({ items = [] }) {
           <div className="divide-y divide-slate-100">
             {group.items.map((item, index) => (
               <article key={item.local_id || `${group.key}-${index}`} className="px-3.5 py-3 text-black">
-                <h3 className="text-[13px] font-semibold leading-5 text-black">{getItemName(item)}</h3>
-                <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 text-[11px] leading-4 text-slate-600">
+                <h3 className={`${cardTitleClass} font-semibold text-black`}>{getItemName(item)}</h3>
+                <div className={`mt-1 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 text-slate-600 ${cardMetaClass}`}>
                   <span>{item.quantity} {getItemUnit(item)} • {item.num_sessions || 1} buổi</span>
-                  <span className="max-w-[130px] text-right">{formatCurrency(item.unit_price)}đ/{getItemUnit(item).toLowerCase()}</span>
+                  <span className="max-w-[130px] text-right">{formatCurrency(item.unit_price)}{lineItemAmountSuffix}/{getItemUnit(item).toLowerCase()}</span>
                 </div>
-                <dl className="mt-3 border-t border-slate-100 pt-2 text-[11px] leading-4 text-black">
+                <dl className={`mt-3 border-t border-slate-100 pt-2 text-black ${cardMetaClass}`}>
                   <div className="flex items-center justify-between gap-4 font-bold">
                     <dt>Thành tiền</dt>
-                    <dd>{formatCurrency(item.total_price)}đ</dd>
+                    <dd>{formatCurrency(item.total_price)}{lineItemAmountSuffix}</dd>
                   </div>
                 </dl>
               </article>
@@ -286,6 +290,7 @@ export default function QuotePreview({
   tableOnly = false,
   showStamp,
   subtotalLabel = 'Cộng tiền dịch vụ',
+  lineItemAmountSuffix = 'đ',
 }) {
   const entityRows = entities.length ? entities : legalEntitiesData
   const entity = getEntity(quote.entity_code, entityRows)
@@ -304,6 +309,10 @@ export default function QuotePreview({
   const itemGroups = groupQuoteItems(items)
   const showGroupHeaders = itemGroups.length > 1
   const shouldShowStamp = showStamp ?? quote.show_stamp !== false
+  const tableTextClass = tableOnly ? 'text-[11pt]' : 'text-[13px]'
+  const tableHeaderTextClass = tableOnly ? 'text-[11pt]' : 'text-[9px]'
+  const totalTextClass = tableOnly ? 'text-[11pt]' : 'text-[13px]'
+  const grandTotalTextClass = tableOnly ? 'text-[11pt]' : 'text-[15px]'
 
   return (
     <div className={`${sticky ? 'sticky top-6' : ''} w-full min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm`}>
@@ -345,16 +354,16 @@ export default function QuotePreview({
           </section>
         ) : null}
 
-        <QuoteItemsMobileCards items={items} />
+        <QuoteItemsMobileCards items={items} tableOnly={tableOnly} lineItemAmountSuffix={lineItemAmountSuffix} />
 
         <section className="hidden overflow-hidden rounded-xl border border-slate-300 sm:block">
-          <table className="w-full table-fixed text-left text-[13px]">
-            <thead className="bg-slate-50 text-[9px] uppercase tracking-[0.08em] text-black">
+          <table className={`w-full table-fixed text-left ${tableTextClass}`}>
+            <thead className={`bg-slate-50 uppercase ${tableOnly ? 'tracking-[0.04em]' : 'tracking-[0.08em]'} text-black ${tableHeaderTextClass}`}>
               <tr>
-                <th className={`w-[39%] ${showGroupHeaders ? 'pl-6' : 'pl-3'} py-2.5 pr-3 font-semibold`}>Hạng mục</th>
-                <th className="w-[12%] whitespace-nowrap px-1 py-2.5 text-center font-semibold">ĐVT</th>
-                <th className="w-[10%] whitespace-nowrap px-1 py-2.5 text-center font-semibold">Số lượng</th>
-                <th className="w-[8%] whitespace-nowrap px-1 py-2.5 text-center font-semibold">Số buổi</th>
+                <th className={`w-[36%] ${showGroupHeaders ? 'pl-6' : 'pl-3'} py-2.5 pr-3 font-semibold`}>Hạng mục</th>
+                <th className="w-[11%] whitespace-nowrap px-1 py-2.5 text-center font-semibold">ĐVT</th>
+                <th className="w-[11%] whitespace-nowrap px-2 py-2.5 text-center font-semibold">Số lượng</th>
+                <th className="w-[10%] whitespace-nowrap px-2 py-2.5 text-center font-semibold">Số buổi</th>
                 <th className="w-[15%] px-1.5 py-2.5 text-right font-semibold">Đơn giá</th>
                 <th className="w-[17%] px-3 py-2.5 text-right font-semibold">Thành tiền</th>
               </tr>
@@ -364,11 +373,11 @@ export default function QuotePreview({
                 <Fragment key={group.key}>
                   {showGroupHeaders ? (
                     <tr>
-                      <td colSpan={6} className="bg-slate-100 px-3 py-2 text-[9px] font-bold uppercase tracking-[0.05em] text-black">
+                      <td colSpan={6} className={`bg-slate-100 px-3 py-2 font-bold uppercase tracking-[0.05em] text-black ${tableHeaderTextClass}`}>
                         <div className="flex items-center gap-2">
                           <span>{group.label}</span>
-                          <span className="inline-flex shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[9px] font-bold tracking-normal text-amber-800">
-                            {formatCurrency(getGroupTotal(group.items))}đ
+                          <span className={`inline-flex shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 font-bold tracking-normal text-amber-800 ${tableHeaderTextClass}`}>
+                            {formatCurrency(getGroupTotal(group.items))}{lineItemAmountSuffix}
                           </span>
                         </div>
                       </td>
@@ -378,23 +387,23 @@ export default function QuotePreview({
                     <tr key={item.local_id || `${group.key}-${index}`}>
                       <td className={`${showGroupHeaders ? 'pl-6' : 'pl-3'} py-2.5 pr-3 font-medium leading-4 text-black`}>{getItemName(item)}</td>
                       <td className="px-1 py-2.5 text-center text-black">{getItemUnit(item)}</td>
-                      <td className="px-1 py-2.5 text-center text-black">{item.quantity}</td>
-                      <td className="px-1 py-2.5 text-center text-black">{item.num_sessions || 1}</td>
-                      <td className="px-1.5 py-2.5 text-right text-black">{formatCurrency(item.unit_price)}đ</td>
-                      <td className="px-3 py-2.5 text-right text-black">{formatCurrency(item.total_price)}đ</td>
+                      <td className="px-2 py-2.5 text-center text-black">{item.quantity}</td>
+                      <td className="px-2 py-2.5 text-center text-black">{item.num_sessions || 1}</td>
+                      <td className="px-1.5 py-2.5 text-right text-black">{formatCurrency(item.unit_price)}{lineItemAmountSuffix}</td>
+                      <td className="px-3 py-2.5 text-right text-black">{formatCurrency(item.total_price)}{lineItemAmountSuffix}</td>
                     </tr>
                   ))}
                 </Fragment>
               )) : (
                 <tr>
-                  <td colSpan={6} className="px-3 py-8 text-center text-[12px] text-black">Chưa có hạng mục.</td>
+                  <td colSpan={6} className={`px-3 py-8 text-center text-black ${tableOnly ? 'text-[11pt]' : 'text-[12px]'}`}>Chưa có hạng mục.</td>
                 </tr>
               )}
             </tbody>
           </table>
         </section>
 
-        <section className={`${tableOnly ? 'ml-auto' : 'mt-2 ml-auto'} w-full max-w-[360px] space-y-1.5 text-[13px] sm:pr-3`}>
+        <section className={`${tableOnly ? 'ml-auto' : 'mt-2 ml-auto'} w-full max-w-[360px] space-y-1.5 ${totalTextClass} sm:pr-3`}>
           <div className="flex justify-between gap-6 text-black">
             <span>{subtotalLabel}</span>
             <span>{formatCurrency(totals.subtotal)}đ</span>
@@ -430,7 +439,7 @@ export default function QuotePreview({
             </div>
           ) : null}
           <div className="border-t border-slate-200 pt-2">
-            <div className={`flex justify-between font-bold text-black ${tableOnly ? 'text-[14px]' : 'text-[15px]'}`}>
+            <div className={`flex justify-between font-bold text-black ${grandTotalTextClass}`}>
               <span>Tổng thanh toán</span>
               <span>{formatCurrency(totals.total_amount)}đ</span>
             </div>

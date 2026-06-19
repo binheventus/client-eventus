@@ -13,7 +13,7 @@ import {
 const encoder = new TextEncoder()
 const DOCX_FONT_FAMILY = 'Times New Roman'
 const DOCX_FONT_XML = `<w:rFonts w:ascii="${DOCX_FONT_FAMILY}" w:hAnsi="${DOCX_FONT_FAMILY}" w:eastAsia="${DOCX_FONT_FAMILY}" w:cs="${DOCX_FONT_FAMILY}"/>`
-const DOCX_BODY_FONT_SIZE = 20
+const DOCX_BODY_FONT_SIZE = 22
 const DOCX_TITLE_FONT_SIZE = 30
 const DOCX_HEADING_FONT_SIZE = 24
 const TABLE_BORDERS_XML = '<w:tblBorders><w:top w:val="single" w:sz="4" w:color="D7DEE8"/><w:left w:val="single" w:sz="4" w:color="D7DEE8"/><w:bottom w:val="single" w:sz="4" w:color="D7DEE8"/><w:right w:val="single" w:sz="4" w:color="D7DEE8"/><w:insideH w:val="single" w:sz="4" w:color="E5EAF1"/><w:insideV w:val="single" w:sz="4" w:color="E5EAF1"/></w:tblBorders>'
@@ -426,7 +426,12 @@ function contentSectionsXml(sections = []) {
 }
 
 function getSignatureName(profile = {}) {
-  return hasText(profile.representative) ? String(profile.representative).trim().toUpperCase() : ''
+  return hasText(profile.representative)
+    ? String(profile.representative)
+      .trim()
+      .replace(/^(ông|bà)\s+/i, '')
+      .toLocaleUpperCase('vi-VN')
+    : ''
 }
 
 function signatureXml(contract = {}) {
@@ -456,7 +461,7 @@ function signatureXml(contract = {}) {
         tableCell('', 4000, { align: 'center' }),
         tableCell('', 1000),
         tableCell('', 4000, { align: 'center' }),
-      ], { minHeight: 260 }),
+      ], { minHeight: 80 }),
       tableRow([
         tableCell(partyA.position || '', 4000, { italic: true, align: 'center' }),
         tableCell('', 1000),

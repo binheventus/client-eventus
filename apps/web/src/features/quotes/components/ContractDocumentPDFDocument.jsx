@@ -44,6 +44,13 @@ export function getContractDocumentPdfFilename(document = {}) {
   return getContractDocumentFilename(document, 'pdf')
 }
 
+function formatSignatureName(profile = {}) {
+  return String(profile.representative || '')
+    .trim()
+    .replace(/^(ông|bà)\s+/i, '')
+    .toLocaleUpperCase('vi-VN')
+}
+
 const styles = StyleSheet.create({
   page: {
     paddingHorizontal: 51,
@@ -109,20 +116,23 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
   },
   partyTitle: {
-    fontSize: 8.5,
+    fontSize: 11,
+    lineHeight: 1.45,
     fontWeight: 700,
     color: '#64748b',
     marginBottom: 4,
     textTransform: 'uppercase',
   },
   partyName: {
-    fontSize: 9.5,
+    fontSize: 11,
+    lineHeight: 1.45,
     fontWeight: 700,
     color: '#020617',
     marginBottom: 3,
   },
   partyLine: {
-    fontSize: 8,
+    fontSize: 11,
+    lineHeight: 1.45,
     color: '#475569',
     marginBottom: 2,
   },
@@ -221,7 +231,7 @@ const styles = StyleSheet.create({
   },
   signatureHeading: {
     fontWeight: 700,
-    marginBottom: 72,
+    marginBottom: 96,
   },
   signatureName: {
     fontWeight: 700,
@@ -321,12 +331,12 @@ const styles = StyleSheet.create({
     color: '#0f172a',
   },
   acceptanceInfoParagraph: {
-    fontSize: 9.75,
+    fontSize: 11,
     lineHeight: 1.58,
     color: '#334155',
   },
   acceptancePartyTitle: {
-    fontSize: 9.75,
+    fontSize: 11,
     lineHeight: 1.58,
     fontWeight: 700,
     color: '#020617',
@@ -784,11 +794,11 @@ export default function ContractDocumentPDFDocument({ document = {} }) {
         <View style={styles.signatureWrap}>
           <View style={styles.signature}>
             <Text style={styles.signatureHeading}>ĐẠI DIỆN BÊN A</Text>
-            <Text style={styles.signatureName}>{customer.representative || ''}</Text>
+            <Text style={styles.signatureName}>{formatSignatureName(customer)}</Text>
           </View>
           <View style={styles.signature}>
             <Text style={styles.signatureHeading}>ĐẠI DIỆN BÊN B</Text>
-            <Text style={styles.signatureName}>{seller.representative || ''}</Text>
+            <Text style={styles.signatureName}>{formatSignatureName(seller)}</Text>
           </View>
         </View>
         <Text style={styles.pageNumber} render={({ pageNumber, totalPages }) => `Trang ${pageNumber}/${totalPages}`} fixed />

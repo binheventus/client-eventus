@@ -19,8 +19,8 @@ export default function ContractPaymentSummary({ quote = {}, paymentConfig = {},
   const totalWords = totalAmount > 0 ? numberToVietnameseWords(totalAmount) : ''
 
   return (
-    <div className={`text-[13px] leading-6 text-slate-700 ${className}`}>
-      <h3 className="text-[14px] font-semibold text-slate-900">ĐIỀU 2: GIÁ TRỊ HỢP ĐỒNG</h3>
+    <div className={`text-[11pt] leading-[1.5] text-slate-700 ${className}`}>
+      <h3 className="text-[11pt] font-semibold text-slate-900">ĐIỀU 2: GIÁ TRỊ HỢP ĐỒNG</h3>
       <div className="mt-2 space-y-2">
         <p>
           Giá trị của hợp đồng là:{' '}

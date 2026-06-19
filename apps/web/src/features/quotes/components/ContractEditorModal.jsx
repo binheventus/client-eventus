@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, ArrowLeft, Copy, Plus, Search, Trash2, X } from 'lucide-react'
 import { useEscapeToClose } from '../../../hooks/useEscapeToClose'
 import NoticePopup from './NoticePopup'
-import { useLegalEntities } from '../hooks/useLegalEntities'
+import { fetchActiveLegalEntities, useLegalEntities } from '../hooks/useLegalEntities'
 import {
   createContractDraftFromQuote,
   createContractDraftFromSource,
@@ -505,15 +505,28 @@ function syncHydratedContractNumber(contractNumber, contractNumberPattern, contr
   return wasGenerated ? nextGenerated : applySellerEntityToContractNumber(current, contract.seller_entity_code)
 }
 
-function getHydratedSellerSnapshot(contract = {}, quote = {}) {
+function hasSellerSnapshot(profile = {}) {
+  return [
+    profile.company_name,
+    profile.entity_name_full,
+    profile.legal_name,
+    profile.tax_code,
+    profile.address,
+    profile.representative,
+    profile.bank_account,
+  ].some(hasText)
+}
+
+function getHydratedSellerSnapshot(contract = {}, quote = {}, legalEntities = []) {
   const sellerEntityCode = contract.seller_entity_code || quote?.entity_code || 'EVT'
+  const savedSnapshot = contract.seller_snapshot || {}
   return {
-    ...(contract.seller_snapshot || {}),
-    ...getEntityProfile(sellerEntityCode),
+    ...getEntityProfile(sellerEntityCode, legalEntities),
+    ...(hasSellerSnapshot(savedSnapshot) ? savedSnapshot : {}),
   }
 }
 
-function hydrateContract(contract, quote) {
+function hydrateContract(contract, quote, legalEntities = []) {
   const normalized = normalizeContractTemplate(contract)
   const customerSnapshot = normalizeCustomerProfile(contract.customer_snapshot || {})
   const quoteSnapshot = quote?.id && Array.isArray(quote.items) && quote.items.length
@@ -526,7 +539,7 @@ function hydrateContract(contract, quote) {
     ...normalized,
     quote_id: contract.quote_id || quote?.id || '',
     quote_number: contract.quote_number || quote?.quote_number || '',
-    seller_snapshot: getHydratedSellerSnapshot(contract, quote),
+    seller_snapshot: getHydratedSellerSnapshot(contract, quote, legalEntities),
     customer_snapshot: customerSnapshot,
     contract_number: syncHydratedContractNumber(contract.contract_number, normalized.contract_number_pattern, { ...contract, seller_entity_code: normalized.seller_entity_code }, quoteSnapshot, customerSnapshot),
     signing_date: signingDate,
@@ -535,6 +548,15 @@ function hydrateContract(contract, quote) {
       signing_date: signingDate,
     },
     quote_snapshot: quoteSnapshot,
+  }
+}
+
+function applyRuntimeSellerProfile(contract = {}, legalEntities = []) {
+  const sellerEntityCode = contract.seller_entity_code || contract.quote_snapshot?.entity_code || 'EVT'
+  return {
+    ...contract,
+    seller_entity_code: sellerEntityCode,
+    seller_snapshot: getEntityProfile(sellerEntityCode, legalEntities),
   }
 }
 
@@ -647,25 +669,27 @@ export default function ContractEditorModal({
             : isQuoteSource && quote?.id
               ? getContractByQuoteId(quote.id)
               : Promise.resolve(null)
-        const [templateRows, existingContract] = await Promise.all([
+        const [templateRows, existingContract, runtimeLegalEntities] = await Promise.all([
           listContractTemplates(),
           existingLoader,
+          legalEntities.length ? Promise.resolve(legalEntities) : fetchActiveLegalEntities().catch(() => []),
         ])
         const customers = await listSharedCustomers().catch(() => [])
 
         if (!mounted) return
+        const entityRows = runtimeLegalEntities.length ? runtimeLegalEntities : legalEntities
         const defaultTemplate = getDefaultTemplate(templateRows)
         const nextDraft = existingContract
-          ? hydrateContract(existingContract, quote || existingContract.quote_snapshot)
+          ? hydrateContract(existingContract, quote || existingContract.quote_snapshot, entityRows)
           : isQuoteSource
-            ? createContractDraftFromQuote(quote, defaultTemplate)
-            : createContractDraftFromSource(sourceDraft || { source_type: sourceType }, defaultTemplate)
+            ? applyRuntimeSellerProfile(createContractDraftFromQuote(quote, defaultTemplate), entityRows)
+            : applyRuntimeSellerProfile(createContractDraftFromSource(sourceDraft || { source_type: sourceType }, defaultTemplate), entityRows)
 
         setTemplates(templateRows)
         setCustomerOptions(customers)
         setCustomerLookupState({ loading: false, creating: false, error: '', notice: '' })
         setDraft(nextDraft)
-        setSavedContract(existingContract ? hydrateContract(existingContract, quote || existingContract.quote_snapshot) : null)
+        setSavedContract(existingContract ? hydrateContract(existingContract, quote || existingContract.quote_snapshot, entityRows) : null)
         setDirty(false)
       } catch (err) {
         if (mounted) setError(err?.message || 'Không tải được dữ liệu hợp đồng.')
@@ -828,7 +852,7 @@ export default function ContractEditorModal({
     const nextDraft = {
       ...draft,
       seller_entity_code: entityCode,
-      seller_snapshot: getEntityProfile(entityCode),
+      seller_snapshot: getEntityProfile(entityCode, legalEntities),
       contract_number_pattern: nextPattern,
     }
 
@@ -849,7 +873,7 @@ export default function ContractEditorModal({
       template_id: normalizedTemplate.id,
       title: normalizedTemplate.title || draft.title,
       seller_entity_code: sellerEntityCode,
-      seller_snapshot: getEntityProfile(sellerEntityCode),
+      seller_snapshot: hasSellerSnapshot(draft.seller_snapshot) ? draft.seller_snapshot : getEntityProfile(sellerEntityCode, legalEntities),
       party_role_config: normalizedTemplate.party_role_config,
       contract_number_pattern: nextPattern,
       preamble: normalizedTemplate.preamble,
@@ -965,11 +989,10 @@ export default function ContractEditorModal({
         content_sections: termsTextToSections(termsText),
         quote_snapshot: finalQuoteSnapshot,
       }, { quote })
-      const hydrated = hydrateContract(saved, quote || saved.quote_snapshot)
+      const hydrated = hydrateContract(saved, quote || saved.quote_snapshot, legalEntities)
       setDraft(hydrated)
       setSavedContract(hydrated)
       setDirty(false)
-      setNotice('Đã lưu hợp đồng. Bạn có thể tải PDF hoặc DOCX.')
       onSaved?.(hydrated)
       return hydrated
     } catch (err) {
@@ -993,8 +1016,8 @@ export default function ContractEditorModal({
         quoteId: isQuoteSource ? quote?.id : undefined,
       })
       const nextDraft = isQuoteSource
-        ? createContractDraftFromQuote(quote, getDefaultTemplate(templates))
-        : createContractDraftFromSource(sourceDraft || { source_type: sourceType }, getDefaultTemplate(templates))
+        ? applyRuntimeSellerProfile(createContractDraftFromQuote(quote, getDefaultTemplate(templates)), legalEntities)
+        : applyRuntimeSellerProfile(createContractDraftFromSource(sourceDraft || { source_type: sourceType }, getDefaultTemplate(templates)), legalEntities)
       setDraft(nextDraft)
       setSavedContract(null)
       setDirty(false)
