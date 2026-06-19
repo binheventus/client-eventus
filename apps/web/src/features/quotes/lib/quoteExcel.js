@@ -1,5 +1,6 @@
 import { getMatchedEquipmentRules } from './equipmentRules.js'
 import { findLegalEntityByAlias, isMediaMonsterEntityCode, normalizeLegalEntityCode } from './entityCodes.js'
+import { getQuoteDownloadFilename } from './quoteDownloadFilename.js'
 import { getQuoteTerms } from './quoteTerms.js'
 
 const MONEY_FORMAT = '#,##0'
@@ -112,9 +113,7 @@ function getDiscountAmount(quote = {}) {
 }
 
 export function getQuoteExcelFilename(quote = {}) {
-  const quoteNumber = String(quote.quote_number || getQuoteCode(quote) || 'DRAFT').replace(/^#/, '').replace(/[^a-zA-Z0-9]/g, '') || 'DRAFT'
-  const entityLabel = isMediaMonsterEntityCode(quote.entity_code) ? 'Mediamonster' : 'Eventus'
-  return `Bao gia - ${entityLabel} - ${quoteNumber}.xlsx`
+  return getQuoteDownloadFilename(quote, 'xlsx')
 }
 
 export function buildQuoteExcelRows(quote = {}, items = [], options = {}) {

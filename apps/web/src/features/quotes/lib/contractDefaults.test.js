@@ -7,6 +7,7 @@ import {
   buildInitialContractDraftFromSource,
   buildSingleLineQuoteSnapshot,
   generateContractNumber,
+  getContractDownloadFilename,
   getContractPaymentNotes,
   getContractWorkDurationText,
   getContractWorkProgressNotes,
@@ -107,6 +108,18 @@ test('generateContractNumber can use job source code without a quote id', () => 
   )
 
   assert.equal(contractNumber, '2405/HD-JOB42/TM/2026')
+})
+
+test('getContractDownloadFilename uses job date, HD code, parties and event name', () => {
+  const contract = {
+    seller_entity_code: 'MEDIAMONSTER',
+    schedule_rows: [{ date_text: '2026-10-05' }],
+    customer_snapshot: { customer_code: 'C.S.Q' },
+    quote_snapshot: { event_name: 'Ra mắt sản phẩm mới' },
+  }
+
+  assert.equal(getContractDownloadFilename(contract, 'pdf'), '05.10-HD-MMT-C-S-Q-Ra-mat-san-pham-moi.pdf')
+  assert.equal(getContractDownloadFilename(contract, 'docx'), '05.10-HD-MMT-C-S-Q-Ra-mat-san-pham-moi.docx')
 })
 
 test('applySellerEntityToContractNumberPattern switches entity prefixes', () => {

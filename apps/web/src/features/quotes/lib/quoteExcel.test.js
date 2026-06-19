@@ -7,6 +7,7 @@ import {
   getQuoteExcelFilename,
   groupQuoteExcelItems,
 } from './quoteExcel.js'
+import { getQuoteDownloadFilename } from './quoteDownloadFilename.js'
 
 const quote = {
   quote_number: 'BG-0005',
@@ -56,7 +57,26 @@ const items = [
 ]
 
 test('getQuoteExcelFilename mirrors quote PDF filename shape with xlsx extension', () => {
-  assert.equal(getQuoteExcelFilename(quote), 'Bao gia - Eventus - BG0005.xlsx')
+  assert.equal(getQuoteExcelFilename(quote), 'Bao gia - Eventus - Mr.A - BG-0005.xlsx')
+})
+
+test('getQuoteDownloadFilename supports pdf and keeps client name readable', () => {
+  assert.equal(
+    getQuoteDownloadFilename({
+      quote_number: 'BG002',
+      client_name: 'Mr.Nam',
+      entity_code: 'EVENTUS',
+    }, 'pdf'),
+    'Bao gia - Eventus - Mr.Nam - BG002.pdf',
+  )
+  assert.equal(
+    getQuoteDownloadFilename({
+      quote_number: 'BG/MMT/01',
+      customer_name: 'Công ty Minh Anh',
+      entity_code: 'MEDIAMONSTER',
+    }, 'xlsx'),
+    'Bao gia - Mediamonster - Cong ty Minh Anh - BG-MMT-01.xlsx',
+  )
 })
 
 test('groupQuoteExcelItems preserves grouped quote order and totals source data', () => {

@@ -218,6 +218,72 @@ export function sanitizeFilenamePart(value) {
     .slice(0, 64) || 'Hop-dong'
 }
 
+function getContractJobDatePart(contract = {}) {
+  const rows = Array.isArray(contract.schedule_rows) ? contract.schedule_rows : []
+  const rawDate = rows.map(row => normalizeText(row?.date_text)).find(Boolean)
+    || normalizeText(contract.source_snapshot?.job_date)
+    || normalizeText(contract.quote_snapshot?.event_date)
+  if (!rawDate) return ''
+
+  const isoMatch = rawDate.match(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b/)
+  if (isoMatch) return `${isoMatch[3].padStart(2, '0')}.${isoMatch[2].padStart(2, '0')}`
+
+  const displayMatch = rawDate.match(/\b(\d{1,2})[./-](\d{1,2})(?:[./-]\d{2,4})?\b/)
+  if (displayMatch) return `${displayMatch[1].padStart(2, '0')}.${displayMatch[2].padStart(2, '0')}`
+
+  return ''
+}
+
+function getContractDownloadCustomerCode(contract = {}) {
+  return normalizeText(
+    contract.customer_snapshot?.customer_code
+      || contract.customer_snapshot?.company_name
+      || contract.quote_snapshot?.client_name
+      || contract.quote_snapshot?.customer_name
+      || 'CUSTOMER',
+  ).replace(/\s+/g, '-').toUpperCase().slice(0, 48)
+}
+
+function getContractDownloadEventName(contract = {}) {
+  return normalizeText(
+    contract.source_snapshot?.job_title
+      || contract.quote_snapshot?.event_name
+      || contract.event_name
+      || contract.source_snapshot?.event_name
+      || contract.title
+      || '',
+  )
+}
+
+function getContractDownloadSellerCode(contract = {}) {
+  return normalizeLegalEntityCode(
+    contract.seller_entity_code
+      || contract.seller_snapshot?.entity_code
+      || contract.quote_snapshot?.entity_code
+      || 'EVT',
+  )
+}
+
+export function getContractDownloadBaseName(contract = {}) {
+  const jobDatePart = getContractJobDatePart(contract)
+  const filenameParts = [
+    jobDatePart,
+    `HD-${getContractDownloadSellerCode(contract)}`,
+    getContractDownloadCustomerCode(contract),
+    getContractDownloadEventName(contract),
+  ].filter(Boolean)
+
+  return filenameParts
+    .map(part => (part === jobDatePart ? part : sanitizeFilenamePart(part)))
+    .filter(Boolean)
+    .join('-')
+}
+
+export function getContractDownloadFilename(contract = {}, extension = 'pdf') {
+  const safeExtension = sanitizeFilenamePart(extension).toLowerCase()
+  return `${getContractDownloadBaseName(contract) || sanitizeFilenamePart(contract.contract_number || 'Hop-dong')}.${safeExtension}`
+}
+
 export function getQuoteCode(quote = {}) {
   return normalizeText(quote.quote_number || quote.id || quote.share_token || 'DRAFT').replace(/^#/, '')
 }

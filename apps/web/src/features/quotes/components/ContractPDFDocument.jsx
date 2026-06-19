@@ -5,10 +5,10 @@ import {
   getContractPreamble,
   getContractPaymentDueDays,
   getContractPaymentNotes,
+  getContractDownloadFilename,
   getContractWorkProgressNotes,
   hasContractAdvance,
   numberToVietnameseWords,
-  sanitizeFilenamePart,
 } from '../lib/contractDefaults'
 
 const PDF_FONT_FAMILY = 'BeVietnamProContract'
@@ -103,7 +103,7 @@ function getProfileName(profile = {}) {
 }
 
 export function getContractPdfFilename(contract = {}) {
-  return `${sanitizeFilenamePart(contract.contract_number || 'Hop-dong')}.pdf`
+  return getContractDownloadFilename(contract, 'pdf')
 }
 
 const styles = StyleSheet.create({

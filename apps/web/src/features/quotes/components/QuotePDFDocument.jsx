@@ -2,6 +2,7 @@ import { Document, Font, Image, Link, Page, StyleSheet, Text, View } from '@reac
 import equipmentRulesData from '../../../data/pricing/equipment_rules.json'
 import legalEntitiesData from '../../../data/pricing/legal_entities.json'
 import { getMatchedEquipmentRules } from '../lib/equipmentRules'
+import { getQuoteDownloadFilename } from '../lib/quoteDownloadFilename'
 import {
   QUOTE_ACTUAL_PRODUCT_PREFIX,
   QUOTE_ACTUAL_PRODUCT_TITLE,
@@ -70,21 +71,8 @@ function formatQuoteDate(value) {
   return date.toLocaleDateString('vi-VN')
 }
 
-function sanitizeFilenamePart(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-zA-Z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 48) || 'Khach'
-}
-
 export function getQuotePdfFilename(quote = {}) {
-  const quoteNumber = quote.quote_number || 'Bao-gia'
-  const clientName = quote.client_name || quote.customer_name || quote.client?.name || 'Khach'
-  const created = quote.created_at ? new Date(quote.created_at) : new Date()
-  const date = `${created.getFullYear()}${String(created.getMonth() + 1).padStart(2, '0')}${String(created.getDate()).padStart(2, '0')}`
-  return `${sanitizeFilenamePart(quoteNumber)}_${sanitizeFilenamePart(clientName)}_${date}.pdf`
+  return getQuoteDownloadFilename(quote, 'pdf')
 }
 
 function getEntityMeta(quote, legalEntities = legalEntitiesData) {

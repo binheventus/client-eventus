@@ -116,12 +116,12 @@ function formatLastEdited(template = {}) {
 }
 
 function getServiceScopeDetail(value = '') {
-  return String(value || '').replace(/^cung cấp\s+/i, '').trim()
+  return String(value || '').replace(/^cung cấp\s+/i, '')
 }
 
 function composeServiceScope(detail = '') {
-  const text = String(detail || '').trim()
-  return text ? `cung cấp ${text}` : ''
+  const text = String(detail || '')
+  return text.trim() ? `cung cấp ${text}` : ''
 }
 
 function withFixedContractTitle(template = {}) {

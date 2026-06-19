@@ -1,5 +1,6 @@
 import {
   CONTRACT_SUBTOTAL_LABEL,
+  getContractDownloadFilename,
   getContractDepositPercent,
   getContractPreamble,
   getContractPaymentDueDays,
@@ -7,7 +8,6 @@ import {
   getContractWorkProgressNotes,
   hasContractAdvance,
   numberToVietnameseWords,
-  sanitizeFilenamePart,
 } from './contractDefaults'
 
 const encoder = new TextEncoder()
@@ -506,7 +506,7 @@ export function createContractDocxBlob(contract = {}) {
 }
 
 export function getContractDocxFilename(contract = {}) {
-  return `${sanitizeFilenamePart(contract.contract_number || 'Hop-dong')}.docx`
+  return getContractDownloadFilename(contract, 'docx')
 }
 
 export function downloadContractDocx(contract = {}) {
