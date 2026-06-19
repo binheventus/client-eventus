@@ -4,6 +4,7 @@ import {
   getAcceptanceLiquidationContent,
   getAcceptanceSummary,
   getAdvanceRequestContent,
+  getAdvanceSummary,
   getBankAccountDetails,
   getContractDocumentFilename,
   getContractFromDocument,
@@ -19,8 +20,8 @@ import {
   getVatLabel,
   hasDocumentText,
   shouldShowAcceptanceAmountTables,
-} from './contractDocumentRender'
-import { formatContractDocumentNumberForDisplay } from './contractDocumentEditor'
+} from './contractDocumentRender.js'
+import { formatContractDocumentNumberForDisplay } from './contractDocumentEditor.js'
 
 const encoder = new TextEncoder()
 const DOCX_FONT_FAMILY = 'Times New Roman'
@@ -33,6 +34,8 @@ const DOCX_PAYMENT_MARGINS_XML = '<w:pgMar w:top="567" w:right="1021" w:bottom="
 const DOCX_PAYMENT_FONT_SIZE = 21
 const DOCX_PAYMENT_LINE_HEIGHT = 330
 const DOCX_PAYMENT_SIGNATURE_WIDTH = 2600
+const DOCX_PAYMENT_BANK_INDENT_LEFT = 620
+const DOCX_PAYMENT_BANK_HANGING = 220
 const TABLE_BORDERS_XML = '<w:tblBorders><w:top w:val="single" w:sz="4" w:color="D7DEE8"/><w:left w:val="single" w:sz="4" w:color="D7DEE8"/><w:bottom w:val="single" w:sz="4" w:color="D7DEE8"/><w:right w:val="single" w:sz="4" w:color="D7DEE8"/><w:insideH w:val="single" w:sz="4" w:color="E5EAF1"/><w:insideV w:val="single" w:sz="4" w:color="E5EAF1"/></w:tblBorders>'
 const TABLE_NO_BORDERS_XML = '<w:tblBorders><w:top w:val="nil"/><w:left w:val="nil"/><w:bottom w:val="nil"/><w:right w:val="nil"/><w:insideH w:val="nil"/><w:insideV w:val="nil"/></w:tblBorders>'
 
@@ -155,10 +158,13 @@ function textRun(text = '', { bold = false, italic = false, size } = {}) {
 function paragraphProps(options = {}) {
   const style = options.style ? `<w:pStyle w:val="${options.style}"/>` : ''
   const alignment = options.align ? `<w:jc w:val="${options.align}"/>` : ''
+  const indent = options.indentLeft !== undefined || options.indentHanging !== undefined
+    ? `<w:ind${options.indentLeft !== undefined ? ` w:left="${Number(options.indentLeft)}"` : ''}${options.indentHanging !== undefined ? ` w:hanging="${Number(options.indentHanging)}"` : ''}/>`
+    : ''
   const spacing = options.spacing === false
     ? ''
     : `<w:spacing w:before="${Number(options.before ?? 0)}" w:after="${Number(options.after ?? 120)}"${options.line ? ` w:line="${Number(options.line)}" w:lineRule="${options.lineRule || 'auto'}"` : ''}/>`
-  return `<w:pPr>${style}${alignment}${spacing}</w:pPr>`
+  return `<w:pPr>${style}${alignment}${indent}${spacing}</w:pPr>`
 }
 
 function paragraph(text = '', options = {}) {
@@ -215,13 +221,6 @@ function highlightedRuns(text = '', highlights = [], runOptions = {}) {
   return runs
 }
 
-function bankParagraph(label, value = '') {
-  return richParagraph([
-    { text: `${label}: ` },
-    { text: value || '', bold: true },
-  ])
-}
-
 function getUppercaseDocumentTitle(document = {}) {
   return String(getDocumentTitle(document) || '').toLocaleUpperCase('vi-VN')
 }
@@ -257,9 +256,14 @@ function paymentMultilineParagraph(lines = [], options = {}) {
 
 function paymentBankParagraph(label, value = '') {
   return paymentRichParagraph([
+    { text: '• ', size: 18 },
     { text: `${label}: ` },
     { text: value || '-', bold: true },
-  ], { after: 80 })
+  ], {
+    after: 80,
+    indentLeft: DOCX_PAYMENT_BANK_INDENT_LEFT,
+    indentHanging: DOCX_PAYMENT_BANK_HANGING,
+  })
 }
 
 function paymentSignatureTable() {
@@ -486,16 +490,20 @@ function sectionsXml(document = {}) {
 function advanceXml(document = {}) {
   const bank = getBankAccountDetails(document)
   const content = getAdvanceRequestContent(document)
+  const summary = getAdvanceSummary(document)
+  const advanceAmountText = formatDocumentCurrency(summary.advance_amount, '')
+  const advanceAmountWithCurrencyText = advanceAmountText ? `${advanceAmountText} VNĐ` : ''
+  const advanceAmountHighlights = [advanceAmountWithCurrencyText ? `${advanceAmountWithCurrencyText}.` : '', advanceAmountWithCurrencyText, advanceAmountText]
   return [
     content.greeting ? paragraph(content.greeting) : '',
     content.basis ? paragraph(content.basis) : '',
-    content.request ? paragraph(content.request) : '',
+    content.request ? richParagraph(highlightedRuns(content.request, advanceAmountHighlights)) : '',
     content.amount_words ? paragraph(content.amount_words) : '',
     content.method ? paragraph(content.method) : '',
     content.bank_intro ? paragraph(content.bank_intro) : '',
-    bankParagraph('Tài khoản chuyển khoản', bank.account_number),
-    bankParagraph('Ngân hàng', bank.bank_name),
-    bankParagraph('Chủ tài khoản', bank.account_holder),
+    paymentBankParagraph('Tài khoản chuyển khoản', bank.account_number),
+    paymentBankParagraph('Ngân hàng', bank.bank_name),
+    paymentBankParagraph('Chủ tài khoản', bank.account_holder),
     ...String(content.closing || '').split(/\n+/).filter(Boolean).map(line => paragraph(line)),
   ].join('')
 }
@@ -540,12 +548,13 @@ function paymentXml(document = {}) {
   const summary = getPaymentSummary(document)
   const paymentAmountText = formatDocumentCurrency(summary.payment_amount, '')
   const paymentAmountWithCurrencyText = paymentAmountText ? `${paymentAmountText} VNĐ` : ''
+  const paymentAmountHighlights = [paymentAmountWithCurrencyText ? `${paymentAmountWithCurrencyText}.` : '', paymentAmountWithCurrencyText, paymentAmountText]
   const closingLines = String(content.closing || '').split(/\n+/).filter(Boolean)
 
   return [
     content.greeting ? paymentParagraph(content.greeting) : '',
     content.basis ? paymentParagraph(content.basis) : '',
-    content.request ? paymentRichParagraph(highlightedRuns(content.request, [paymentAmountWithCurrencyText, paymentAmountText])) : '',
+    content.request ? paymentRichParagraph(highlightedRuns(content.request, paymentAmountHighlights)) : '',
     content.amount_words ? paymentRichParagraph(highlightedRuns(content.amount_words, [summary.amount_words], { italic: true })) : '',
     content.method ? paymentParagraph(content.method) : '',
     content.bank_intro ? paymentParagraph(content.bank_intro, { after: 80 }) : '',

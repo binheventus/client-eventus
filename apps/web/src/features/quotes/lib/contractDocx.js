@@ -8,11 +8,14 @@ import {
   getContractWorkProgressNotes,
   hasContractAdvance,
   numberToVietnameseWords,
-} from './contractDefaults'
+} from './contractDefaults.js'
 
 const encoder = new TextEncoder()
 const DOCX_FONT_FAMILY = 'Times New Roman'
 const DOCX_FONT_XML = `<w:rFonts w:ascii="${DOCX_FONT_FAMILY}" w:hAnsi="${DOCX_FONT_FAMILY}" w:eastAsia="${DOCX_FONT_FAMILY}" w:cs="${DOCX_FONT_FAMILY}"/>`
+const DOCX_BODY_FONT_SIZE = 20
+const DOCX_TITLE_FONT_SIZE = 30
+const DOCX_HEADING_FONT_SIZE = 24
 const TABLE_BORDERS_XML = '<w:tblBorders><w:top w:val="single" w:sz="4" w:color="D7DEE8"/><w:left w:val="single" w:sz="4" w:color="D7DEE8"/><w:bottom w:val="single" w:sz="4" w:color="D7DEE8"/><w:right w:val="single" w:sz="4" w:color="D7DEE8"/><w:insideH w:val="single" w:sz="4" w:color="E5EAF1"/><w:insideV w:val="single" w:sz="4" w:color="E5EAF1"/></w:tblBorders>'
 const TABLE_NO_BORDERS_XML = '<w:tblBorders><w:top w:val="nil"/><w:left w:val="nil"/><w:bottom w:val="nil"/><w:right w:val="nil"/><w:insideH w:val="nil"/><w:insideV w:val="nil"/></w:tblBorders>'
 
@@ -40,6 +43,14 @@ function formatDate(value) {
 
 function hasText(value) {
   return String(value ?? '').trim().length > 0
+}
+
+function normalizeDocxBodyLine(value = '') {
+  return String(value || '')
+    .replace(/\t+/g, ' ')
+    .trim()
+    .replace(/^([-•])\s+/, '$1 ')
+    .replace(/^(\d+(?:\.\d+)+)\s+/, '$1 ')
 }
 
 function getCustomer(contract = {}) {
@@ -211,8 +222,15 @@ function makeZip(files = []) {
   })
 }
 
-function textRun(text = '', { bold = false, italic = false } = {}) {
-  const props = `<w:rPr>${DOCX_FONT_XML}${bold ? '<w:b/>' : ''}${italic ? '<w:i/>' : ''}</w:rPr>`
+function getDocxRunSize(options = {}) {
+  if (options.size) return options.size
+  if (options.style === 'Title') return DOCX_TITLE_FONT_SIZE
+  if (options.style === 'Heading1') return DOCX_HEADING_FONT_SIZE
+  return DOCX_BODY_FONT_SIZE
+}
+
+function textRun(text = '', { bold = false, italic = false, size = DOCX_BODY_FONT_SIZE } = {}) {
+  const props = `<w:rPr>${DOCX_FONT_XML}<w:sz w:val="${size}"/>${bold ? '<w:b/>' : ''}${italic ? '<w:i/>' : ''}</w:rPr>`
   return `<w:r>${props}<w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r>`
 }
 
@@ -225,18 +243,19 @@ function paragraphProps(options = {}) {
 }
 
 function paragraph(text = '', options = {}) {
-  return `<w:p>${paragraphProps(options)}${textRun(text, { bold: options.bold, italic: options.italic })}</w:p>`
+  return `<w:p>${paragraphProps(options)}${textRun(text, { bold: options.bold, italic: options.italic, size: getDocxRunSize(options) })}</w:p>`
 }
 
 function richParagraph(runs = [], options = {}) {
-  return `<w:p>${paragraphProps(options)}${runs.map(run => textRun(run.text, run)).join('')}</w:p>`
+  const paragraphSize = getDocxRunSize(options)
+  return `<w:p>${paragraphProps(options)}${runs.map(run => textRun(run.text, { ...run, size: run.size || paragraphSize })).join('')}</w:p>`
 }
 
 function multilineParagraphs(text = '') {
   return String(text || '')
     .replace(/\r\n?/g, '\n')
     .split(/\n+/)
-    .map(line => line.trim())
+    .map(normalizeDocxBodyLine)
     .filter(Boolean)
     .map(line => paragraph(line, { bold: /^Điều\s+\d+/i.test(line) }))
     .join('')
@@ -245,7 +264,7 @@ function multilineParagraphs(text = '') {
 function tableCell(content = '', width = 2400, options = {}) {
   const shading = options.shading ? `<w:shd w:fill="${options.shading}"/>` : ''
   const gridSpan = options.colSpan ? `<w:gridSpan w:val="${options.colSpan}"/>` : ''
-  return `<w:tc><w:tcPr><w:tcW w:w="${width}" w:type="dxa"/>${gridSpan}${shading}</w:tcPr>${paragraph(content, { bold: options.bold, spacing: false, align: options.align })}</w:tc>`
+  return `<w:tc><w:tcPr><w:tcW w:w="${width}" w:type="dxa"/>${gridSpan}${shading}</w:tcPr>${paragraph(content, { bold: options.bold, italic: options.italic, spacing: false, align: options.align })}</w:tc>`
 }
 
 function tableRow(cells = [], options = {}) {
@@ -406,14 +425,44 @@ function contentSectionsXml(sections = []) {
   ].join('')).join('')
 }
 
-function signatureXml() {
+function getSignatureName(profile = {}) {
+  return hasText(profile.representative) ? String(profile.representative).trim().toUpperCase() : ''
+}
+
+function signatureXml(contract = {}) {
+  const partyA = getPartyProfile(contract, 'party_a')
+  const partyB = getPartyProfile(contract, 'party_b')
+
   return [
+    paragraph('', { spacing: false }),
+    paragraph('', { spacing: false }),
     simpleTable([
       tableRow([
-        tableCell('ĐẠI DIỆN BÊN A', 2800, { bold: true, align: 'center' }),
-        tableCell('ĐẠI DIỆN BÊN B', 2800, { bold: true, align: 'center' }),
+        tableCell('ĐẠI DIỆN BÊN A', 4000, { bold: true, align: 'center' }),
+        tableCell('', 1000),
+        tableCell('ĐẠI DIỆN BÊN B', 4000, { bold: true, align: 'center' }),
       ]),
-    ], { width: 5600, fixed: true, align: 'center', borders: false }),
+      tableRow([
+        tableCell('', 4000, { align: 'center' }),
+        tableCell('', 1000),
+        tableCell('', 4000, { align: 'center' }),
+      ], { minHeight: 2400 }),
+      tableRow([
+        tableCell(getSignatureName(partyA), 4000, { bold: true, align: 'center' }),
+        tableCell('', 1000),
+        tableCell(getSignatureName(partyB), 4000, { bold: true, align: 'center' }),
+      ]),
+      tableRow([
+        tableCell('', 4000, { align: 'center' }),
+        tableCell('', 1000),
+        tableCell('', 4000, { align: 'center' }),
+      ], { minHeight: 260 }),
+      tableRow([
+        tableCell(partyA.position || '', 4000, { italic: true, align: 'center' }),
+        tableCell('', 1000),
+        tableCell(partyB.position || '', 4000, { italic: true, align: 'center' }),
+      ]),
+    ], { width: 9000, fixed: true, align: 'center', borders: false }),
   ].join('')
 }
 
@@ -434,7 +483,7 @@ function documentXml(contract = {}) {
     ${serviceArticleXml(contract)}
     ${paymentArticleXml(contract)}
     ${contentSectionsXml(contract.content_sections || [])}
-    ${signatureXml()}
+    ${signatureXml(contract)}
     <w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr>
   </w:body>
 </w:document>`
@@ -464,15 +513,15 @@ const stylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:style w:type="paragraph" w:default="1" w:styleId="Normal">
     <w:name w:val="Normal"/>
-    <w:rPr>${DOCX_FONT_XML}<w:sz w:val="22"/></w:rPr>
+    <w:rPr>${DOCX_FONT_XML}<w:sz w:val="${DOCX_BODY_FONT_SIZE}"/></w:rPr>
   </w:style>
   <w:style w:type="paragraph" w:styleId="Title">
     <w:name w:val="Title"/>
-    <w:rPr>${DOCX_FONT_XML}<w:b/><w:sz w:val="32"/></w:rPr>
+    <w:rPr>${DOCX_FONT_XML}<w:b/><w:sz w:val="${DOCX_TITLE_FONT_SIZE}"/></w:rPr>
   </w:style>
   <w:style w:type="paragraph" w:styleId="Heading1">
     <w:name w:val="heading 1"/>
-    <w:rPr>${DOCX_FONT_XML}<w:b/><w:sz w:val="26"/></w:rPr>
+    <w:rPr>${DOCX_FONT_XML}<w:b/><w:sz w:val="${DOCX_HEADING_FONT_SIZE}"/></w:rPr>
   </w:style>
 </w:styles>`
 

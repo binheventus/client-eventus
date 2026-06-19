@@ -516,7 +516,9 @@ function getHydratedSellerSnapshot(contract = {}, quote = {}) {
 function hydrateContract(contract, quote) {
   const normalized = normalizeContractTemplate(contract)
   const customerSnapshot = normalizeCustomerProfile(contract.customer_snapshot || {})
-  const quoteSnapshot = contract.quote_snapshot || buildQuoteSnapshot(quote)
+  const quoteSnapshot = quote?.id && Array.isArray(quote.items) && quote.items.length
+    ? buildQuoteSnapshot(quote)
+    : contract.quote_snapshot || buildQuoteSnapshot(quote)
   const signingDate = contract.signing_date || contract.quote_table_config?.signing_date || getTodayInputDate()
 
   return {
@@ -917,6 +919,12 @@ export default function ContractEditorModal({
     })
   }
 
+  function getBaseQuoteSnapshot(sourceDraft = draft) {
+    if (quote) return quoteSnapshot
+    if (isQuoteSource) return sourceDraft?.quote_snapshot || {}
+    return buildSingleLineQuoteSnapshot(sourceDraft?.quote_snapshot || {})
+  }
+
   function validate() {
     if (!draft) return 'Chưa có dữ liệu hợp đồng.'
     if (!draft.id && !quoteIsReady) return 'Không thể tạo hợp đồng từ báo giá này.'
@@ -939,7 +947,7 @@ export default function ContractEditorModal({
 
     try {
       const termsText = String(draft.terms_text ?? sectionsToTermsText(draft.content_sections)).trim()
-      const finalQuoteSnapshot = quote ? quoteSnapshot : buildSingleLineQuoteSnapshot(draft.quote_snapshot || {})
+      const finalQuoteSnapshot = getBaseQuoteSnapshot(draft)
       const finalContractNumberPattern = applySellerEntityToContractNumberPattern(draft.contract_number_pattern, draft.seller_entity_code)
       const finalContractNumber = getSyncedContractNumber(
         draft.contract_number,
@@ -1002,8 +1010,7 @@ export default function ContractEditorModal({
 
   if (!open) return null
 
-  const draftQuoteSnapshot = draft?.quote_snapshot || {}
-  const baseQuoteSnapshot = quote ? quoteSnapshot : buildSingleLineQuoteSnapshot(draftQuoteSnapshot)
+  const baseQuoteSnapshot = getBaseQuoteSnapshot(draft)
   const savedQuoteSnapshot = savedContract?.quote_snapshot || {}
   const currentQuoteSnapshot = {
     ...baseQuoteSnapshot,
@@ -1064,9 +1071,7 @@ export default function ContractEditorModal({
   ) : 'Chưa tạo'
 
   function getContractNumberSource(sourceDraft = draft) {
-    const sourceSnapshot = quote
-      ? quoteSnapshot
-      : buildSingleLineQuoteSnapshot(sourceDraft?.quote_snapshot || {})
+    const sourceSnapshot = getBaseQuoteSnapshot(sourceDraft)
 
     return {
       ...sourceSnapshot,

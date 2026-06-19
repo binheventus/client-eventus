@@ -93,13 +93,17 @@ export default function ContractEditorPage() {
           const contract = await getContractById(routeContractId)
           if (!mounted) return
           if (!contract?.id) throw new Error('Không tìm thấy hợp đồng.')
+          const sourceQuote = (contract.source_type === 'quote' || contract.quote_id) && contract.quote_id
+            ? await getQuote(contract.quote_id).catch(() => null)
+            : null
+          if (!mounted) return
 
           setEditorConfig({
             sourceType: contract.source_type || 'manual',
             sourceDraft: contract,
             contractId: contract.id,
             initialContract: contract,
-            quote: null,
+            quote: sourceQuote,
           })
           return
         }

@@ -4,6 +4,9 @@ import {
   getAcceptanceLiquidationContent,
   getAcceptanceSummary,
   getContractDocumentFilename,
+  getDisplayDocumentIssuedDate,
+  renderAdvanceRequestTemplateText,
+  renderPaymentRequestTemplateText,
   shouldShowAcceptanceAmountTables,
 } from './contractDocumentRender.js'
 
@@ -60,8 +63,58 @@ test('acceptance liquidation renders handwritten date placeholder when issued da
     },
   })
 
-  assert.equal(content.party_intro, 'Hôm nay, ngày \u00a0\u00a0\u00a0\u00a0\u00a0\u00a0/\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0/\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0 chúng tôi gồm có:')
+  assert.equal(content.party_intro, 'Hôm nay, ngày ....../....../.......... chúng tôi gồm có:')
   assert.doesNotMatch(content.party_intro, /ngày - chúng/)
+})
+
+test('advance request renders handwritten date placeholder when issued date is hidden', () => {
+  const document = {
+    document_type: 'advance_request',
+    issued_date: '2026-06-19',
+    contract_snapshot: {
+      contract_number: 'HD-DRAFT',
+      signing_date: '2026-06-19',
+      service_scope: 'dịch vụ sự kiện',
+      customer_snapshot: { company_name: 'CÔNG TY TNHH FPT DIGITAL' },
+      seller_snapshot: {},
+    },
+    document_data: {
+      form_data: {
+        hide_issued_date: true,
+      },
+      amount_config: {
+        advance_amount: 1250000,
+      },
+    },
+  }
+
+  assert.equal(getDisplayDocumentIssuedDate(document), '....../....../..........')
+  assert.equal(renderAdvanceRequestTemplateText('Ngày {{issued_date}}', document), 'Ngày ....../....../..........')
+})
+
+test('payment request renders handwritten date placeholder when issued date is hidden', () => {
+  const document = {
+    document_type: 'payment_request',
+    issued_date: '2026-06-19',
+    contract_snapshot: {
+      contract_number: 'HD-DRAFT',
+      signing_date: '2026-06-19',
+      service_scope: 'dịch vụ sự kiện',
+      customer_snapshot: { company_name: 'CÔNG TY TNHH FPT DIGITAL' },
+      seller_snapshot: {},
+    },
+    document_data: {
+      form_data: {
+        hide_issued_date: true,
+      },
+      amount_config: {
+        payment_amount: 1250000,
+      },
+    },
+  }
+
+  assert.equal(getDisplayDocumentIssuedDate(document), '....../....../..........')
+  assert.equal(renderPaymentRequestTemplateText('Ngày {{issued_date}}', document), 'Ngày ....../....../..........')
 })
 
 test('quote-bound acceptance uses quote wording without contract references', () => {

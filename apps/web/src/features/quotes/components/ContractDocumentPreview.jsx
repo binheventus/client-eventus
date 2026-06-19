@@ -4,6 +4,7 @@ import {
   getAcceptanceLiquidationContent,
   getAcceptanceSummary,
   getAdvanceRequestContent,
+  getAdvanceSummary,
   getBankAccountDetails,
   getContractFromDocument,
   getCustomerProfile,
@@ -36,7 +37,10 @@ function InfoLine({ label, value, compact = false }) {
 
 function A4DocumentPage({ children, className = '' }) {
   return (
-    <article className={`mx-auto min-h-[297mm] w-[210mm] max-w-full bg-white px-[18mm] py-[10mm] shadow-sm ${className}`}>
+    <article
+      className={`mx-auto min-h-[297mm] w-[210mm] max-w-full bg-white px-[18mm] py-[10mm] shadow-sm ${className}`}
+      style={{ fontFamily: '"Times New Roman", Times, serif' }}
+    >
       {children}
     </article>
   )
@@ -60,6 +64,27 @@ function BankAwareParagraph({ line = '' }) {
       {bankLine.label}
       <span className="font-bold text-slate-950">{bankLine.value}</span>
     </>
+  )
+}
+
+function BankPaymentLine({ label, value }) {
+  return (
+    <p className="ml-[7mm] flex items-start gap-2 break-words text-slate-950">
+      <span className="mt-[0.72em] h-1.5 w-1.5 shrink-0 rounded-full bg-slate-950" aria-hidden="true" />
+      <span>
+        {label}: <span className="font-bold text-slate-950">{value || '-'}</span>
+      </span>
+    </p>
+  )
+}
+
+function BankPaymentLines({ bank = {} }) {
+  return (
+    <div className="space-y-1">
+      <BankPaymentLine label="Tài khoản chuyển khoản" value={bank.account_number} />
+      <BankPaymentLine label="Ngân hàng" value={bank.bank_name} />
+      <BankPaymentLine label="Chủ tài khoản" value={bank.account_holder} />
+    </div>
   )
 }
 
@@ -242,20 +267,22 @@ function Sections({ document = {} }) {
 function AdvanceBody({ document }) {
   const bank = getBankAccountDetails(document)
   const content = getAdvanceRequestContent(document)
+  const summary = getAdvanceSummary(document)
+  const advanceAmountText = formatDocumentCurrency(summary.advance_amount, '')
+  const advanceAmountWithCurrencyText = advanceAmountText ? `${advanceAmountText} VNĐ` : ''
+  const advanceAmountHighlights = [advanceAmountWithCurrencyText ? `${advanceAmountWithCurrencyText}.` : '', advanceAmountWithCurrencyText, advanceAmountText]
   const closingLines = String(content.closing || '').split(/\n+/).filter(Boolean)
 
   return (
     <div className="space-y-4 text-[13px] leading-6 text-slate-950">
       {content.greeting ? <p>{content.greeting}</p> : null}
       {content.basis ? <p>{content.basis}</p> : null}
-      {content.request ? <p>{content.request}</p> : null}
+      {content.request ? <p><HighlightedText text={content.request} highlights={advanceAmountHighlights} /></p> : null}
       {content.amount_words ? <p className="italic">{content.amount_words}</p> : null}
       {content.method ? <p>{content.method}</p> : null}
       <div className="space-y-1">
         {content.bank_intro ? <p>{content.bank_intro}</p> : null}
-        <p>Tài khoản chuyển khoản: <span className="font-bold text-slate-950">{bank.account_number || '-'}</span></p>
-        <p>Ngân hàng: <span className="font-bold text-slate-950">{bank.bank_name || '-'}</span></p>
-        <p>Chủ tài khoản: <span className="font-bold text-slate-950">{bank.account_holder || '-'}</span></p>
+        <BankPaymentLines bank={bank} />
       </div>
       {closingLines.length ? (
         <p>
@@ -299,20 +326,19 @@ function PaymentBody({ document }) {
   const summary = getPaymentSummary(document)
   const paymentAmountText = formatDocumentCurrency(summary.payment_amount, '')
   const paymentAmountWithCurrencyText = paymentAmountText ? `${paymentAmountText} VNĐ` : ''
+  const paymentAmountHighlights = [paymentAmountWithCurrencyText ? `${paymentAmountWithCurrencyText}.` : '', paymentAmountWithCurrencyText, paymentAmountText]
   const closingLines = String(content.closing || '').split(/\n+/).filter(Boolean)
 
   return (
     <div className="space-y-4 text-[13px] leading-6 text-slate-950">
       {content.greeting ? <p>{content.greeting}</p> : null}
       {content.basis ? <p>{content.basis}</p> : null}
-      {content.request ? <p><HighlightedText text={content.request} highlights={[paymentAmountWithCurrencyText, paymentAmountText]} /></p> : null}
+      {content.request ? <p><HighlightedText text={content.request} highlights={paymentAmountHighlights} /></p> : null}
       {content.amount_words ? <p className="italic"><HighlightedText text={content.amount_words} highlights={[summary.amount_words]} /></p> : null}
       {content.method ? <p>{content.method}</p> : null}
       <div className="space-y-1">
         {content.bank_intro ? <p>{content.bank_intro}</p> : null}
-        <p>Tài khoản chuyển khoản: <span className="font-bold text-slate-950">{bank.account_number || '-'}</span></p>
-        <p>Ngân hàng: <span className="font-bold text-slate-950">{bank.bank_name || '-'}</span></p>
-        <p>Chủ tài khoản: <span className="font-bold text-slate-950">{bank.account_holder || '-'}</span></p>
+        <BankPaymentLines bank={bank} />
       </div>
       {closingLines.length ? (
         <p>

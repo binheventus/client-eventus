@@ -37,10 +37,10 @@ export function isDocumentIssuedDateHidden(document = {}) {
   return Boolean(getDocumentFormData(document).hide_issued_date)
 }
 
-const HANDWRITTEN_DATE_PLACEHOLDER = '\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0/\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0/\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0'
+export const HANDWRITTEN_DATE_PLACEHOLDER = '....../....../..........'
 
 export function getDisplayDocumentIssuedDate(document = {}) {
-  if (isDocumentIssuedDateHidden(document)) return ''
+  if (isDocumentIssuedDateHidden(document)) return HANDWRITTEN_DATE_PLACEHOLDER
   return formatDocumentDate(document.issued_date || document.created_at)
 }
 
@@ -402,9 +402,7 @@ function getAcceptanceTemplateTokenValues(document = {}) {
   const seller = getSellerProfile(document)
   const summary = getAcceptanceSummary(document)
   const bank = getBankAccountDetails(document)
-  const issuedDate = isDocumentIssuedDateHidden(document)
-    ? HANDWRITTEN_DATE_PLACEHOLDER
-    : getDisplayDocumentIssuedDate(document)
+  const issuedDate = getDisplayDocumentIssuedDate(document)
   const signingDate = formatDocumentDate(contract.signing_date || contract.quote_table_config?.signing_date)
   const contractNumber = contract.contract_number || contract.quote_number || contract.quote_snapshot?.quote_number || ''
   const quoteNumber = contract.quote_number || contract.quote_snapshot?.quote_number || contract.source_snapshot?.quote_number || ''

@@ -5,6 +5,7 @@ import {
   getAcceptanceLiquidationContent,
   getAcceptanceSummary,
   getAdvanceRequestContent,
+  getAdvanceSummary,
   getBankAccountDetails,
   getContractDocumentFilename,
   getContractFromDocument,
@@ -23,17 +24,17 @@ import {
 } from '../lib/contractDocumentRender'
 import { formatContractDocumentNumberForDisplay } from '../lib/contractDocumentEditor'
 
-const PDF_FONT_FAMILY = 'BeVietnamProContractDocument'
-const FONT_PATH = '/fonts/be-vietnam-pro'
+const PDF_FONT_FAMILY = 'TimesNewRomanContractDocument'
+const TIMES_FONT_PATH = '/fonts/times-new-roman'
 
 Font.register({
   family: PDF_FONT_FAMILY,
   fonts: [
-    { src: `${FONT_PATH}/BeVietnamPro-Regular.ttf`, fontWeight: 400 },
-    { src: `${FONT_PATH}/BeVietnamPro-Regular.ttf`, fontWeight: 400, fontStyle: 'italic' },
-    { src: `${FONT_PATH}/BeVietnamPro-Medium.ttf`, fontWeight: 500 },
-    { src: `${FONT_PATH}/BeVietnamPro-SemiBold.ttf`, fontWeight: 600 },
-    { src: `${FONT_PATH}/BeVietnamPro-Bold.ttf`, fontWeight: 700 },
+    { src: `${TIMES_FONT_PATH}/Times-New-Roman.ttf`, fontWeight: 400 },
+    { src: `${TIMES_FONT_PATH}/Times-New-Roman-Italic.ttf`, fontWeight: 400, fontStyle: 'italic' },
+    { src: `${TIMES_FONT_PATH}/Times-New-Roman-Bold.ttf`, fontWeight: 600 },
+    { src: `${TIMES_FONT_PATH}/Times-New-Roman-Bold.ttf`, fontWeight: 700 },
+    { src: `${TIMES_FONT_PATH}/Times-New-Roman-Bold-Italic.ttf`, fontWeight: 700, fontStyle: 'italic' },
   ],
 })
 
@@ -264,6 +265,26 @@ const styles = StyleSheet.create({
     lineHeight: 1.55,
     color: '#111827',
   },
+  paymentBankLine: {
+    marginLeft: 20,
+    marginBottom: 4,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  paymentBankBullet: {
+    width: 3.5,
+    height: 3.5,
+    marginTop: 6.2,
+    marginRight: 7,
+    borderRadius: 2,
+    backgroundColor: '#111827',
+  },
+  paymentBankText: {
+    flex: 1,
+    fontSize: 10.5,
+    lineHeight: 1.55,
+    color: '#111827',
+  },
   paymentAmountWords: {
     fontStyle: 'italic',
   },
@@ -411,9 +432,12 @@ function getAcceptanceLineSpacingStyle(line, index, lines = []) {
 
 function BankPaymentLine({ label, value }) {
   return (
-    <Text style={styles.paymentParagraph}>
-      {label}: <Text style={styles.strong}>{value || '-'}</Text>
-    </Text>
+    <View style={styles.paymentBankLine}>
+      <View style={styles.paymentBankBullet} />
+      <Text style={styles.paymentBankText}>
+        {label}: <Text style={styles.strong}>{value || '-'}</Text>
+      </Text>
+    </View>
   )
 }
 
@@ -564,11 +588,19 @@ function Sections({ document = {} }) {
 function AdvanceBody({ document }) {
   const bank = getBankAccountDetails(document)
   const content = getAdvanceRequestContent(document)
+  const summary = getAdvanceSummary(document)
+  const advanceAmountText = formatDocumentCurrency(summary.advance_amount, '')
+  const advanceAmountWithCurrencyText = advanceAmountText ? `${advanceAmountText} VNĐ` : ''
+  const advanceAmountHighlights = [advanceAmountWithCurrencyText ? `${advanceAmountWithCurrencyText}.` : '', advanceAmountWithCurrencyText, advanceAmountText]
   return (
     <View style={styles.section}>
       {content.greeting ? <Text style={styles.paymentParagraph}>{content.greeting}</Text> : null}
       {content.basis ? <Text style={styles.paymentParagraph}>{content.basis}</Text> : null}
-      {content.request ? <Text style={styles.paymentParagraph}>{content.request}</Text> : null}
+      {content.request ? (
+        <Text style={styles.paymentParagraph}>
+          <HighlightedPdfText text={content.request} highlights={advanceAmountHighlights} />
+        </Text>
+      ) : null}
       {content.amount_words ? <Text style={styles.paymentParagraph}>{content.amount_words}</Text> : null}
       {content.method ? <Text style={styles.paymentParagraph}>{content.method}</Text> : null}
       {content.bank_intro ? <Text style={styles.paymentParagraph}>{content.bank_intro}</Text> : null}
@@ -606,6 +638,7 @@ function PaymentBody({ document }) {
   const summary = getPaymentSummary(document)
   const paymentAmountText = formatDocumentCurrency(summary.payment_amount, '')
   const paymentAmountWithCurrencyText = paymentAmountText ? `${paymentAmountText} VNĐ` : ''
+  const paymentAmountHighlights = [paymentAmountWithCurrencyText ? `${paymentAmountWithCurrencyText}.` : '', paymentAmountWithCurrencyText, paymentAmountText]
 
   return (
     <View style={styles.section}>
@@ -613,7 +646,7 @@ function PaymentBody({ document }) {
       {content.basis ? <Text style={styles.paymentParagraph}>{content.basis}</Text> : null}
       {content.request ? (
         <Text style={styles.paymentParagraph}>
-          <HighlightedPdfText text={content.request} highlights={[paymentAmountWithCurrencyText, paymentAmountText]} />
+          <HighlightedPdfText text={content.request} highlights={paymentAmountHighlights} />
         </Text>
       ) : null}
       {content.amount_words ? (

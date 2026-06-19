@@ -74,7 +74,7 @@ function PreviewLine({ label, value, fallback = label }) {
 
 function PartyPreview({ heading, profile = {}, fallbackPrefix, role = 'customer' }) {
   return (
-    <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+    <div className="space-y-1">
       <p className="text-[13px] leading-6 text-slate-950">
         <span className="font-bold">{heading}</span>{' '}
         <PreviewValue value={getProfileName(profile)} fallback={`Tên ${fallbackPrefix}`} className="font-semibold text-slate-950" />
@@ -88,6 +88,21 @@ function PartyPreview({ heading, profile = {}, fallbackPrefix, role = 'customer'
       {role === 'customer' && hasText(profile.phone_number) ? <PreviewLine label="Số điện thoại" value={profile.phone_number} /> : null}
       <PreviewLine label="Mã số thuế" value={profile.tax_code} fallback={`Mã số thuế ${fallbackPrefix}`} />
       {profile.bank_account ? <PreviewLine label="Số tài khoản" value={`${profile.bank_account}${profile.bank_name ? ` - ${profile.bank_name}` : ''}`} /> : null}
+    </div>
+  )
+}
+
+function SignaturePreview({ heading, profile = {} }) {
+  return (
+    <div>
+      <p className="text-[13px] font-bold text-slate-950">{heading}</p>
+      <div className="h-24" aria-hidden="true" />
+      {profile.representative ? (
+        <p className="text-[13px] font-bold text-slate-950">{profile.representative}</p>
+      ) : null}
+      {profile.position ? (
+        <p className="mt-1 text-[13px] italic text-slate-800">{profile.position}</p>
+      ) : null}
     </div>
   )
 }
@@ -202,7 +217,10 @@ export function ContractPreviewDocument({ contract = {} }) {
   const signingDate = formatContractDate(contract.signing_date || contract.updated_at || contract.created_at)
 
   return (
-    <div className="mx-auto max-w-4xl space-y-5 rounded-2xl border border-slate-200 bg-slate-50 p-5 pb-7">
+    <div
+      className="mx-auto max-w-4xl space-y-5 rounded-2xl border border-slate-200 bg-slate-50 p-5 pb-7"
+      style={{ fontFamily: '"Times New Roman", Times, serif' }}
+    >
       <section className="rounded-xl bg-white p-5 pb-3">
         <div className="text-center">
           <p className="text-[13px] uppercase text-slate-950">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
@@ -295,18 +313,9 @@ export function ContractPreviewDocument({ contract = {} }) {
         ) : (
           <p className="whitespace-pre-wrap text-[13px] font-semibold leading-6 text-red-600">Nội dung từ ĐIỀU 3 trở đi</p>
         )}
-      </section>
-
-      <section className="rounded-xl bg-white p-5 pb-6">
-        <div className="grid gap-3 text-center md:grid-cols-2">
-          <div>
-            <p className="text-[13px] font-bold text-slate-950">ĐẠI DIỆN BÊN A</p>
-            <div className="h-24" aria-hidden="true" />
-          </div>
-          <div>
-            <p className="text-[13px] font-bold text-slate-950">ĐẠI DIỆN BÊN B</p>
-            <div className="h-24" aria-hidden="true" />
-          </div>
+        <div className="mt-12 grid gap-3 text-center md:grid-cols-2">
+          <SignaturePreview heading="ĐẠI DIỆN BÊN A" profile={partyA} />
+          <SignaturePreview heading="ĐẠI DIỆN BÊN B" profile={partyB} />
         </div>
       </section>
 

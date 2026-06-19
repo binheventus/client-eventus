@@ -11,16 +11,17 @@ import {
   numberToVietnameseWords,
 } from '../lib/contractDefaults'
 
-const PDF_FONT_FAMILY = 'BeVietnamProContract'
-const FONT_PATH = '/fonts/be-vietnam-pro'
+const PDF_FONT_FAMILY = 'TimesNewRomanContract'
+const TIMES_FONT_PATH = '/fonts/times-new-roman'
 
 Font.register({
   family: PDF_FONT_FAMILY,
   fonts: [
-    { src: `${FONT_PATH}/BeVietnamPro-Regular.ttf`, fontWeight: 400 },
-    { src: `${FONT_PATH}/BeVietnamPro-Medium.ttf`, fontWeight: 500 },
-    { src: `${FONT_PATH}/BeVietnamPro-SemiBold.ttf`, fontWeight: 600 },
-    { src: `${FONT_PATH}/BeVietnamPro-Bold.ttf`, fontWeight: 700 },
+    { src: `${TIMES_FONT_PATH}/Times-New-Roman.ttf`, fontWeight: 400 },
+    { src: `${TIMES_FONT_PATH}/Times-New-Roman-Italic.ttf`, fontWeight: 400, fontStyle: 'italic' },
+    { src: `${TIMES_FONT_PATH}/Times-New-Roman-Bold.ttf`, fontWeight: 600 },
+    { src: `${TIMES_FONT_PATH}/Times-New-Roman-Bold.ttf`, fontWeight: 700 },
+    { src: `${TIMES_FONT_PATH}/Times-New-Roman-Bold-Italic.ttf`, fontWeight: 700, fontStyle: 'italic' },
   ],
 })
 
@@ -37,6 +38,14 @@ function formatDate(value) {
 
 function hasText(value) {
   return String(value ?? '').trim().length > 0
+}
+
+function normalizePdfBodyLine(value = '') {
+  return String(value || '')
+    .replace(/\t+/g, ' ')
+    .trim()
+    .replace(/^([-•])\s+/, '$1 ')
+    .replace(/^(\d+(?:\.\d+)+)(?=\S)/, '$1 ')
 }
 
 function getSeller(contract = {}) {
@@ -111,25 +120,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 40,
     paddingVertical: 34,
     fontFamily: PDF_FONT_FAMILY,
-    fontSize: 10,
+    fontSize: 9,
     lineHeight: 1.45,
     color: '#0f172a',
   },
   national: {
     textAlign: 'center',
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: 400,
     marginBottom: 2,
   },
   nationalMotto: {
     textAlign: 'center',
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: 400,
     marginBottom: 2,
   },
   title: {
     textAlign: 'center',
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: 700,
     marginTop: 12,
     marginBottom: 4,
@@ -137,14 +146,14 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     textAlign: 'center',
-    fontSize: 10,
+    fontSize: 9,
     color: '#475569',
     marginBottom: 7,
   },
   sectionTitle: {
     marginTop: 12,
     marginBottom: 6,
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: 700,
     color: '#111827',
     textTransform: 'uppercase',
@@ -159,34 +168,30 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   parties: {
-    gap: 7,
-    marginTop: 8,
-    marginBottom: 8,
+    gap: 4,
+    marginTop: 6,
+    marginBottom: 6,
   },
   partyCard: {
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    borderRadius: 8,
-    padding: 9,
-    backgroundColor: '#f8fafc',
+    paddingVertical: 2,
   },
   partyHeading: {
     fontSize: 9,
     fontWeight: 700,
-    color: '#64748b',
-    marginBottom: 4,
+    color: '#111827',
     textTransform: 'uppercase',
   },
-  partyName: {
-    fontSize: 10,
-    fontWeight: 700,
-    color: '#020617',
-    marginBottom: 3,
-  },
   partyLine: {
-    fontSize: 8.5,
+    fontSize: 7.5,
     color: '#475569',
-    marginBottom: 2,
+    marginBottom: 1.5,
+  },
+  partyJoiner: {
+    fontSize: 8.5,
+    fontWeight: 700,
+    color: '#111827',
+    marginTop: 1,
+    marginBottom: 1,
   },
   signatureWrap: {
     flexDirection: 'row',
@@ -203,6 +208,10 @@ const styles = StyleSheet.create({
   },
   signatureName: {
     fontWeight: 700,
+  },
+  signaturePosition: {
+    marginTop: 8,
+    fontStyle: 'italic',
   },
   table: {
     borderWidth: 1,
@@ -222,7 +231,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#eef2f7',
     paddingHorizontal: 6,
     paddingVertical: 5,
-    fontSize: 8.6,
+    fontSize: 7.6,
     fontWeight: 700,
     color: '#334155',
   },
@@ -233,13 +242,13 @@ const styles = StyleSheet.create({
   cell: {
     paddingHorizontal: 5,
     paddingVertical: 5,
-    fontSize: 8.2,
+    fontSize: 7.2,
   },
   headerCell: {
     fontWeight: 700,
     color: '#475569',
     textTransform: 'uppercase',
-    fontSize: 7.2,
+    fontSize: 6.2,
   },
   itemName: {
     width: '37%',
@@ -276,13 +285,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#e2e8f0',
     paddingVertical: 3,
-    fontSize: 9,
+    fontSize: 8,
   },
   grandTotal: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingTop: 5,
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: 700,
   },
   pageNumber: {
@@ -291,7 +300,7 @@ const styles = StyleSheet.create({
     left: 40,
     right: 40,
     textAlign: 'center',
-    fontSize: 8,
+    fontSize: 7,
     color: '#94a3b8',
   },
 })
@@ -299,8 +308,7 @@ const styles = StyleSheet.create({
 function PartyCard({ heading, profile = {}, role = 'customer' }) {
   return (
     <View style={styles.partyCard}>
-      <Text style={styles.partyHeading}>{heading}</Text>
-      <Text style={styles.partyName}>{getProfileName(profile)}</Text>
+      <Text style={styles.partyHeading}>{heading} {getProfileName(profile)}</Text>
       <Text style={styles.partyLine}>Đại diện: {profile.representative || '-'}</Text>
       <Text style={styles.partyLine}>Chức vụ: {profile.position || '-'}</Text>
       {role === 'customer' && hasText(profile.authorization_number) ? <Text style={styles.partyLine}>Giấy ủy quyền số: {profile.authorization_number}</Text> : null}
@@ -318,7 +326,7 @@ function Paragraphs({ text = '' }) {
   const paragraphs = String(text || '')
     .replace(/\r\n?/g, '\n')
     .split(/\n+/)
-    .map(line => line.trim())
+    .map(normalizePdfBodyLine)
     .filter(Boolean)
 
   return (
@@ -479,15 +487,19 @@ function ContentSections({ sections = [] }) {
 
 function Signature({ contract = {} }) {
   const partyA = getPartyProfile(contract, 'party_a')
+  const partyB = getPartyProfile(contract, 'party_b')
+
   return (
     <View style={styles.signatureWrap}>
       <View style={styles.signature}>
         <Text style={styles.signatureHeading}>ĐẠI DIỆN BÊN A</Text>
         <Text style={styles.signatureName}>{partyA.representative || ''}</Text>
+        {partyA.position ? <Text style={styles.signaturePosition}>{partyA.position}</Text> : null}
       </View>
       <View style={styles.signature}>
         <Text style={styles.signatureHeading}>ĐẠI DIỆN BÊN B</Text>
-        <Text style={styles.signatureName} />
+        <Text style={styles.signatureName}>{partyB.representative || ''}</Text>
+        {partyB.position ? <Text style={styles.signaturePosition}>{partyB.position}</Text> : null}
       </View>
     </View>
   )
@@ -512,7 +524,7 @@ export default function ContractPDFDocument({ contract = {} }) {
 
         <View style={styles.parties}>
           <PartyCard heading="BÊN A:" profile={partyA} role={getPartyRole(contract, 'party_a')} />
-          <Text style={styles.paragraphStrong}>Và:</Text>
+          <Text style={styles.partyJoiner}>Và:</Text>
           <PartyCard heading="BÊN B:" profile={partyB} role={getPartyRole(contract, 'party_b')} />
         </View>
 
