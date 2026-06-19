@@ -17,6 +17,9 @@ function getInitialSourceMode(search = '') {
   return 'job'
 }
 
+const INITIAL_JOB_PAGE_SIZE = 30
+const JOB_LOAD_MORE_SIZE = 20
+
 export default function ContractNewPage() {
   const location = useLocation()
   const navigate = useNavigate()
@@ -27,6 +30,8 @@ export default function ContractNewPage() {
   const [sourceMode, setSourceMode] = useState(() => getInitialSourceMode(location.search))
   const [search, setSearch] = useState('')
   const [jobs, setJobs] = useState([])
+  const [jobTotal, setJobTotal] = useState(0)
+  const [visibleJobLimit, setVisibleJobLimit] = useState(INITIAL_JOB_PAGE_SIZE)
   const [loadingJobs, setLoadingJobs] = useState(false)
   const [error, setError] = useState('')
 
@@ -42,8 +47,11 @@ export default function ContractNewPage() {
       setLoadingJobs(true)
       setError('')
       try {
-        const result = await listContractJobs({ search, pageSize: 10 })
-        if (mounted) setJobs(result.jobs || [])
+        const result = await listContractJobs({ search, pageSize: visibleJobLimit })
+        if (mounted) {
+          setJobs(result.jobs || [])
+          setJobTotal(Number(result.count || 0))
+        }
       } catch (err) {
         if (mounted) setError(err?.message || 'Không tải được danh sách job.')
       } finally {
@@ -56,9 +64,20 @@ export default function ContractNewPage() {
       mounted = false
       window.clearTimeout(timer)
     }
-  }, [legacyRedirect, sourceMode, search])
+  }, [legacyRedirect, sourceMode, search, visibleJobLimit])
 
   if (legacyRedirect) return <Navigate replace to={legacyRedirect} />
+
+  const hasMoreJobs = jobs.length < jobTotal
+
+  function handleSearchChange(event) {
+    setSearch(event.target.value)
+    setVisibleJobLimit(INITIAL_JOB_PAGE_SIZE)
+  }
+
+  function handleLoadMoreJobs() {
+    setVisibleJobLimit(currentLimit => currentLimit + JOB_LOAD_MORE_SIZE)
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 px-5 py-5 lg:px-7">
@@ -105,7 +124,7 @@ export default function ContractNewPage() {
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <input
                     value={search}
-                    onChange={event => setSearch(event.target.value)}
+                    onChange={handleSearchChange}
                     className="w-full rounded-xl border border-slate-200 py-3 pl-10 pr-3 text-[13px] outline-none focus:border-[#f8981d] focus:ring-2 focus:ring-orange-100"
                     placeholder="Tìm theo tên job, khách hàng, địa điểm..."
                     autoFocus
@@ -125,7 +144,7 @@ export default function ContractNewPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {loadingJobs ? (
+                        {loadingJobs && !jobs.length ? (
                           <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">Đang tải job...</td></tr>
                         ) : jobs.length ? jobs.map(job => (
                           <tr key={job.id} className="hover:bg-orange-50/40">
@@ -153,6 +172,23 @@ export default function ContractNewPage() {
                     </table>
                   </div>
                 </div>
+                {jobs.length ? (
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-[12px] font-medium text-slate-500">
+                      Đang hiển thị {jobs.length}/{jobTotal} job phù hợp.
+                    </p>
+                    {hasMoreJobs ? (
+                      <button
+                        type="button"
+                        onClick={handleLoadMoreJobs}
+                        disabled={loadingJobs}
+                        className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {loadingJobs ? 'Đang tải...' : 'Tải thêm'}
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             ) : null}
 
