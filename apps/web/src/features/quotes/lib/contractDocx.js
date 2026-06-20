@@ -237,7 +237,9 @@ function textRun(text = '', { bold = false, italic = false, size = DOCX_BODY_FON
 function paragraphProps(options = {}) {
   const style = options.style ? `<w:pStyle w:val="${options.style}"/>` : ''
   const alignment = options.align ? `<w:jc w:val="${options.align}"/>` : ''
-  const spacing = options.spacing === false ? '' : '<w:spacing w:after="120"/>'
+  const spacing = options.spacing === false
+    ? ''
+    : `<w:spacing w:before="${Number(options.before ?? 0)}" w:after="${Number(options.after ?? 120)}"${options.line ? ` w:line="${Number(options.line)}" w:lineRule="${options.lineRule || 'auto'}"` : ''}/>`
   const pageBreak = options.pageBreakBefore ? '<w:pageBreakBefore/>' : ''
   return `<w:pPr>${style}${alignment}${spacing}${pageBreak}</w:pPr>`
 }
@@ -264,7 +266,17 @@ function multilineParagraphs(text = '') {
 function tableCell(content = '', width = 2400, options = {}) {
   const shading = options.shading ? `<w:shd w:fill="${options.shading}"/>` : ''
   const gridSpan = options.colSpan ? `<w:gridSpan w:val="${options.colSpan}"/>` : ''
-  return `<w:tc><w:tcPr><w:tcW w:w="${width}" w:type="dxa"/>${gridSpan}${shading}</w:tcPr>${paragraph(content, { bold: options.bold, italic: options.italic, spacing: false, align: options.align })}</w:tc>`
+  return `<w:tc><w:tcPr><w:tcW w:w="${width}" w:type="dxa"/>${gridSpan}${shading}</w:tcPr>${paragraph(content, {
+    bold: options.bold,
+    italic: options.italic,
+    spacing: options.spacing ?? false,
+    align: options.align,
+    size: options.size,
+    before: options.before,
+    after: options.after,
+    line: options.line,
+    lineRule: options.lineRule,
+  })}</w:tc>`
 }
 
 function tableRow(cells = [], options = {}) {
@@ -437,15 +449,17 @@ function getSignatureName(profile = {}) {
 function signatureXml(contract = {}) {
   const partyA = getPartyProfile(contract, 'party_a')
   const partyB = getPartyProfile(contract, 'party_b')
+  const headingCellOptions = { bold: true, align: 'center', spacing: true, after: 0, line: 280, lineRule: 'exact' }
+  const nameCellOptions = { bold: true, align: 'center', spacing: true, after: 0, line: 260, lineRule: 'exact' }
+  const positionCellOptions = { italic: true, align: 'center', spacing: true, after: 0, line: 240, lineRule: 'exact' }
 
   return [
-    paragraph('', { spacing: false }),
-    paragraph('', { spacing: false }),
+    paragraph('', { after: 0, line: 120, lineRule: 'exact' }),
     simpleTable([
       tableRow([
-        tableCell('ĐẠI DIỆN BÊN A', 4000, { bold: true, align: 'center' }),
+        tableCell('ĐẠI DIỆN BÊN A', 4000, headingCellOptions),
         tableCell('', 1000),
-        tableCell('ĐẠI DIỆN BÊN B', 4000, { bold: true, align: 'center' }),
+        tableCell('ĐẠI DIỆN BÊN B', 4000, headingCellOptions),
       ]),
       tableRow([
         tableCell('', 4000, { align: 'center' }),
@@ -453,19 +467,14 @@ function signatureXml(contract = {}) {
         tableCell('', 4000, { align: 'center' }),
       ], { minHeight: 2400 }),
       tableRow([
-        tableCell(getSignatureName(partyA), 4000, { bold: true, align: 'center' }),
+        tableCell(getSignatureName(partyA), 4000, nameCellOptions),
         tableCell('', 1000),
-        tableCell(getSignatureName(partyB), 4000, { bold: true, align: 'center' }),
+        tableCell(getSignatureName(partyB), 4000, nameCellOptions),
       ]),
       tableRow([
-        tableCell('', 4000, { align: 'center' }),
+        tableCell(partyA.position || '', 4000, positionCellOptions),
         tableCell('', 1000),
-        tableCell('', 4000, { align: 'center' }),
-      ], { minHeight: 80 }),
-      tableRow([
-        tableCell(partyA.position || '', 4000, { italic: true, align: 'center' }),
-        tableCell('', 1000),
-        tableCell(partyB.position || '', 4000, { italic: true, align: 'center' }),
+        tableCell(partyB.position || '', 4000, positionCellOptions),
       ]),
     ], { width: 9000, fixed: true, align: 'center', borders: false }),
   ].join('')

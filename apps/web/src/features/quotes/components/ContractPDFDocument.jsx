@@ -134,7 +134,7 @@ const styles = StyleSheet.create({
     fontFamily: PDF_FONT_FAMILY,
     fontSize: 11,
     lineHeight: 1.45,
-    color: '#0f172a',
+    color: '#000000',
   },
   national: {
     textAlign: 'center',
@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
   subtitle: {
     textAlign: 'center',
     fontSize: 11,
-    color: '#475569',
+    color: '#000000',
     marginBottom: 7,
   },
   sectionTitle: {
@@ -167,17 +167,17 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     fontSize: 11,
     fontWeight: 700,
-    color: '#111827',
+    color: '#000000',
     textTransform: 'uppercase',
   },
   paragraph: {
     marginBottom: 5,
-    color: '#334155',
+    color: '#000000',
   },
   paragraphStrong: {
     marginBottom: 5,
     fontWeight: 700,
-    color: '#111827',
+    color: '#000000',
   },
   parties: {
     gap: 4,
@@ -191,21 +191,21 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 1.25,
     fontWeight: 700,
-    color: '#111827',
+    color: '#000000',
     textTransform: 'uppercase',
     marginBottom: 2,
   },
   partyLine: {
     fontSize: 11,
     lineHeight: 1.25,
-    color: '#334155',
+    color: '#000000',
     marginBottom: 2,
   },
   partyJoiner: {
     fontSize: 11,
     lineHeight: 1.25,
     fontWeight: 700,
-    color: '#111827',
+    color: '#000000',
     marginTop: 1,
     marginBottom: 1,
   },
@@ -249,7 +249,7 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     fontSize: 11,
     fontWeight: 700,
-    color: '#334155',
+    color: '#000000',
   },
   headerRow: {
     flexDirection: 'row',
@@ -262,7 +262,7 @@ const styles = StyleSheet.create({
   },
   headerCell: {
     fontWeight: 700,
-    color: '#475569',
+    color: '#000000',
     textTransform: 'uppercase',
     fontSize: 11,
   },
@@ -317,7 +317,7 @@ const styles = StyleSheet.create({
     right: 40,
     textAlign: 'center',
     fontSize: 7,
-    color: '#94a3b8',
+    color: '#000000',
   },
 })
 

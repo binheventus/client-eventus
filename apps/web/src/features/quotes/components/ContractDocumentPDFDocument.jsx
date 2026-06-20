@@ -58,7 +58,7 @@ const styles = StyleSheet.create({
     fontFamily: PDF_FONT_FAMILY,
     fontSize: 9.75,
     lineHeight: 1.58,
-    color: '#0f172a',
+    color: '#000000',
   },
   center: {
     textAlign: 'center',
@@ -80,7 +80,7 @@ const styles = StyleSheet.create({
   subtitle: {
     textAlign: 'center',
     fontSize: 9.5,
-    color: '#475569',
+    color: '#000000',
     marginBottom: 10,
   },
   section: {
@@ -91,15 +91,15 @@ const styles = StyleSheet.create({
     fontSize: 10.5,
     fontWeight: 700,
     textTransform: 'uppercase',
-    color: '#111827',
+    color: '#000000',
   },
   paragraph: {
     marginBottom: 5,
-    color: '#334155',
+    color: '#000000',
   },
   strong: {
     fontWeight: 700,
-    color: '#111827',
+    color: '#000000',
   },
   parties: {
     flexDirection: 'row',
@@ -119,7 +119,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 1.45,
     fontWeight: 700,
-    color: '#64748b',
+    color: '#000000',
     marginBottom: 4,
     textTransform: 'uppercase',
   },
@@ -127,13 +127,13 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 1.45,
     fontWeight: 700,
-    color: '#020617',
+    color: '#000000',
     marginBottom: 3,
   },
   partyLine: {
     fontSize: 11,
     lineHeight: 1.45,
-    color: '#475569',
+    color: '#000000',
     marginBottom: 2,
   },
   metaGrid: {
@@ -149,7 +149,7 @@ const styles = StyleSheet.create({
   metaLine: {
     flex: 1,
     fontSize: 8.5,
-    color: '#475569',
+    color: '#000000',
   },
   table: {
     borderWidth: 1,
@@ -181,7 +181,7 @@ const styles = StyleSheet.create({
   },
   headerCell: {
     fontWeight: 700,
-    color: '#0f172a',
+    color: '#000000',
     fontSize: 9.75,
   },
   desc: { width: '38%' },
@@ -243,7 +243,7 @@ const styles = StyleSheet.create({
     right: 40,
     textAlign: 'center',
     fontSize: 8,
-    color: '#94a3b8',
+    color: '#000000',
   },
   paymentHeader: {
     textAlign: 'center',
@@ -273,7 +273,7 @@ const styles = StyleSheet.create({
     marginBottom: 9,
     fontSize: 10.5,
     lineHeight: 1.55,
-    color: '#111827',
+    color: '#000000',
   },
   paymentBankLine: {
     marginLeft: 20,
@@ -287,13 +287,13 @@ const styles = StyleSheet.create({
     marginTop: 6.2,
     marginRight: 7,
     borderRadius: 2,
-    backgroundColor: '#111827',
+    backgroundColor: '#000000',
   },
   paymentBankText: {
     flex: 1,
     fontSize: 10.5,
     lineHeight: 1.55,
-    color: '#111827',
+    color: '#000000',
   },
   paymentAmountWords: {
     fontStyle: 'italic',
@@ -328,18 +328,18 @@ const styles = StyleSheet.create({
   acceptanceParagraph: {
     fontSize: 9.75,
     lineHeight: 1.58,
-    color: '#0f172a',
+    color: '#000000',
   },
   acceptanceInfoParagraph: {
     fontSize: 11,
     lineHeight: 1.58,
-    color: '#334155',
+    color: '#000000',
   },
   acceptancePartyTitle: {
     fontSize: 11,
     lineHeight: 1.58,
     fontWeight: 700,
-    color: '#020617',
+    color: '#000000',
     textTransform: 'uppercase',
   },
   acceptanceSectionTitle: {
@@ -347,7 +347,7 @@ const styles = StyleSheet.create({
     fontSize: 10.25,
     lineHeight: 1.3,
     fontWeight: 700,
-    color: '#020617',
+    color: '#000000',
     textTransform: 'uppercase',
   },
   acceptanceTableTitle: {
@@ -355,7 +355,7 @@ const styles = StyleSheet.create({
     fontSize: 9.75,
     lineHeight: 1.3,
     fontWeight: 600,
-    color: '#0f172a',
+    color: '#000000',
   },
   acceptanceAmountTableSection: {
     marginTop: 6,

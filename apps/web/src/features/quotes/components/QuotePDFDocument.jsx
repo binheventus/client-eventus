@@ -480,7 +480,7 @@ const styles = StyleSheet.create({
     lineHeight: 1.24,
   },
   noteLink: {
-    color: '#f8981d',
+    color: '#000000',
     fontWeight: 600,
     textDecoration: 'underline',
   },

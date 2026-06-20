@@ -55,7 +55,10 @@ test('contract DOCX renders balanced signature names and positions', async () =>
 
   assert.match(source, /w:trHeight w:val="2400"/)
   assert.match(source, /w:tcW w:w="1000" w:type="dxa"/)
-  assert.match(source, /w:trHeight w:val="80"/)
+  assert.match(source, /w:spacing w:before="0" w:after="0" w:line="120" w:lineRule="exact"/)
+  assert.match(source, /w:spacing w:before="0" w:after="0" w:line="260" w:lineRule="exact"/)
+  assert.match(source, /w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="exact"/)
+  assert.doesNotMatch(source, /w:trHeight w:val="80"/)
   assert.match(source, />NGUYỄN NGỌC LINH<\/w:t>/)
   assert.match(source, />PHẠM NGỌC BẢO<\/w:t>/)
   assert.doesNotMatch(source, />BÀ NGUYỄN NGỌC LINH<\/w:t>/)
