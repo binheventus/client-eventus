@@ -58,33 +58,33 @@ Implementation chia 3 PR liên tiếp. Mỗi PR có thể merge riêng và rollb
 
 ### 2.1 Brief parser client
 
-- [ ] 2.1.1 Sửa `apps/web/src/features/quotes/lib/briefParser.js`: thêm `mode` vào `getCacheKey()` để cache phân biệt regex/AI.
-- [ ] 2.1.2 Thêm export `parseQuoteInputWithAi(inputText, context, options)` — wrap `parseQuoteInput` truyền `mode: 'ai'`.
-- [ ] 2.1.3 Thêm `probeAiAvailability()` gọi `GET /api/parse-quote?probe=1`, trả `{ ai_available, model }` hoặc `{ ai_available: false }` nếu lỗi.
+- [x] 2.1.1 Sửa `apps/web/src/features/quotes/lib/briefParser.js`: thêm `mode` vào `getCacheKey()` để cache phân biệt regex/AI.
+- [x] 2.1.2 Thêm export `parseQuoteInputWithAi(inputText, context, options)` — wrap `parseQuoteInput` truyền `mode: 'ai'`.
+- [x] 2.1.3 Thêm `probeAiAvailability()` gọi `GET /api/parse-quote?probe=1`, trả `{ ai_available, model }` hoặc `{ ai_available: false }` nếu lỗi.
 
 ### 2.2 Brief input UI
 
-- [ ] 2.2.1 Sửa `QuoteChatInput.jsx`: thêm props `onAnalyzeWithAi`, `aiAvailable`, `aiLoading`, `aiModel`.
-- [ ] 2.2.2 Render 2 nút song song: "Phân tích nhanh" giữ logic hiện tại; "Phân tích bằng AI" với icon Sparkles từ lucide-react.
-- [ ] 2.2.3 Khi `!aiAvailable`: nút AI disable + tooltip "Chưa cấu hình API key Claude" (qua `title` hoặc Tooltip primitive sẵn có).
-- [ ] 2.2.4 Khi `aiLoading`: chữ nút đổi "Đang phân tích bằng AI...", spinner đơn giản.
+- [x] 2.2.1 Sửa `QuoteChatInput.jsx`: thêm props `onAnalyzeWithAi`, `aiAvailable`, `aiLoading`, `aiModel`.
+- [x] 2.2.2 Render 2 nút song song: "Phân tích nhanh" giữ logic hiện tại; "Phân tích bằng AI" với icon Sparkles từ lucide-react.
+- [x] 2.2.3 Khi `!aiAvailable`: nút AI disable + tooltip "Chưa cấu hình API key Claude" (qua `title` hoặc Tooltip primitive sẵn có).
+- [x] 2.2.4 Khi `aiLoading`: chữ nút đổi "Đang phân tích bằng AI...", spinner đơn giản.
 
 ### 2.3 Quote create page
 
-- [ ] 2.3.1 Sửa `QuoteCreatePage.jsx`: state mới `aiAvailable`, `aiLoading`, `aiModel`. `useEffect` gọi `probeAiAvailability()` 1 lần khi mount.
-- [ ] 2.3.2 Tách `analyzeInput` thành `analyzeInput` (regex, giữ nguyên) và `analyzeInputWithAi` (gọi `parseQuoteInputWithAi`).
-- [ ] 2.3.3 Truyền `onAnalyzeWithAi`, `aiAvailable`, `aiLoading` xuống `QuoteChatInput`.
-- [ ] 2.3.4 Khi response có `source: 'ai_fallback'`: hiển thị badge cảnh báo nhỏ "AI tạm lỗi, dùng parser cơ bản" dưới phần `ai_reasoning`.
+- [x] 2.3.1 Sửa `QuoteCreatePage.jsx`: state mới `aiAvailable`, `aiLoading`, `aiModel`. `useEffect` gọi `probeAiAvailability()` 1 lần khi mount.
+- [x] 2.3.2 Tách `analyzeInput` thành `analyzeInput` (regex, giữ nguyên) và `analyzeInputWithAi` (gọi `parseQuoteInputWithAi`).
+- [x] 2.3.3 Truyền `onAnalyzeWithAi`, `aiAvailable`, `aiLoading` xuống `QuoteChatInput`.
+- [x] 2.3.4 Khi response có `source: 'ai_fallback'`: hiển thị badge cảnh báo nhỏ "AI tạm lỗi, dùng parser cơ bản" dưới phần `ai_reasoning`.
 
 ### 2.4 Tôn trọng AI override
 
-- [ ] 2.4.1 Sửa `normalizeParsedItem` ([QuoteCreatePage.jsx:513](../../../apps/web/src/features/quotes/pages/QuoteCreatePage.jsx)): nếu `item.is_overridden === true && Number(item.unit_price) > 0`, giữ `unit_price` từ AI và set `original_unit_price` = giá tier khung; giữ `is_overridden`, `override_reason` từ AI.
-- [ ] 2.4.2 Nếu `item.is_custom === true`: dùng pattern `addCustomItem` đã có — `service_code: 'CUSTOM'`, `is_overridden: true`, `group_code: 'OTHER'` mặc định nếu AI không truyền.
+- [x] 2.4.1 Sửa `normalizeParsedItem` ([QuoteCreatePage.jsx:513](../../../apps/web/src/features/quotes/pages/QuoteCreatePage.jsx)): nếu `item.is_overridden === true && Number(item.unit_price) > 0`, giữ `unit_price` từ AI và set `original_unit_price` = giá tier khung; giữ `is_overridden`, `override_reason` từ AI.
+- [x] 2.4.2 Nếu `item.is_custom === true`: dùng pattern `addCustomItem` đã có — `service_code: 'CUSTOM'`, `is_overridden: true`, `group_code: 'OTHER'` mặc định nếu AI không truyền.
 - [ ] 2.4.3 Verify bằng cách paste chat có MC + giá khác giá khung → bảng items hiển thị đúng cờ override (ô giá nền cam).
 
 ### 2.5 Tests / verify
 
-- [ ] 2.5.1 `npm run build` → không lỗi.
+- [x] 2.5.1 `npm run build` → không lỗi. (Trong sandbox: `.env` không đọc được nên build bị chặn ở vite.config; đã syntax-check 3 file edit qua esbuild — green. `test:quotes` 165/165 pass. Anh Bình chạy `npm run build` ngoài sandbox để xác nhận lần cuối.)
 - [ ] 2.5.2 Chạy local: paste chat dài có MC, bấm "Phân tích bằng AI" → MC xuất hiện custom item, giá đúng từ chat.
 - [ ] 2.5.3 Bấm "Phân tích nhanh" trên cùng brief → output regex (không có MC).
 - [ ] 2.5.4 Tạm tắt key trong env, reload page → nút AI disable + tooltip.

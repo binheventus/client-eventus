@@ -15,7 +15,7 @@ import { usePricingContext } from '../hooks/usePricingContext'
 import { createQuote, getQuote, listQuoteClients, updateQuote } from '../hooks/useQuotes'
 import { useServices } from '../hooks/useServices'
 import { useTravelFees } from '../hooks/useTravelFees'
-import { parseQuoteInput } from '../lib/briefParser'
+import { parseQuoteInput, parseQuoteInputWithAi, probeAiAvailability } from '../lib/briefParser'
 import { calculateQuotePricing, findServiceForQuoteItem } from '../lib/pricingCalculator'
 import { getQuoteActorPayload, getQuoteUserContext } from '../lib/quoteAuth'
 import { getDefaultQuoteTermsText, getQuoteTerms, normalizeQuoteTermsText } from '../lib/quoteTerms'
@@ -512,33 +512,44 @@ function extractClientNameFromBrief(inputText = '') {
 
 function normalizeParsedItem(item, quote, services, serviceGroups = []) {
   const billableDurationHours = getBillableDurationHours(item.billable_duration_hours ?? item.item_duration_hours ?? item.duration_hours, quote.duration_hours)
-  const service = findServiceForQuoteItem(services, item, quote.location, billableDurationHours)
-  const parsedGroupCode = getGroupCode(item.group_code)
+  const isCustom = item.is_custom === true || normalizeQuoteText(item.service_code) === 'CUSTOM'
+  const service = isCustom ? null : findServiceForQuoteItem(services, item, quote.location, billableDurationHours)
+  const parsedGroupCode = getGroupCode(item.group_code) || (isCustom ? 'OTHER' : null)
   const parsedGroup = parsedGroupCode ? {
     group_code: parsedGroupCode,
-    group_label: item.group_label || parsedGroupCode,
-    group_sort_order: Number(item.group_sort_order ?? 99),
+    group_label: item.group_label || (isCustom ? 'Chi phí khác' : parsedGroupCode),
+    group_sort_order: Number(item.group_sort_order ?? (isCustom ? 99 : 99)),
   } : null
   const group = parsedGroup || getGroupForService(service || item, serviceGroups)
-  const unitPrice = Number(service?.[getTierPriceColumn(quote.tier_code)] || service?.price_tier_2 || 0)
+  const tierUnitPrice = Number(service?.[getTierPriceColumn(quote.tier_code)] || service?.price_tier_2 || 0)
+  const aiUnitPrice = Number(item.unit_price)
+  const hasAiOverride = item.is_overridden === true && Number.isFinite(aiUnitPrice) && aiUnitPrice > 0
+  const unitPrice = hasAiOverride
+    ? aiUnitPrice
+    : (isCustom ? Math.max(Number.isFinite(aiUnitPrice) ? aiUnitPrice : 0, 0) : tierUnitPrice)
+  const originalUnitPrice = isCustom ? unitPrice : tierUnitPrice
   const quantity = Number(item.quantity) || 1
   const numSessions = Number(item.num_sessions) || 1
 
   return {
     local_id: makeLocalId(),
-    service_code: getServiceCode(service) || item.service_code || null,
-    service_name: getServiceName(service) || item.service_name_raw || item.service_code || '',
-    service_name_raw: item.service_name_raw || '',
+    service_code: isCustom ? 'CUSTOM' : (getServiceCode(service) || item.service_code || null),
+    service_name: isCustom
+      ? (item.service_name || item.service_name_raw || 'Hạng mục khác')
+      : (getServiceName(service) || item.service_name_raw || item.service_code || ''),
+    service_name_raw: item.service_name_raw || (isCustom ? (item.service_name || '') : ''),
     quantity,
     num_sessions: numSessions,
-    billable_duration_hours: billableDurationHours,
+    billable_duration_hours: isCustom ? null : billableDurationHours,
     unit_price: unitPrice,
-    original_unit_price: unitPrice,
+    original_unit_price: originalUnitPrice,
     total_price: quantity * numSessions * unitPrice,
-    is_overridden: false,
-    override_reason: '',
+    is_custom: isCustom || undefined,
+    unit: isCustom ? (item.unit || CUSTOM_ITEM_UNIT_OPTIONS[0]) : undefined,
+    is_overridden: hasAiOverride || isCustom,
+    override_reason: item.override_reason || '',
     ...group,
-    service,
+    service: isCustom ? null : service,
   }
 }
 
@@ -845,6 +856,9 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
   const [parseResult, setParseResult] = useState(null)
   const [parseLoading, setParseLoading] = useState(false)
   const [parseError, setParseError] = useState('')
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiAvailable, setAiAvailable] = useState(false)
+  const [aiModel, setAiModel] = useState('')
   const [validationError, setValidationError] = useState('')
   const [saveState, setSaveState] = useState('idle')
   const [initialLoading, setInitialLoading] = useState(isEditMode)
@@ -935,6 +949,18 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
   }, [])
 
   useEffect(() => {
+    let mounted = true
+    probeAiAvailability().then(probe => {
+      if (!mounted) return
+      setAiAvailable(Boolean(probe?.ai_available))
+      setAiModel(probe?.model || '')
+    })
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  useEffect(() => {
     const defaults = serviceGroups.length ? serviceGroups : Object.values(FALLBACK_GROUPS)
     setQuoteGroups(prev => mergeGroupOptions(defaults, prev))
   }, [serviceGroups])
@@ -978,13 +1004,13 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
     return text.includes(normalizedClientQuery)
   }).slice(0, 6)
 
-  async function analyzeInput() {
-    setParseLoading(true)
+  async function runParse(parserFn, { setLoadingFlag }) {
+    setLoadingFlag(true)
     setParseError('')
     setValidationError('')
 
     try {
-      const result = await parseQuoteInput(inputText, {
+      const result = await parserFn(inputText, {
         services,
         travel_fees: travelFees,
         customer_tiers: customerTiers,
@@ -1018,8 +1044,16 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
     } catch (error) {
       setParseError(error?.message || 'Không phân tích được nội dung.')
     } finally {
-      setParseLoading(false)
+      setLoadingFlag(false)
     }
+  }
+
+  async function analyzeInput() {
+    return runParse(parseQuoteInput, { setLoadingFlag: setParseLoading })
+  }
+
+  async function analyzeInputWithAi() {
+    return runParse(parseQuoteInputWithAi, { setLoadingFlag: setAiLoading })
   }
 
   function updateItem(index, patch, meta = {}) {
@@ -1371,19 +1405,33 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
               value={inputText}
               onChange={setInputText}
               onAnalyze={analyzeInput}
+              onAnalyzeWithAi={analyzeInputWithAi}
               loading={parseLoading}
+              aiLoading={aiLoading}
+              aiAvailable={aiAvailable}
+              aiModel={aiModel}
               disabled={servicesLoading}
             />
             {parseError && <p className="mt-3 rounded-xl bg-red-50 px-4 py-3 text-[13px] text-red-700">{parseError}</p>}
             {parseResult && (
               <div className="relative mt-4 space-y-3 rounded-2xl bg-slate-50 p-4">
-                <div className="absolute right-3 top-3">
+                <div className="absolute right-3 top-3 flex flex-wrap items-center justify-end gap-1.5">
+                  {parseResult.source === 'ai' ? (
+                    <span className="rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-700 shadow-sm">
+                      AI {aiModel ? `· ${aiModel}` : ''}
+                    </span>
+                  ) : null}
+                  {parseResult.source === 'ai_fallback' ? (
+                    <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800 shadow-sm">
+                      AI tạm lỗi · dùng parser cơ bản
+                    </span>
+                  ) : null}
                   <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-800 shadow-sm">
                     Đã phân tích
                   </span>
                 </div>
                 {visibleReasoningLines.length ? (
-                  <div className="space-y-1 pr-24 text-[13px] leading-5 text-slate-600 sm:pr-44">
+                  <div className="space-y-1 pr-24 text-[13px] leading-5 text-slate-600 sm:pr-56">
                     {visibleReasoningLines.map((line, index) => (
                       <div key={`${line}-${index}`}>{renderReasoningLine(line, highlightedReasoningTerms)}</div>
                     ))}

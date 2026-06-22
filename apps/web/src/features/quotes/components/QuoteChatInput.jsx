@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Sparkles } from 'lucide-react'
 
 const BRIEF_GUIDE_ITEMS = [
   'Ghi số lượng trước dịch vụ: 2 chụp, 1 quay, 1 flycam.',
@@ -24,12 +25,20 @@ export default function QuoteChatInput({
   value,
   onChange,
   onAnalyze,
+  onAnalyzeWithAi,
   loading = false,
+  aiLoading = false,
+  aiAvailable = false,
+  aiModel = '',
   disabled = false,
 }) {
   const textareaRef = useRef(null)
   const [guideOpen, setGuideOpen] = useState(false)
   const hasBrief = Boolean(String(value || '').trim())
+  const anyLoading = loading || aiLoading
+  const aiTitle = aiAvailable
+    ? (aiModel ? `Phân tích bằng Claude (${aiModel})` : 'Phân tích bằng Claude')
+    : 'Chưa cấu hình API key Claude'
 
   function resizeTextarea() {
     const node = textareaRef.current
@@ -70,7 +79,7 @@ export default function QuoteChatInput({
       <textarea
         ref={textareaRef}
         value={value}
-        disabled={disabled || loading}
+        disabled={disabled || anyLoading}
         onChange={event => {
           onChange?.(event.target.value)
           requestAnimationFrame(resizeTextarea)
@@ -79,18 +88,43 @@ export default function QuoteChatInput({
         placeholder="VD: 2 chụp, 1 quay, 2 flycam, 5 tiếng, Hải Phòng, khách lạ..."
         className="w-full resize-none overflow-hidden rounded-2xl border border-[#f8981d] bg-white px-4 py-3 text-[14px] leading-6 text-slate-800 shadow-sm outline-none transition focus:border-[#f8981d] focus:ring-4 focus:ring-orange-100 disabled:cursor-not-allowed disabled:bg-slate-50"
       />
-      <button
-        type="button"
-        disabled={disabled || loading || !hasBrief}
-        onClick={onAnalyze}
-        className={`inline-flex w-full items-center justify-center rounded-xl px-4 py-3 text-[14px] font-semibold text-white shadow-sm transition disabled:cursor-not-allowed ${
-          hasBrief && !disabled
-            ? 'bg-[#f8981d] hover:bg-orange-500 disabled:bg-orange-300'
-            : 'bg-slate-400'
-        }`}
-      >
-        {loading ? 'Đang phân tích...' : 'Phân tích'}
-      </button>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <button
+          type="button"
+          disabled={disabled || anyLoading || !hasBrief}
+          onClick={onAnalyze}
+          className={`inline-flex items-center justify-center rounded-xl px-4 py-3 text-[14px] font-semibold text-white shadow-sm transition disabled:cursor-not-allowed ${
+            hasBrief && !disabled
+              ? 'bg-[#f8981d] hover:bg-orange-500 disabled:bg-orange-300'
+              : 'bg-slate-400'
+          }`}
+        >
+          {loading ? 'Đang phân tích...' : 'Phân tích nhanh'}
+        </button>
+        <button
+          type="button"
+          disabled={disabled || anyLoading || !hasBrief || !aiAvailable}
+          onClick={onAnalyzeWithAi}
+          title={aiTitle}
+          className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-[14px] font-semibold text-white shadow-sm transition disabled:cursor-not-allowed ${
+            hasBrief && !disabled && aiAvailable
+              ? 'bg-violet-600 hover:bg-violet-500 disabled:bg-violet-300'
+              : 'bg-slate-400'
+          }`}
+        >
+          {aiLoading ? (
+            <>
+              <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+              <span>Đang phân tích bằng AI...</span>
+            </>
+          ) : (
+            <>
+              <Sparkles className="h-4 w-4" />
+              <span>Phân tích bằng AI</span>
+            </>
+          )}
+        </button>
+      </div>
 
       {guideOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-4 backdrop-blur-sm">
