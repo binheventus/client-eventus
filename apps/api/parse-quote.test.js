@@ -5,6 +5,7 @@ import handler, {
   clearParseQuoteResultCache,
   deterministicParseQuoteInput,
 } from './parse-quote.js'
+import { buildSystemPromptBlock } from './lib/claude-quote-parser.js'
 
 const recapServices = [
   { service_code: 'CHUP_IN_4H' },
@@ -553,4 +554,60 @@ test('GET /api/parse-quote?probe=1 reflects ANTHROPIC_API_KEY presence', async (
     assert.equal(response.payload.ai_available, false)
     assert.equal(response.payload.model, null)
   })
+})
+
+test('buildSystemPromptBlock merges custom examples vào EXAMPLES section', () => {
+  const customExamples = [
+    {
+      name: 'mc-ngoai-khung',
+      input_text: 'Khách báo có 1 MC, riêng 5tr',
+      expected_output: {
+        items: [
+          { service_code: 'CUSTOM', quantity: 1, service_name: 'MC', is_custom: true, unit_price: 5000000 },
+        ],
+        location: 'Hà Nội',
+        duration_hours: 4,
+        tier_code: 'TIER_2',
+      },
+      sort_order: 50,
+    },
+  ]
+  const prompt = buildSystemPromptBlock({ services: [{ service_code: 'CHUP_IN_4H', service_name: 'Chụp 4h', price_tier_2: 1000000 }] }, customExamples)
+
+  assert.match(prompt, /EXAMPLES/i)
+  assert.match(prompt, /mc-ngoai-khung/)
+  assert.match(prompt, /Khách báo có 1 MC/)
+  assert.match(prompt, /5000000/)
+})
+
+test('buildSystemPromptBlock cap số example tối đa MAX_EXAMPLES (12)', () => {
+  const customExamples = Array.from({ length: 30 }, (_, index) => ({
+    name: `custom-${index}`,
+    input_text: `brief ${index}`,
+    expected_output: {
+      items: [{ service_code: 'CHUP_IN_4H', quantity: 1 }],
+      location: 'Hà Nội',
+      duration_hours: 4,
+      tier_code: 'TIER_2',
+    },
+    sort_order: 1000 + index,
+  }))
+  const prompt = buildSystemPromptBlock({ services: [] }, customExamples)
+  // Foundational + custom merged sau đó cap 12. Foundational sort_order là undefined nên = 0 → ưu tiên trước.
+  // 12 examples final phải có ít nhất một số custom-* nếu foundational < 12.
+  const matches = prompt.match(/### Ví dụ \[\d+\]/g) || []
+  assert.ok(matches.length <= 12, `expected ≤ 12 example blocks, got ${matches.length}`)
+})
+
+test('buildSystemPromptBlock bỏ qua custom example có expected_output không hợp lệ', () => {
+  const customExamples = [
+    {
+      name: 'broken',
+      input_text: 'something',
+      expected_output: 'not-a-json-string',
+      sort_order: 10,
+    },
+  ]
+  const prompt = buildSystemPromptBlock({ services: [] }, customExamples)
+  assert.doesNotMatch(prompt, /broken/)
 })

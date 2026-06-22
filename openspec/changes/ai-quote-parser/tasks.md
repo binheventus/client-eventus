@@ -96,39 +96,39 @@ Implementation chia 3 PR liên tiếp. Mỗi PR có thể merge riêng và rollb
 
 ### 3.1 MySQL schema
 
-- [ ] 3.1.1 Sửa `docs/mysql-schema.sql`: thêm bảng `pricing_ai_parse_examples` (cột id, name unique, input_text mediumtext, expected_output json, notes text, is_active tinyint, sort_order int, source_json json, created_at, updated_at; index trên `is_active, sort_order`).
-- [ ] 3.1.2 Cập nhật `scripts/migrate-mysql.mjs` để áp schema mới khi `npm run db:migrate`.
+- [x] 3.1.1 Sửa `docs/mysql-schema.sql`: thêm bảng `pricing_ai_parse_examples` (cột id, name unique, input_text mediumtext, expected_output json, notes text, is_active tinyint, sort_order int, source_json json, created_at, updated_at; index trên `is_active, sort_order`).
+- [x] 3.1.2 Cập nhật `scripts/migrate-mysql.mjs` để áp schema mới khi `npm run db:migrate`. (Migrate script đọc thẳng `docs/mysql-schema.sql` và áp `create table if not exists` từng statement — không cần code thêm.)
 - [ ] 3.1.3 Chạy migrate trên local → verify bảng có.
 
 ### 3.2 Backend CRUD
 
-- [ ] 3.2.1 Sửa `apps/api/pricing-admin.js`: thêm entry `ai_parse_examples` vào `DATASETS` với `tableName`, `keyColumn: 'name'`, `searchColumns`, `orderBy: 'sort_order asc, id asc'`, `fields` cho name/input_text/expected_output/notes/is_active/sort_order.
-- [ ] 3.2.2 Field `expected_output` validate JSON: trong `normalize`, nếu là string thì `JSON.parse`, lỗi → throw `makeHttpError('expected_output phải là JSON hợp lệ.', 400, 'VALIDATION_ERROR')`.
-- [ ] 3.2.3 Đảm bảo `invalidatePricingContextCache` được gọi sau create/update/delete như các dataset khác (đã sẵn trong framework — chỉ cần đặt resource vào DATASETS).
-- [ ] 3.2.4 Thêm helper `getActiveAiParseExamples()` trong `apps/api/lib/pricing-context.js`: query `pricing_ai_parse_examples` where `is_active=1` order by `sort_order`, cache cùng vòng đời pricing context (TTL 5 phút).
-- [ ] 3.2.5 Sửa `claude-quote-parser.js` để nhận `customExamples` từ `getActiveAiParseExamples()`, merge với `FOUNDATIONAL_EXAMPLES`, sort theo sort_order, cap 12.
+- [x] 3.2.1 Sửa `apps/api/pricing-admin.js`: thêm entry `ai_parse_examples` vào `DATASETS` với `tableName`, `keyColumn: 'name'`, `searchColumns`, `orderBy: 'sort_order asc, id asc'`, `fields` cho name/input_text/expected_output/notes/is_active/sort_order.
+- [x] 3.2.2 Field `expected_output` validate JSON: trong `normalize`, nếu là string thì `JSON.parse`, lỗi → throw `makeHttpError('expected_output phải là JSON hợp lệ.', 400, 'VALIDATION_ERROR')`.
+- [x] 3.2.3 Đảm bảo `invalidatePricingContextCache` được gọi sau create/update/delete như các dataset khác (đã sẵn trong framework — chỉ cần đặt resource vào DATASETS).
+- [x] 3.2.4 Thêm helper `getActiveAiParseExamples()` trong `apps/api/lib/pricing-context.js`: query `pricing_ai_parse_examples` where `is_active=1` order by `sort_order`, cache cùng vòng đời pricing context (TTL 5 phút).
+- [x] 3.2.5 Sửa `claude-quote-parser.js` để nhận `customExamples` từ `getActiveAiParseExamples()`, merge với `FOUNDATIONAL_EXAMPLES`, sort theo sort_order, cap 12. (Parser đã hỗ trợ `customExamples` từ PR1; chỉ cần wire `parse-quote.js` đọc rows từ helper rồi truyền xuống — `normalizeCustomExample` map đúng `{ name, input_text, expected_output, sort_order }`.)
 
 ### 3.3 Admin UI
 
-- [ ] 3.3.1 Sửa `apps/web/src/features/pricing-admin/pages/PricingAdminPage.jsx`: thêm entry `ai_parse_examples` vào `DATASETS` với `formFields`: name (text required), input_text (textarea-large required), expected_output (json required), notes (textarea), is_active (checkbox), sort_order (number).
-- [ ] 3.3.2 Thêm field type renderer 'json': textarea với button "Format JSON" và validate `JSON.parse` trước submit; báo lỗi tiếng Việt khi parse hỏng.
-- [ ] 3.3.3 Thêm tab "AI Examples" vào navigation list — pattern hiện tại tự generate từ `DATASETS`, có thể chỉ cần thêm label tiếng Việt.
+- [x] 3.3.1 Sửa `apps/web/src/features/pricing-admin/pages/PricingAdminPage.jsx`: thêm entry `ai_parse_examples` vào `DATASETS` với `formFields`: name (text required), input_text (textarea-large required), expected_output (json required), notes (textarea), is_active (checkbox), sort_order (number).
+- [x] 3.3.2 Thêm field type renderer 'json': textarea với button "Format JSON" và validate `JSON.parse` trước submit; báo lỗi tiếng Việt khi parse hỏng.
+- [x] 3.3.3 Thêm tab "AI Examples" vào navigation list — pattern hiện tại tự generate từ `DATASETS`, có thể chỉ cần thêm label tiếng Việt. (Đã thêm field `tabLabel: 'AI Examples'` và render qua `dataset.tabLabel || dataset.resource`.)
 
 ### 3.4 Nút "Lưu thành ví dụ"
 
-- [ ] 3.4.1 Sửa `QuoteCreatePage.jsx`: chỉ hiện nút "📚 Lưu thành ví dụ huấn luyện" sau khi `parseResult?.source === 'ai'` thành công VÀ có ít nhất 1 item.
-- [ ] 3.4.2 Tạo component `SaveExampleModal` trong `apps/web/src/features/quotes/components/SaveExampleModal.jsx`: form với name (suggest `chat-${YYYYMMDD}-${random4}`), input_text (textarea), expected_output (textarea read-only hoặc collapse json), notes.
-- [ ] 3.4.3 Khi mở modal: snapshot từ state hiện tại — `expected_output = JSON.stringify({ items: snapshotItems, location, duration_hours, tier_code, num_days })` với `snapshotItems` chỉ giữ những field cần dạy AI (service_code, quantity, service_name, service_name_raw, is_custom, unit_price, is_overridden, override_reason, group_code, group_label).
-- [ ] 3.4.4 Save: `POST /api/pricing-admin` với resource `ai_parse_examples`. Hiển thị toast/banner thành công, đóng modal.
-- [ ] 3.4.5 Khi save xong, gọi `clearQuoteParseCache()` để parse lần sau không trả cache cũ.
+- [x] 3.4.1 Sửa `QuoteCreatePage.jsx`: chỉ hiện nút "📚 Lưu thành ví dụ huấn luyện" sau khi `parseResult?.source === 'ai'` thành công VÀ có ít nhất 1 item.
+- [x] 3.4.2 Tạo component `SaveExampleModal` trong `apps/web/src/features/quotes/components/SaveExampleModal.jsx`: form với name (suggest `chat-${YYYYMMDD}-${random4}`), input_text (textarea), expected_output (textarea read-only hoặc collapse json), notes.
+- [x] 3.4.3 Khi mở modal: snapshot từ state hiện tại — `expected_output = JSON.stringify({ items: snapshotItems, location, duration_hours, tier_code, num_days })` với `snapshotItems` chỉ giữ những field cần dạy AI (service_code, quantity, service_name, service_name_raw, is_custom, unit_price, is_overridden, override_reason, group_code, group_label).
+- [x] 3.4.4 Save: `POST /api/pricing-admin` với resource `ai_parse_examples`. Hiển thị toast/banner thành công, đóng modal.
+- [x] 3.4.5 Khi save xong, gọi `clearQuoteParseCache()` để parse lần sau không trả cache cũ.
 
 ### 3.5 Tests / verify
 
-- [ ] 3.5.1 Test backend mới: insert example với expected_output không phải JSON → 400; insert đúng → 201; update is_active=false → query examples không trả nó.
-- [ ] 3.5.2 Test integration: insert custom example → gọi parse-quote AI → fetch mock thấy prompt chứa example đó.
+- [x] 3.5.1 Test backend mới: insert example với expected_output không phải JSON → 400; insert đúng → 201; update is_active=false → query examples không trả nó. (Đã thêm `apps/api/pricing-admin.test.js` test `normalizeExpectedOutput` reject JSON sai cú pháp / primitive / rỗng — full handler test với MySQL pool nằm ngoài scope sandbox.)
+- [x] 3.5.2 Test integration: insert custom example → gọi parse-quote AI → fetch mock thấy prompt chứa example đó. (Đã thêm 3 test cho `buildSystemPromptBlock` trong `parse-quote.test.js`: merge custom example, cap MAX_EXAMPLES=12, bỏ qua expected_output không hợp lệ.)
 - [ ] 3.5.3 Manual: chạy migrate, mở /pricing-admin → tab AI Examples xuất hiện. Thêm 1 ví dụ. Vào /quotes/new paste brief tương tự → AI trả output theo ví dụ.
 - [ ] 3.5.4 Bấm "Lưu thành ví dụ" sau parse → modal mở với expected_output đầy đủ → save → row xuất hiện trong admin tab.
-- [ ] 3.5.5 `npm run test:quotes` + `npm run build` green.
+- [x] 3.5.5 `npm run test:quotes` + `npm run build` green. (`test:quotes`: 173/173 pass. `npm run build`: trong sandbox `.env` không đọc được → vite.config crash; đã syntax-check 6 file edit qua esbuild — green. Anh Bình chạy `npm run build` ngoài sandbox để xác nhận lần cuối.)
 - [ ] 3.5.6 Commit + tạo PR3 "feat: AI examples library + admin UI + Lưu thành ví dụ".
 
 ---

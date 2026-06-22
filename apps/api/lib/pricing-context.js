@@ -149,6 +149,8 @@ const JSON_FIELDS = new Set(['source_json', 'match_prefix_list'])
 let pricingContextCache = null
 let pricingContextCacheAt = 0
 let lastFallbackWarning = ''
+let aiParseExamplesCache = null
+let aiParseExamplesCacheAt = 0
 
 function parseJson(value, fallback = null) {
   if (value === undefined || value === null || value === '') return fallback
@@ -303,10 +305,54 @@ function withCacheMeta(context, cacheState) {
 export function invalidatePricingContextCache(reason = 'manual') {
   pricingContextCache = null
   pricingContextCacheAt = 0
+  aiParseExamplesCache = null
+  aiParseExamplesCacheAt = 0
   return {
     ok: true,
     reason,
     invalidated_at: new Date().toISOString(),
+  }
+}
+
+export async function getActiveAiParseExamples({ force = false } = {}) {
+  const now = Date.now()
+  const cacheFresh = aiParseExamplesCache && (CACHE_TTL_MS <= 0 || now - aiParseExamplesCacheAt < CACHE_TTL_MS)
+  if (!force && cacheFresh) return aiParseExamplesCache
+
+  try {
+    const rows = await query(
+      'select `id`, `name`, `input_text`, `expected_output`, `notes`, `is_active`, `sort_order`'
+      + ' from `pricing_ai_parse_examples`'
+      + ' where `is_active` = 1'
+      + ' order by `sort_order` asc, `id` asc',
+    )
+    const normalized = (Array.isArray(rows) ? rows : []).map(row => {
+      let expectedOutput = row?.expected_output
+      if (typeof expectedOutput === 'string') {
+        try {
+          expectedOutput = JSON.parse(expectedOutput)
+        } catch {
+          expectedOutput = null
+        }
+      }
+      return {
+        id: row?.id,
+        name: row?.name,
+        input_text: row?.input_text,
+        expected_output: expectedOutput,
+        notes: row?.notes,
+        sort_order: Number.isFinite(Number(row?.sort_order)) ? Number(row.sort_order) : 100,
+      }
+    }).filter(example => example.input_text && example.expected_output)
+
+    aiParseExamplesCache = normalized
+    aiParseExamplesCacheAt = now
+    return normalized
+  } catch (error) {
+    console.warn(`[Eventus pricing] Không đọc được pricing_ai_parse_examples: ${error?.message || error}`)
+    aiParseExamplesCache = []
+    aiParseExamplesCacheAt = now
+    return []
   }
 }
 

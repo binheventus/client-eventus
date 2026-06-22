@@ -490,3 +490,18 @@ create table if not exists pricing_equipment_rules (
   unique key pricing_equipment_rules_prefixes_unique (match_prefixes),
   key pricing_equipment_rules_sort_idx (sort_order)
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create table if not exists pricing_ai_parse_examples (
+  id bigint unsigned primary key auto_increment,
+  name varchar(160) not null,
+  input_text mediumtext not null,
+  expected_output json not null,
+  notes text null,
+  is_active tinyint(1) not null default 1,
+  sort_order int not null default 100,
+  source_json json null,
+  created_at datetime(3) not null default current_timestamp(3),
+  updated_at datetime(3) not null default current_timestamp(3) on update current_timestamp(3),
+  unique key pricing_ai_parse_examples_name_unique (name),
+  key pricing_ai_parse_examples_active_sort_idx (is_active, sort_order)
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;

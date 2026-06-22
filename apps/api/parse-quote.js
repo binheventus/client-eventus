@@ -1,5 +1,5 @@
 import { requireEventusAuth } from './lib/eventus-auth.js'
-import { getPricingContext } from './lib/pricing-context.js'
+import { getActiveAiParseExamples, getPricingContext } from './lib/pricing-context.js'
 import {
   getAiModelName,
   hasAnthropicKey,
@@ -687,7 +687,8 @@ export default async function handler(req, res) {
 
   if (mode === 'ai' && hasAnthropicKey()) {
     try {
-      const aiResult = await parseQuoteWithClaude(inputText, context)
+      const customExamples = await getActiveAiParseExamples()
+      const aiResult = await parseQuoteWithClaude(inputText, context, { customExamples })
       const wrapped = applyBriefBusinessRules(aiResult, inputText, context)
       const payload = withPricingMeta(withSourceMeta(wrapped, 'ai'), context)
       setCachedResult(cacheKey, payload)

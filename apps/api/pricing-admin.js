@@ -69,6 +69,28 @@ function parseJson(value, fallback = null) {
   }
 }
 
+function normalizeExpectedOutput(value) {
+  if (value === undefined || value === null) {
+    throw makeHttpError('expected_output không được để trống.', 400, 'VALIDATION_ERROR')
+  }
+  let parsed = value
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) {
+      throw makeHttpError('expected_output không được để trống.', 400, 'VALIDATION_ERROR')
+    }
+    try {
+      parsed = JSON.parse(trimmed)
+    } catch {
+      throw makeHttpError('expected_output phải là JSON hợp lệ.', 400, 'VALIDATION_ERROR')
+    }
+  }
+  if (!parsed || typeof parsed !== 'object') {
+    throw makeHttpError('expected_output phải là JSON object hoặc array.', 400, 'VALIDATION_ERROR')
+  }
+  return JSON.stringify(parsed)
+}
+
 function getPrefixListFromText(value = '') {
   return String(value || '')
     .split(/[,\n;]/)
@@ -218,6 +240,22 @@ const DATASETS = {
       }
     },
   },
+  ai_parse_examples: {
+    resource: 'ai_parse_examples',
+    label: 'AI Examples',
+    tableName: 'pricing_ai_parse_examples',
+    keyColumn: 'name',
+    searchColumns: ['name', 'input_text', 'notes'],
+    orderBy: '`sort_order` asc, `id` asc',
+    fields: {
+      name: { required: true, normalize: normalizeText },
+      input_text: { required: true, normalize: normalizeText },
+      expected_output: { required: true, normalize: normalizeExpectedOutput },
+      notes: { normalize: normalizeNullableText },
+      is_active: { normalize: value => normalizeBoolean(value, true) ? 1 : 0 },
+      sort_order: { normalize: value => normalizeNumber(value, 100) },
+    },
+  },
 }
 
 function getDataset(resource) {
@@ -240,7 +278,7 @@ function getPublicDatasetMeta(dataset) {
 }
 
 function publicRow(row = {}) {
-  return {
+  const result = {
     ...row,
     is_default: row.is_default === 1 || row.is_default === true,
     derived: row.derived === 1 || row.derived === true,
@@ -249,6 +287,13 @@ function publicRow(row = {}) {
     match_prefix_list: parseJson(row.match_prefix_list, row.match_prefix_list),
     source_json: parseJson(row.source_json, null),
   }
+  if (row.is_active !== undefined) {
+    result.is_active = row.is_active === 1 || row.is_active === true
+  }
+  if (row.expected_output !== undefined) {
+    result.expected_output = parseJson(row.expected_output, row.expected_output)
+  }
+  return result
 }
 
 function getSelectColumns(dataset) {
@@ -397,6 +442,10 @@ async function deleteRecord(resource, id) {
   invalidatePricingContextCache(`pricing-admin:delete:${resource}`)
   return { ok: true }
 }
+
+export const __pricingAdminTestInternals = Object.freeze({
+  normalizeExpectedOutput,
+})
 
 export default async function handler(req, res) {
   try {

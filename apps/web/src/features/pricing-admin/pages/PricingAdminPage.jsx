@@ -145,6 +145,28 @@ const DATASETS = [
       ['sort_order', 'sort_order', 'number'],
     ],
   },
+  {
+    resource: 'ai_parse_examples',
+    tabLabel: 'AI Examples',
+    keyField: 'name',
+    summaryField: 'notes',
+    defaultRecord: {
+      name: '',
+      input_text: '',
+      expected_output: '',
+      notes: '',
+      is_active: true,
+      sort_order: 100,
+    },
+    formFields: [
+      ['name', 'name', 'text', true],
+      ['is_active', 'is_active', 'checkbox'],
+      ['sort_order', 'sort_order', 'number'],
+      ['input_text', 'input_text', 'textarea-large', true],
+      ['expected_output', 'expected_output', 'json', true],
+      ['notes', 'notes', 'textarea'],
+    ],
+  },
 ]
 
 const DATASET_MAP = Object.fromEntries(DATASETS.map(dataset => [dataset.resource, dataset]))
@@ -172,6 +194,14 @@ const FORM_FIELD_LAYOUTS = {
   equipment_rules: {
     equipment_description: 'md:col-span-2 lg:col-start-1',
     internal_note: 'md:col-span-2',
+  },
+  ai_parse_examples: {
+    name: 'md:col-span-2',
+    is_active: 'md:col-span-1',
+    sort_order: 'md:col-span-1',
+    input_text: 'md:col-span-2 lg:col-span-4',
+    expected_output: 'md:col-span-2 lg:col-span-4',
+    notes: 'md:col-span-2 lg:col-span-4',
   },
 }
 const COLUMN_WIDTHS = {
@@ -248,6 +278,14 @@ const FIT_TO_VIEWPORT_COLUMN_WIDTHS = {
     internal_note: '18%',
     sort_order: '4%',
   },
+  ai_parse_examples: {
+    name: '16%',
+    is_active: '6%',
+    sort_order: '5%',
+    input_text: '28%',
+    expected_output: '28%',
+    notes: '17%',
+  },
 }
 
 function getDatasetTableColumns(dataset) {
@@ -314,9 +352,21 @@ function parseNumberInputValue(value) {
   return Number.isFinite(number) ? number : ''
 }
 
+function formatJsonPreview(value) {
+  if (value === undefined || value === null || value === '') return '-'
+  try {
+    const parsed = typeof value === 'string' ? JSON.parse(value) : value
+    const text = JSON.stringify(parsed)
+    return text.length > 240 ? `${text.slice(0, 240)}…` : text
+  } catch {
+    const text = String(value)
+    return text.length > 240 ? `${text.slice(0, 240)}…` : text
+  }
+}
+
 function formatCell(value, type) {
   if (type === 'number') return formatNumber(value)
-  if (type === 'boolean') {
+  if (type === 'boolean' || type === 'checkbox') {
     return value ? (
       <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700">
         <CheckCircle2 className="h-3 w-3" />
@@ -327,6 +377,14 @@ function formatCell(value, type) {
         <XCircle className="h-3 w-3" />
         Tắt
       </span>
+    )
+  }
+  if (type === 'json') {
+    const preview = formatJsonPreview(value)
+    return preview === '-' ? preview : (
+      <code className="block whitespace-pre-wrap break-all text-[11px] font-mono text-slate-600">
+        {preview}
+      </code>
     )
   }
   if (value === undefined || value === null || value === '') return '-'
@@ -359,14 +417,17 @@ function getDatasetPath(resource, { search = '' } = {}) {
 
 function getFieldLayoutClass(resource, field) {
   const [name, , type = 'text'] = field
-  return FORM_FIELD_LAYOUTS[resource]?.[name] || (type === 'textarea' ? 'md:col-span-2' : '')
+  if (FORM_FIELD_LAYOUTS[resource]?.[name]) return FORM_FIELD_LAYOUTS[resource][name]
+  if (type === 'textarea' || type === 'textarea-large' || type === 'json') return 'md:col-span-2'
+  return ''
 }
 
-function FieldInput({ field, value, onChange, className = '' }) {
+function FieldInput({ field, value, onChange, className = '', error = '' }) {
   const [name, label, type = 'text', required = false] = field
   const inputId = `pricing-field-${name}`
   const displayLabel = name || label
   const baseClass = 'mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-800 outline-none transition focus:border-orange-300 focus:ring-2 focus:ring-orange-100'
+  const errorClass = error ? 'border-red-300 focus:border-red-400 focus:ring-red-100' : ''
 
   if (type === 'checkbox') {
     return (
@@ -383,30 +444,83 @@ function FieldInput({ field, value, onChange, className = '' }) {
     )
   }
 
+  if (type === 'json') {
+    const stringValue = typeof value === 'string' ? value : (
+      value === undefined || value === null ? '' : JSON.stringify(value, null, 2)
+    )
+
+    function handleFormat() {
+      try {
+        const parsed = JSON.parse(stringValue || '{}')
+        onChange(name, JSON.stringify(parsed, null, 2))
+      } catch {
+        // ignore — caller hiển thị error qua prop
+      }
+    }
+
+    return (
+      <label htmlFor={inputId} className={className}>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[12px] font-semibold text-slate-500">
+            {displayLabel}
+            {required ? <span className="text-orange-500"> *</span> : null}
+          </span>
+          <button
+            type="button"
+            onClick={handleFormat}
+            className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"
+            title="Format JSON cho dễ đọc"
+          >
+            Format JSON
+          </button>
+        </div>
+        <textarea
+          id={inputId}
+          value={stringValue}
+          onChange={event => onChange(name, event.target.value)}
+          rows={12}
+          spellCheck={false}
+          className={`${baseClass} ${errorClass} resize-y font-mono text-[12px] leading-5`}
+        />
+        {error ? (
+          <span className="mt-1 block text-[11px] font-semibold text-red-600">{error}</span>
+        ) : null}
+      </label>
+    )
+  }
+
+  if (type === 'textarea' || type === 'textarea-large') {
+    return (
+      <label htmlFor={inputId} className={className}>
+        <span className="text-[12px] font-semibold text-slate-500">
+          {displayLabel}
+          {required ? <span className="text-orange-500"> *</span> : null}
+        </span>
+        <textarea
+          id={inputId}
+          value={value ?? ''}
+          onChange={event => onChange(name, event.target.value)}
+          rows={type === 'textarea-large' ? 8 : 3}
+          className={`${baseClass} resize-y leading-5`}
+        />
+      </label>
+    )
+  }
+
   return (
     <label htmlFor={inputId} className={className}>
       <span className="text-[12px] font-semibold text-slate-500">
         {displayLabel}
         {required ? <span className="text-orange-500"> *</span> : null}
       </span>
-      {type === 'textarea' ? (
-        <textarea
-          id={inputId}
-          value={value ?? ''}
-          onChange={event => onChange(name, event.target.value)}
-          rows={3}
-          className={`${baseClass} resize-y leading-5`}
-        />
-      ) : (
-        <input
-          id={inputId}
-          type={type === 'number' ? 'text' : type}
-          inputMode={type === 'number' ? 'decimal' : undefined}
-          value={type === 'number' ? formatNumberInputValue(value) : (value ?? '')}
-          onChange={event => onChange(name, type === 'number' ? parseNumberInputValue(event.target.value) : event.target.value)}
-          className={baseClass}
-        />
-      )}
+      <input
+        id={inputId}
+        type={type === 'number' ? 'text' : type}
+        inputMode={type === 'number' ? 'decimal' : undefined}
+        value={type === 'number' ? formatNumberInputValue(value) : (value ?? '')}
+        onChange={event => onChange(name, type === 'number' ? parseNumberInputValue(event.target.value) : event.target.value)}
+        className={baseClass}
+      />
     </label>
   )
 }
@@ -475,6 +589,7 @@ export default function PricingAdminPage() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
 
   const activeDataset = DATASET_MAP[activeResource]
   const tableColumns = useMemo(() => getDatasetTableColumns(activeDataset), [activeDataset])
@@ -551,21 +666,38 @@ export default function PricingAdminPage() {
     setDeleteConfirmOpen(false)
     setError('')
     setNotice('')
+    setFieldErrors({})
   }
 
   function startEdit(record) {
     setSelectedId(String(record.id))
-    setDraft({ ...record })
+    const nextDraft = { ...record }
+    // JSON fields chứa giá trị string trong textarea để admin sửa thoải mái — convert object sang JSON pretty.
+    for (const field of activeDataset.formFields) {
+      const [name, , type = 'text'] = field
+      if (type !== 'json') continue
+      const value = nextDraft[name]
+      if (value !== undefined && value !== null && typeof value !== 'string') {
+        try {
+          nextDraft[name] = JSON.stringify(value, null, 2)
+        } catch {
+          nextDraft[name] = String(value)
+        }
+      }
+    }
+    setDraft(nextDraft)
     setMode('edit')
     setDeleteConfirmOpen(false)
     setError('')
     setNotice('')
+    setFieldErrors({})
   }
 
   function closeEditor() {
     setDraft(null)
     setMode('idle')
     setDeleteConfirmOpen(false)
+    setFieldErrors({})
   }
 
   function updateDraft(fieldName, value) {
@@ -573,10 +705,44 @@ export default function PricingAdminPage() {
       ...(prev || {}),
       [fieldName]: value,
     }))
+    if (fieldErrors[fieldName]) {
+      setFieldErrors(prev => {
+        const next = { ...prev }
+        delete next[fieldName]
+        return next
+      })
+    }
+  }
+
+  function validateDraftBeforeSave(dataset, currentDraft) {
+    const errors = {}
+    for (const field of dataset.formFields) {
+      const [name, , type = 'text'] = field
+      if (type !== 'json') continue
+      const value = currentDraft?.[name]
+      if (value === undefined || value === null || value === '') {
+        errors[name] = 'Trường JSON không được để trống.'
+        continue
+      }
+      if (typeof value !== 'string') continue
+      try {
+        JSON.parse(value)
+      } catch {
+        errors[name] = 'JSON không hợp lệ. Bấm "Format JSON" hoặc kiểm tra lại cú pháp.'
+      }
+    }
+    return errors
   }
 
   async function saveDraft() {
     if (!draft) return
+    const errors = validateDraftBeforeSave(activeDataset, draft)
+    if (Object.keys(errors).length) {
+      setFieldErrors(errors)
+      setError('Có trường JSON không hợp lệ. Vui lòng sửa trước khi lưu.')
+      return
+    }
+    setFieldErrors({})
     setSaving(true)
     setError('')
     setNotice('')
@@ -800,7 +966,7 @@ export default function PricingAdminPage() {
                     : 'border-slate-200 bg-white text-slate-700 hover:bg-orange-50 hover:text-orange-700'
                 }`}
               >
-                <span>{dataset.resource}</span>
+                <span>{dataset.tabLabel || dataset.resource}</span>
                 <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${active ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-500'}`}>
                   {count}
                 </span>
@@ -841,6 +1007,7 @@ export default function PricingAdminPage() {
                     value={draft[field[0]]}
                     onChange={updateDraft}
                     className={getFieldLayoutClass(activeResource, field)}
+                    error={fieldErrors[field[0]] || ''}
                   />
                 ))}
               </div>

@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { PencilLine, Stamp } from 'lucide-react'
+import { BookMarked, PencilLine, Stamp } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import EntitySelector from '../components/EntitySelector'
 import QuoteBreadcrumb from '../components/QuoteBreadcrumb'
 import QuoteChatInput from '../components/QuoteChatInput'
 import QuoteItemsTable from '../components/QuoteItemsTable'
 import QuotePreview from '../components/QuotePreview'
+import SaveExampleModal from '../components/SaveExampleModal'
 import { useBusinessRules } from '../hooks/useBusinessRules'
 import { useEquipmentRules } from '../hooks/useEquipmentRules'
 import { useServiceGroups } from '../hooks/useServiceGroups'
@@ -15,7 +16,7 @@ import { usePricingContext } from '../hooks/usePricingContext'
 import { createQuote, getQuote, listQuoteClients, updateQuote } from '../hooks/useQuotes'
 import { useServices } from '../hooks/useServices'
 import { useTravelFees } from '../hooks/useTravelFees'
-import { parseQuoteInput, parseQuoteInputWithAi, probeAiAvailability } from '../lib/briefParser'
+import { clearQuoteParseCache, parseQuoteInput, parseQuoteInputWithAi, probeAiAvailability } from '../lib/briefParser'
 import { calculateQuotePricing, findServiceForQuoteItem } from '../lib/pricingCalculator'
 import { getQuoteActorPayload, getQuoteUserContext } from '../lib/quoteAuth'
 import { getDefaultQuoteTermsText, getQuoteTerms, normalizeQuoteTermsText } from '../lib/quoteTerms'
@@ -871,6 +872,8 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
   const [showTermsModal, setShowTermsModal] = useState(false)
   const [termsDraft, setTermsDraft] = useState('')
   const [showStamp, setShowStamp] = useState(DEFAULT_QUOTE.show_stamp)
+  const [showSaveExampleModal, setShowSaveExampleModal] = useState(false)
+  const [saveExampleNotice, setSaveExampleNotice] = useState('')
   const canPublishQuote = !isEditMode
   const canSaveChanges = isEditMode
 
@@ -1480,6 +1483,31 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
                     ))}
                   </div>
                 ) : null}
+                {parseResult.source === 'ai' && items.length > 0 ? (
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-violet-100 bg-white px-3 py-2">
+                    <div className="text-[12px] leading-5 text-slate-600">
+                      Bảng hạng mục đã đúng?
+                      <span className="ml-1 text-slate-500">Lưu lại để dạy AI cho lần parse sau.</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSaveExampleNotice('')
+                        setShowSaveExampleModal(true)
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-[12px] font-semibold text-violet-700 hover:bg-violet-100"
+                      title="Snapshot bảng hạng mục hiện tại làm ví dụ huấn luyện"
+                    >
+                      <BookMarked className="h-3.5 w-3.5" />
+                      📚 Lưu thành ví dụ huấn luyện
+                    </button>
+                  </div>
+                ) : null}
+                {saveExampleNotice ? (
+                  <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[12px] font-semibold text-emerald-800">
+                    {saveExampleNotice}
+                  </p>
+                ) : null}
               </div>
             )}
           </section>
@@ -1690,6 +1718,24 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
           onConfirm={confirmTermsEdit}
         />
       )}
+
+      <SaveExampleModal
+        open={showSaveExampleModal}
+        onClose={() => setShowSaveExampleModal(false)}
+        inputText={inputText}
+        items={displayItems}
+        quote={{
+          location: quote.location,
+          duration_hours: quote.duration_hours,
+          tier_code: quote.tier_code,
+          num_days: parseResult?.parsed?.num_days || 1,
+        }}
+        onSaved={record => {
+          clearQuoteParseCache()
+          const label = record?.name ? ` (${record.name})` : ''
+          setSaveExampleNotice(`Đã lưu ví dụ huấn luyện${label}. Lần parse AI tiếp theo sẽ học từ ví dụ này.`)
+        }}
+      />
     </div>
   )
 }
