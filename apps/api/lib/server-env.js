@@ -4,7 +4,14 @@ import path from 'node:path'
 function parseEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return {}
 
-  return fs.readFileSync(filePath, 'utf8')
+  let raw = ''
+  try {
+    raw = fs.readFileSync(filePath, 'utf8')
+  } catch {
+    return {}
+  }
+
+  return raw
     .split(/\r?\n/)
     .reduce((env, line) => {
       const trimmed = line.trim()

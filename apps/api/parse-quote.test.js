@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import handler, { applyBriefBusinessRules, deterministicParseQuoteInput } from './parse-quote.js'
+import handler, {
+  applyBriefBusinessRules,
+  clearParseQuoteResultCache,
+  deterministicParseQuoteInput,
+} from './parse-quote.js'
 
 const recapServices = [
   { service_code: 'CHUP_IN_4H' },
@@ -323,4 +327,230 @@ test('handler never calls external fetch when parsing cannot resolve items', asy
     if (originalAuthDisabled === undefined) delete process.env.EVENTUS_AUTH_DISABLED
     else process.env.EVENTUS_AUTH_DISABLED = originalAuthDisabled
   }
+})
+
+function makeAiToolResponse(input) {
+  return {
+    ok: true,
+    status: 200,
+    statusText: 'OK',
+    json: async () => ({
+      content: [
+        {
+          type: 'tool_use',
+          id: 'toolu_test',
+          name: 'submit_parsed_quote',
+          input,
+        },
+      ],
+      usage: {
+        input_tokens: 100,
+        output_tokens: 200,
+        cache_read_input_tokens: 50,
+      },
+    }),
+  }
+}
+
+function makeAiInvalidResponse() {
+  return {
+    ok: true,
+    status: 200,
+    statusText: 'OK',
+    json: async () => ({
+      content: [{ type: 'text', text: 'not a tool call' }],
+      usage: { input_tokens: 10, output_tokens: 0 },
+    }),
+  }
+}
+
+async function withMockedAiEnv(fn) {
+  const originalAuth = process.env.EVENTUS_AUTH_DISABLED
+  const originalKey = process.env.ANTHROPIC_API_KEY
+  const originalBase = process.env.ANTHROPIC_BASE_URL
+  const originalModel = process.env.QUOTE_PARSE_AI_MODEL
+  const originalFetch = globalThis.fetch
+
+  process.env.EVENTUS_AUTH_DISABLED = '1'
+  process.env.ANTHROPIC_API_KEY = 'sk-test-key'
+  process.env.ANTHROPIC_BASE_URL = 'https://api.coffeevibeai.com'
+  process.env.QUOTE_PARSE_AI_MODEL = 'claude-haiku-4-5-20251001'
+
+  clearParseQuoteResultCache()
+
+  try {
+    await fn()
+  } finally {
+    if (originalAuth === undefined) delete process.env.EVENTUS_AUTH_DISABLED
+    else process.env.EVENTUS_AUTH_DISABLED = originalAuth
+    if (originalKey === undefined) delete process.env.ANTHROPIC_API_KEY
+    else process.env.ANTHROPIC_API_KEY = originalKey
+    if (originalBase === undefined) delete process.env.ANTHROPIC_BASE_URL
+    else process.env.ANTHROPIC_BASE_URL = originalBase
+    if (originalModel === undefined) delete process.env.QUOTE_PARSE_AI_MODEL
+    else process.env.QUOTE_PARSE_AI_MODEL = originalModel
+    globalThis.fetch = originalFetch
+    clearParseQuoteResultCache()
+  }
+}
+
+test('mode=ai returns structured response and source=ai', async () => {
+  await withMockedAiEnv(async () => {
+    let capturedRequest = null
+    globalThis.fetch = async (url, init) => {
+      capturedRequest = { url: String(url), init }
+      return makeAiToolResponse({
+        items: [
+          { service_code: 'CHUP_OUT_4H', quantity: 2, service_name_raw: 'chụp ảnh', is_custom: false, is_overridden: false, unit_price: 0 },
+          { service_code: 'QUAY_RECAP_OUT_4H', quantity: 1, service_name_raw: 'quay', is_custom: false, is_overridden: false, unit_price: 0 },
+        ],
+        location: 'Hải Phòng',
+        duration_hours: 5,
+        tier_code: 'TIER_2',
+        num_days: 1,
+        missing_fields: [],
+        ambiguous_fields: [],
+        ai_reasoning: 'Test response',
+      })
+    }
+
+    const response = makeJsonResponse()
+    await handler({
+      method: 'POST',
+      body: { input_text: '2 chụp 1 quay 5 tiếng Hải Phòng', mode: 'ai', context: parseContext },
+    }, response)
+
+    assert.equal(response.statusCode, 200)
+    assert.equal(response.payload.source, 'ai')
+    assert.deepEqual(response.payload.parsed.items.map(item => item.service_code), [
+      'CHUP_OUT_4H',
+      'QUAY_RECAP_OUT_4H',
+      'RECAP_1_2_CAM',
+    ])
+    assert.equal(response.payload.parsed.location, 'Hải Phòng')
+    assert.ok(capturedRequest, 'fetch should be called')
+    assert.match(capturedRequest.url, /api\.coffeevibeai\.com\/v1\/messages$/)
+    assert.equal(capturedRequest.init.headers['x-api-key'], 'sk-test-key')
+
+    const body = JSON.parse(capturedRequest.init.body)
+    assert.equal(body.tool_choice.name, 'submit_parsed_quote')
+    assert.equal(body.system[0].cache_control.type, 'ephemeral')
+  })
+})
+
+test('mode=ai without ANTHROPIC_API_KEY falls back to regex with source=ai_fallback', async () => {
+  await withMockedAiEnv(async () => {
+    delete process.env.ANTHROPIC_API_KEY
+    let fetchCalled = false
+    globalThis.fetch = async () => {
+      fetchCalled = true
+      throw new Error('fetch should not be called when key is missing')
+    }
+
+    const response = makeJsonResponse()
+    await handler({
+      method: 'POST',
+      body: { input_text: '4 quay', mode: 'ai', context: parseContext },
+    }, response)
+
+    assert.equal(fetchCalled, false)
+    assert.equal(response.statusCode, 200)
+    assert.equal(response.payload.source, 'ai_fallback')
+    assert.deepEqual(response.payload.parsed.items.map(item => item.service_code), ['QUAY_RECAP_IN_4H', 'RECAP_3_4_CAM'])
+    assert.match(response.payload.ai_reasoning, /Chưa cấu hình ANTHROPIC_API_KEY/)
+  })
+})
+
+test('mode=ai falls back when fetch rejects', async () => {
+  await withMockedAiEnv(async () => {
+    globalThis.fetch = async () => { throw new Error('network down') }
+
+    const response = makeJsonResponse()
+    await handler({
+      method: 'POST',
+      body: { input_text: '4 quay', mode: 'ai', context: parseContext },
+    }, response)
+
+    assert.equal(response.statusCode, 200)
+    assert.equal(response.payload.source, 'ai_fallback')
+    assert.match(response.payload.ai_reasoning, /AI tạm lỗi/)
+    assert.match(response.payload.ai_reasoning, /network down/)
+  })
+})
+
+test('mode=ai retries once on schema mismatch then falls back', async () => {
+  await withMockedAiEnv(async () => {
+    let calls = 0
+    globalThis.fetch = async () => {
+      calls += 1
+      return makeAiInvalidResponse()
+    }
+
+    const response = makeJsonResponse()
+    await handler({
+      method: 'POST',
+      body: { input_text: '4 quay', mode: 'ai', context: parseContext },
+    }, response)
+
+    assert.equal(calls, 2, 'should retry once on schema mismatch')
+    assert.equal(response.statusCode, 200)
+    assert.equal(response.payload.source, 'ai_fallback')
+    assert.match(response.payload.ai_reasoning, /AI tạm lỗi/)
+  })
+})
+
+test('mode=ai preserves is_overridden + unit_price through business rules', async () => {
+  await withMockedAiEnv(async () => {
+    globalThis.fetch = async () => makeAiToolResponse({
+      items: [
+        {
+          service_code: 'CHUP_IN_4H',
+          quantity: 2,
+          service_name_raw: 'chụp ảnh',
+          is_custom: false,
+          is_overridden: true,
+          unit_price: 1800000,
+          override_reason: 'Đã chốt với khách: 1tr8/người',
+        },
+      ],
+      location: 'Hà Nội',
+      duration_hours: 4,
+      tier_code: 'TIER_3',
+      num_days: 1,
+      missing_fields: [],
+      ambiguous_fields: [],
+      ai_reasoning: 'Override test',
+    })
+
+    const response = makeJsonResponse()
+    await handler({
+      method: 'POST',
+      body: { input_text: '2 chụp 1tr8/người 4 tiếng nội thành khách quen', mode: 'ai', context: parseContext },
+    }, response)
+
+    assert.equal(response.statusCode, 200)
+    assert.equal(response.payload.source, 'ai')
+    const overriddenItem = response.payload.parsed.items.find(item => item.service_code === 'CHUP_IN_4H')
+    assert.ok(overriddenItem, 'CHUP_IN_4H item should exist')
+    assert.equal(overriddenItem.is_overridden, true)
+    assert.equal(overriddenItem.unit_price, 1800000)
+    assert.match(overriddenItem.override_reason, /1tr8/)
+  })
+})
+
+test('GET /api/parse-quote?probe=1 reflects ANTHROPIC_API_KEY presence', async () => {
+  await withMockedAiEnv(async () => {
+    let response = makeJsonResponse()
+    await handler({ method: 'GET', url: '/api/parse-quote?probe=1', query: { probe: '1' } }, response)
+    assert.equal(response.statusCode, 200)
+    assert.equal(response.payload.ai_available, true)
+    assert.equal(response.payload.model, 'claude-haiku-4-5-20251001')
+
+    delete process.env.ANTHROPIC_API_KEY
+    response = makeJsonResponse()
+    await handler({ method: 'GET', url: '/api/parse-quote?probe=1', query: { probe: '1' } }, response)
+    assert.equal(response.statusCode, 200)
+    assert.equal(response.payload.ai_available, false)
+    assert.equal(response.payload.model, null)
+  })
 })

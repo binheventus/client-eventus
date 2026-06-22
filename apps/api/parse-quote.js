@@ -1,5 +1,10 @@
 import { requireEventusAuth } from './lib/eventus-auth.js'
 import { getPricingContext } from './lib/pricing-context.js'
+import {
+  getAiModelName,
+  hasAnthropicKey,
+  parseQuoteWithClaude,
+} from './lib/claude-quote-parser.js'
 
 function getQuoteParsePricingContext(context = {}) {
   return {
@@ -580,9 +585,91 @@ export function deterministicParseQuoteInput(inputText = '', context = {}) {
   }, inputText, context)
 }
 
+function withSourceMeta(result = {}, source = 'regex') {
+  return { ...result, source }
+}
+
+function prependReasoningLine(result = {}, line = '') {
+  if (!line) return result
+  const existing = String(result?.ai_reasoning || '').trim()
+  if (existing.includes(line)) return result
+  return {
+    ...result,
+    ai_reasoning: [line, existing].filter(Boolean).join('\n'),
+  }
+}
+
+function getRequestQuery(req = {}) {
+  if (req?.query && typeof req.query === 'object') return req.query
+  try {
+    const url = new URL(req?.originalUrl || req?.url || '/', 'http://localhost')
+    return Object.fromEntries(url.searchParams.entries())
+  } catch {
+    return {}
+  }
+}
+
+function getQueryFlag(value) {
+  if (Array.isArray(value)) return getQueryFlag(value[0])
+  if (value === undefined || value === null) return false
+  const text = String(value).trim().toLowerCase()
+  return Boolean(text) && text !== '0' && text !== 'false'
+}
+
+const RESULT_CACHE_TTL_MS = 60 * 1000
+const resultCache = new Map()
+
+function pruneResultCache(now = Date.now()) {
+  for (const [key, entry] of resultCache) {
+    if (entry.expiresAt <= now) resultCache.delete(key)
+  }
+}
+
+function getCachedResult(key) {
+  if (!key) return null
+  const entry = resultCache.get(key)
+  if (!entry) return null
+  if (entry.expiresAt <= Date.now()) {
+    resultCache.delete(key)
+    return null
+  }
+  return entry.value
+}
+
+function setCachedResult(key, value) {
+  if (!key) return
+  pruneResultCache()
+  resultCache.set(key, {
+    value,
+    expiresAt: Date.now() + RESULT_CACHE_TTL_MS,
+  })
+}
+
+function buildResultCacheKey(inputText, mode) {
+  return `${mode || 'regex'}::${inputText}`
+}
+
+export function clearParseQuoteResultCache() {
+  resultCache.clear()
+}
+
 export default async function handler(req, res) {
+  if (req.method === 'GET') {
+    if (!await requireEventusAuth(req, res)) return
+    const query = getRequestQuery(req)
+    if (getQueryFlag(query?.probe)) {
+      const aiAvailable = hasAnthropicKey()
+      return res.status(200).json({
+        ai_available: aiAvailable,
+        model: aiAvailable ? getAiModelName() : null,
+      })
+    }
+    res.setHeader('Allow', 'GET, POST')
+    return res.status(405).json({ error: 'Method not allowed' })
+  }
+
   if (req.method !== 'POST') {
-    res.setHeader('Allow', 'POST')
+    res.setHeader('Allow', 'GET, POST')
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
@@ -591,6 +678,48 @@ export default async function handler(req, res) {
   const inputText = String(req.body?.input_text || '').trim()
   if (!inputText) return res.status(400).json({ error: 'Thiếu input_text.' })
 
+  const mode = String(req.body?.mode || '').trim().toLowerCase()
   const context = getQuoteParsePricingContext(await getPricingContext())
-  return res.status(200).json(withPricingMeta(deterministicParseQuoteInput(inputText, context), context))
+  const cacheKey = buildResultCacheKey(inputText, mode)
+
+  const cached = getCachedResult(cacheKey)
+  if (cached) return res.status(200).json(cached)
+
+  if (mode === 'ai' && hasAnthropicKey()) {
+    try {
+      const aiResult = await parseQuoteWithClaude(inputText, context)
+      const wrapped = applyBriefBusinessRules(aiResult, inputText, context)
+      const payload = withPricingMeta(withSourceMeta(wrapped, 'ai'), context)
+      setCachedResult(cacheKey, payload)
+      return res.status(200).json(payload)
+    } catch (error) {
+      console.warn(`[claude-parser] fallback to regex: ${error?.message || error}`)
+      const regexResult = deterministicParseQuoteInput(inputText, context)
+      const explained = prependReasoningLine(
+        regexResult,
+        `AI tạm lỗi (${error?.message || 'unknown'}); đã rớt về parser cơ bản.`,
+      )
+      const payload = withPricingMeta(withSourceMeta(explained, 'ai_fallback'), context)
+      setCachedResult(cacheKey, payload)
+      return res.status(200).json(payload)
+    }
+  }
+
+  if (mode === 'ai' && !hasAnthropicKey()) {
+    const regexResult = deterministicParseQuoteInput(inputText, context)
+    const explained = prependReasoningLine(
+      regexResult,
+      'Chưa cấu hình ANTHROPIC_API_KEY trên server; đã dùng parser cơ bản.',
+    )
+    const payload = withPricingMeta(withSourceMeta(explained, 'ai_fallback'), context)
+    setCachedResult(cacheKey, payload)
+    return res.status(200).json(payload)
+  }
+
+  const payload = withPricingMeta(
+    withSourceMeta(deterministicParseQuoteInput(inputText, context), 'regex'),
+    context,
+  )
+  setCachedResult(cacheKey, payload)
+  return res.status(200).json(payload)
 }
