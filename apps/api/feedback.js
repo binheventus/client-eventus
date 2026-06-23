@@ -27,6 +27,7 @@ import {
 } from './lib/mysql.js'
 import { getEventusAuthUser, requireEventusAuth } from './lib/eventus-auth.js'
 import { loadServerEnv } from './lib/server-env.js'
+import * as feedbackAi from './lib/feedback-ai-assist.js'
 
 const execFileAsync = promisify(execFile)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -2737,7 +2738,7 @@ async function markJobDone(req, body = {}) {
 export function isPublicFeedbackRequest(req) {
   if (req.method === 'GET') {
     const resource = getQueryValue(req.query?.resource, '')
-    if (resource === 'survey' || resource === 'gallery') return true
+    if (resource === 'survey' || resource === 'gallery' || resource === 'ai_probe') return true
     if (resource === 'feedback') {
       const id = getQueryValue(req.query?.id, '')
       return isFeedbackShareToken(id)
@@ -2763,6 +2764,8 @@ export function isPublicFeedbackRequest(req) {
       'clear_column',
       'job_done',
       'submit_survey',
+      'summarize_comments',
+      'rewrite_reply',
     ].includes(action)
   }
 
@@ -2827,6 +2830,9 @@ export default async function handler(req, res) {
       if (resource === 'survey') return res.status(200).json(await getSurvey(req))
       if (resource === 'gallery') return res.status(200).json(await getGallery(req))
 
+      // Trợ lý feedback AI: probe khả dụng, KHÔNG gọi mô hình.
+      if (resource === 'ai_probe') return res.status(200).json(feedbackAi.probe())
+
       return res.status(400).json({ error: 'Resource không hợp lệ.' })
     }
 
@@ -2866,6 +2872,23 @@ export default async function handler(req, res) {
       if (action === 'delete_feedback') return res.status(200).json(await deleteFeedback(req, body))
       if (action === 'job_done') return res.status(200).json(await markJobDone(req, body))
       if (action === 'submit_survey') return res.status(201).json(await submitSurvey(req, body))
+
+      // Trợ lý feedback AI — cấp quyền qua assertFeedbackAccess như mọi action feedback.
+      if (action === 'summarize_comments') {
+        const feedback = await getFeedbackByIdentifier(body.feedback_id || body.id)
+        await assertFeedbackAccess(req, feedback, parseAccess(body))
+        return res.status(200).json(await feedbackAi.summarizeComments(feedback))
+      }
+
+      if (action === 'rewrite_reply') {
+        const feedback = await getFeedbackByIdentifier(body.feedback_id || body.id)
+        await assertFeedbackAccess(req, feedback, parseAccess(body))
+        return res.status(200).json(await feedbackAi.rewriteReply({
+          rawText: body.raw_text ?? body.rawText,
+          context: body.context,
+          tone: body.tone,
+        }))
+      }
 
       return res.status(400).json({ error: 'Action không hợp lệ.' })
     }

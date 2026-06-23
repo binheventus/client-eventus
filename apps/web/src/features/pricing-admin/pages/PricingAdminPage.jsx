@@ -1,8 +1,62 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, ArrowLeft, CheckCircle2, Database, Pencil, Plus, RefreshCw, Save, Search, Trash2, X, XCircle } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, CheckCircle2, ClipboardCopy, Database, Pencil, Plus, RefreshCw, Save, Search, Trash2, X, XCircle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { redirectToLoginIfAuthRequired } from '../../quotes/lib/authRedirect'
 import { clearPricingContextCache } from '../../quotes/lib/pricingContextClient'
+
+// Prompt "chưng cất" AI parse examples thành regex/business rule.
+// Nút "Copy prompt chưng cất" ở tab AI Examples copy nội dung này vào clipboard.
+// Sửa ở đây nếu muốn đổi nội dung prompt — không cần file riêng.
+const AI_DISTILL_PROMPT = `Tôi muốn "chưng cất" các AI parse examples đã tích lũy thành logic
+regex/business-rule, để giảm số lần phải gọi AI và giữ prompt gọn.
+
+## Bối cảnh hệ thống
+- Project: client-eventus (React/Vite + NestJS, MySQL). Gọi tôi là "Anh Bình".
+- /quotes/new có 2 nút phân tích brief: "Phân tích nhanh" (regex,
+  apps/api/parse-quote.js) và "Phân tích bằng AI" (Claude, mode='ai').
+- AI parser: apps/api/lib/claude-quote-parser.js + claude-quote-prompt.js
+  + claude-quote-examples.js (foundational examples hardcode).
+- Custom examples sales tự lưu nằm ở MySQL bảng pricing_ai_parse_examples
+  (cột: name, input_text, expected_output JSON, is_active, sort_order).
+  Loader: getActiveAiParseExamples() trong apps/api/lib/pricing-context.js.
+- Prompt cap MAX_EXAMPLES = 12, lấy theo sort_order nhỏ nhất.
+- Regex parser hiện có rất nhiều helper trong parse-quote.js: map service
+  theo location (IN/OUT) + duration (4H/8H), parse số lượng chụp/quay/
+  flycam/live, applyBriefBusinessRules (auto-add RECAP, multi-day grouping,
+  single-combo grouping). Đọc kỹ file này trước khi đề xuất rule mới.
+- Spec gốc: openspec/specs/ai-quote-parser/ và ai-parse-examples/.
+
+## Việc cần làm
+1. Đọc toàn bộ examples đang có:
+   - Foundational trong claude-quote-examples.js
+   - Tất cả rows trong pricing_ai_parse_examples (query MySQL qua
+     apps/api/lib/mysql.js; nếu sandbox chặn .env thì hướng dẫn tôi
+     tự chạy 1 lệnh node để dump ra JSON cho bạn đọc).
+2. Phân nhóm examples theo pattern lặp lại (theo keyword trong input_text
+   và service_code/cấu trúc trong expected_output). Với mỗi nhóm, cho biết:
+   - Pattern là gì (vd: "TVC/quay doanh nghiệp/studio" -> QUAY_DOANHNGHIEP_X)
+   - Tần suất lặp (mấy example cùng dạy điều này)
+   - Độ ổn định (luôn map giống nhau hay có biến thể/ngoại lệ)
+3. Đề xuất pattern nào ĐỦ rõ + ĐỦ lặp để "cố định" thành regex/business
+   rule trong parse-quote.js, pattern nào nên ĐỂ LẠI cho AI (vì còn mơ hồ,
+   phụ thuộc ngữ cảnh hội thoại). Giải thích lý do từng cái.
+4. KHÔNG sửa code ngay. Trình bày bảng tổng hợp + khuyến nghị trước cho
+   tôi duyệt. Sau khi tôi chọn pattern nào để cố định, mới làm tiếp.
+
+## Ràng buộc quan trọng
+- Rule mới phải sống chung hòa bình với parser regex hiện tại, không phá
+  test cũ (npm run test:quotes phải xanh).
+- Mỗi rule mới CẦN test trong parse-quote.test.js.
+- Sau khi một pattern đã thành regex rule, đề xuất disable (is_active=false)
+  các example tương ứng để giải phóng slot prompt — nhưng để tôi quyết,
+  không tự xóa.
+- Tuân thủ AGENTS.md: pricing runtime từ MySQL, không import JSON tĩnh làm
+  nguồn chính; không commit khi chưa được tôi yêu cầu.
+- Nếu thay đổi đủ lớn (nhiều rule), tạo một OpenSpec change mới bằng
+  openspec (skill opsx) thay vì sửa thẳng.
+
+Bắt đầu bằng việc đọc parse-quote.js + claude-quote-examples.js và hướng
+dẫn tôi cách dump bảng pricing_ai_parse_examples ra cho bạn.`
 
 const DATASETS = [
   {
@@ -669,6 +723,16 @@ export default function PricingAdminPage() {
     setFieldErrors({})
   }
 
+  async function copyDistillPrompt() {
+    setError('')
+    try {
+      await navigator.clipboard.writeText(AI_DISTILL_PROMPT)
+      setNotice('Đã copy prompt chưng cất vào clipboard. Dán vào một phiên Claude Code mới để chạy.')
+    } catch {
+      setError('Trình duyệt không cho copy tự động. Hãy copy thủ công nội dung prompt trong distillPrompt.js.')
+    }
+  }
+
   function startEdit(record) {
     setSelectedId(String(record.id))
     const nextDraft = { ...record }
@@ -842,6 +906,17 @@ export default function PricingAdminPage() {
               <Search className="h-4 w-4" />
             </button>
           </form>
+          {activeResource === 'ai_parse_examples' ? (
+            <button
+              type="button"
+              onClick={copyDistillPrompt}
+              className="inline-flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-[13px] font-semibold text-violet-700 shadow-sm hover:bg-violet-100"
+              title="Copy prompt để chưng cất example thành regex/logic trong một phiên Claude Code mới"
+            >
+              <ClipboardCopy className="h-4 w-4" />
+              Copy prompt chưng cất
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={startCreate}

@@ -50,6 +50,7 @@ import {
   prepareFeedbackImageUpload,
 } from '../lib/feedbackFormat'
 import { useEscapeToClose } from '../../../hooks/useEscapeToClose'
+import FeedbackAiAssist from '../components/FeedbackAiAssist'
 
 const MAX_FEEDBACK_COMMENT_IMAGES = Math.max(1, Number(import.meta.env.VITE_FEEDBACK_IMAGE_MAX_COUNT || 4))
 const FEEDBACK_IMAGE_MAX_EDGE = Math.max(320, Number(import.meta.env.VITE_FEEDBACK_IMAGE_MAX_EDGE || 1600))
@@ -1589,6 +1590,7 @@ export default function FeedbackDetailPage() {
   const [error, setError] = useState('')
   const [feedbackDonePopup, setFeedbackDonePopup] = useState(null)
   const [footerStatus, setFooterStatus] = useState('')
+  const [aiAssistOpen, setAiAssistOpen] = useState(false)
   const [footerEditorOpen, setFooterEditorOpen] = useState(false)
   const [customerMessageOpen, setCustomerMessageOpen] = useState(false)
   const [footerFeedbackName, setFooterFeedbackName] = useState('')
@@ -1641,7 +1643,6 @@ export default function FeedbackDetailPage() {
   const pageJobTitle = jobDateTitle ? `${jobDateTitle} ${jobTitle}` : jobTitle
   const newFeedbackDateBadge = formatFeedbackDayMonth(new Date())
   const shouldOfferNewFeedbackClone = Boolean(cloneSourceFeedback?.id) && unresolvedCloneCount > 0
-  const footerCopyright = footerStatus || 'Copyright © 2017 - 2026 Eventus Production. All rights reserved.'
   const feedbackLogoSrc = feedbackDarkMode ? EVENTUS_FEEDBACK_DARK_LOGO : EVENTUS_FEEDBACK_LOGO
   const feedbackPublicUrl = detail?.public_url || getFeedbackPublicPath(feedback)
   const feedbackModalOpen = Boolean(feedbackDonePopup)
@@ -2490,7 +2491,29 @@ export default function FeedbackDetailPage() {
               <span><span className="font-semibold text-slate-500">Cập nhật:</span> {formatFeedbackDateTime(feedback.updated_at)}</span>
             </div>
             <div className="flex shrink-0 items-center gap-2 text-left lg:text-right">
-              <span>{footerCopyright}</span>
+              <span>
+                {footerStatus ? (
+                  footerStatus
+                ) : (
+                  <>
+                    {'Copyright © 2017 - 2026 Eventus Production. '}
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setAiAssistOpen(true)}
+                      onKeyDown={event => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          setAiAssistOpen(true)
+                        }
+                      }}
+                      className="cursor-default"
+                    >
+                      All rights reserved.
+                    </span>
+                  </>
+                )}
+              </span>
               <button
                 type="button"
                 onClick={toggleFeedbackDarkMode}
@@ -2504,6 +2527,14 @@ export default function FeedbackDetailPage() {
           </div>
         </footer>
 	      </div>
+	      <FeedbackAiAssist
+	        open={aiAssistOpen}
+	        onClose={() => setAiAssistOpen(false)}
+	        feedback={feedback}
+	        comments={comments}
+	        access={access}
+	        onSeek={seekTo}
+	      />
 	      {newFeedbackDraftOpen && (
 	        <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-slate-950/45 px-4 py-6">
 	          <div className="w-full max-w-2xl" role="dialog" aria-modal="true" aria-labelledby="feedback-create-title">
