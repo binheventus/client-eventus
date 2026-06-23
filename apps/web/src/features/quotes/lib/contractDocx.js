@@ -9,6 +9,7 @@ import {
   hasContractAdvance,
   numberToVietnameseWords,
 } from './contractDefaults.js'
+import { formatVatLabel } from './pricingCalculator.js'
 
 const encoder = new TextEncoder()
 const DOCX_FONT_FAMILY = 'Times New Roman'
@@ -338,7 +339,7 @@ function quoteTable(contract = {}) {
   const groups = groupItemsByDay(items)
   const totalRows = [
     [CONTRACT_SUBTOTAL_LABEL, quote.subtotal],
-    quote.has_vat !== false ? ['Thuế GTGT 8%', quote.vat_amount] : null,
+    quote.has_vat !== false ? [formatVatLabel(quote), quote.vat_amount] : null,
     ['Tổng cộng', quote.total_amount],
   ].filter(Boolean)
   const rows = [

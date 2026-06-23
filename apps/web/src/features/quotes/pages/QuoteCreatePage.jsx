@@ -17,7 +17,7 @@ import { createQuote, getQuote, listQuoteClients, updateQuote } from '../hooks/u
 import { useServices } from '../hooks/useServices'
 import { useTravelFees } from '../hooks/useTravelFees'
 import { clearQuoteParseCache, parseQuoteInput, parseQuoteInputWithAi, probeAiAvailability } from '../lib/briefParser'
-import { calculateQuotePricing, findServiceForQuoteItem } from '../lib/pricingCalculator'
+import { calculateQuotePricing, convertItemsGrossToNet, convertItemsNetToGross, DEFAULT_VAT_RATE, findServiceForQuoteItem, formatVatLabel } from '../lib/pricingCalculator'
 import { getQuoteActorPayload, getQuoteUserContext } from '../lib/quoteAuth'
 import { getDefaultQuoteTermsText, getQuoteTerms, normalizeQuoteTermsText } from '../lib/quoteTerms'
 import { normalizeQuoteValidityDays } from '../lib/quoteValidity'
@@ -42,6 +42,7 @@ const DEFAULT_QUOTE = {
   client_name: 'Mr. ',
   validity_days: 15,
   has_vat: true,
+  prices_include_vat: false,
   show_stamp: false,
   terms_text: '',
   discount_amount: 0,
@@ -113,6 +114,19 @@ function normalizeParseResult(result) {
   const ambiguousFields = filterAmbiguousFields(result.ambiguous_fields || [])
 
   return { ...result, missing_fields: missingFields, ambiguous_fields: ambiguousFields }
+}
+
+function getShortAiModelLabel(model = '') {
+  if (!model) return ''
+  // claude-haiku-4-5-20251001 → Haiku 4.5
+  // claude-sonnet-4-6 → Sonnet 4.6
+  // claude-opus-4-8 → Opus 4.8
+  const match = String(model).match(/^claude-(haiku|sonnet|opus|fable)-(\d+)-(\d+)/i)
+  if (match) {
+    const family = match[1].charAt(0).toUpperCase() + match[1].slice(1).toLowerCase()
+    return `${family} ${match[2]}.${match[3]}`
+  }
+  return model
 }
 
 function getAmbiguousFieldLabel(field) {
@@ -199,6 +213,12 @@ function toRuleNumber(value, fallback = 0) {
   if (typeof value === 'number') return Number.isFinite(value) ? value : fallback
   const match = String(value || '').replace(',', '.').match(/\d+(?:\.\d+)?/)
   return match ? Number(match[0]) : fallback
+}
+
+function getQuoteVatRate(rulesMap = {}) {
+  const raw = rulesMap?.VAT_RATE
+  const rate = toRuleNumber(raw, DEFAULT_VAT_RATE)
+  return rate > 0 ? rate : DEFAULT_VAT_RATE
 }
 
 function formatHours(value) {
@@ -914,6 +934,7 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
           client_name: existingQuote.client_name || DEFAULT_QUOTE.client_name,
           validity_days: normalizeQuoteValidityDays(existingQuote.validity_days),
           has_vat: existingQuote.has_vat !== false,
+          prices_include_vat: existingQuote.prices_include_vat === true,
           show_stamp: existingQuote.show_stamp !== false,
           terms_text: existingQuote.terms_text || '',
           discount_amount: Number(existingQuote.discount_amount || 0),
@@ -998,6 +1019,8 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
     duration_hours: quote.duration_hours,
   }), [displayItems, services, travelFees, rulesMap, quote.location, quote.tier_code, quote.has_vat, quote.discount_amount, quote.duration_hours])
 
+  const vatLabel = formatVatLabel(totals, rulesMap)
+
   const selectedClient = clients.find(client => client.id === quote.client_id) || null
   const normalizedClientQuery = clientQuery.trim().toLowerCase()
   const filteredClients = clients.filter(client => {
@@ -1024,6 +1047,8 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
       }
       const parsed = result.parsed || {}
       const briefClientName = extractClientNameFromBrief(inputText)
+      const parsedHasVat = typeof parsed.has_vat === 'boolean' ? parsed.has_vat : null
+      const parsedPricesIncludeVat = typeof parsed.prices_include_vat === 'boolean' ? parsed.prices_include_vat : null
       const nextQuote = {
         ...quote,
         client_id: briefClientName ? '' : quote.client_id,
@@ -1032,8 +1057,15 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
         location: parsed.location || quote.location,
         duration_hours: parsed.duration_hours || quote.duration_hours,
         tier_code: parsed.tier_code || quote.tier_code,
+        has_vat: parsedHasVat ?? quote.has_vat,
+        prices_include_vat: parsedPricesIncludeVat ?? Boolean(quote.prices_include_vat),
       }
-      const parsedItems = (parsed.items || []).map(item => normalizeParsedItem(item, nextQuote, services, serviceGroups))
+      const parsedItemsRaw = (parsed.items || []).map(item => normalizeParsedItem(item, nextQuote, services, serviceGroups))
+      // Khi brief nói "đã gồm VAT" và parser AI override unit_price từ giá brief,
+      // những giá đó đang là gross. Quy về net để bảng quote luôn lưu net (Cách B).
+      const parsedItems = parsedPricesIncludeVat === true
+        ? convertItemsGrossToNet(parsedItemsRaw, { vatRate: getQuoteVatRate(rulesMap) })
+        : parsedItemsRaw
       const pricedParsedItems = calculateDisplayItems(parsedItems, nextQuote, services, rulesMap, serviceGroups)
       const overtimeReasoning = buildOvertimeReasoningLine(pricedParsedItems, rulesMap)
       const normalizedResult = normalizeParseResult({
@@ -1057,6 +1089,26 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
 
   async function analyzeInputWithAi() {
     return runParse(parseQuoteInputWithAi, { setLoadingFlag: setAiLoading })
+  }
+
+  // Khi sales tick/untick ô "Đã gồm VAT" trên báo giá thủ công, quy đổi
+  // toàn bộ đơn giá hiện tại sang net (khi tick) hoặc gross (khi untick).
+  // Bảng quote luôn lưu giá net trong DB (Cách B).
+  function toggleVatInclusivePricing(nextChecked) {
+    const vatRate = getQuoteVatRate(rulesMap)
+    setItems(prev => {
+      if (!prev.length) return prev
+      const converted = nextChecked
+        ? convertItemsGrossToNet(prev, { vatRate })
+        : convertItemsNetToGross(prev, { vatRate })
+      // Đánh dấu override để giá quy đổi không bị tầng giá khung ghi đè.
+      return converted.map(item => ({ ...item, is_overridden: true }))
+    })
+    setQuote(prev => ({
+      ...prev,
+      prices_include_vat: nextChecked,
+      has_vat: nextChecked ? true : prev.has_vat,
+    }))
   }
 
   function updateItem(index, patch, meta = {}) {
@@ -1332,6 +1384,7 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
         duration_hours: derivedDurationHours,
         validity_days: normalizeQuoteValidityDays(quote.validity_days),
         has_vat: Boolean(quote.has_vat),
+        prices_include_vat: Boolean(quote.prices_include_vat),
         show_stamp: Boolean(showStamp),
         terms_text: normalizeQuoteTermsText(quote.terms_text) || null,
         ...((!isEditMode || shouldPublishQuote) ? {
@@ -1418,28 +1471,36 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
             {parseError && <p className="mt-3 rounded-xl bg-red-50 px-4 py-3 text-[13px] text-red-700">{parseError}</p>}
             {parseResult && (
               <div className="relative mt-4 space-y-3 rounded-2xl bg-slate-50 p-4">
-                <div className="absolute right-3 top-3 flex flex-wrap items-center justify-end gap-1.5">
-                  {parseResult.source === 'ai' ? (
-                    <span className="rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-700 shadow-sm">
-                      AI {aiModel ? `· ${aiModel}` : ''}
-                    </span>
-                  ) : null}
-                  {parseResult.source === 'ai_fallback' ? (
-                    <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800 shadow-sm">
-                      AI tạm lỗi · dùng parser cơ bản
-                    </span>
-                  ) : null}
-                  <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-800 shadow-sm">
-                    Đã phân tích
-                  </span>
-                </div>
-                {visibleReasoningLines.length ? (
-                  <div className="space-y-1 pr-24 text-[13px] leading-5 text-slate-600 sm:pr-56">
-                    {visibleReasoningLines.map((line, index) => (
-                      <div key={`${line}-${index}`}>{renderReasoningLine(line, highlightedReasoningTerms)}</div>
-                    ))}
+                <div className="text-[13px] leading-5 text-slate-600">
+                  <div className="float-right ml-3 mb-1 flex flex-wrap items-center justify-end gap-1.5">
+                    {parseResult.source === 'ai' ? (
+                      <span
+                        className="rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-700 shadow-sm"
+                        title={aiModel ? `Đã phân tích bằng ${aiModel}` : 'Đã phân tích bằng AI'}
+                      >
+                        ✨ AI{aiModel ? ` · ${getShortAiModelLabel(aiModel)}` : ''}
+                      </span>
+                    ) : null}
+                    {parseResult.source === 'ai_fallback' ? (
+                      <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800 shadow-sm">
+                        AI tạm lỗi · dùng parser cơ bản
+                      </span>
+                    ) : null}
+                    {parseResult.source !== 'ai' ? (
+                      <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-800 shadow-sm">
+                        Đã phân tích
+                      </span>
+                    ) : null}
                   </div>
-                ) : null}
+                  {visibleReasoningLines.length ? (
+                    <div className="space-y-1">
+                      {visibleReasoningLines.map((line, index) => (
+                        <div key={`${line}-${index}`}>{renderReasoningLine(line, highlightedReasoningTerms)}</div>
+                      ))}
+                    </div>
+                  ) : null}
+                  <div className="clear-both" />
+                </div>
                 {parseResult.missing_fields?.length ? (
                   <div className="space-y-2">
                     <div className="flex flex-wrap gap-2">
@@ -1486,8 +1547,8 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
                 {parseResult.source === 'ai' && items.length > 0 ? (
                   <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-violet-100 bg-white px-3 py-2">
                     <div className="text-[12px] leading-5 text-slate-600">
-                      Bảng hạng mục đã đúng?
-                      <span className="ml-1 text-slate-500">Lưu lại để dạy AI cho lần parse sau.</span>
+                      <span>✏️ Nếu AI parse sai, sửa ở <span className="font-semibold text-slate-700">Hạng mục báo giá</span> bên dưới rồi mới bấm Lưu.</span>
+                      <span className="mt-0.5 block text-slate-500">Khi bảng đã đúng → lưu để dạy AI cho lần parse sau.</span>
                     </div>
                     <button
                       type="button"
@@ -1499,7 +1560,7 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
                       title="Snapshot bảng hạng mục hiện tại làm ví dụ huấn luyện"
                     >
                       <BookMarked className="h-3.5 w-3.5" />
-                      📚 Lưu thành ví dụ huấn luyện
+                      Lưu thành ví dụ huấn luyện
                     </button>
                   </div>
                 ) : null}
@@ -1580,10 +1641,23 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
           <section className="rounded-2xl border border-slate-200 p-5 shadow-sm" style={{ background: QUOTE_SOFT_GRADIENT }}>
             <div className="grid gap-4 md:grid-cols-[minmax(360px,0.85fr)_minmax(280px,1.15fr)]">
               <div className="space-y-3">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <label className="flex w-[132px] items-center justify-between rounded-lg border border-slate-200 px-2.5 py-2">
-                    <span className="text-[11px] font-semibold text-slate-700">Thuế GTGT 8%</span>
+                    <span className="text-[11px] font-semibold text-slate-700">{vatLabel}</span>
                     <input type="checkbox" checked={quote.has_vat} onChange={event => setQuote(prev => ({ ...prev, has_vat: event.target.checked }))} className="h-3.5 w-3.5 accent-[#f8981d]" />
+                  </label>
+                  <label
+                    className={`flex w-[150px] items-center justify-between rounded-lg border px-2.5 py-2 ${quote.has_vat ? 'border-slate-200' : 'border-slate-100 opacity-50'}`}
+                    title={quote.has_vat ? 'Tick để quy đổi đơn giá hiện tại từ giá đã gồm VAT về giá chưa gồm VAT' : `Bật "${vatLabel}" trước`}
+                  >
+                    <span className="text-[11px] font-semibold text-slate-700">Đã gồm VAT</span>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(quote.prices_include_vat)}
+                      disabled={!quote.has_vat}
+                      onChange={event => toggleVatInclusivePricing(event.target.checked)}
+                      className="h-3.5 w-3.5 accent-[#f8981d]"
+                    />
                   </label>
                   <button
                     type="button"
@@ -1651,9 +1725,12 @@ export default function QuoteCreatePage({ mode = 'create', quoteId = '' }) {
                   <div className="flex justify-end gap-5 text-slate-800"><span className="text-right font-semibold">Giá trị sau chiết khấu</span><span className="min-w-[132px] text-right font-semibold">{formatCurrency(getTaxableAmount(totals))}đ</span></div>
                 ) : null}
                 {quote.has_vat ? (
-                  <div className="flex justify-end gap-5 text-slate-600"><span className="text-right">Thuế GTGT 8%</span><span className="min-w-[132px] text-right">{formatCurrency(totals.vat_amount)}đ</span></div>
+                  <div className="flex justify-end gap-5 text-slate-600"><span className="text-right">{vatLabel}</span><span className="min-w-[132px] text-right">{formatCurrency(totals.vat_amount)}đ</span></div>
                 ) : null}
                 <div className="flex justify-end gap-5 border-t border-slate-200 pt-3 text-[20px] font-bold text-slate-950"><span className="text-right">Tổng thanh toán</span><span className="min-w-[132px] text-right">{formatCurrency(totals.total_amount)}đ</span></div>
+                {quote.has_vat && quote.prices_include_vat ? (
+                  <div className="flex justify-end text-[11px] text-slate-400"><span className="text-right">Đơn giá đã quy về chưa gồm VAT từ giá brief đã gồm VAT</span></div>
+                ) : null}
               </div>
             </div>
 

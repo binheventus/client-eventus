@@ -9,6 +9,7 @@ import {
   getQuoteTerms,
 } from '../lib/quoteTerms'
 import { findLegalEntityByAlias, isMediaMonsterEntityCode, normalizeLegalEntityCode } from '../lib/entityCodes'
+import { formatVatLabel } from '../lib/pricingCalculator'
 
 const SIGNATURE_IMAGE_SRC = '/signatures/nguyen-thu-huyen.png'
 const STAMP_IMAGE_BY_ENTITY = {
@@ -303,6 +304,7 @@ export default function QuotePreview({
   const discountAmount = getDiscountAmount(totals)
   const showDiscount = discountAmount > 0
   const showVat = Boolean(quote.has_vat)
+  const vatLabel = formatVatLabel(totals)
   const clientName = client?.name || quote.client_name || 'Quý khách hàng'
   const quoteCode = quote.quote_number || quote.id || quote.share_token || ''
   const displayedQuoteCode = quoteCode ? `#${String(quoteCode).replace(/^#/, '')}` : ''
@@ -434,7 +436,7 @@ export default function QuotePreview({
           ) : null}
           {showVat ? (
             <div className="flex justify-between gap-6 text-black">
-              <span>Thuế GTGT 8%</span>
+              <span>{vatLabel}</span>
               <span>{formatCurrency(totals.vat_amount)}đ</span>
             </div>
           ) : null}

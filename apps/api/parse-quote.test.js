@@ -3,6 +3,7 @@ import test from 'node:test'
 import handler, {
   applyBriefBusinessRules,
   clearParseQuoteResultCache,
+  detectVatFromBrief,
   deterministicParseQuoteInput,
 } from './parse-quote.js'
 import { buildSystemPromptBlock } from './lib/claude-quote-parser.js'
@@ -611,3 +612,52 @@ test('buildSystemPromptBlock bỏ qua custom example có expected_output không 
   const prompt = buildSystemPromptBlock({ services: [] }, customExamples)
   assert.doesNotMatch(prompt, /broken/)
 })
+
+test('detectVatFromBrief: brief im lặng → cả 2 cờ null', () => {
+  const result = detectVatFromBrief('2 chụp 4 tiếng Hà Nội')
+  assert.equal(result.has_vat, null)
+  assert.equal(result.prices_include_vat, null)
+})
+
+test('detectVatFromBrief: "đã gồm VAT" → has_vat=true, prices_include_vat=true', () => {
+  const result = detectVatFromBrief('Vingroup, all-in 22tr đã gồm VAT')
+  assert.equal(result.has_vat, true)
+  assert.equal(result.prices_include_vat, true)
+})
+
+test('detectVatFromBrief: "đã bao gồm VAT" → prices_include_vat=true', () => {
+  const result = detectVatFromBrief('Giá 5tr đã bao gồm VAT')
+  assert.equal(result.has_vat, true)
+  assert.equal(result.prices_include_vat, true)
+})
+
+test('detectVatFromBrief: "chưa gồm VAT" → has_vat=true, prices_include_vat=false', () => {
+  const result = detectVatFromBrief('Báo giá 2tr chưa gồm VAT')
+  assert.equal(result.has_vat, true)
+  assert.equal(result.prices_include_vat, false)
+})
+
+test('detectVatFromBrief: "+VAT" → has_vat=true, prices_include_vat=false', () => {
+  const result = detectVatFromBrief('Giá 2tr +VAT 8%')
+  assert.equal(result.has_vat, true)
+  assert.equal(result.prices_include_vat, false)
+})
+
+test('detectVatFromBrief: "không xuất VAT" → has_vat=false', () => {
+  const result = detectVatFromBrief('Khách không xuất VAT, giá 2tr')
+  assert.equal(result.has_vat, false)
+  assert.equal(result.prices_include_vat, null)
+})
+
+test('detectVatFromBrief: "xuất VAT" chung chung → has_vat=true, prices_include_vat=null', () => {
+  const result = detectVatFromBrief('2 chụp 4 tiếng, có xuất VAT')
+  assert.equal(result.has_vat, true)
+  assert.equal(result.prices_include_vat, null)
+})
+
+test('deterministicParseQuoteInput truyền cờ VAT về kết quả parsed', () => {
+  const result = deterministicParseQuoteInput('2 chụp 4 tiếng Hà Nội, đã gồm VAT', parseContext)
+  assert.equal(result.parsed.has_vat, true)
+  assert.equal(result.parsed.prices_include_vat, true)
+})
+

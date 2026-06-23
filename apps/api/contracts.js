@@ -607,6 +607,7 @@ function buildQuoteSnapshot(quote = {}, items = []) {
     duration_hours: quote.duration_hours || '',
     validity_days: quote.validity_days || '',
     has_vat: quote.has_vat !== false,
+    prices_include_vat: quote.prices_include_vat === true,
     terms_text: quote.terms_text || '',
     subtotal: Number(quote.subtotal || 0),
     travel_fee_total: Number(quote.travel_fee_total || 0),
@@ -1004,6 +1005,7 @@ function pickPublicProfile(profile = {}) {
 function buildPublicQuoteSnapshot(snapshot = {}) {
   return {
     has_vat: snapshot.has_vat !== false,
+    prices_include_vat: snapshot.prices_include_vat === true,
     vat_mode: snapshot.vat_mode || '',
     vat_rate: snapshot.vat_rate ?? null,
     subtotal: Number(snapshot.subtotal || 0),

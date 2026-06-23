@@ -49,6 +49,14 @@ export const QUOTE_PARSE_TOOL_SCHEMA = {
       duration_hours: { type: 'number', minimum: 0 },
       tier_code: { type: 'string' },
       num_days: { type: 'integer', minimum: 1 },
+      has_vat: {
+        type: 'boolean',
+        description: 'true nếu brief cần xuất VAT; false nếu nói rõ không xuất VAT / không hoá đơn. Bỏ qua nếu brief không nhắc.',
+      },
+      prices_include_vat: {
+        type: 'boolean',
+        description: 'true nếu brief nói các đơn giá ĐÃ bao gồm VAT (all-in, gross); false nếu nói chưa gồm VAT (+VAT, net). Bỏ qua nếu brief không nhắc.',
+      },
       missing_fields: { type: 'array', items: { type: 'string' } },
       ambiguous_fields: { type: 'array', items: { type: 'string' } },
       ai_reasoning: { type: 'string' },
@@ -293,6 +301,8 @@ function normalizeAiResultForResponse(input = {}) {
       duration_hours: safeNumber(input?.duration_hours, 4) || 4,
       tier_code: String(input?.tier_code || 'TIER_2').trim() || 'TIER_2',
       num_days: safeNumber(input?.num_days, 1) || 1,
+      has_vat: typeof input?.has_vat === 'boolean' ? input.has_vat : null,
+      prices_include_vat: typeof input?.prices_include_vat === 'boolean' ? input.prices_include_vat : null,
       event_date: null,
       event_name: null,
     },

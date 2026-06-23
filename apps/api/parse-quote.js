@@ -27,6 +27,8 @@ function normalizeVietnameseText(value = '') {
   return String(value || '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\u0111/g, 'd')
+    .replace(/\u0110/g, 'd')
     .toLowerCase()
 }
 
@@ -44,6 +46,46 @@ function briefHasExplicitRecapEdit(inputText = '') {
 function briefHasFullVideoIntent(inputText = '') {
   const normalized = normalizeVietnameseText(inputText)
   return /\b(quay full|full video|video full|full khong cat)\b/.test(normalized)
+}
+
+// Nhận diện ý định VAT trong brief. Trả { has_vat, prices_include_vat } với
+// giá trị null khi brief không nhắc tới (để tầng UI giữ default của user).
+export function detectVatFromBrief(inputText = '') {
+  const normalized = normalizeVietnameseText(inputText)
+
+  // "không xuất VAT" / "không hoá đơn đỏ" / "no VAT" → không xuất VAT.
+  if (/\b(khong|ko)\s+(xuat\s+)?(vat|hoa don do|hoa don|vat do)\b/.test(normalized)
+    || /\bno\s+vat\b/.test(normalized)
+    || /\bmien\s+vat\b/.test(normalized)) {
+    return { has_vat: false, prices_include_vat: null }
+  }
+
+  // Check "chưa gồm VAT" / "+VAT" / "ex VAT" / "net" TRƯỚC vì cụm "chua gom vat"
+  // chứa chuỗi con "gom vat" sẽ trùng pattern "đã gồm VAT" nếu kiểm sau.
+  if (/\bchua\s+(bao\s+)?gom\s+vat\b/.test(normalized)
+    || /\bchua\s+vat\b/.test(normalized)
+    || /(?:\+|cong\s+)vat\b/.test(normalized)
+    || /\bex[\s-]?vat\b/.test(normalized)
+    || /\bgia\s+net\b/.test(normalized)) {
+    return { has_vat: true, prices_include_vat: false }
+  }
+
+  // "đã gồm VAT" / "đã bao gồm VAT" / "all-in gồm VAT" / "incl vat" / "gross".
+  // Bắt buộc có "da" hoặc "all-in" / "incl" để tránh nuốt nhầm "khong gom vat".
+  if (/\bda\s+(bao\s+)?gom\s+vat\b/.test(normalized)
+    || /\bgia\s+da\s+gom\s+vat\b/.test(normalized)
+    || /\ball[\s-]?in\b.*\bvat\b/.test(normalized)
+    || /\bincl(?:uded)?\.?\s*vat\b/.test(normalized)
+    || /\bgross\b/.test(normalized)) {
+    return { has_vat: true, prices_include_vat: true }
+  }
+
+  // Brief có nhắc VAT chung chung (xuất VAT, có VAT) → bật has_vat, để price mode cho user.
+  if (/\b(xuat\s+vat|co\s+vat|co\s+hoa don|hoa don do|vat\s+8|vat\s+10)\b/.test(normalized)) {
+    return { has_vat: true, prices_include_vat: null }
+  }
+
+  return { has_vat: null, prices_include_vat: null }
 }
 
 function briefNeedsDefaultRecapEdit(inputText = '', items = []) {
@@ -562,12 +604,15 @@ function applyMultiDayBriefGroups(result, inputText = '', context = {}) {
 export function deterministicParseQuoteInput(inputText = '', context = {}) {
   const parseResult = buildMultiDayBriefParse(inputText, context) || buildDeterministicBriefItems(inputText, context)
   const items = parseResult.items
+  const vat = detectVatFromBrief(inputText)
 
   const parsed = {
     items,
     location: parseResult.location,
     duration_hours: parseResult.duration_hours,
     tier_code: parseResult.tier_code,
+    has_vat: vat.has_vat,
+    prices_include_vat: vat.prices_include_vat,
     event_date: null,
     event_name: null,
     num_days: parseResult.num_days,
@@ -587,6 +632,25 @@ export function deterministicParseQuoteInput(inputText = '', context = {}) {
 
 function withSourceMeta(result = {}, source = 'regex') {
   return { ...result, source }
+}
+
+// Đảm bảo kết quả parse luôn có cờ VAT: ưu tiên giá trị AI/parser đã set,
+// nếu còn null thì lấy từ regex nhận diện brief.
+function backfillVatFlags(result = {}, inputText = '') {
+  const parsed = result?.parsed || {}
+  const detected = detectVatFromBrief(inputText)
+  const hasVat = typeof parsed.has_vat === 'boolean' ? parsed.has_vat : detected.has_vat
+  const pricesIncludeVat = typeof parsed.prices_include_vat === 'boolean'
+    ? parsed.prices_include_vat
+    : detected.prices_include_vat
+  return {
+    ...result,
+    parsed: {
+      ...parsed,
+      has_vat: hasVat ?? null,
+      prices_include_vat: pricesIncludeVat ?? null,
+    },
+  }
 }
 
 function prependReasoningLine(result = {}, line = '') {
@@ -689,7 +753,7 @@ export default async function handler(req, res) {
     try {
       const customExamples = await getActiveAiParseExamples()
       const aiResult = await parseQuoteWithClaude(inputText, context, { customExamples })
-      const wrapped = applyBriefBusinessRules(aiResult, inputText, context)
+      const wrapped = backfillVatFlags(applyBriefBusinessRules(aiResult, inputText, context), inputText)
       const payload = withPricingMeta(withSourceMeta(wrapped, 'ai'), context)
       setCachedResult(cacheKey, payload)
       return res.status(200).json(payload)

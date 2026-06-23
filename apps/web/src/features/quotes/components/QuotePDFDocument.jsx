@@ -11,6 +11,7 @@ import {
   getQuoteTerms,
 } from '../lib/quoteTerms'
 import { findLegalEntityByAlias, normalizeLegalEntityCode } from '../lib/entityCodes'
+import { formatVatLabel } from '../lib/pricingCalculator'
 
 const SIGNATURE_IMAGE_SRC = '/signatures/nguyen-thu-huyen.png'
 const STAMP_IMAGE_BY_ENTITY = {
@@ -760,7 +761,7 @@ function Totals({ quote, dense = false, spacious = false }) {
       ) : null}
       {showVat ? (
         <View style={[styles.totalLine, dense ? styles.totalLineDense : null, spacious ? styles.totalLineSpacious : null]}>
-          <Text>Thuế GTGT 8%</Text>
+          <Text>{formatVatLabel(quote)}</Text>
           <Text>{formatCurrency(quote?.vat_amount)}</Text>
         </View>
       ) : null}

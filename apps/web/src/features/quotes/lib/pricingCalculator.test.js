@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { calculateQuotePricing } from './pricingCalculator.js'
+import {
+  calculateQuotePricing,
+  convertItemsGrossToNet,
+  convertItemsNetToGross,
+  formatVatLabel,
+  resolveVatRate,
+} from './pricingCalculator.js'
 
 const services = [
   { service_code: 'CHUP_IN_4H', price_tier_1: 1800000, price_tier_2: 1500000, price_tier_3: 1300000 },
@@ -418,4 +424,76 @@ test('default duration and location come from business rules', () => {
 
   assert.equal(result.subtotal, 3000000)
   assert.equal(result.items_with_calculated_price[0].resolved_service_code, 'QUAY_RECAP_IN_8H')
+})
+
+test('convertItemsGrossToNet quy đổi đơn giá gross về net, round về bội 1000', () => {
+  const items = [
+    { service_code: 'CHUP_IN_8H', quantity: 2, num_sessions: 1, unit_price: 5000000, is_overridden: true },
+    { service_code: 'QUAY_RECAP_IN_8H', quantity: 2, num_sessions: 1, unit_price: 6000000, is_overridden: true },
+  ]
+
+  const netItems = convertItemsGrossToNet(items, { vatRate: 0.08 })
+
+  // 5,000,000 / 1.08 = 4,629,629.6 → round về bội 1000 = 4,630,000
+  assert.equal(netItems[0].unit_price, 4630000)
+  assert.equal(netItems[0].total_price, 9260000)
+  // 6,000,000 / 1.08 = 5,555,555.5 → round về bội 1000 = 5,556,000
+  assert.equal(netItems[1].unit_price, 5556000)
+  assert.equal(netItems[1].total_price, 11112000)
+
+  // Khi tính lại pricing với has_vat=true thì total ≈ 22tr (drift vài nghìn do round)
+  const result = calculateQuotePricing({
+    items: netItems,
+    services,
+    travelFees,
+    businessRules,
+    location: 'nội thành Hà Nội',
+    customer_tier: 'TIER_2',
+    has_vat: true,
+    duration_hours: 8,
+  })
+  assert.equal(result.subtotal, 20372000)
+  assert.equal(result.vat_amount, 1629760)
+  assert.equal(result.total_amount, 22001760)
+})
+
+test('convertItemsNetToGross đảo ngược net về gross, round về bội 1000', () => {
+  const items = [
+    { service_code: 'CHUP_IN_8H', quantity: 2, num_sessions: 1, unit_price: 4630000, is_overridden: true },
+  ]
+  const grossItems = convertItemsNetToGross(items, { vatRate: 0.08 })
+  // 4,630,000 * 1.08 = 5,000,400 → round về bội 1000 = 5,000,000
+  assert.equal(grossItems[0].unit_price, 5000000)
+  assert.equal(grossItems[0].total_price, 10000000)
+})
+
+test('convertItemsGrossToNet trả về mảng rỗng khi input rỗng', () => {
+  assert.deepEqual(convertItemsGrossToNet([]), [])
+  assert.deepEqual(convertItemsGrossToNet(null), [])
+})
+
+test('convertItemsGrossToNet không đổi gì khi vatRate=0', () => {
+  const items = [{ service_code: 'CHUP_IN_4H', quantity: 1, num_sessions: 1, unit_price: 1500000 }]
+  const result = convertItemsGrossToNet(items, { vatRate: 0 })
+  assert.equal(result[0].unit_price, 1500000)
+})
+
+test('resolveVatRate suy ngược tỷ lệ từ số tiền đã lưu trên quote', () => {
+  // vat 240k trên taxable 3tr = 8%
+  assert.equal(resolveVatRate({ vat_amount: 240000, total_amount: 3240000 }), 0.08)
+  // vat 300k trên taxable 3tr = 10%
+  assert.equal(resolveVatRate({ vat_amount: 300000, total_amount: 3300000 }), 0.1)
+})
+
+test('resolveVatRate fallback về business rule rồi default khi quote chưa có số', () => {
+  assert.equal(resolveVatRate({}, { VAT_RATE: 0.1 }), 0.1)
+  assert.equal(resolveVatRate({}), 0.08)
+  assert.equal(resolveVatRate({ vat_amount: 0, total_amount: 0 }, { VAT_RATE: 0.05 }), 0.05)
+})
+
+test('formatVatLabel hiển thị đúng % theo số tiền thực tế', () => {
+  assert.equal(formatVatLabel({ vat_amount: 240000, total_amount: 3240000 }), 'Thuế GTGT 8%')
+  assert.equal(formatVatLabel({ vat_amount: 300000, total_amount: 3300000 }), 'Thuế GTGT 10%')
+  assert.equal(formatVatLabel({}, { VAT_RATE: 0.1 }), 'Thuế GTGT 10%')
+  assert.equal(formatVatLabel({ vat_amount: 240000, total_amount: 3240000 }, null, { prefix: 'VAT' }), 'VAT 8%')
 })

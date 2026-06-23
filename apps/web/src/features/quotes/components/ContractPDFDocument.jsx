@@ -10,6 +10,7 @@ import {
   hasContractAdvance,
   numberToVietnameseWords,
 } from '../lib/contractDefaults'
+import { formatVatLabel } from '../lib/pricingCalculator'
 
 const PDF_FONT_FAMILY = 'TimesNewRomanContract'
 const TIMES_FONT_PATH = '/fonts/times-new-roman'
@@ -411,7 +412,7 @@ function Totals({ quote = {} }) {
     [CONTRACT_SUBTOTAL_LABEL, quote.subtotal],
     discountAmount > 0 ? ['Chiết khấu ưu đãi', -discountAmount] : null,
     discountAmount > 0 ? ['Giá trị sau chiết khấu', taxableAmount] : null,
-    quote.has_vat !== false ? ['Thuế GTGT 8%', quote.vat_amount] : null,
+    quote.has_vat !== false ? [formatVatLabel(quote), quote.vat_amount] : null,
   ].filter(Boolean)
 
   return (

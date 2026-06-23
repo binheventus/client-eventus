@@ -65,7 +65,7 @@
 ## Lưu ý khi sửa code
 
 - Ưu tiên pattern sẵn có trong feature đang sửa; tránh thêm abstraction mới nếu chưa cần.
-- Với quote/contract export, giữ logic tính tiền, VAT, entity consistency và numbering đồng bộ giữa preview, PDF, DOCX, XLSX khi có liên quan.
+- Với quote/contract export, giữ logic tính tiền, VAT, entity consistency và numbering đồng bộ giữa preview, PDF, DOCX, XLSX khi có liên quan. Cơ chế VAT (2 cờ `has_vat`/`prices_include_vat`, quy đổi gross↔net, nhãn động theo `VAT_RATE`): xem `docs/vat-pricing.md`.
 - Với API dùng MySQL, ưu tiên helper trong `apps/api/lib/mysql.js` và các module sẵn có.
 - Với frontend, giữ UI thực dụng, dễ quét, không thêm landing/marketing layout khi đang sửa tool nội bộ.
 - Khi thêm asset public có chủ đích, đặt đúng thư mục hiện có và đảm bảo không trùng với nhóm generated đã ignore.

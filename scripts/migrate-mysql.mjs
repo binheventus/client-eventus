@@ -91,6 +91,11 @@ const quoteColumns = [
   },
   {
     tableName: 'client_quotes',
+    columnName: 'prices_include_vat',
+    definition: 'tinyint(1) not null default 0 after `has_vat`',
+  },
+  {
+    tableName: 'client_quotes',
     columnName: 'discount_amount',
     definition: 'decimal(18,2) not null default 0 after `overtime_fee_total`',
   },

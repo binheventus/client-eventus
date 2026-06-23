@@ -2,6 +2,7 @@ import { getMatchedEquipmentRules } from './equipmentRules.js'
 import { findLegalEntityByAlias, isMediaMonsterEntityCode, normalizeLegalEntityCode } from './entityCodes.js'
 import { getQuoteDownloadFilename } from './quoteDownloadFilename.js'
 import { getQuoteTerms } from './quoteTerms.js'
+import { formatVatLabel } from './pricingCalculator.js'
 
 const MONEY_FORMAT = '#,##0'
 const FONT_NAME = 'Montserrat'
@@ -166,7 +167,7 @@ export function buildQuoteExcelRows(quote = {}, items = [], options = {}) {
     rows.push(['Chiết khấu ưu đãi  ', null, null, null, null, -discountAmount])
     rows.push(['Giá trị sau chiết khấu  ', null, null, null, null, getTaxableAmount(quote)])
   }
-  if (quote.has_vat) rows.push(['VAT 8%  ', null, null, null, null, Number(quote.vat_amount || 0)])
+  if (quote.has_vat) rows.push([`${formatVatLabel(quote, null, { prefix: 'VAT' })}  `, null, null, null, null, Number(quote.vat_amount || 0)])
   rows.push([quote.has_vat ? 'Tổng thanh toán (Đã bao gồm VAT)  ' : 'Tổng thanh toán  ', null, null, null, null, Number(quote.total_amount || 0)])
 
   const matchedEquipmentRules = getMatchedEquipmentRules(items, equipmentRules)

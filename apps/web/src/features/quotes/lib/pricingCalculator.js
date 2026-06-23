@@ -6,6 +6,7 @@ export const DEFAULT_OVERTIME_HOURLY_FEE = 500000
 export const DEFAULT_VAT_RATE = 0.08
 export const DEFAULT_DURATION_HOURS = 4
 export const DEFAULT_LOCATION = 'Hà Nội'
+export const VAT_PRICE_ROUNDING = 1000
 
 function normalizeText(value = '') {
   return String(value || '')
@@ -167,6 +168,82 @@ function getTravelFeeRow(travelFees = [], location) {
     ].filter(Boolean).join(' '))
     return rowText && (rowText.includes(normalizedLocation) || normalizedLocation.includes(rowText))
   }) || null
+}
+
+function roundToStep(value, step = VAT_PRICE_ROUNDING) {
+  const safeStep = Math.max(1, Math.round(toNumber(step, 1)))
+  return Math.round(toNumber(value) / safeStep) * safeStep
+}
+
+// Suy ngược % VAT từ chính số tiền đã lưu trên quote (vat_amount / taxable).
+// Dùng cho NHÃN hiển thị ("Thuế GTGT 8%") để luôn khớp số tiền thực tế trong
+// tài liệu — kể cả quote lịch sử lưu ở thuế suất khác. Fallback về businessRules
+// rồi tới DEFAULT_VAT_RATE khi quote chưa có số (form mới chưa nhập item).
+export function resolveVatRate(quote = {}, businessRules = null) {
+  const vatAmount = toNumber(quote?.vat_amount)
+  const totalAmount = toNumber(quote?.total_amount)
+  const taxableAmount = totalAmount - vatAmount
+  if (vatAmount > 0 && taxableAmount > 0) {
+    return vatAmount / taxableAmount
+  }
+  const ruleRate = toNumber(getRuleValue(businessRules, 'VAT_RATE', DEFAULT_VAT_RATE), DEFAULT_VAT_RATE)
+  return ruleRate > 0 ? ruleRate : DEFAULT_VAT_RATE
+}
+
+// Nhãn "Thuế GTGT 8%" hiển thị động theo thuế suất thực tế. percentFractionDigits
+// để 0 cho số tròn (8%), tăng nếu cần thuế suất lẻ (vd 7.5%).
+export function formatVatLabel(quote = {}, businessRules = null, { prefix = 'Thuế GTGT', percentFractionDigits = 0 } = {}) {
+  const rate = resolveVatRate(quote, businessRules)
+  const percent = rate * 100
+  const rounded = Number(percent.toFixed(percentFractionDigits))
+  const text = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(percentFractionDigits)
+  return `${prefix} ${text}%`.trim()
+}
+
+// Khi sales / parser AI cho biết các đơn giá hiện tại đang là gross (đã gồm VAT)
+// và muốn lưu vào DB ở dạng net, helper này quy đổi từng item: chia đơn giá
+// cho (1 + vatRate), round về bội `step` (mặc định 1000). Drift vài nghìn ở
+// total là chấp nhận được — user đã chọn ưu tiên đơn giá tròn nghìn.
+export function convertItemsGrossToNet(items = [], { vatRate = DEFAULT_VAT_RATE, step = VAT_PRICE_ROUNDING } = {}) {
+  const safeRate = toNumber(vatRate, DEFAULT_VAT_RATE)
+  if (!Array.isArray(items) || !items.length || safeRate <= 0) return Array.isArray(items) ? items.slice() : []
+
+  return items.map(item => {
+    const quantity = toNumber(item?.quantity, 1) || 1
+    const numSessions = toNumber(item?.num_sessions, 1) || 1
+    const divisor = quantity * numSessions || 1
+    const grossUnitPrice = toNumber(item?.unit_price)
+    const netUnitPrice = roundToStep(grossUnitPrice / (1 + safeRate), step)
+    return {
+      ...item,
+      unit_price: netUnitPrice,
+      original_unit_price: netUnitPrice,
+      total_price: netUnitPrice * divisor,
+    }
+  })
+}
+
+// Đảo lại convertItemsGrossToNet — dùng khi sales bỏ tick "Đã gồm VAT".
+// Math: gross = round(net * (1 + vatRate), step) ở mỗi item.
+// Lưu ý: convert qua lại (gross→net→gross) không lossless do round 2 lần,
+// đây là trade-off chấp nhận được khi đã chọn round về bội 1000.
+export function convertItemsNetToGross(items = [], { vatRate = DEFAULT_VAT_RATE, step = VAT_PRICE_ROUNDING } = {}) {
+  const safeRate = toNumber(vatRate, DEFAULT_VAT_RATE)
+  if (!Array.isArray(items) || !items.length || safeRate <= 0) return Array.isArray(items) ? items.slice() : []
+
+  return items.map(item => {
+    const quantity = toNumber(item?.quantity, 1) || 1
+    const numSessions = toNumber(item?.num_sessions, 1) || 1
+    const divisor = quantity * numSessions || 1
+    const netUnitPrice = toNumber(item?.unit_price)
+    const grossUnitPrice = roundToStep(netUnitPrice * (1 + safeRate), step)
+    return {
+      ...item,
+      unit_price: grossUnitPrice,
+      original_unit_price: grossUnitPrice,
+      total_price: grossUnitPrice * divisor,
+    }
+  })
 }
 
 export function calculateQuotePricing(input = {}) {

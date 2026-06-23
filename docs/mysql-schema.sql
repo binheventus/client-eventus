@@ -22,6 +22,7 @@ create table if not exists client_quotes (
   duration_hours decimal(10,2) null,
   validity_days int not null default 15,
   has_vat tinyint(1) not null default 1,
+  prices_include_vat tinyint(1) not null default 0,
   show_stamp tinyint(1) not null default 1,
   terms_text longtext null,
   status varchar(40) not null default 'sent',
