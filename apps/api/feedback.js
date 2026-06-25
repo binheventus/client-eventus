@@ -27,6 +27,7 @@ import {
 } from './lib/mysql.js'
 import { getEventusAuthUser, requireEventusAuth } from './lib/eventus-auth.js'
 import { loadServerEnv } from './lib/server-env.js'
+import { extractDriveFolderId, listDriveFolderPhotos } from './lib/gallery-drive.js'
 import * as feedbackAi from './lib/feedback-ai-assist.js'
 
 const execFileAsync = promisify(execFile)
@@ -2716,11 +2717,23 @@ async function getGallery(req) {
   const feedback = await getFeedbackByShareToken(shareToken)
   const job = feedback?.job_id ? await ensureJobPublicToken(await getJobById(feedback.job_id)) : null
   if (!job?.id) throw makeHttpError('Không tìm thấy gallery.', 404, 'GALLERY_NOT_FOUND')
+  return buildGalleryResponse(feedback, job)
+}
+
+// Assembles the gallery response from an already-resolved feedback + job.
+// The server derives the folder ID itself from the token-scoped drive link;
+// the client never sends folderId. Listing failures yield photos:[] so the
+// page falls back to the legacy Drive button — existing fields stay unchanged.
+async function buildGalleryResponse(feedback, job) {
+  const driveLink = job.gallery_drive || job.drive_feedback || ''
+  const folderId = extractDriveFolderId(driveLink)
+  const photos = folderId ? await listDriveFolderPhotos(folderId) : []
   return {
     feedback,
     job,
-    drive_link: job.gallery_drive || job.drive_feedback || '',
+    drive_link: driveLink,
     survey_link: getSurveyPublicPath(job),
+    photos,
   }
 }
 
@@ -2774,6 +2787,7 @@ export function isPublicFeedbackRequest(req) {
 
 export const __feedbackTestInternals = Object.freeze({
   buildFeedbackDoneNotificationPayload,
+  buildGalleryResponse,
   buildSurveySubmittedNotificationContent,
   buildSurveySubmittedNotificationPayload,
   countSurveySubmittedAnswers,

@@ -259,3 +259,63 @@ test('feedback notification falls back to the Nhansu URL instead of Eventus auth
     assert.equal(__feedbackTestInternals.getNhansuBaseUrl(), 'https://nhansu.eventusproduction.com')
   })
 })
+
+async function withEnvAsync(values, callback) {
+  const previous = new Map(Object.keys(values).map(name => [name, process.env[name]]))
+  Object.entries(values).forEach(([name, value]) => setEnv(name, value))
+  try {
+    return await callback()
+  } finally {
+    previous.forEach((value, name) => setEnv(name, value))
+  }
+}
+
+const GALLERY_FEEDBACK = { id: 7, job_id: 3, share_token: 'tok123' }
+const GALLERY_JOB_FOLDER = { id: 3, gallery_drive: 'https://drive.google.com/drive/folders/FID999?usp=sharing' }
+
+test('getGallery response: photos[] when GAS configured + valid folder; old fields unchanged', async () => {
+  await withEnvAsync({ GALLERY_GAS_URL: 'https://gas.example/exec' }, async () => {
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = async () => ({
+      ok: true,
+      json: async () => ({ ok: true, photos: [{ fileId: '1', name: 'a.jpg', parentName: 'Ngày 1' }] }),
+    })
+    try {
+      const res = await __feedbackTestInternals.buildGalleryResponse(GALLERY_FEEDBACK, GALLERY_JOB_FOLDER)
+      assert.equal(res.photos.length, 1)
+      assert.deepEqual(res.photos[0], { fileId: '1', name: 'a.jpg', parentName: 'Ngày 1' })
+      // backward-compatible fields
+      assert.equal(res.feedback, GALLERY_FEEDBACK)
+      assert.equal(res.job, GALLERY_JOB_FOLDER)
+      assert.equal(res.drive_link, GALLERY_JOB_FOLDER.gallery_drive)
+      assert.equal(typeof res.survey_link, 'string')
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+})
+
+test('getGallery response: photos:[] when GAS not configured, drive_link unchanged', async () => {
+  await withEnvAsync({ GALLERY_GAS_URL: '' }, async () => {
+    const res = await __feedbackTestInternals.buildGalleryResponse(GALLERY_FEEDBACK, GALLERY_JOB_FOLDER)
+    assert.deepEqual(res.photos, [])
+    assert.equal(res.drive_link, GALLERY_JOB_FOLDER.gallery_drive)
+  })
+})
+
+test('getGallery response: photos:[] when drive_link is not a folder (no GAS call)', async () => {
+  await withEnvAsync({ GALLERY_GAS_URL: 'https://gas.example/exec' }, async () => {
+    const originalFetch = globalThis.fetch
+    let called = false
+    globalThis.fetch = async () => { called = true; return { ok: true, json: async () => ({ ok: true, photos: [] }) } }
+    try {
+      const job = { id: 3, drive_feedback: 'https://drive.google.com/file/d/FILEONLY/view' }
+      const res = await __feedbackTestInternals.buildGalleryResponse(GALLERY_FEEDBACK, job)
+      assert.deepEqual(res.photos, [])
+      assert.equal(called, false)
+      assert.equal(res.drive_link, job.drive_feedback)
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+})

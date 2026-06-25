@@ -1,13 +1,22 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getFeedbackGallery, markFeedbackJobDone } from '../hooks/useFeedback'
 import { formatFeedbackDate } from '../lib/feedbackFormat'
+import { groupPhotosByFolder } from '../lib/galleryDrive'
+import GalleryGrid from '../components/GalleryGrid'
+import GalleryFolderTabs from '../components/GalleryFolderTabs'
+import GalleryLightbox from '../components/GalleryLightbox'
+
+const PAGE = 36
 
 export default function FeedbackGalleryPage() {
   const { token: shareToken } = useParams()
   const [gallery, setGallery] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [tab, setTab] = useState('all')
+  const [visible, setVisible] = useState(PAGE)
+  const [lightboxIndex, setLightboxIndex] = useState(null)
 
   useEffect(() => {
     let cancelled = false
@@ -34,8 +43,27 @@ export default function FeedbackGalleryPage() {
     }
   }, [shareToken])
 
+  const photos = gallery?.photos || []
+  const { groups, hasMultiple } = useMemo(() => groupPhotosByFolder(photos), [photos])
+
+  // Photos of the active tab ('all' = everything). Tabs only matter when ≥2 groups.
+  const activePhotos = useMemo(() => {
+    if (!hasMultiple || tab === 'all') return photos
+    return groups.find(g => g.id === tab)?.photos || photos
+  }, [photos, groups, hasMultiple, tab])
+
+  // Switching tab resets the lazy-load window to the first page.
+  function selectTab(id) {
+    setTab(id)
+    setVisible(PAGE)
+  }
+
+  const shownPhotos = activePhotos.slice(0, visible)
+  const canShowMore = visible < activePhotos.length
+
   const jobTitle = gallery?.job?.title || (gallery?.job?.id ? `Job #${gallery.job.id}` : 'Bộ ảnh Eventus')
   const jobName = gallery?.job ? `${formatFeedbackDate(gallery.job.job_date)} ${jobTitle}`.trim() : jobTitle
+  const hasPhotos = photos.length > 0
 
   return (
     <main className="grid min-h-screen place-items-center bg-[#f4f5f8] px-3 py-7 font-['Montserrat','Segoe_UI',system-ui,sans-serif] text-[#333] sm:px-4 sm:py-10">
@@ -59,7 +87,28 @@ export default function FeedbackGalleryPage() {
           </div>
         ) : (
           <div className="relative z-10 mt-6">
-            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            {/* Inline viewer when photos exist; otherwise the legacy Drive button below carries the album. */}
+            {hasPhotos && (
+              <div className="mb-6">
+                {hasMultiple && (
+                  <GalleryFolderTabs groups={groups} total={photos.length} activeTab={tab} onSelect={selectTab} />
+                )}
+                <GalleryGrid photos={shownPhotos} onOpen={setLightboxIndex} />
+                {canShowMore && (
+                  <div className="mt-4 flex justify-center">
+                    <button
+                      type="button"
+                      onClick={() => setVisible(v => v + PAGE)}
+                      className="inline-flex min-h-11 items-center justify-center rounded-lg border border-[#f79820]/40 bg-white px-5 text-[13px] font-extrabold text-[#d97706] transition hover:bg-[#fff7ed]"
+                    >
+                      Xem thêm ({activePhotos.length - visible})
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="mt-2 grid gap-3 sm:grid-cols-2">
               {gallery.drive_link ? (
                 <a
                   href={gallery.drive_link}
@@ -67,7 +116,7 @@ export default function FeedbackGalleryPage() {
                   rel="noreferrer"
                   className="inline-flex min-h-11 items-center justify-center rounded-lg bg-[#f79820] px-4 text-center text-[14px] font-extrabold leading-tight text-white shadow-[0_10px_20px_rgba(247,152,32,0.18)] transition hover:-translate-y-px hover:bg-[#d97706]"
                 >
-                  <span>Tải ảnh từ Google Drive</span>
+                  <span>{hasPhotos ? 'Tải toàn bộ' : 'Tải ảnh từ Google Drive'}</span>
                 </a>
               ) : (
                 <div className="rounded-lg border border-dashed border-slate-300 px-4 py-3 text-center text-[13px] font-semibold text-slate-500">
@@ -84,6 +133,15 @@ export default function FeedbackGalleryPage() {
           </div>
         )}
       </section>
+
+      {lightboxIndex !== null && activePhotos[lightboxIndex] && (
+        <GalleryLightbox
+          photos={activePhotos}
+          index={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+          onNavigate={setLightboxIndex}
+        />
+      )}
     </main>
   )
 }

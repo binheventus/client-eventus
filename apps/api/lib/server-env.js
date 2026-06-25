@@ -47,3 +47,22 @@ export function requireEnv(name) {
   }
   return value
 }
+
+const DEFAULT_GALLERY_GAS_TIMEOUT_MS = 8000
+
+/**
+ * URL of the Google Apps Script Web App that lists Drive folder photos
+ * (the /exec endpoint). Empty when not configured → gallery falls back to the
+ * legacy Drive button. Server-only; never exposed to the browser.
+ */
+export function getGalleryGasUrl() {
+  loadServerEnv()
+  return (process.env.GALLERY_GAS_URL || '').trim()
+}
+
+/** Timeout (ms) for the server→GAS request. Defaults to 8000. */
+export function getGalleryGasTimeoutMs() {
+  loadServerEnv()
+  const value = Number(process.env.GALLERY_GAS_TIMEOUT_MS || DEFAULT_GALLERY_GAS_TIMEOUT_MS)
+  return Number.isFinite(value) && value > 0 ? value : DEFAULT_GALLERY_GAS_TIMEOUT_MS
+}
