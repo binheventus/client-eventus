@@ -6,6 +6,7 @@ import {
   extractDriveFolderId,
   groupPhotosByFolder,
   listDriveFolderPhotos,
+  listDriveFolderPhotosDetailed,
 } from './lib/gallery-drive.js'
 
 function setEnv(name, value) {
@@ -90,9 +91,16 @@ test('groupPhotosByFolder: empty/invalid input', () => {
 })
 
 test('listDriveFolderPhotos: returns [] when GAS url is empty', async () => {
-  await withEnv({ GALLERY_GAS_URL: '' }, async () => {
+  await withEnv({ GALLERY_GAS_URL: '   ' }, async () => {
     const result = await listDriveFolderPhotos('FID')
     assert.deepEqual(result, [])
+  })
+})
+
+test('listDriveFolderPhotosDetailed: reports not_configured when GAS url is empty', async () => {
+  await withEnv({ GALLERY_GAS_URL: '   ' }, async () => {
+    const result = await listDriveFolderPhotosDetailed('FID')
+    assert.deepEqual(result, { photos: [], status: 'not_configured' })
   })
 })
 
@@ -179,6 +187,23 @@ test('listDriveFolderPhotos: GAS non-2xx → []', async () => {
     globalThis.fetch = async () => ({ ok: false, status: 500, json: async () => ({}) })
     try {
       assert.deepEqual(await listDriveFolderPhotos('FID'), [])
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+})
+
+test('listDriveFolderPhotosDetailed: GAS non-2xx reports error reason', async () => {
+  await withEnv({ GALLERY_GAS_URL: 'https://gas.example/exec' }, async () => {
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = async () => ({ ok: false, status: 500, json: async () => ({}) })
+    try {
+      assert.deepEqual(await listDriveFolderPhotosDetailed('FID'), {
+        photos: [],
+        status: 'error',
+        reason: 'gas_http_error',
+        http_status: 500,
+      })
     } finally {
       globalThis.fetch = originalFetch
     }

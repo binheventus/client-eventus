@@ -108,20 +108,25 @@ function normalizeFolderPath(value) {
  * @returns {Promise<Array<{fileId:string,name:string,parentName:string|null,parentId:string|null,parentUrl:string|null}>>}
  */
 export async function listDriveFolderPhotos(folderId) {
+  const result = await listDriveFolderPhotosDetailed(folderId)
+  return result.photos
+}
+
+export async function listDriveFolderPhotosDetailed(folderId) {
   const id = String(folderId || '').trim()
-  if (!id) return []
+  if (!id) return { photos: [], status: 'no_folder' }
 
   const cached = getCachedPhotos(id)
-  if (cached) return cached
+  if (cached) return { photos: cached, status: 'ok', cached: true }
 
   // Coalesce concurrent requests for the same folder onto one GAS call.
   const inFlight = photosInFlight.get(id)
   if (inFlight) return inFlight
 
   const promise = (async () => {
-    const photos = await fetchDriveFolderPhotos(id)
-    if (photos.length) setCachedPhotos(id, photos)
-    return photos
+    const result = await fetchDriveFolderPhotos(id)
+    if (result.photos.length) setCachedPhotos(id, result.photos)
+    return result
   })().finally(() => {
     photosInFlight.delete(id)
   })
@@ -164,11 +169,11 @@ export function clearGalleryDriveCache() {
  * exposed to the browser). Returns [] on missing URL, non-2xx, timeout,
  * malformed JSON, or ok:false — logging a warning.
  * @param {string} id already-trimmed folder ID
- * @returns {Promise<Array<{fileId:string,name:string,parentName:string|null,parentId:string|null,parentUrl:string|null}>>}
+ * @returns {Promise<{ photos:Array<{fileId:string,name:string,parentName:string|null,parentId:string|null,parentUrl:string|null}>, status:string, reason?:string, http_status?:number }>}
  */
 async function fetchDriveFolderPhotos(id) {
   const gasUrl = getGalleryGasUrl()
-  if (!gasUrl) return []
+  if (!gasUrl) return { photos: [], status: 'not_configured' }
 
   const timeoutMs = getGalleryGasTimeoutMs()
   const controller = new AbortController()
@@ -184,16 +189,16 @@ async function fetchDriveFolderPhotos(id) {
 
     if (!response.ok) {
       console.warn(`[gallery-drive] GAS responded ${response.status} for folder ${id}`)
-      return []
+      return { photos: [], status: 'error', reason: 'gas_http_error', http_status: response.status }
     }
 
     const payload = await response.json()
     if (!payload || payload.ok !== true || !Array.isArray(payload.photos)) {
       console.warn(`[gallery-drive] GAS returned non-ok payload for folder ${id}`)
-      return []
+      return { photos: [], status: 'error', reason: 'gas_bad_payload' }
     }
 
-    return payload.photos
+    const photos = payload.photos
       .filter(photo => photo && photo.fileId)
       .map(photo => ({
         fileId: String(photo.fileId),
@@ -210,10 +215,12 @@ async function fetchDriveFolderPhotos(id) {
         topParentId: photo.topParentId == null || photo.topParentId === '' ? null : String(photo.topParentId),
         topParentUrl: photo.topParentUrl == null || photo.topParentUrl === '' ? null : String(photo.topParentUrl),
       }))
+    return { photos, status: photos.length ? 'ok' : 'empty' }
   } catch (error) {
-    const reason = error?.name === 'AbortError' ? `timeout after ${timeoutMs}ms` : String(error?.message || error)
-    console.warn(`[gallery-drive] failed to list folder ${id}: ${reason}`)
-    return []
+    const isTimeout = error?.name === 'AbortError'
+    const message = isTimeout ? `timeout after ${timeoutMs}ms` : String(error?.message || error)
+    console.warn(`[gallery-drive] failed to list folder ${id}: ${message}`)
+    return { photos: [], status: 'error', reason: isTimeout ? 'gas_timeout' : 'gas_fetch_failed' }
   } finally {
     clearTimeout(timer)
   }

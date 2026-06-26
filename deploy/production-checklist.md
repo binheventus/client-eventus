@@ -72,6 +72,16 @@ VITE_FEEDBACK_IMAGE_MAX_BYTES=3145728
 YT_DLP_BIN=/usr/local/bin/yt-dlp
 FFMPEG_BINARIES=ffmpeg
 NHANSU_URL=https://...
+GALLERY_GAS_URL=https://script.google.com/macros/s/.../exec
+GALLERY_GAS_TIMEOUT_MS=20000
+GALLERY_GAS_CACHE_TTL_MS=600000
+```
+
+`GALLERY_GAS_URL` là bắt buộc nếu muốn `/gallery/{share_token}` hiển thị ảnh
+inline thay vì chỉ có nút Google Drive. Sau khi thêm/sửa biến này, restart PM2:
+
+```bash
+pm2 restart client-eventus --update-env
 ```
 
 Ví dụ cron cleanup:

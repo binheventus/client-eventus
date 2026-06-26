@@ -27,7 +27,7 @@ import {
 } from './lib/mysql.js'
 import { getEventusAuthUser, requireEventusAuth } from './lib/eventus-auth.js'
 import { loadServerEnv } from './lib/server-env.js'
-import { extractDriveFolderId, listDriveFolderPhotos } from './lib/gallery-drive.js'
+import { extractDriveFolderId, listDriveFolderPhotosDetailed } from './lib/gallery-drive.js'
 import * as feedbackAi from './lib/feedback-ai-assist.js'
 
 const execFileAsync = promisify(execFile)
@@ -2741,13 +2741,26 @@ async function getGalleryPhotos(req) {
   const feedback = await getFeedbackByShareToken(shareToken)
   const job = feedback?.job_id ? await ensureJobPublicToken(await getJobById(feedback.job_id)) : null
   if (!job?.id) throw makeHttpError('Không tìm thấy gallery.', 404, 'GALLERY_NOT_FOUND')
-  return { photos: await resolveGalleryPhotos(job) }
+  return await resolveGalleryPhotosResult(job)
 }
 
 async function resolveGalleryPhotos(job) {
+  return (await resolveGalleryPhotosResult(job)).photos
+}
+
+async function resolveGalleryPhotosResult(job) {
   const driveLink = job.gallery_drive || job.drive_feedback || ''
   const folderId = extractDriveFolderId(driveLink)
-  return folderId ? await listDriveFolderPhotos(folderId) : []
+  if (!driveLink) return { photos: [], photo_status: 'no_drive_link' }
+  if (!folderId) return { photos: [], photo_status: 'no_folder' }
+
+  const result = await listDriveFolderPhotosDetailed(folderId)
+  return {
+    photos: result.photos,
+    photo_status: result.status,
+    photo_error: result.reason,
+    photo_http_status: result.http_status,
+  }
 }
 
 async function markJobDone(req, body = {}) {
@@ -2802,6 +2815,7 @@ export const __feedbackTestInternals = Object.freeze({
   buildFeedbackDoneNotificationPayload,
   buildGalleryResponse,
   resolveGalleryPhotos,
+  resolveGalleryPhotosResult,
   buildSurveySubmittedNotificationContent,
   buildSurveySubmittedNotificationPayload,
   countSurveySubmittedAnswers,

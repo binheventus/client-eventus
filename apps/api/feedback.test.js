@@ -311,8 +311,19 @@ test('resolveGalleryPhotos: photos[] when GAS configured + valid folder', async 
   })
 })
 
+test('resolveGalleryPhotosResult: reports not_configured when GAS is missing', async () => {
+  await withEnvAsync({ GALLERY_GAS_URL: '   ' }, async () => {
+    assert.deepEqual(await __feedbackTestInternals.resolveGalleryPhotosResult(GALLERY_JOB_FOLDER), {
+      photos: [],
+      photo_status: 'not_configured',
+      photo_error: undefined,
+      photo_http_status: undefined,
+    })
+  })
+})
+
 test('resolveGalleryPhotos: [] when GAS not configured', async () => {
-  await withEnvAsync({ GALLERY_GAS_URL: '' }, async () => {
+  await withEnvAsync({ GALLERY_GAS_URL: '   ' }, async () => {
     assert.deepEqual(await __feedbackTestInternals.resolveGalleryPhotos(GALLERY_JOB_FOLDER), [])
   })
 })

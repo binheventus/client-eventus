@@ -48,7 +48,7 @@ export function requireEnv(name) {
   return value
 }
 
-const DEFAULT_GALLERY_GAS_TIMEOUT_MS = 8000
+const DEFAULT_GALLERY_GAS_TIMEOUT_MS = 20000
 
 /**
  * URL of the Google Apps Script Web App that lists Drive folder photos
@@ -60,7 +60,7 @@ export function getGalleryGasUrl() {
   return (process.env.GALLERY_GAS_URL || '').trim()
 }
 
-/** Timeout (ms) for the server→GAS request. Defaults to 8000. */
+/** Timeout (ms) for the server→GAS request. Defaults to 20000. */
 export function getGalleryGasTimeoutMs() {
   loadServerEnv()
   const value = Number(process.env.GALLERY_GAS_TIMEOUT_MS || DEFAULT_GALLERY_GAS_TIMEOUT_MS)

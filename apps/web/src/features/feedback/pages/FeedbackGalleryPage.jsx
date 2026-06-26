@@ -20,6 +20,7 @@ export default function FeedbackGalleryPage() {
   const [error, setError] = useState('')
   const [photos, setPhotos] = useState([])
   const [photosLoading, setPhotosLoading] = useState(false)
+  const [photoStatus, setPhotoStatus] = useState('idle')
   const [tab, setTab] = useState('')
   const [visible, setVisible] = useState(PAGE)
   const [lightboxIndex, setLightboxIndex] = useState(null)
@@ -59,11 +60,19 @@ export default function FeedbackGalleryPage() {
 
     async function loadPhotos() {
       setPhotosLoading(true)
+      setPhotoStatus('loading')
       try {
         const result = await getFeedbackGalleryPhotos(shareToken)
-        if (!cancelled) setPhotos(Array.isArray(result?.photos) ? result.photos : [])
+        if (!cancelled) {
+          const nextPhotos = Array.isArray(result?.photos) ? result.photos : []
+          setPhotos(nextPhotos)
+          setPhotoStatus(result?.photo_status || (nextPhotos.length ? 'ok' : 'empty'))
+        }
       } catch {
-        if (!cancelled) setPhotos([])
+        if (!cancelled) {
+          setPhotos([])
+          setPhotoStatus('error')
+        }
       } finally {
         if (!cancelled) setPhotosLoading(false)
       }
@@ -124,6 +133,7 @@ export default function FeedbackGalleryPage() {
   const jobTitle = gallery?.job?.title || (gallery?.job?.id ? `Job #${gallery.job.id}` : 'Bộ ảnh Eventus')
   const jobName = gallery?.job ? `${formatFeedbackDate(gallery.job.job_date)} ${jobTitle}`.trim() : jobTitle
   const hasPhotos = photos.length > 0
+  const photoLoadFailed = !photosLoading && !hasPhotos && ['error', 'not_configured'].includes(photoStatus)
 
   useEffect(() => {
     const previousTitle = document.title
@@ -188,7 +198,13 @@ export default function FeedbackGalleryPage() {
               </div>
             )}
 
-            {!photosLoading && <GalleryClosingCard surveyLink={gallery.survey_link} />}
+            {photoLoadFailed && (
+              <div className="mx-auto mt-6 w-full max-w-2xl rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-center text-[13px] font-semibold text-amber-800">
+                Chưa tải được ảnh trực tiếp. Bạn vẫn có thể xem bộ ảnh bằng nút Google Drive phía trên.
+              </div>
+            )}
+
+            {hasPhotos && <GalleryClosingCard surveyLink={gallery.survey_link} />}
           </div>
         )}
       </div>
