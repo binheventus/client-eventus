@@ -10,7 +10,7 @@ const {
   normalizePricedQuoteItemForSave,
 } = __quotesTestInternals
 
-test('duplicated quote payload resets identity, ownership, status, and reprices service items', () => {
+test('duplicated quote payload resets identity and preserves edited service item snapshot', () => {
   const payload = buildDuplicatedQuotePayload({
     id: 'quote-old',
     quote_number: 'BG-0001',
@@ -24,6 +24,12 @@ test('duplicated quote payload resets identity, ownership, status, and reprices 
     has_vat: false,
     status: 'sent',
     sent_at: '2026-05-20 10:00:00',
+    subtotal: 1_500_000,
+    travel_fee_total: 0,
+    overtime_fee_total: 0,
+    discount_amount: 0,
+    vat_amount: 0,
+    total_amount: 1_500_000,
     created_by: 'old-user',
     created_by_name: 'Old Sales',
     sales_name: 'Old Sales',
@@ -61,21 +67,21 @@ test('duplicated quote payload resets identity, ownership, status, and reprices 
   assert.equal(payload.share_token, undefined)
   assert.equal(payload.contract_id, undefined)
   assert.equal(payload.has_saved_contract, undefined)
-  assert.equal(payload.event_name, null)
+  assert.equal(payload.event_name, 'Gala Dinner')
   assert.equal(payload.status, 'sent')
   assert.match(payload.sent_at, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)
   assert.equal(payload.created_by, 'new-user')
   assert.equal(payload.created_by_name, 'New Sales')
   assert.equal(payload.sales_name, 'New Sales')
-  assert.equal(payload.subtotal, 2_200_000)
-  assert.equal(payload.total_amount, 2_200_000)
+  assert.equal(payload.subtotal, 1_500_000)
+  assert.equal(payload.total_amount, 1_500_000)
   assert.equal(payload.items[0].id, undefined)
   assert.equal(payload.items[0].quote_id, undefined)
   assert.equal(payload.items[0].service_code, 'CHUP_IN_4H')
-  assert.equal(payload.items[0].service_name, 'Chụp ảnh sự kiện mới')
-  assert.equal(payload.items[0].unit_price, 2_200_000)
-  assert.equal(payload.items[0].original_unit_price, 2_200_000)
-  assert.equal(payload.items[0].is_overridden, false)
+  assert.equal(payload.items[0].service_name, 'Tên dịch vụ cũ')
+  assert.equal(payload.items[0].unit_price, 1_500_000)
+  assert.equal(payload.items[0].original_unit_price, 1_500_000)
+  assert.equal(payload.items[0].is_overridden, true)
 })
 
 test('duplicated quote payload keeps custom item manual pricing', () => {
@@ -86,6 +92,12 @@ test('duplicated quote payload keeps custom item manual pricing', () => {
     location: 'Nội thành Hà Nội',
     duration_hours: 4,
     has_vat: false,
+    subtotal: 1_600_000,
+    travel_fee_total: 0,
+    overtime_fee_total: 0,
+    discount_amount: 0,
+    vat_amount: 0,
+    total_amount: 1_600_000,
     items: [{
       service_code: 'CUSTOM',
       service_name: 'Chi phí setup riêng',
@@ -103,7 +115,7 @@ test('duplicated quote payload keeps custom item manual pricing', () => {
     businessRules: {},
   })
 
-  assert.equal(payload.event_name, null)
+  assert.equal(payload.event_name, '')
   assert.equal(payload.subtotal, 1_600_000)
   assert.equal(payload.total_amount, 1_600_000)
   assert.equal(payload.items[0].service_code, 'CUSTOM')
@@ -111,13 +123,18 @@ test('duplicated quote payload keeps custom item manual pricing', () => {
   assert.equal(payload.items[0].is_overridden, true)
 })
 
-test('duplicated quote payload preserves quote-level discount and recalculates VAT', () => {
+test('duplicated quote payload preserves quote-level discount and stored VAT totals', () => {
   const payload = buildDuplicatedQuotePayload({
     tier_code: 'TIER_2',
     location: 'Nội thành Hà Nội',
     duration_hours: 4,
     has_vat: true,
     discount_amount: 500_000,
+    subtotal: 3_000_000,
+    travel_fee_total: 0,
+    overtime_fee_total: 0,
+    vat_amount: 200_000,
+    total_amount: 2_700_000,
     items: [{
       service_code: 'CHUP_IN_4H',
       service_name: 'Chụp ảnh sự kiện',

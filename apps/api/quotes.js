@@ -14,7 +14,7 @@ import {
 import { requireEventusAuth } from './lib/eventus-auth.js'
 import { loadServerEnv } from './lib/server-env.js'
 import { expandQuoteEntityFilterValues, normalizeQuoteEntityCode } from './lib/entity-codes.js'
-import { getJsonFallbackQuotePricingContext, getPricingContext } from './lib/pricing-context.js'
+import { getPricingContext } from './lib/pricing-context.js'
 import { calculateQuotePricing } from '../web/src/features/quotes/lib/pricingCalculator.js'
 
 const SHARE_TOKEN_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -746,8 +746,8 @@ async function getQuoteAuditLogs(quoteId) {
     }))
 }
 
-async function createQuote(body = {}) {
-  const pricedBody = await applyServerPricingToQuotePayload(body)
+async function createQuote(body = {}, { preservePricedItems = false } = {}) {
+  const pricedBody = preservePricedItems ? body : await applyServerPricingToQuotePayload(body)
   const { items = [], user_id: userId, created_by_id: createdById, user_name: userName, ...quotePayload } = pricedBody
   const createdBy = quotePayload.created_by || userId || createdById || SYSTEM_ACTOR_ID
   const creatorName = quotePayload.created_by_name || quotePayload.sales_name || userName || 'Eventus'
@@ -794,17 +794,8 @@ function removeDuplicatedQuoteItemMetadata(item = {}) {
   return itemPayload
 }
 
-function prepareDuplicateItemForPricing(item = {}) {
-  const normalizedServiceCode = normalizeCode(item.service_code)
-  const isCustom = Boolean(item.is_custom || normalizedServiceCode === 'CUSTOM')
-  if (isCustom) return { ...item, service_code: 'CUSTOM', is_custom: true, is_overridden: true }
-
-  return {
-    ...item,
-    is_overridden: false,
-    original_unit_price: null,
-    override_reason: '',
-  }
+function normalizeDuplicatedSnapshotItem(item = {}, index = 0) {
+  return normalizePricedQuoteItemForSave(removeDuplicatedQuoteItemMetadata(item), index)
 }
 
 function getServiceDisplayName(service = {}) {
@@ -823,27 +814,6 @@ function getPricedItemRawNameForSave(item = {}, serviceName = '', isCustom = fal
   const rawName = String(item.service_name_raw || '').trim()
   if (rawName && rawName !== displayName) return rawName
   return serviceName || rawName || displayName
-}
-
-function normalizeDuplicatedCalculatedItem(item = {}, index = 0) {
-  const isCustom = Boolean(item.is_custom || normalizeCode(item.service_code) === 'CUSTOM')
-  const serviceName = getServiceDisplayName(item.service)
-  const unitPrice = Number(item.unit_price) || 0
-
-  return {
-    ...item,
-    service_code: isCustom ? 'CUSTOM' : (item.resolved_service_code || item.service_code || null),
-    service_name: isCustom ? item.service_name : (serviceName || item.service_name),
-    service_name_raw: isCustom ? (item.service_name_raw || item.service_name) : (serviceName || item.service_name_raw || item.service_name),
-    unit: item.unit || item.pricing_unit || item.service?.unit || 'Người',
-    unit_price: unitPrice,
-    total_price: Number(item.total_price) || 0,
-    is_custom: isCustom,
-    is_overridden: isCustom,
-    original_unit_price: isCustom ? (item.original_unit_price ?? unitPrice) : unitPrice,
-    override_reason: isCustom ? item.override_reason : '',
-    sort_order: index + 1,
-  }
 }
 
 function normalizePricedQuoteItemForSave(item = {}, index = 0) {
@@ -916,7 +886,7 @@ async function applyServerPricingToQuotePayload(payload = {}, existingQuote = {}
   }
 }
 
-function buildDuplicatedQuotePayload(quote = {}, actorPayload = {}, pricingContext = getJsonFallbackQuotePricingContext()) {
+function buildDuplicatedQuotePayload(quote = {}, actorPayload = {}) {
   const {
     id: _id,
     quote_number: _quoteNumber,
@@ -934,34 +904,12 @@ function buildDuplicatedQuotePayload(quote = {}, actorPayload = {}, pricingConte
     ...quotePayload
   } = quote
 
-  const duplicateItems = items
-    .map(removeDuplicatedQuoteItemMetadata)
-    .map(prepareDuplicateItemForPricing)
-  const pricing = calculateQuotePricing({
-    items: duplicateItems,
-    services: pricingContext.services,
-    travelFees: pricingContext.travelFees,
-    businessRules: pricingContext.businessRules,
-    location: quotePayload.location,
-    customer_tier: quotePayload.tier_code,
-    has_vat: quotePayload.has_vat,
-    discount_amount: quotePayload.discount_amount,
-    duration_hours: quotePayload.duration_hours,
-  })
-
   return {
     ...quotePayload,
     ...actorPayload,
     status: 'sent',
     sent_at: nowMysql(),
-    event_name: null,
-    subtotal: pricing.subtotal,
-    travel_fee_total: pricing.travel_fee_total,
-    overtime_fee_total: pricing.overtime_fee_total,
-    discount_amount: pricing.discount_amount,
-    vat_amount: pricing.vat_amount,
-    total_amount: pricing.total_amount,
-    items: (pricing.items_with_calculated_price || []).map(normalizeDuplicatedCalculatedItem),
+    items: items.map(normalizeDuplicatedSnapshotItem),
   }
 }
 
@@ -1000,8 +948,7 @@ async function duplicateQuote(id, actorPayload = {}) {
     throw error
   }
 
-  const pricingContext = await getRuntimeQuotePricingContext()
-  return createQuote(buildDuplicatedQuotePayload(quote, actorPayload, pricingContext))
+  return createQuote(buildDuplicatedQuotePayload(quote, actorPayload), { preservePricedItems: true })
 }
 
 async function deleteQuote(id, { hard = false } = {}) {
