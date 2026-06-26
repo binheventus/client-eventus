@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  clearGalleryDriveCache,
   driveImageUrl,
   extractDriveFolderId,
   groupPhotosByFolder,
@@ -15,9 +16,11 @@ function setEnv(name, value) {
 async function withEnv(values, callback) {
   const previous = new Map(Object.keys(values).map(name => [name, process.env[name]]))
   Object.entries(values).forEach(([name, value]) => setEnv(name, value))
+  clearGalleryDriveCache()
   try {
     return await callback()
   } finally {
+    clearGalleryDriveCache()
     previous.forEach((value, name) => setEnv(name, value))
   }
 }
@@ -120,7 +123,18 @@ test('listDriveFolderPhotos: parses ok payload and normalizes parentName', async
         json: async () => ({
           ok: true,
           photos: [
-            { fileId: '1', name: 'a.jpg', parentName: 'Ngày 1', mimeType: 'image/jpeg' },
+            {
+              fileId: '1',
+              name: 'a.jpg',
+              parentName: 'A1',
+              parentId: 'FOLDER_A1',
+              parentUrl: 'https://drive.google.com/drive/folders/FOLDER_A1',
+              parentPath: ['A', 'A1'],
+              topParentName: 'A',
+              topParentId: 'FOLDER_A',
+              topParentUrl: 'https://drive.google.com/drive/folders/FOLDER_A',
+              mimeType: 'image/jpeg',
+            },
             { fileId: '2', name: 'b.jpg', parentName: '' },
             { foo: 'no fileId' },
           ],
@@ -130,8 +144,28 @@ test('listDriveFolderPhotos: parses ok payload and normalizes parentName', async
     try {
       const result = await listDriveFolderPhotos('FID')
       assert.equal(result.length, 2)
-      assert.deepEqual(result[0], { fileId: '1', name: 'a.jpg', parentName: 'Ngày 1' })
-      assert.deepEqual(result[1], { fileId: '2', name: 'b.jpg', parentName: null })
+      assert.deepEqual(result[0], {
+        fileId: '1',
+        name: 'a.jpg',
+        parentName: 'A1',
+        parentId: 'FOLDER_A1',
+        parentUrl: 'https://drive.google.com/drive/folders/FOLDER_A1',
+        parentPath: ['A', 'A1'],
+        topParentName: 'A',
+        topParentId: 'FOLDER_A',
+        topParentUrl: 'https://drive.google.com/drive/folders/FOLDER_A',
+      })
+      assert.deepEqual(result[1], {
+        fileId: '2',
+        name: 'b.jpg',
+        parentName: null,
+        parentId: null,
+        parentUrl: null,
+        parentPath: [],
+        topParentName: null,
+        topParentId: null,
+        topParentUrl: null,
+      })
       assert.ok(requestedUrl.includes('folderId=FID'))
     } finally {
       globalThis.fetch = originalFetch
@@ -177,6 +211,80 @@ test('listDriveFolderPhotos: timeout/abort → []', async () => {
     }
     try {
       assert.deepEqual(await listDriveFolderPhotos('FID'), [])
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+})
+
+test('listDriveFolderPhotos: caches a successful result (2nd call skips fetch)', async () => {
+  await withEnv({ GALLERY_GAS_URL: 'https://gas.example/exec', GALLERY_GAS_CACHE_TTL_MS: '60000' }, async () => {
+    const originalFetch = globalThis.fetch
+    let calls = 0
+    globalThis.fetch = async () => {
+      calls += 1
+      return { ok: true, json: async () => ({ ok: true, photos: [{ fileId: '1', name: 'a', parentName: null }] }) }
+    }
+    try {
+      const first = await listDriveFolderPhotos('FID')
+      const second = await listDriveFolderPhotos('FID')
+      assert.equal(calls, 1)
+      assert.deepEqual(first, second)
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+})
+
+test('listDriveFolderPhotos: does NOT cache empty results (retries fetch)', async () => {
+  await withEnv({ GALLERY_GAS_URL: 'https://gas.example/exec', GALLERY_GAS_CACHE_TTL_MS: '60000' }, async () => {
+    const originalFetch = globalThis.fetch
+    let calls = 0
+    globalThis.fetch = async () => {
+      calls += 1
+      return { ok: false, status: 500, json: async () => ({}) }
+    }
+    try {
+      await listDriveFolderPhotos('FID')
+      await listDriveFolderPhotos('FID')
+      assert.equal(calls, 2)
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+})
+
+test('listDriveFolderPhotos: dedups concurrent calls for the same folder', async () => {
+  await withEnv({ GALLERY_GAS_URL: 'https://gas.example/exec', GALLERY_GAS_CACHE_TTL_MS: '60000' }, async () => {
+    const originalFetch = globalThis.fetch
+    let calls = 0
+    globalThis.fetch = async () => {
+      calls += 1
+      await new Promise(r => setTimeout(r, 20))
+      return { ok: true, json: async () => ({ ok: true, photos: [{ fileId: '1', name: 'a', parentName: null }] }) }
+    }
+    try {
+      const [a, b] = await Promise.all([listDriveFolderPhotos('FID'), listDriveFolderPhotos('FID')])
+      assert.equal(calls, 1)
+      assert.deepEqual(a, b)
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+})
+
+test('listDriveFolderPhotos: cache TTL=0 disables caching', async () => {
+  await withEnv({ GALLERY_GAS_URL: 'https://gas.example/exec', GALLERY_GAS_CACHE_TTL_MS: '0' }, async () => {
+    const originalFetch = globalThis.fetch
+    let calls = 0
+    globalThis.fetch = async () => {
+      calls += 1
+      return { ok: true, json: async () => ({ ok: true, photos: [{ fileId: '1', name: 'a', parentName: null }] }) }
+    }
+    try {
+      await listDriveFolderPhotos('FID')
+      await listDriveFolderPhotos('FID')
+      assert.equal(calls, 2)
     } finally {
       globalThis.fetch = originalFetch
     }

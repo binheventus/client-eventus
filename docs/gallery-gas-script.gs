@@ -5,12 +5,14 @@
  * WHAT IT DOES
  *   doGet(?folderId=<id>) walks a Google Drive folder + its subfolders and
  *   returns ONLY image files as JSON:
- *     { ok: true, photos: [{ fileId, name, parentName, mimeType }] }
- *   - parentName = name of the first-level subfolder the image lives under.
+ *     { ok: true, photos: [{
+ *       fileId, name, parentName, parentId, parentUrl,
+ *       parentPath, topParentName, topParentId, topParentUrl, mimeType
+ *     }] }
+ *   - parentName/parentId/parentUrl = direct containing folder for the image.
+ *   - parentPath = folder path from pasted root to the containing folder.
+ *   - topParentName/topParentId/topParentUrl = first folder under pasted root.
  *   - parentName = null for images sitting directly in the pasted root folder.
- *   - Grouping is 2 levels deep (root + one subfolder layer). Images nested
- *     deeper than one level are collapsed into their FIRST-LEVEL ancestor's
- *     name, so the web viewer gets a small, stable set of folder tabs.
  *   - Non-image files (video/*, application/*, ...) are skipped on purpose.
  *   On any failure it returns { ok: false, error, photos: [] } — the server
  *   treats that exactly like an empty list and falls back to the Drive button.
@@ -46,7 +48,7 @@ function doGet(e) {
   try {
     var root = DriveApp.getFolderById(folderId);
     var photos = [];
-    collectImages(root, null, 0, photos);
+    collectImages(root, [], [], [], 0, photos);
     return jsonOutput({ ok: true, photos: photos });
   } catch (err) {
     return jsonOutput({
@@ -59,12 +61,14 @@ function doGet(e) {
 
 /**
  * Recursively collect image files.
- * @param {Folder}      folder      current folder being scanned
- * @param {string|null} parentName  first-level subfolder name (null at root)
- * @param {number}      depth       current recursion depth (root = 0)
- * @param {Array}       out         accumulator of photo objects
+ * @param {Folder}      folder     current folder being scanned
+ * @param {Array}       pathNames  folder names from pasted root to current folder
+ * @param {Array}       pathIds    folder IDs from pasted root to current folder
+ * @param {Array}       pathUrls   folder URLs from pasted root to current folder
+ * @param {number}      depth      current recursion depth (root = 0)
+ * @param {Array}       out        accumulator of photo objects
  */
-function collectImages(folder, parentName, depth, out) {
+function collectImages(folder, pathNames, pathIds, pathUrls, depth, out) {
   if (out.length >= MAX_PHOTOS) return;
 
   // 1) image files directly in this folder
@@ -73,10 +77,17 @@ function collectImages(folder, parentName, depth, out) {
     var file = files.next();
     var mimeType = file.getMimeType() || '';
     if (mimeType.indexOf(IMAGE_PREFIX) === 0) {
+      var lastIndex = pathNames.length - 1;
       out.push({
         fileId: file.getId(),
         name: file.getName(),
-        parentName: parentName, // null at root, first-level subfolder name below
+        parentName: lastIndex >= 0 ? pathNames[lastIndex] : null,
+        parentId: lastIndex >= 0 ? pathIds[lastIndex] : folder.getId(),
+        parentUrl: lastIndex >= 0 ? pathUrls[lastIndex] : folder.getUrl(),
+        parentPath: pathNames.slice(),
+        topParentName: pathNames.length > 0 ? pathNames[0] : null,
+        topParentId: pathIds.length > 0 ? pathIds[0] : null,
+        topParentUrl: pathUrls.length > 0 ? pathUrls[0] : null,
         mimeType: mimeType
       });
     }
@@ -88,10 +99,14 @@ function collectImages(folder, parentName, depth, out) {
   var subs = folder.getFolders();
   while (subs.hasNext() && out.length < MAX_PHOTOS) {
     var sub = subs.next();
-    // 2-level grouping: a first-level subfolder defines the group name; any
-    // deeper folder keeps the first-level ancestor's name (parentName stays).
-    var groupName = (parentName === null) ? sub.getName() : parentName;
-    collectImages(sub, groupName, depth + 1, out);
+    collectImages(
+      sub,
+      pathNames.concat([sub.getName()]),
+      pathIds.concat([sub.getId()]),
+      pathUrls.concat([sub.getUrl()]),
+      depth + 1,
+      out
+    );
   }
 }
 

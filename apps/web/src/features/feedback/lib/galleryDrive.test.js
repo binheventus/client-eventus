@@ -39,6 +39,28 @@ test('groupPhotosByFolder: 2 subfolders → tabs, order preserved', () => {
   assert.equal(groups[0].photos.length, 2)
 })
 
+test('groupPhotosByFolder: parentId keeps duplicate folder names separate', () => {
+  const { groups, hasMultiple } = groupPhotosByFolder([
+    { fileId: '1', parentName: 'Ảnh chọn lọc', parentId: 'FOLDER_A' },
+    { fileId: '2', parentName: 'Ảnh chọn lọc', parentId: 'FOLDER_B' },
+  ])
+  assert.equal(hasMultiple, true)
+  assert.deepEqual(groups.map(g => g.id), ['FOLDER_A', 'FOLDER_B'])
+  assert.equal(groups[0].folderUrl, 'https://drive.google.com/drive/folders/FOLDER_A')
+})
+
+test('groupPhotosByFolder: parentPath creates parent and child labels', () => {
+  const { groups, hasMultiple } = groupPhotosByFolder([
+    { fileId: '1', parentName: 'A1', parentId: 'A1_ID', parentPath: ['A', 'A1'], topParentName: 'A', topParentId: 'A_ID' },
+    { fileId: '2', parentName: 'A2', parentId: 'A2_ID', parentPath: ['A', 'A2'], topParentName: 'A', topParentId: 'A_ID' },
+    { fileId: '3', parentName: 'B1', parentId: 'B1_ID', parentPath: ['B', 'B1'], topParentName: 'B', topParentId: 'B_ID' },
+  ])
+  assert.equal(hasMultiple, true)
+  assert.deepEqual(groups.map(g => g.name), ['A1', 'A2', 'B1'])
+  assert.deepEqual(groups.map(g => g.fullName), ['A / A1', 'A / A2', 'B / B1'])
+  assert.deepEqual(groups.map(g => g.parentGroupName), ['A', 'A', 'B'])
+})
+
 test('groupPhotosByFolder: empty input', () => {
   assert.deepEqual(groupPhotosByFolder([]), { groups: [], hasMultiple: false })
 })

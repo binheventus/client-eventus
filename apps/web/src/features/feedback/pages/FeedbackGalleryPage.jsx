@@ -1,23 +1,31 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
-import { getFeedbackGallery, markFeedbackJobDone } from '../hooks/useFeedback'
+import { useParams } from 'react-router-dom'
+import { getFeedbackGallery, getFeedbackGalleryPhotos, markFeedbackJobDone } from '../hooks/useFeedback'
 import { formatFeedbackDate } from '../lib/feedbackFormat'
 import { groupPhotosByFolder } from '../lib/galleryDrive'
 import GalleryGrid from '../components/GalleryGrid'
 import GalleryFolderTabs from '../components/GalleryFolderTabs'
 import GalleryLightbox from '../components/GalleryLightbox'
+import GalleryStickyBar from '../components/GalleryStickyBar'
+import GalleryClosingCard from '../components/GalleryClosingCard'
 
 const PAGE = 36
+const AUTO_PAGE = 24
+const AUTO_LOAD_DELAY_MS = 800
 
 export default function FeedbackGalleryPage() {
   const { token: shareToken } = useParams()
   const [gallery, setGallery] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [tab, setTab] = useState('all')
+  const [photos, setPhotos] = useState([])
+  const [photosLoading, setPhotosLoading] = useState(false)
+  const [tab, setTab] = useState('')
   const [visible, setVisible] = useState(PAGE)
   const [lightboxIndex, setLightboxIndex] = useState(null)
+  const [pageActive, setPageActive] = useState(true)
 
+  // 1) Fast path: load the page payload (job, links) so the page renders immediately.
   useEffect(() => {
     let cancelled = false
 
@@ -43,14 +51,57 @@ export default function FeedbackGalleryPage() {
     }
   }, [shareToken])
 
-  const photos = gallery?.photos || []
+  // 2) Slow path: fetch Drive photos in the background (can take 20-30s for deep
+  //    folders). The page is already usable; the grid area shows a spinner.
+  useEffect(() => {
+    if (!gallery?.job?.id) return undefined
+    let cancelled = false
+
+    async function loadPhotos() {
+      setPhotosLoading(true)
+      try {
+        const result = await getFeedbackGalleryPhotos(shareToken)
+        if (!cancelled) setPhotos(Array.isArray(result?.photos) ? result.photos : [])
+      } catch {
+        if (!cancelled) setPhotos([])
+      } finally {
+        if (!cancelled) setPhotosLoading(false)
+      }
+    }
+
+    loadPhotos()
+    return () => {
+      cancelled = true
+    }
+  }, [shareToken, gallery?.job?.id])
+
   const { groups, hasMultiple } = useMemo(() => groupPhotosByFolder(photos), [photos])
 
-  // Photos of the active tab ('all' = everything). Tabs only matter when ≥2 groups.
-  const activePhotos = useMemo(() => {
-    if (!hasMultiple || tab === 'all') return photos
-    return groups.find(g => g.id === tab)?.photos || photos
-  }, [photos, groups, hasMultiple, tab])
+  useEffect(() => {
+    function updatePageActive() {
+      setPageActive(!document.hidden)
+    }
+
+    updatePageActive()
+    document.addEventListener('visibilitychange', updatePageActive)
+    return () => document.removeEventListener('visibilitychange', updatePageActive)
+  }, [])
+
+  useEffect(() => {
+    if (!groups.length) return
+    if (groups.some(group => group.id === tab)) return
+    setTab(groups[0].id)
+    setVisible(PAGE)
+  }, [groups, tab])
+
+  const activeGroup = useMemo(() => {
+    if (!groups.length) return null
+    return groups.find(group => group.id === tab) || groups[0]
+  }, [groups, tab])
+
+  // The gallery intentionally renders one folder at a time; there is no
+  // combined "all photos" view because large galleries get heavy quickly.
+  const activePhotos = activeGroup?.photos || []
 
   // Switching tab resets the lazy-load window to the first page.
   function selectTab(id) {
@@ -60,79 +111,87 @@ export default function FeedbackGalleryPage() {
 
   const shownPhotos = activePhotos.slice(0, visible)
   const canShowMore = visible < activePhotos.length
+  const remainingPhotos = Math.max(activePhotos.length - visible, 0)
+
+  useEffect(() => {
+    if (!canShowMore || !pageActive || lightboxIndex !== null) return undefined
+    const timer = window.setTimeout(() => {
+      setVisible(value => Math.min(value + AUTO_PAGE, activePhotos.length))
+    }, AUTO_LOAD_DELAY_MS)
+    return () => window.clearTimeout(timer)
+  }, [activePhotos.length, canShowMore, lightboxIndex, pageActive, visible])
 
   const jobTitle = gallery?.job?.title || (gallery?.job?.id ? `Job #${gallery.job.id}` : 'Bộ ảnh Eventus')
   const jobName = gallery?.job ? `${formatFeedbackDate(gallery.job.job_date)} ${jobTitle}`.trim() : jobTitle
   const hasPhotos = photos.length > 0
 
-  return (
-    <main className="grid min-h-screen place-items-center bg-[#f4f5f8] px-3 py-7 font-['Montserrat','Segoe_UI',system-ui,sans-serif] text-[#333] sm:px-4 sm:py-10">
-      <section className="relative w-full max-w-2xl overflow-hidden rounded-lg border border-[#e5e9f1] bg-[linear-gradient(135deg,rgba(255,247,237,0.92),rgba(255,255,255,0.96)_46%,rgba(232,246,242,0.92))] p-[18px] shadow-[0_12px_32px_rgba(31,45,61,0.07)] sm:p-7">
-        <div className="pointer-events-none absolute right-0 top-0 h-full w-[38%] bg-[repeating-linear-gradient(135deg,rgba(247,152,32,0.08)_0_1px,transparent_1px_16px)]" />
-        <div className="relative z-10 mb-5 flex justify-center">
-          <img src="/logos/logo_eventus.png" alt="Eventus Production" className="h-auto w-[min(184px,54vw)]" />
-        </div>
-        <div className="relative z-10">
-          <p className="text-[13px] font-bold leading-[1.6] text-[#f79820]">Bạn đang xem bộ ảnh</p>
-          <h1 className="mt-2 text-[11px] font-bold leading-[1.45] text-[#202b3c] sm:text-[13px]">
-            {loading ? 'Đang tải bộ ảnh...' : error ? 'Bộ ảnh Eventus' : jobName}
-          </h1>
-        </div>
+  useEffect(() => {
+    const previousTitle = document.title
+    document.title = loading ? 'Đang tải bộ ảnh...' : error ? 'Bộ ảnh Eventus' : jobName
+    return () => {
+      document.title = previousTitle
+    }
+  }, [error, jobName, loading])
 
+  // Header meta: total photos + number of distinct Drive folders.
+  const folderCount = hasMultiple ? groups.length : photos.length ? 1 : 0
+  const metaText = hasPhotos
+    ? `${photos.length} ảnh${folderCount > 1 ? ` · ${folderCount} Folder` : ''}`
+    : ''
+
+  return (
+    <main className="min-h-screen bg-[#f4f5f8] font-['Montserrat','Segoe_UI',system-ui,sans-serif] text-[#333]">
+      <GalleryStickyBar
+        jobTitle={loading ? 'Đang tải bộ ảnh...' : error ? 'Bộ ảnh Eventus' : jobName}
+        metaText={metaText}
+        driveLink={!loading && !error ? gallery?.drive_link : ''}
+        surveyLink={!loading && !error ? gallery?.survey_link : ''}
+        hidden={lightboxIndex !== null}
+        downloadLabel="Xem trên link Google Drive"
+      />
+
+      <div className="mx-auto w-full max-w-[1600px] px-3 pb-7 pt-[124px] sm:px-4 sm:pb-10 lg:pt-[82px]">
         {loading ? (
-          <div className="relative z-10 mt-6 text-[13px] font-semibold text-[#7a8597]">Đang tải gallery...</div>
+          <div className="mx-auto mt-6 w-full max-w-2xl text-center text-[13px] font-semibold text-[#7a8597]">Đang tải gallery...</div>
         ) : error ? (
-          <div className="relative z-10 mt-6 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-[13px] font-semibold text-rose-700">
+          <div className="mx-auto mt-6 w-full max-w-2xl rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-center text-[13px] font-semibold text-rose-700">
             {error}
           </div>
         ) : (
-          <div className="relative z-10 mt-6">
-            {/* Inline viewer when photos exist; otherwise the legacy Drive button below carries the album. */}
+          <div>
+            {/* Photos load in the background. Show a spinner while fetching;
+                a non-empty result renders the grid; empty falls back to the
+                closing card below (header already carries the Drive button). */}
+            {photosLoading && !hasPhotos && (
+              <div className="mx-auto mb-6 flex w-full max-w-2xl items-center justify-center gap-3 rounded-lg border border-[#e5e9f1] bg-white px-4 py-6 text-center">
+                <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-[#f79820] border-t-transparent" />
+                <span>
+                  <span className="block text-[13px] font-bold text-[#7a8597]">Đang xử lý nhiều ảnh cùng lúc...</span>
+                  <span className="mt-1 block text-[12px] font-semibold text-[#9aa4b4]">
+                    (Quá trình này có thể mất khoảng 10-20 giây)
+                  </span>
+                </span>
+              </div>
+            )}
+
             {hasPhotos && (
-              <div className="mb-6">
-                {hasMultiple && (
-                  <GalleryFolderTabs groups={groups} total={photos.length} activeTab={tab} onSelect={selectTab} />
+              <div>
+                {groups.length > 0 && (
+                  <GalleryFolderTabs groups={groups} activeTab={activeGroup?.id} onSelect={selectTab} />
                 )}
                 <GalleryGrid photos={shownPhotos} onOpen={setLightboxIndex} />
                 {canShowMore && (
-                  <div className="mt-4 flex justify-center">
-                    <button
-                      type="button"
-                      onClick={() => setVisible(v => v + PAGE)}
-                      className="inline-flex min-h-11 items-center justify-center rounded-lg border border-[#f79820]/40 bg-white px-5 text-[13px] font-extrabold text-[#d97706] transition hover:bg-[#fff7ed]"
-                    >
-                      Xem thêm ({activePhotos.length - visible})
-                    </button>
+                  <div className="mt-4 flex justify-center text-[12px] font-bold text-[#9aa4b4]">
+                    Đang tải thêm {remainingPhotos} ảnh...
                   </div>
                 )}
               </div>
             )}
 
-            <div className="mt-2 grid gap-3 sm:grid-cols-2">
-              {gallery.drive_link ? (
-                <a
-                  href={gallery.drive_link}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex min-h-11 items-center justify-center rounded-lg bg-[#f79820] px-4 text-center text-[14px] font-extrabold leading-tight text-white shadow-[0_10px_20px_rgba(247,152,32,0.18)] transition hover:-translate-y-px hover:bg-[#d97706]"
-                >
-                  <span>{hasPhotos ? 'Tải toàn bộ' : 'Tải ảnh từ Google Drive'}</span>
-                </a>
-              ) : (
-                <div className="rounded-lg border border-dashed border-slate-300 px-4 py-3 text-center text-[13px] font-semibold text-slate-500">
-                  Chưa có link tải ảnh
-                </div>
-              )}
-              <Link
-                to={gallery.survey_link}
-                className="inline-flex min-h-11 items-center justify-center rounded-lg bg-[#f79820] px-4 text-center text-[14px] font-extrabold leading-tight text-white shadow-[0_10px_20px_rgba(247,152,32,0.18)] transition hover:-translate-y-px hover:bg-[#d97706]"
-              >
-                <span className="whitespace-nowrap">Phản hồi về trải nghiệm tại Eventus</span>
-              </Link>
-            </div>
+            {!photosLoading && <GalleryClosingCard surveyLink={gallery.survey_link} />}
           </div>
         )}
-      </section>
+      </div>
 
       {lightboxIndex !== null && activePhotos[lightboxIndex] && (
         <GalleryLightbox

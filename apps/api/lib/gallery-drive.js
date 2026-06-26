@@ -1,4 +1,4 @@
-import { getGalleryGasTimeoutMs, getGalleryGasUrl } from './server-env.js'
+import { getGalleryGasCacheTtlMs, getGalleryGasTimeoutMs, getGalleryGasUrl } from './server-env.js'
 
 const FOLDER_ID_RE = /\/folders\/([A-Za-z0-9_-]+)/
 const QUERY_ID_RE = /[?&]id=([A-Za-z0-9_-]+)/
@@ -45,44 +45,128 @@ export function driveImageUrl(fileId, kind = 'view', size) {
 }
 
 /**
- * Group photos two levels deep by their parentName (subfolder name).
- * Root photos (parentName null/'') go to a "Gốc" group. Returns the groups in
- * first-seen order plus a flag for whether the UI should show folder tabs
- * (true when there are 2+ distinct named groups).
- * @param {Array<{fileId:string,name:string,parentName?:string|null}>} photos
- * @returns {{ groups: Array<{ name: string, photos: Array }>, hasMultiple: boolean }}
+ * Group photos by downloadable folder. Prefer parentId when present so
+ * duplicate folder names do not merge; parentPath enables a parent-tab + child
+ * folder UI for nested Drive structures.
+ * @param {Array<{fileId:string,name:string,parentName?:string|null,parentId?:string|null,parentUrl?:string|null,folderUrl?:string|null,parentPath?:Array<string>|string,topParentName?:string|null,topParentId?:string|null,topParentUrl?:string|null}>} photos
+ * @returns {{ groups: Array<{ id: string, name: string, fullName: string, folderId: string|null, folderUrl: string|null, parentGroupId: string|null, parentGroupName: string|null, parentGroupUrl: string|null, photos: Array }>, hasMultiple: boolean }}
  */
 export function groupPhotosByFolder(photos) {
   const list = Array.isArray(photos) ? photos : []
   const order = []
-  const byName = new Map()
+  const byKey = new Map()
 
   for (const photo of list) {
-    const raw = photo && photo.parentName
-    const name = raw == null || raw === '' ? 'Gốc' : String(raw)
-    if (!byName.has(name)) {
-      byName.set(name, [])
-      order.push(name)
+    const path = normalizeFolderPath(photo?.parentPath)
+    const raw = photo?.parentName
+    const fallbackName = raw == null || raw === '' ? 'Gốc' : String(raw)
+    const folderId = photo?.parentId ? String(photo.parentId) : null
+    const folderUrl = photo?.parentUrl || photo?.folderUrl || (folderId ? `https://drive.google.com/drive/folders/${encodeURIComponent(folderId)}` : null)
+    const fullName = path.length ? path.join(' / ') : fallbackName
+    const name = path.length > 1 ? path.slice(1).join(' / ') : fallbackName
+    const parentGroupName = photo?.topParentName
+      ? String(photo.topParentName)
+      : (path.length > 1 ? path[0] : null)
+    const parentGroupId = photo?.topParentId
+      ? String(photo.topParentId)
+      : (parentGroupName ? `parent:${parentGroupName}` : null)
+    const parentGroupUrl = photo?.topParentUrl ? String(photo.topParentUrl) : null
+    const key = folderId || (path.length ? path.join('/') : name)
+    if (!byKey.has(key)) {
+      byKey.set(key, {
+        id: key,
+        name,
+        fullName,
+        folderId,
+        folderUrl,
+        parentGroupId,
+        parentGroupName,
+        parentGroupUrl,
+        photos: [],
+      })
+      order.push(key)
     }
-    byName.get(name).push(photo)
+    byKey.get(key).photos.push(photo)
   }
 
-  const groups = order.map(name => ({ name, photos: byName.get(name) }))
+  const groups = order.map(key => byKey.get(key))
   return { groups, hasMultiple: groups.length >= 2 }
 }
 
+function normalizeFolderPath(value) {
+  if (Array.isArray(value)) return value.map(item => String(item || '').trim()).filter(Boolean)
+  if (typeof value === 'string') return value.split('/').map(item => item.trim()).filter(Boolean)
+  return []
+}
+
 /**
- * List image files in a Drive folder by calling the Google Apps Script Web App
- * server-to-server. Never throws: any failure (no GAS URL, non-2xx, timeout,
- * malformed JSON, ok:false) is logged and yields []. The GAS URL is read from
- * server env and is never exposed to the browser.
+ * List image files in a Drive folder, with an in-memory cache + in-flight
+ * dedup so a gallery shared to many viewers triggers at most one GAS call per
+ * folder per TTL window. Never throws: any failure yields []. Only non-empty
+ * results are cached (a transient timeout must not poison the cache).
  * @param {string} folderId
- * @returns {Promise<Array<{fileId:string,name:string,parentName:string|null}>>}
+ * @returns {Promise<Array<{fileId:string,name:string,parentName:string|null,parentId:string|null,parentUrl:string|null}>>}
  */
 export async function listDriveFolderPhotos(folderId) {
   const id = String(folderId || '').trim()
   if (!id) return []
 
+  const cached = getCachedPhotos(id)
+  if (cached) return cached
+
+  // Coalesce concurrent requests for the same folder onto one GAS call.
+  const inFlight = photosInFlight.get(id)
+  if (inFlight) return inFlight
+
+  const promise = (async () => {
+    const photos = await fetchDriveFolderPhotos(id)
+    if (photos.length) setCachedPhotos(id, photos)
+    return photos
+  })().finally(() => {
+    photosInFlight.delete(id)
+  })
+
+  photosInFlight.set(id, promise)
+  return promise
+}
+
+const photosCache = new Map()
+const photosInFlight = new Map()
+
+function getCachedPhotos(folderId) {
+  const entry = photosCache.get(folderId)
+  if (!entry) return null
+  if (entry.expiresAt <= Date.now()) {
+    photosCache.delete(folderId)
+    return null
+  }
+  return entry.value
+}
+
+function setCachedPhotos(folderId, value) {
+  const ttl = getGalleryGasCacheTtlMs()
+  if (ttl <= 0) return
+  const now = Date.now()
+  for (const [key, entry] of photosCache) {
+    if (entry.expiresAt <= now) photosCache.delete(key)
+  }
+  photosCache.set(folderId, { value, expiresAt: now + ttl })
+}
+
+/** Clears the Drive photo cache. Exposed for tests. */
+export function clearGalleryDriveCache() {
+  photosCache.clear()
+  photosInFlight.clear()
+}
+
+/**
+ * Raw GAS fetch with no caching. Reads GALLERY_GAS_URL from server env (never
+ * exposed to the browser). Returns [] on missing URL, non-2xx, timeout,
+ * malformed JSON, or ok:false — logging a warning.
+ * @param {string} id already-trimmed folder ID
+ * @returns {Promise<Array<{fileId:string,name:string,parentName:string|null,parentId:string|null,parentUrl:string|null}>>}
+ */
+async function fetchDriveFolderPhotos(id) {
   const gasUrl = getGalleryGasUrl()
   if (!gasUrl) return []
 
@@ -115,6 +199,16 @@ export async function listDriveFolderPhotos(folderId) {
         fileId: String(photo.fileId),
         name: typeof photo.name === 'string' ? photo.name : '',
         parentName: photo.parentName == null || photo.parentName === '' ? null : String(photo.parentName),
+        parentId: photo.parentId == null || photo.parentId === '' ? null : String(photo.parentId),
+        parentUrl: photo.parentUrl == null || photo.parentUrl === ''
+          ? (photo.folderUrl == null || photo.folderUrl === '' ? null : String(photo.folderUrl))
+          : String(photo.parentUrl),
+        parentPath: Array.isArray(photo.parentPath)
+          ? photo.parentPath.map(item => String(item || '').trim()).filter(Boolean)
+          : [],
+        topParentName: photo.topParentName == null || photo.topParentName === '' ? null : String(photo.topParentName),
+        topParentId: photo.topParentId == null || photo.topParentId === '' ? null : String(photo.topParentId),
+        topParentUrl: photo.topParentUrl == null || photo.topParentUrl === '' ? null : String(photo.topParentUrl),
       }))
   } catch (error) {
     const reason = error?.name === 'AbortError' ? `timeout after ${timeoutMs}ms` : String(error?.message || error)

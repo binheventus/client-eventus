@@ -66,3 +66,12 @@ export function getGalleryGasTimeoutMs() {
   const value = Number(process.env.GALLERY_GAS_TIMEOUT_MS || DEFAULT_GALLERY_GAS_TIMEOUT_MS)
   return Number.isFinite(value) && value > 0 ? value : DEFAULT_GALLERY_GAS_TIMEOUT_MS
 }
+
+const DEFAULT_GALLERY_GAS_CACHE_TTL_MS = 10 * 60 * 1000
+
+/** How long a successful Drive photo listing is cached, keyed by folder ID. Defaults to 10 min. */
+export function getGalleryGasCacheTtlMs() {
+  loadServerEnv()
+  const value = Number(process.env.GALLERY_GAS_CACHE_TTL_MS || DEFAULT_GALLERY_GAS_CACHE_TTL_MS)
+  return Number.isFinite(value) && value >= 0 ? value : DEFAULT_GALLERY_GAS_CACHE_TTL_MS
+}

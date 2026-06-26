@@ -2720,21 +2720,34 @@ async function getGallery(req) {
   return buildGalleryResponse(feedback, job)
 }
 
-// Assembles the gallery response from an already-resolved feedback + job.
-// The server derives the folder ID itself from the token-scoped drive link;
-// the client never sends folderId. Listing failures yield photos:[] so the
-// page falls back to the legacy Drive button — existing fields stay unchanged.
-async function buildGalleryResponse(feedback, job) {
-  const driveLink = job.gallery_drive || job.drive_feedback || ''
-  const folderId = extractDriveFolderId(driveLink)
-  const photos = folderId ? await listDriveFolderPhotos(folderId) : []
+// Fast path: the page payload WITHOUT photos so the gallery page renders
+// immediately (Drive button + survey). Listing Drive photos can take 20-30s
+// for deeply nested folders, so it is fetched separately via gallery_photos.
+function buildGalleryResponse(feedback, job) {
   return {
     feedback,
     job,
-    drive_link: driveLink,
+    drive_link: job.gallery_drive || job.drive_feedback || '',
     survey_link: getSurveyPublicPath(job),
-    photos,
   }
+}
+
+// Separate (often slow) endpoint that lists the Drive photos. The server
+// derives the folder ID itself from the token-scoped drive link; the client
+// never sends folderId. Any failure yields photos:[] so the page keeps the
+// legacy Drive button. Results are cached per folder in listDriveFolderPhotos.
+async function getGalleryPhotos(req) {
+  const shareToken = trimText(getQueryValue(req.query?.token || req.query?.share_token, ''), 80)
+  const feedback = await getFeedbackByShareToken(shareToken)
+  const job = feedback?.job_id ? await ensureJobPublicToken(await getJobById(feedback.job_id)) : null
+  if (!job?.id) throw makeHttpError('Không tìm thấy gallery.', 404, 'GALLERY_NOT_FOUND')
+  return { photos: await resolveGalleryPhotos(job) }
+}
+
+async function resolveGalleryPhotos(job) {
+  const driveLink = job.gallery_drive || job.drive_feedback || ''
+  const folderId = extractDriveFolderId(driveLink)
+  return folderId ? await listDriveFolderPhotos(folderId) : []
 }
 
 async function markJobDone(req, body = {}) {
@@ -2751,7 +2764,7 @@ async function markJobDone(req, body = {}) {
 export function isPublicFeedbackRequest(req) {
   if (req.method === 'GET') {
     const resource = getQueryValue(req.query?.resource, '')
-    if (resource === 'survey' || resource === 'gallery' || resource === 'ai_probe') return true
+    if (resource === 'survey' || resource === 'gallery' || resource === 'gallery_photos' || resource === 'ai_probe') return true
     if (resource === 'feedback') {
       const id = getQueryValue(req.query?.id, '')
       return isFeedbackShareToken(id)
@@ -2788,6 +2801,7 @@ export function isPublicFeedbackRequest(req) {
 export const __feedbackTestInternals = Object.freeze({
   buildFeedbackDoneNotificationPayload,
   buildGalleryResponse,
+  resolveGalleryPhotos,
   buildSurveySubmittedNotificationContent,
   buildSurveySubmittedNotificationPayload,
   countSurveySubmittedAnswers,
@@ -2843,6 +2857,7 @@ export default async function handler(req, res) {
 
       if (resource === 'survey') return res.status(200).json(await getSurvey(req))
       if (resource === 'gallery') return res.status(200).json(await getGallery(req))
+      if (resource === 'gallery_photos') return res.status(200).json(await getGalleryPhotos(req))
 
       // Trợ lý feedback AI: probe khả dụng, KHÔNG gọi mô hình.
       if (resource === 'ai_probe') return res.status(200).json(feedbackAi.probe())

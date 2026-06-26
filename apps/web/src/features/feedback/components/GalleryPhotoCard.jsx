@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { buildDriveDownloadUrl, buildDriveImageUrl } from '../lib/galleryDrive'
 
-const GRID_SIZE = 600
+const GRID_SIZE = 800
 
 // Single grid image: lazy-loaded, rounded, hover overlay with a download button.
 // A failed load swaps in a placeholder so the rest of the grid keeps working.

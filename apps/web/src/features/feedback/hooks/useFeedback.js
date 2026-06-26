@@ -255,6 +255,10 @@ export async function getFeedbackGallery(shareToken) {
   return requestFeedbackApi(buildQuery({ resource: 'gallery', share_token: shareToken }))
 }
 
+export async function getFeedbackGalleryPhotos(shareToken) {
+  return requestFeedbackApi(buildQuery({ resource: 'gallery_photos', share_token: shareToken }))
+}
+
 export async function markFeedbackJobDone(payload = {}) {
   return requestFeedbackApi('', {
     method: 'POST',
