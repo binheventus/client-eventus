@@ -581,7 +581,7 @@ test('buildSystemPromptBlock merges custom examples vào EXAMPLES section', () =
   assert.match(prompt, /5000000/)
 })
 
-test('buildSystemPromptBlock cap số example tối đa MAX_EXAMPLES (12)', () => {
+test('buildSystemPromptBlock cap số example tối đa MAX_EXAMPLES (20)', () => {
   const customExamples = Array.from({ length: 30 }, (_, index) => ({
     name: `custom-${index}`,
     input_text: `brief ${index}`,
@@ -594,10 +594,56 @@ test('buildSystemPromptBlock cap số example tối đa MAX_EXAMPLES (12)', () =
     sort_order: 1000 + index,
   }))
   const prompt = buildSystemPromptBlock({ services: [] }, customExamples)
-  // Foundational + custom merged sau đó cap 12. Foundational sort_order là undefined nên = 0 → ưu tiên trước.
-  // 12 examples final phải có ít nhất một số custom-* nếu foundational < 12.
   const matches = prompt.match(/### Ví dụ \[\d+\]/g) || []
-  assert.ok(matches.length <= 12, `expected ≤ 12 example blocks, got ${matches.length}`)
+  assert.ok(matches.length <= 20, `expected ≤ 20 example blocks, got ${matches.length}`)
+})
+
+test('buildSystemPromptBlock luôn dành slot cho custom dù sort_order lớn', () => {
+  // Custom đặt sort_order rất lớn (mặc định modal = 500) vẫn phải vào prompt,
+  // không bị 10 ví dụ nền chiếm hết cap rồi cắt mất.
+  const customExamples = Array.from({ length: 6 }, (_, index) => ({
+    id: index + 1,
+    name: `recent-${index}`,
+    input_text: `brief moi ${index}`,
+    expected_output: {
+      items: [{ service_code: 'CHUP_IN_4H', quantity: 1 }],
+      location: 'Hà Nội',
+      duration_hours: 4,
+      tier_code: 'TIER_2',
+    },
+    sort_order: 500,
+  }))
+  const prompt = buildSystemPromptBlock({ services: [] }, customExamples)
+  for (let index = 0; index < 6; index += 1) {
+    assert.match(prompt, new RegExp(`recent-${index}`), `custom recent-${index} phải có trong prompt`)
+  }
+})
+
+test('buildSystemPromptBlock đặt custom example sau cùng (gần input nhất)', () => {
+  const customExamples = [
+    {
+      id: 99,
+      name: 'sua-tay-moi-nhat',
+      input_text: 'brief vua sua tay',
+      expected_output: {
+        items: [{ service_code: 'CHUP_IN_4H', quantity: 2 }],
+        location: 'Hà Nội',
+        duration_hours: 4,
+        tier_code: 'TIER_2',
+      },
+      sort_order: 500,
+    },
+  ]
+  const prompt = buildSystemPromptBlock({ services: [] }, customExamples)
+  const blocks = prompt.match(/### Ví dụ \[\d+\] [^\n]+/g) || []
+  assert.ok(blocks.length > 1, 'cần có cả foundational lẫn custom')
+  assert.match(blocks[blocks.length - 1], /sua-tay-moi-nhat/, 'custom phải đứng cuối danh sách example')
+})
+
+test('buildSystemPromptBlock dạy AI ưu tiên EXAMPLES hơn luật biên dịch', () => {
+  const prompt = buildSystemPromptBlock({ services: [] }, [])
+  assert.match(prompt, /ƯU TIÊN VÍ DỤ/i)
+  assert.match(prompt, /ưu tiên CAO HƠN luật biên dịch/i)
 })
 
 test('buildSystemPromptBlock bỏ qua custom example có expected_output không hợp lệ', () => {

@@ -7,12 +7,16 @@ import { FOUNDATIONAL_EXAMPLES } from './claude-quote-examples.js'
 import { SYSTEM_PROMPT_LAYER_1_2 } from './claude-quote-prompt.js'
 
 const DEFAULT_BASE_URL = 'https://api.coffeevibeai.com'
-const DEFAULT_MODEL = 'claude-haiku-4-5-20251001'
-const DEFAULT_TIMEOUT_MS = 20000
+const DEFAULT_MODEL = 'claude-sonnet-4-6'
+const DEFAULT_TIMEOUT_MS = 30000
 const DEFAULT_MAX_TOKENS = 4096
 const ANTHROPIC_VERSION = '2023-06-01'
 const TOOL_NAME = 'submit_parsed_quote'
-const MAX_EXAMPLES = 12
+const MAX_EXAMPLES = 20
+// Số slot tối thiểu LUÔN dành cho ví dụ custom (do người dùng lưu). Ví dụ nền chỉ được
+// lấp các slot còn lại — tránh trường hợp 10 ví dụ nền chiếm hết cap rồi cắt mất ví dụ
+// vừa lưu khiến AI không học theo bản sửa tay.
+const MAX_CUSTOM_EXAMPLES = 12
 
 export const QUOTE_PARSE_TOOL_SCHEMA = {
   name: TOOL_NAME,
@@ -139,6 +143,7 @@ function normalizeCustomExample(row = {}) {
   if (!output || typeof output !== 'object') return null
 
   return {
+    id: Number.isFinite(Number(row.id)) ? Number(row.id) : 0,
     name: String(row.name || row.id || '').trim() || 'custom',
     input: String(row.input_text || row.input || '').trim(),
     output,
@@ -149,15 +154,22 @@ function normalizeCustomExample(row = {}) {
 function mergeExamples(foundational = [], customRows = []) {
   const normalizedCustom = (Array.isArray(customRows) ? customRows : [])
     .map(normalizeCustomExample)
-    .filter(Boolean)
-  const combined = [
-    ...(Array.isArray(foundational) ? foundational : []),
-    ...normalizedCustom,
-  ]
-  return combined
+    .filter(example => example && example.input && example.output)
+    // Ưu tiên sort_order nhỏ; cùng sort_order thì ví dụ id lớn (mới lưu) lên trước.
+    .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0) || Number(b.id || 0) - Number(a.id || 0))
+    .slice(0, MAX_CUSTOM_EXAMPLES)
+
+  const normalizedFoundational = (Array.isArray(foundational) ? foundational : [])
     .filter(example => example && example.input && example.output)
     .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0))
-    .slice(0, MAX_EXAMPLES)
+
+  // Custom luôn được giữ chỗ trước, foundational chỉ lấp phần slot còn lại.
+  const remaining = Math.max(0, MAX_EXAMPLES - normalizedCustom.length)
+  const keptFoundational = normalizedFoundational.slice(0, remaining)
+
+  // Đặt foundational trước, custom sau cùng (gần input của người dùng nhất) để AI ưu
+  // tiên bám theo các bản sửa tay gần đây hơn là ví dụ nền.
+  return [...keptFoundational, ...normalizedCustom]
 }
 
 export function buildSystemPromptBlock(context = {}, customExamples = []) {
@@ -176,6 +188,11 @@ export function buildSystemPromptBlock(context = {}, customExamples = []) {
     '```',
     '',
     '# EXAMPLES',
+    'QUAN TRỌNG — ƯU TIÊN VÍ DỤ: Mỗi ví dụ dưới đây là một cặp INPUT → OUTPUT đã được con người DUYỆT TAY và chốt là đúng.',
+    '- Nếu brief của người dùng TRÙNG KHÍT hoặc GẦN GIỐNG phần INPUT của một ví dụ (cùng dịch vụ, cùng số lượng, cùng cách nói giá), hãy TÁI TẠO LẠI phần OUTPUT của ví dụ đó càng sát càng tốt — kể cả khi điều đó MÂU THUẪN với "Luật biên dịch" ở trên. Ví dụ đã duyệt tay có quyền ưu tiên CAO HƠN luật biên dịch.',
+    '- Khi brief chỉ giống MỘT PHẦN ví dụ, áp dụng cách xử lý của ví dụ cho phần giống đó, phần còn lại mới theo luật biên dịch.',
+    '- "Luật biên dịch" chỉ là mặc định dùng khi KHÔNG có ví dụ nào khớp.',
+    '',
     examplesText || '(Chưa có ví dụ huấn luyện.)',
   ].join('\n')
 }
