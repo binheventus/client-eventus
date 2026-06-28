@@ -1,6 +1,7 @@
 import {
   formatDocumentCurrency,
   formatDocumentDate,
+  getAcceptanceDocumentHeading,
   getAcceptanceLiquidationContent,
   getAcceptanceSummary,
   getAdvanceRequestContent,
@@ -142,6 +143,26 @@ function RepresentativePositionLine({ profile = {}, compact = false }) {
       <span className="font-semibold text-slate-950"> | Chức vụ:</span>{' '}
       <Value>{profile.position}</Value>
     </p>
+  )
+}
+
+function formatSignatureName(profile = {}) {
+  return String(profile.representative || '')
+    .trim()
+    .replace(/^(ông|bà)\s+/i, '')
+    .toLocaleUpperCase('vi-VN')
+}
+
+function SignatureBlock({ heading = 'ĐẠI DIỆN', profile = {}, spaceClassName = 'h-24' }) {
+  const signatureName = formatSignatureName(profile)
+
+  return (
+    <div>
+      <p className="font-bold uppercase text-slate-950">{heading}</p>
+      <div className={spaceClassName} aria-hidden="true" />
+      {signatureName ? <p className="font-bold text-slate-950">{signatureName}</p> : null}
+      {profile.position ? <p className="font-normal italic text-slate-800">{profile.position}</p> : null}
+    </div>
   )
 }
 
@@ -384,10 +405,7 @@ export default function ContractDocumentPreview({ document = {} }) {
         </div>
 
         <footer className="mt-4 flex justify-end pr-12 text-center text-[13px] font-bold leading-6 text-slate-950">
-          <div>
-            <p>ĐẠI DIỆN</p>
-            <div className="h-24" />
-          </div>
+          <SignatureBlock profile={seller} />
         </footer>
       </A4DocumentPage>
     )
@@ -411,10 +429,7 @@ export default function ContractDocumentPreview({ document = {} }) {
         </div>
 
         <footer className="mt-4 flex justify-end pr-12 text-center text-[13px] font-bold leading-6 text-slate-950">
-          <div>
-            <p>ĐẠI DIỆN</p>
-            <div className="h-24" />
-          </div>
+          <SignatureBlock profile={seller} />
         </footer>
       </A4DocumentPage>
     )
@@ -434,7 +449,7 @@ export default function ContractDocumentPreview({ document = {} }) {
             <p>Độc lập - Tự do - Hạnh phúc</p>
           </div>
           <h1 className="mt-5 whitespace-nowrap text-center text-[18px] font-bold uppercase tracking-wide">
-            BIÊN BẢN NGHIỆM THU VÀ THANH LÝ HỢP ĐỒNG
+            {getAcceptanceDocumentHeading(document)}
           </h1>
         </header>
 
@@ -474,14 +489,8 @@ export default function ContractDocumentPreview({ document = {} }) {
         </div>
 
         <footer className="mt-4 grid gap-6 pt-2 text-center text-[12px] font-bold leading-5 text-slate-950 sm:grid-cols-2">
-          <div>
-            <p>ĐẠI DIỆN BÊN A</p>
-            <div className="h-24" />
-          </div>
-          <div>
-            <p>ĐẠI DIỆN BÊN B</p>
-            <div className="h-24" />
-          </div>
+          <SignatureBlock heading="ĐẠI DIỆN BÊN A" profile={customer} />
+          <SignatureBlock heading="ĐẠI DIỆN BÊN B" profile={seller} />
         </footer>
       </A4DocumentPage>
     )
@@ -513,16 +522,8 @@ export default function ContractDocumentPreview({ document = {} }) {
       </div>
 
       <footer className="mt-6 grid gap-8 border-t border-slate-200 pt-6 text-center sm:grid-cols-2">
-        <div>
-          <p className="text-[13px] font-bold uppercase text-slate-950">Đại diện bên A</p>
-          <div className="h-20" />
-          <p className="text-[13px] font-semibold text-slate-950">{customer.representative || ''}</p>
-        </div>
-        <div>
-          <p className="text-[13px] font-bold uppercase text-slate-950">Đại diện bên B</p>
-          <div className="h-20" />
-          <p className="text-[13px] font-semibold text-slate-950">{seller.representative || ''}</p>
-        </div>
+        <SignatureBlock heading="ĐẠI DIỆN BÊN A" profile={customer} spaceClassName="h-20" />
+        <SignatureBlock heading="ĐẠI DIỆN BÊN B" profile={seller} spaceClassName="h-20" />
       </footer>
     </A4DocumentPage>
   )

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  getAcceptanceDocumentHeading,
   getAcceptanceLiquidationContent,
   getAcceptanceSummary,
   getContractDocumentFilename,
@@ -168,6 +169,17 @@ test('quote-bound acceptance uses quote wording without contract references', ()
   assert.match(articleTwo.body, /Bằng chữ: Hai triệu bảy trăm nghìn đồng/)
   assert.match(articleThree.body, /trong vòng 30 ngày/)
   assert.doesNotMatch(rendered, /Hợp Đồng|hợp đồng/)
+})
+
+test('acceptance heading is shortened only for quote-bound documents', () => {
+  assert.equal(getAcceptanceDocumentHeading({
+    document_type: 'acceptance_liquidation',
+    quote_id: 'quote-1',
+    contract_id: null,
+    contract_snapshot: { quote_id: 'quote-1' },
+  }), 'BIÊN BẢN NGHIỆM THU')
+
+  assert.equal(getAcceptanceDocumentHeading(baseAcceptanceDocument), 'BIÊN BẢN NGHIỆM THU VÀ THANH LÝ HỢP ĐỒNG')
 })
 
 test('acceptance amount tables are only shown for cost difference templates', () => {

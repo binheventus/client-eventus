@@ -77,6 +77,12 @@ export function isQuoteBoundAcceptanceDocument(document = {}) {
   )
 }
 
+export function getAcceptanceDocumentHeading(document = {}) {
+  return isQuoteBoundAcceptanceDocument(document)
+    ? 'BIÊN BẢN NGHIỆM THU'
+    : 'BIÊN BẢN NGHIỆM THU VÀ THANH LÝ HỢP ĐỒNG'
+}
+
 export function getPartyRole(contract = {}, partyKey = 'party_a') {
   return contract.party_role_config?.[partyKey] || (partyKey === 'party_a' ? 'customer' : 'seller')
 }

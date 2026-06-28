@@ -293,11 +293,15 @@ export default function ContractDocumentEditorPage() {
   }
 
   const activeDocumentType = document?.document_type || documentType || 'advance_request'
-  const pageLabel = isEditMode ? 'Sửa chứng từ' : DOCUMENT_TYPES[activeDocumentType]?.actionLabel || 'Tạo chứng từ'
   const canDownloadPreview = Boolean(previewDocument)
   const publicDocumentUrl = getPublicDocumentUrl(previewDocument || document || {})
   const canDeleteDocument = Boolean(document?.id)
   const isQuoteBoundDocument = Boolean(!contract.id && (contract.quote_id || quoteId))
+  const pageLabel = isEditMode
+    ? 'Sửa chứng từ'
+    : isQuoteBoundDocument && activeDocumentType === 'acceptance_liquidation'
+      ? 'Tạo BBNT từ báo giá (chưa có hợp đồng)'
+      : DOCUMENT_TYPES[activeDocumentType]?.actionLabel || 'Tạo chứng từ'
   const breadcrumbRoot = isQuoteBoundDocument
     ? { label: 'Báo giá', to: `/quotes/${encodeURIComponent(contract.quote_id || quoteId)}` }
     : { label: 'Hợp đồng', to: '/contracts' }

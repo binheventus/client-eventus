@@ -2,6 +2,7 @@ import { Document, Font, Page, StyleSheet, Text, View } from '@react-pdf/rendere
 import {
   formatDocumentCurrency,
   formatDocumentDate,
+  getAcceptanceDocumentHeading,
   getAcceptanceLiquidationContent,
   getAcceptanceSummary,
   getAdvanceRequestContent,
@@ -231,10 +232,17 @@ const styles = StyleSheet.create({
   },
   signatureHeading: {
     fontWeight: 700,
-    marginBottom: 96,
+    marginBottom: 0,
+  },
+  signatureSpace: {
+    height: 82,
   },
   signatureName: {
     fontWeight: 700,
+  },
+  signaturePosition: {
+    marginTop: 3,
+    fontStyle: 'italic',
   },
   pageNumber: {
     position: 'absolute',
@@ -311,6 +319,14 @@ const styles = StyleSheet.create({
   },
   paymentSignatureSpace: {
     height: 58,
+  },
+  paymentSignatureName: {
+    fontWeight: 700,
+  },
+  paymentSignaturePosition: {
+    marginTop: 3,
+    fontStyle: 'italic',
+    fontWeight: 400,
   },
   acceptanceBody: {
     marginTop: 14,
@@ -410,6 +426,28 @@ function AcceptancePartyBlock({ title, profile = {}, bank = null, isLast = false
       <AcceptanceInfoLine label="Mã số thuế" value={profile.tax_code} />
       {bank?.account_number ? <AcceptanceInfoLine label="Số tài khoản" value={bank.account_number} /> : null}
       {bank?.bank_name ? <AcceptanceInfoLine label="Ngân hàng" value={bank.bank_name} /> : null}
+    </View>
+  )
+}
+
+function PaymentSignatureBlock({ profile = {} }) {
+  return (
+    <View style={styles.paymentSignature}>
+      <Text>ĐẠI DIỆN</Text>
+      <View style={styles.paymentSignatureSpace} />
+      {formatSignatureName(profile) ? <Text style={styles.paymentSignatureName}>{formatSignatureName(profile)}</Text> : null}
+      {profile.position ? <Text style={styles.paymentSignaturePosition}>{profile.position}</Text> : null}
+    </View>
+  )
+}
+
+function SignatureBlock({ heading, profile = {} }) {
+  return (
+    <View style={styles.signature}>
+      <Text style={styles.signatureHeading}>{heading}</Text>
+      <View style={styles.signatureSpace} />
+      {formatSignatureName(profile) ? <Text style={styles.signatureName}>{formatSignatureName(profile)}</Text> : null}
+      {profile.position ? <Text style={styles.signaturePosition}>{profile.position}</Text> : null}
     </View>
   )
 }
@@ -709,10 +747,7 @@ export default function ContractDocumentPDFDocument({ document = {} }) {
             <Text style={styles.paymentNumber}>Số: {documentNumber || '-'}</Text>
             {document.document_type === 'payment_request' ? <PaymentBody document={document} /> : <AdvanceBody document={document} />}
             <View style={styles.paymentSignatureWrap}>
-              <View style={styles.paymentSignature}>
-                <Text>ĐẠI DIỆN</Text>
-                <View style={styles.paymentSignatureSpace} />
-              </View>
+              <PaymentSignatureBlock profile={seller} />
             </View>
             <Text style={styles.pageNumber} render={({ pageNumber, totalPages }) => `Trang ${pageNumber}/${totalPages}`} fixed />
           </>
@@ -720,7 +755,7 @@ export default function ContractDocumentPDFDocument({ document = {} }) {
           <>
             <Text style={[styles.national, styles.strong]}>CỘNG HOÀ XÃ HỘI CHỦ NGHĨA VIỆT NAM</Text>
             <Text style={[styles.national, styles.strong]}>Độc lập - Tự do - Hạnh phúc</Text>
-            <Text style={styles.title}>BIÊN BẢN NGHIỆM THU VÀ THANH LÝ HỢP ĐỒNG</Text>
+            <Text style={styles.title}>{getAcceptanceDocumentHeading(document)}</Text>
 
             <View style={styles.acceptanceBody}>
               <View style={styles.acceptanceGroup}>
@@ -760,14 +795,8 @@ export default function ContractDocumentPDFDocument({ document = {} }) {
             </View>
 
             <View style={styles.signatureWrap}>
-              <View style={styles.signature}>
-                <Text style={styles.signatureHeading}>ĐẠI DIỆN BÊN A</Text>
-                <Text style={styles.signatureName} />
-              </View>
-              <View style={styles.signature}>
-                <Text style={styles.signatureHeading}>ĐẠI DIỆN BÊN B</Text>
-                <Text style={styles.signatureName} />
-              </View>
+              <SignatureBlock heading="ĐẠI DIỆN BÊN A" profile={customer} />
+              <SignatureBlock heading="ĐẠI DIỆN BÊN B" profile={seller} />
             </View>
             <Text style={styles.pageNumber} render={({ pageNumber, totalPages }) => `Trang ${pageNumber}/${totalPages}`} fixed />
           </>
@@ -792,14 +821,8 @@ export default function ContractDocumentPDFDocument({ document = {} }) {
         <Sections document={document} />
 
         <View style={styles.signatureWrap}>
-          <View style={styles.signature}>
-            <Text style={styles.signatureHeading}>ĐẠI DIỆN BÊN A</Text>
-            <Text style={styles.signatureName}>{formatSignatureName(customer)}</Text>
-          </View>
-          <View style={styles.signature}>
-            <Text style={styles.signatureHeading}>ĐẠI DIỆN BÊN B</Text>
-            <Text style={styles.signatureName}>{formatSignatureName(seller)}</Text>
-          </View>
+          <SignatureBlock heading="ĐẠI DIỆN BÊN A" profile={customer} />
+          <SignatureBlock heading="ĐẠI DIỆN BÊN B" profile={seller} />
         </View>
         <Text style={styles.pageNumber} render={({ pageNumber, totalPages }) => `Trang ${pageNumber}/${totalPages}`} fixed />
           </>

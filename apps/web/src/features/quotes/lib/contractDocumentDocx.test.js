@@ -25,6 +25,8 @@ const basePaymentDocument = {
       company_name: 'Eventus',
       entity_name_full: 'CÔNG TY TNHH EVENTUS VIỆT NAM',
       legal_name: 'CÔNG TY TNHH EVENTUS VIỆT NAM',
+      representative: 'Ông Trần Minh Khôi',
+      position: 'Giám đốc',
       bank_account: '02612345678',
       bank_name: 'Ngân hàng thương mại cổ phần Tiên Phong TP Bank',
       account_holder: 'CÔNG TY TNHH EVENTUS VIỆT NAM',
@@ -67,4 +69,46 @@ test('payment request DOCX renders payment bank lines as indented bullets', asyn
   })
 
   assertPaymentBankLinesAreIndentedBullets(source)
+})
+
+test('advance and payment request DOCX render signer name and position', async () => {
+  for (const documentType of ['advance_request', 'payment_request']) {
+    const source = await getDocxPackageText({
+      ...basePaymentDocument,
+      document_type: documentType,
+    })
+
+    assert.match(source, />TRẦN MINH KHÔI<\/w:t>/)
+    assert.match(source, />Giám đốc<\/w:t>/)
+    assert.doesNotMatch(source, />ÔNG TRẦN MINH KHÔI<\/w:t>/)
+  }
+})
+
+test('acceptance DOCX renders both party signer names and positions', async () => {
+  const source = await getDocxPackageText({
+    ...basePaymentDocument,
+    document_type: 'acceptance_liquidation',
+    contract_snapshot: {
+      ...basePaymentDocument.contract_snapshot,
+      customer_snapshot: {
+        company_name: 'CÔNG TY CỔ PHẦN ĐẦU TƯ QUỐC TẾ C.S.Q',
+        representative: 'Bà Nguyễn Thanh Mai',
+        position: 'Tổng giám đốc',
+      },
+    },
+    document_data: {
+      amount_config: {
+        has_vat: true,
+        vat_rate: 0.08,
+        contract_total: 1080000,
+        acceptance_actual_total: 1080000,
+      },
+      form_data: {},
+    },
+  })
+
+  assert.match(source, />NGUYỄN THANH MAI<\/w:t>/)
+  assert.match(source, />TRẦN MINH KHÔI<\/w:t>/)
+  assert.match(source, />Tổng giám đốc<\/w:t>/)
+  assert.match(source, />Giám đốc<\/w:t>/)
 })

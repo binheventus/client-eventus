@@ -1,6 +1,7 @@
 import {
   formatDocumentCurrency,
   formatDocumentDate,
+  getAcceptanceDocumentHeading,
   getAcceptanceLiquidationContent,
   getAcceptanceSummary,
   getAdvanceRequestContent,
@@ -225,6 +226,13 @@ function getUppercaseDocumentTitle(document = {}) {
   return String(getDocumentTitle(document) || '').toLocaleUpperCase('vi-VN')
 }
 
+function formatSignatureName(profile = {}) {
+  return String(profile.representative || '')
+    .trim()
+    .replace(/^(ông|bà)\s+/i, '')
+    .toLocaleUpperCase('vi-VN')
+}
+
 function paymentParagraph(text = '', options = {}) {
   return paragraph(text, {
     size: DOCX_PAYMENT_FONT_SIZE,
@@ -266,7 +274,7 @@ function paymentBankParagraph(label, value = '') {
   })
 }
 
-function paymentSignatureTable() {
+function paymentSignatureTable(profile = {}) {
   return [
     paymentParagraph('', { size: 4, line: 240, lineRule: 'exact', after: 0 }),
     simpleTable([
@@ -276,6 +284,12 @@ function paymentSignatureTable() {
       tableRow([
         tableCell('', DOCX_PAYMENT_SIGNATURE_WIDTH, { align: 'center', size: DOCX_PAYMENT_FONT_SIZE }),
       ], { height: 1400 }),
+      tableRow([
+        tableCell(formatSignatureName(profile), DOCX_PAYMENT_SIGNATURE_WIDTH, { bold: true, align: 'center', size: DOCX_PAYMENT_FONT_SIZE }),
+      ]),
+      tableRow([
+        tableCell(profile.position || '', DOCX_PAYMENT_SIGNATURE_WIDTH, { italic: true, align: 'center', size: DOCX_PAYMENT_FONT_SIZE }),
+      ]),
     ], { width: DOCX_PAYMENT_SIGNATURE_WIDTH, borders: false, align: 'right' }),
   ].join('')
 }
@@ -391,14 +405,14 @@ function acceptanceArticleSpacer() {
 function tableCell(content = '', width = 2400, options = {}) {
   const shading = options.shading ? `<w:shd w:fill="${options.shading}"/>` : ''
   const gridSpan = options.colSpan ? `<w:gridSpan w:val="${options.colSpan}"/>` : ''
-  return `<w:tc><w:tcPr><w:tcW w:w="${width}" w:type="dxa"/>${gridSpan}${shading}</w:tcPr>${paragraph(content, { bold: options.bold, spacing: false, align: options.align, size: options.size })}</w:tc>`
+  return `<w:tc><w:tcPr><w:tcW w:w="${width}" w:type="dxa"/>${gridSpan}${shading}</w:tcPr>${paragraph(content, { bold: options.bold, italic: options.italic, spacing: false, align: options.align, size: options.size })}</w:tc>`
 }
 
 function tableMultilineCell(lines = [], width = 2400, options = {}) {
   const shading = options.shading ? `<w:shd w:fill="${options.shading}"/>` : ''
   const gridSpan = options.colSpan ? `<w:gridSpan w:val="${options.colSpan}"/>` : ''
   const paragraphs = (Array.isArray(lines) ? lines : [lines]).map(line => (
-    paragraph(line, { bold: options.bold, spacing: false, align: options.align, size: options.size })
+    paragraph(line, { bold: options.bold, italic: options.italic, spacing: false, align: options.align, size: options.size })
   )).join('')
   return `<w:tc><w:tcPr><w:tcW w:w="${width}" w:type="dxa"/>${gridSpan}${shading}</w:tcPr>${paragraphs}</w:tc>`
 }
@@ -587,7 +601,7 @@ function documentXml(document = {}) {
     ${paymentParagraph(getUppercaseDocumentTitle(document), { align: 'center', bold: true, size: 28, line: 340, after: 60 })}
     ${paymentParagraph(`Số: ${formatContractDocumentNumberForDisplay(document.document_number) || ''}`, { align: 'center', after: 360 })}
     ${document.document_type === 'payment_request' ? paymentXml(document) : advanceXml(document)}
-    ${paymentSignatureTable()}
+    ${paymentSignatureTable(seller)}
     <w:sectPr><w:pgSz w:w="11906" w:h="16838"/>${DOCX_PAYMENT_MARGINS_XML}</w:sectPr>
   </w:body>
 </w:document>`
@@ -599,7 +613,7 @@ function documentXml(document = {}) {
   <w:body>
     ${acceptanceParagraph('CỘNG HOÀ XÃ HỘI CHỦ NGHĨA VIỆT NAM', { align: 'center', bold: true })}
     ${acceptanceParagraph('Độc lập - Tự do - Hạnh phúc', { align: 'center', bold: true })}
-    ${paragraph('BIÊN BẢN NGHIỆM THU VÀ THANH LÝ HỢP ĐỒNG', { align: 'center', bold: true, size: 28, before: 300, after: 360, line: 340 })}
+    ${paragraph(getAcceptanceDocumentHeading(document), { align: 'center', bold: true, size: 28, before: 300, after: 360, line: 340 })}
     ${acceptanceXml(document)}
     ${acceptanceParagraph('', { after: 180 })}
     ${simpleTable([
@@ -611,6 +625,14 @@ function documentXml(document = {}) {
         tableCell('', DOCX_ACCEPTANCE_CONTENT_WIDTH / 2, { align: 'center', size: DOCX_ACCEPTANCE_FONT_SIZE }),
         tableCell('', DOCX_ACCEPTANCE_CONTENT_WIDTH / 2, { align: 'center', size: DOCX_ACCEPTANCE_FONT_SIZE }),
       ], { height: 1500 }),
+      tableRow([
+        tableCell(formatSignatureName(customer), DOCX_ACCEPTANCE_CONTENT_WIDTH / 2, { bold: true, align: 'center', size: DOCX_ACCEPTANCE_FONT_SIZE }),
+        tableCell(formatSignatureName(seller), DOCX_ACCEPTANCE_CONTENT_WIDTH / 2, { bold: true, align: 'center', size: DOCX_ACCEPTANCE_FONT_SIZE }),
+      ]),
+      tableRow([
+        tableCell(customer.position || '', DOCX_ACCEPTANCE_CONTENT_WIDTH / 2, { italic: true, align: 'center', size: DOCX_ACCEPTANCE_FONT_SIZE }),
+        tableCell(seller.position || '', DOCX_ACCEPTANCE_CONTENT_WIDTH / 2, { italic: true, align: 'center', size: DOCX_ACCEPTANCE_FONT_SIZE }),
+      ]),
     ], { width: DOCX_ACCEPTANCE_CONTENT_WIDTH, borders: false })}
     <w:sectPr><w:pgSz w:w="11906" w:h="16838"/>${DOCX_ACCEPTANCE_MARGINS_XML}</w:sectPr>
   </w:body>
@@ -634,8 +656,12 @@ function documentXml(document = {}) {
         tableCell('ĐẠI DIỆN BÊN B', 4500, { bold: true, align: 'center' }),
       ]),
       tableRow([
-        tableCell(customer.representative || '', 4500, { bold: true, align: 'center' }),
-        tableCell(seller.representative || '', 4500, { bold: true, align: 'center' }),
+        tableCell(formatSignatureName(customer), 4500, { bold: true, align: 'center' }),
+        tableCell(formatSignatureName(seller), 4500, { bold: true, align: 'center' }),
+      ]),
+      tableRow([
+        tableCell(customer.position || '', 4500, { italic: true, align: 'center' }),
+        tableCell(seller.position || '', 4500, { italic: true, align: 'center' }),
       ]),
     ], { width: 9000, borders: false })}
     <w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr>
